@@ -495,6 +495,19 @@ let flashUntil = 0;             // performance.now() while the screen briefly fl
 
 // Floating popup texts (e.g. "+30", "×3 +60"). Drawn over gameplay, fade out.
 const popups = [];              // { x, y, text, colour, untilMs }
+
+// Stage progression — every "set" is STAGES_PER_SET normal waves then a boss.
+// Labels read 1-1, 1-2, 1-3, 1-BOSS, then 2-1, 2-2, ... etc.
+const STAGES_PER_SET = 3;
+let stageSet = 1;
+let stageNum = 1;
+let phase = 'grid';             // 'grid' | 'boss'
+let stageAnnounceUntil = 0;
+let stageAnnounceText = '';
+
+// Boss
+const BOSS_W = 32, BOSS_H = 32; // 4× octopus sprite
+let boss = null;                // { x, hp, hpMax, dir, speed, nextShotAt, fireInterval } | null
 const BULLET_SPEED = 220;       // px/sec, canvas-down-positive in pf coords
 
 // Invader bullets — at most MAX_INV_BULLETS in flight. Each tick (independent
@@ -697,6 +710,11 @@ function startRun() {
   prevSpaceHeld = false;
   superShotAmmo = SUPER_SHOT_MAX;   // start with a full clip; UFO kills refill
   nextSuperAt = SUPER_SCORE_INTERVAL;
+  stageSet = 1;
+  stageNum = 1;
+  phase = 'grid';
+  boss = null;
+  showStageAnnounce(`STAGE ${stageSet}-${stageNum}`);
   comboCount = 0;
   lastKillAt = 0;
   markedCell = null;
@@ -1038,9 +1056,9 @@ function update(dt) {
     }
   }
 
-  // Player bullet vs invader grid. Normal bullet: one kill, consumed.
-  // Charged bullet: pierces — every overlapping cell dies, bullet keeps flying.
-  if (playerBullet) {
+  // Player bullet vs invader grid (grid phase only).
+  // Normal bullet: one kill, consumed. Charged: pierces every overlapping cell.
+  if (phase === 'grid' && playerBullet) {
     const bw    = playerBullet.charged ? CHARGED_BULLET_W : BULLET_W;
     const bh    = playerBullet.charged ? CHARGED_BULLET_H : BULLET_H;
     outer: for (let r = 0; r < ROWS; r++) {
@@ -1067,23 +1085,39 @@ function update(dt) {
     }
   }
 
-  // March tempo: shorter interval as the grid thins, capped at MIN.
-  // The 0.7 exponent makes the curve start slow then ramp hard at the end —
-  // the classic "uh-oh, three left, going fast" feel.
-  const fillRatio = grid.aliveCount / (ROWS * COLS);
-  const interval = Math.max(MIN_MARCH_INTERVAL,
-    BASE_MARCH_INTERVAL * Math.pow(fillRatio, 0.7) * Math.pow(0.9, wave - 1));
-  marchAccumulator += dt;
-  while (marchAccumulator >= interval && grid.aliveCount > 0) {
-    marchAccumulator -= interval;
-    marchStep();
+  // Player bullet vs boss (boss phase only).
+  if (phase === 'boss' && boss && playerBullet) {
+    const bw = playerBullet.charged ? CHARGED_BULLET_W : BULLET_W;
+    const bh = playerBullet.charged ? CHARGED_BULLET_H : BULLET_H;
+    if (playerBullet.x < boss.x + BOSS_W && playerBullet.x + bw > boss.x &&
+        playerBullet.y < boss.y + BOSS_H && playerBullet.y + bh > boss.y) {
+      const dmg = playerBullet.charged ? 3 : 1;
+      boss.hp -= dmg;
+      addPopup(boss.x + BOSS_W / 2, boss.y, `-${dmg}`, '#ffffff');
+      Arcade.Audio.play('sfx-kill', 0.5);
+      if (!playerBullet.charged) playerBullet = null;
+    }
   }
 
-  // Invader-fire timer.
-  invFireAccumulator += dt;
-  while (invFireAccumulator >= INV_FIRE_INTERVAL) {
-    invFireAccumulator -= INV_FIRE_INTERVAL;
-    tryInvaderFire();
+  // March tempo + grid phase only.
+  if (phase === 'grid') {
+    const fillRatio = grid.aliveCount / (ROWS * COLS);
+    const interval = Math.max(MIN_MARCH_INTERVAL,
+      BASE_MARCH_INTERVAL * Math.pow(fillRatio, 0.7) * Math.pow(0.9, wave - 1));
+    marchAccumulator += dt;
+    while (marchAccumulator >= interval && grid.aliveCount > 0) {
+      marchAccumulator -= interval;
+      marchStep();
+    }
+
+    // Invader-fire timer.
+    invFireAccumulator += dt;
+    while (invFireAccumulator >= INV_FIRE_INTERVAL) {
+      invFireAccumulator -= INV_FIRE_INTERVAL;
+      tryInvaderFire();
+    }
+  } else if (phase === 'boss') {
+    updateBoss(dt, performance.now());
   }
 
   // Move invader bullets + collide with shields, player, off-screen.
@@ -1144,48 +1178,32 @@ function update(dt) {
     }
   }
 
-  // Marked invader scheduling + expiry + swoop position.
-  maybeSpawnMarked(now);
-  if (markedCell && now > markedUntil) {
-    markedCell = null;
-    scheduleNextMarked(now);
-  }
-  if (markedCell) updateMarkedSwoop(now);
-
-  // Wave clear → next wave, one row lower (capped in newGrid). Shields are
-  // NOT restored — surviving them across waves is part of the challenge,
-  // and a fresh new-wave grid against a battered shield line gives the late
-  // game its bite.
-  if (grid.aliveCount === 0) {
-    wave++;
-    grid = newGrid(wave);
-    marchAccumulator = 0;
-    invaderBullets = [];
-    playerBullet = null;
-    // Clear any in-flight UFO so the bonus restarts cleanly with the new wave.
-    ufo = null;
-    scheduleNextUfo(performance.now());
-    // Reset combo + marked for the new wave so each wave is its own arc.
-    comboCount = 0;
-    lastKillAt = 0;
-    markedCell = null;
-    markedUntil = 0;
-    scheduleNextMarked(performance.now());
-    // Wave-clear reward — one super shot (capped at SUPER_SHOT_MAX).
-    if (superShotAmmo < SUPER_SHOT_MAX) {
-      superShotAmmo++;
-      addPopup(PF_W / 2, PF_H / 2, '⚡ WAVE BONUS', '#ffd84a');
+  // Marked invader scheduling + expiry + swoop position (grid phase only).
+  if (phase === 'grid') {
+    maybeSpawnMarked(now);
+    if (markedCell && now > markedUntil) {
+      markedCell = null;
+      scheduleNextMarked(now);
     }
+    if (markedCell) updateMarkedSwoop(now);
+  }
+
+  // Stage progression — handles grid clear AND boss kill.
+  if (phase === 'grid' && grid.aliveCount === 0) {
+    advanceStage();
+  } else if (phase === 'boss' && boss && boss.hp <= 0) {
+    defeatBoss();
   }
 
   // If hurtPlayer just ended the run on the third life, skip the lose-check
   // below — otherwise endRun fires twice and the restart grace doubles.
   if (!running) return;
 
-  // Lose condition: any alive invader has reached the player line. Faithful
-  // to the original — there's no "ran out of lives" path for this case; it
-  // ends the run immediately.
-  for (let r = ROWS - 1; r >= 0; r--) {
+  // Lose condition (grid phase only): any alive invader has reached the
+  // player line. Faithful to the original — there's no "ran out of lives"
+  // path for this case; it ends the run immediately. Boss doesn't descend
+  // so this check is skipped during boss fights.
+  if (phase === 'grid') for (let r = ROWS - 1; r >= 0; r--) {
     for (let c = 0; c < COLS; c++) {
       if (!grid.cells[r][c].alive) continue;
       const iy = grid.offsetY + r * INV_SPACING_Y;
@@ -1242,6 +1260,157 @@ function marchStep() {
       }
     }
   }
+}
+
+// ============================================
+// STAGE PROGRESSION + BOSS
+// ============================================
+function showStageAnnounce(text) {
+  stageAnnounceText = text;
+  stageAnnounceUntil = performance.now() + 2200;
+}
+
+function spawnBoss(setNum) {
+  const hp = 12 + (setNum - 1) * 8;
+  return {
+    x: PF_W / 2 - BOSS_W / 2,
+    y: 28,
+    hp,
+    hpMax: hp,
+    dir: 1,
+    speed: 30 + (setNum - 1) * 10,
+    nextShotAt: performance.now() + 1200,
+    fireInterval: Math.max(450, 1300 - (setNum - 1) * 220),
+  };
+}
+
+function updateBoss(dt, now) {
+  if (!boss) return;
+  // Horizontal bounce.
+  boss.x += boss.speed * boss.dir * dt;
+  if (boss.x < 8)                  { boss.x = 8;                  boss.dir =  1; }
+  if (boss.x > PF_W - 8 - BOSS_W)  { boss.x = PF_W - 8 - BOSS_W;  boss.dir = -1; }
+  // Fire — boss is allowed more concurrent bullets than the grid normally is.
+  if (now >= boss.nextShotAt && invaderBullets.length < MAX_INV_BULLETS + 2) {
+    invaderBullets.push({
+      x: boss.x + BOSS_W / 2 - INV_BULLET_W / 2,
+      y: boss.y + BOSS_H,
+    });
+    boss.nextShotAt = now + boss.fireInterval;
+  }
+}
+
+function drawBoss() {
+  if (!boss) return;
+  const f = Math.floor(performance.now() / 400) % 2;
+  const pixels = f === 0
+    ? ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '..X..X..', '.X.XX.X.', 'X.X..X.X']
+    : ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '...XX...', '..X..X..', '.X....X.'];
+  const S = 4;   // 8-source-px × 4 = 32 PF px
+  // Body colour cycles through a warm red palette based on HP — deeper red as
+  // it gets healthier, brighter as it loses HP (just enough cue to feel it).
+  const ratio = boss.hp / boss.hpMax;
+  const bodyColour = ratio > 0.66 ? '#c0303a' : (ratio > 0.33 ? '#e05050' : '#ff7a7a');
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      if (pixels[y][x] === 'X') drawRect(boss.x + x * S, boss.y + y * S, S, S, bodyColour);
+    }
+  }
+  // White "eyes" centred on the body for menace.
+  drawRect(boss.x + 9,  boss.y + 13, 4, 4, '#ffffff');
+  drawRect(boss.x + 19, boss.y + 13, 4, 4, '#ffffff');
+  // HP bar above the boss.
+  const barY = boss.y - 5;
+  drawRect(boss.x, barY, BOSS_W, 2, '#440010');
+  drawRect(boss.x, barY, BOSS_W * (boss.hp / boss.hpMax), 2, '#ff5050');
+}
+
+// Called when the grid is fully cleared while phase === 'grid'. Advances
+// to the next sub-stage; on the (STAGES_PER_SET+1)th hop, spawns the boss
+// instead of a fresh grid.
+function advanceStage() {
+  const now = performance.now();
+  invaderBullets = [];
+  playerBullet = null;
+  ufo = null;
+  scheduleNextUfo(now);
+  comboCount = 0;
+  lastKillAt = 0;
+  markedCell = null;
+  markedUntil = 0;
+  scheduleNextMarked(now);
+
+  if (stageNum < STAGES_PER_SET) {
+    stageNum++;
+    wave++;
+    grid = newGrid(wave);
+    marchAccumulator = 0;
+    showStageAnnounce(`STAGE ${stageSet}-${stageNum}`);
+    if (superShotAmmo < SUPER_SHOT_MAX) {
+      superShotAmmo++;
+      addPopup(PF_W / 2, PF_H / 2 + 16, '⚡ WAVE BONUS', '#ffd84a');
+    }
+  } else {
+    // Boss time — skip spawning a new grid; the empty grid stays.
+    phase = 'boss';
+    boss = spawnBoss(stageSet);
+    showStageAnnounce(`STAGE ${stageSet}-BOSS`);
+    // Refill supers for the boss fight.
+    superShotAmmo = SUPER_SHOT_MAX;
+  }
+}
+
+// Called when the boss's HP reaches zero. Big bonus, refill, advance to the
+// next set's stage 1.
+function defeatBoss() {
+  const now = performance.now();
+  const bonus = 1000 * stageSet;
+  score += bonus;
+  flashUntil = now + 500;
+  Arcade.Audio.play('sfx-explosion', 0.75);
+  addPopup(boss.x + BOSS_W / 2, boss.y + BOSS_H / 2, `+${bonus} BOSS!`, '#ffd84a');
+  // Walk score-threshold supers up to current score in case the bonus crossed them.
+  while (score >= nextSuperAt) {
+    if (superShotAmmo < SUPER_SHOT_MAX) superShotAmmo++;
+    nextSuperAt += SUPER_SCORE_INTERVAL;
+  }
+  boss = null;
+  stageSet++;
+  stageNum = 1;
+  wave++;
+  phase = 'grid';
+  grid = newGrid(wave);
+  marchAccumulator = 0;
+  invaderBullets = [];
+  playerBullet = null;
+  comboCount = 0;
+  lastKillAt = 0;
+  markedCell = null;
+  markedUntil = 0;
+  scheduleNextMarked(now);
+  superShotAmmo = SUPER_SHOT_MAX;
+  showStageAnnounce(`STAGE ${stageSet}-${stageNum}`);
+}
+
+function drawStageAnnouncement() {
+  const now = performance.now();
+  if (now >= stageAnnounceUntil) return;
+  const elapsed = 2200 - (stageAnnounceUntil - now);
+  // Fade in over first 200ms, hold, fade out over last 400ms.
+  let alpha = 1;
+  if (elapsed < 200) alpha = elapsed / 200;
+  else if (elapsed > 1800) alpha = Math.max(0, (2200 - elapsed) / 400);
+  const [, , s] = pfToCanvas(0, 0);
+  ctx.save();
+  ctx.font = `${Math.round(18 * s)}px "Press Start 2P", monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.globalAlpha = alpha;
+  // Boss titles in red, normal stages in gold.
+  ctx.fillStyle = stageAnnounceText.includes('BOSS') ? '#ff5050' : '#ffd84a';
+  const [cx, cy] = pfToCanvas(PF_W / 2, PF_H / 2 - 20);
+  ctx.fillText(stageAnnounceText, cx, cy);
+  ctx.restore();
 }
 
 // ============================================
@@ -1361,13 +1530,15 @@ function onInvaderKilled(r, c) {
 function drawScene() {
   drawHUD();
   drawUfo();
-  drawGrid();
+  if (phase === 'grid') drawGrid();
+  else if (phase === 'boss') drawBoss();
   drawShields();
   drawPlayer();
   drawBullet();
   drawInvaderBullets();
   drawPopups();
   drawComboHUD();
+  drawStageAnnouncement();
   drawFlash();   // last — overlays everything when active
 }
 
@@ -1390,8 +1561,11 @@ function drawHUD() {
   ctx.fillText(scoreStr, ...pfToCanvas(8, 14).slice(0, 2));
 
   ctx.textAlign = 'center';
-  ctx.fillText('HI', ...pfToCanvas(PF_W / 2, 4).slice(0, 2));
-  ctx.fillText(hi,   ...pfToCanvas(PF_W / 2, 14).slice(0, 2));
+  // Centre column now shows the current STAGE — the hi-score readout lives
+  // on the splash, gameplay HUD prefers showing where you are right now.
+  const stageLabel = phase === 'boss' ? `${stageSet}-BOSS` : `${stageSet}-${stageNum}`;
+  ctx.fillText('STAGE',    ...pfToCanvas(PF_W / 2, 4).slice(0, 2));
+  ctx.fillText(stageLabel, ...pfToCanvas(PF_W / 2, 14).slice(0, 2));
 
   ctx.textAlign = 'right';
   ctx.fillText('LIVES',  ...pfToCanvas(PF_W - 8, 4).slice(0, 2));
