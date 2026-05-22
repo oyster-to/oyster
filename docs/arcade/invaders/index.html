@@ -130,6 +130,7 @@
 <audio id="sfx-explosion" src="../shared/sfx-explosion.mp3" preload="auto"></audio>
 <audio id="sfx-lose"      src="../shared/sfx-lose.mp3"      preload="auto"></audio>
 <audio id="sfx-shoot"     src="sfx-shoot.mp3"               preload="auto"></audio>
+<audio id="sfx-kill"      src="sfx-kill.wav"                preload="auto"></audio>
 <div class="screen">
   <div class="tube">
     <canvas id="c"></canvas>
@@ -201,6 +202,7 @@ const splashEl = document.getElementById('splash');
 Arcade.Audio.init({
   sfx: {
     'sfx-shoot':     'sfx-shoot.mp3',
+    'sfx-kill':      'sfx-kill.wav',
     'sfx-explosion': '../shared/sfx-explosion.mp3',
     'sfx-lose':      '../shared/sfx-lose.mp3',
   },
@@ -817,7 +819,7 @@ function update(dt) {
           grid.aliveCount--;
           score += ROW_POINTS[r];
           playerBullet = null;
-          synth.kill();
+          Arcade.Audio.play('sfx-kill', 0.55);
           break outer;
         }
       }
