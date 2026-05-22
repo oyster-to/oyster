@@ -156,6 +156,10 @@
     color: #ff3aa1;
     text-shadow: 3px 3px 0 #2dd4ff, 6px 6px 0 #ffd84a, 0 0 16px rgba(255, 58, 161, 0.45);
   }
+  .gameover .go-title.is-win {
+    color: #4ade80;
+    text-shadow: 3px 3px 0 #ffd84a, 6px 6px 0 #2dd4ff, 0 0 22px rgba(74, 222, 128, 0.55);
+  }
   .gameover .go-score { font-size: clamp(14px, 2.2vw, 18px); color: #ffd84a; letter-spacing: 0.18em; }
   .gameover .go-hiscore { font-size: clamp(9px, 1.3vw, 12px); color: #2dd4ff; letter-spacing: 0.18em; min-height: 14px; }
   .gameover .go-prompt {
@@ -913,15 +917,19 @@ function hurtPlayer() {
   respawnAt = performance.now() + 900;
 }
 
-function endRun(_winFlag) {
+function endRun(winFlag) {
   running = false;
   stopBgm();
   // Mirror startRun's flush — without this, a held key at the moment of death
   // never generates a fresh keydown and the restart listener stays silent.
   for (const k in keys) keys[k] = false;
-  Arcade.Audio.play('sfx-lose', 0.55);
+  // Loss plays the sad SFX. Win path lets the boss-explosion + flash carry
+  // the moment instead.
+  if (!winFlag) Arcade.Audio.play('sfx-lose', 0.55);
   const ov = document.getElementById('gameover');
-  document.getElementById('go-title').textContent = 'GAME OVER';
+  const titleEl = document.getElementById('go-title');
+  titleEl.classList.toggle('is-win', !!winFlag);
+  titleEl.textContent = winFlag ? 'GAME COMPLETE' : 'GAME OVER';
   document.getElementById('go-score-val').textContent = score;
   const top = Arcade.Leaderboard.getHighScore();
   const hi = document.getElementById('go-hiscore');
@@ -943,6 +951,7 @@ function hideEndOverlay() {
   ov.setAttribute('aria-hidden', 'true');
   document.getElementById('go-initials').hidden = true;
   document.getElementById('go-prompt').hidden = false;
+  document.getElementById('go-title').classList.remove('is-win');
   initialsActive = false;
   setFireLabel('fire');
   endOverlayInputAllowedAt = 0;
@@ -1560,6 +1569,14 @@ function defeatBoss() {
   while (score >= nextSuperAt) {
     if (superShotAmmo < SUPER_SHOT_MAX) superShotAmmo++;
     nextSuperAt += SUPER_SCORE_INTERVAL;
+  }
+  // Last boss in the rotation → GAME COMPLETE. Lets the explosion + flash
+  // breathe for ~700 ms before the overlay so the kill feels earned.
+  if (stageSet >= BOSS_TYPES.length) {
+    boss = null;
+    bossAdds = [];
+    setTimeout(() => { if (!running) return; endRun(true); }, 700);
+    return;
   }
   boss = null;
   bossAdds = [];
