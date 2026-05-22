@@ -1644,51 +1644,62 @@ function repairMostDamagedShield() {
 function drawCutscene() {
   const now = performance.now();
   const tMs = now - cutsceneStart;
-  const t = Math.min(1, tMs / CUTSCENE_MS);
   const cx = PF_W / 2;
   const cy = PF_H / 2 - 10;
 
-  // Starfield — twinkles throughout the cutscene.
-  const starSeed = Math.floor(tMs / 200);
-  for (let i = 0; i < 40; i++) {
-    const sx = ((i * 73 + starSeed * 13) % PF_W);
-    const sy = ((i * 41 + starSeed * 7)  % PF_H);
-    const lit = ((i + starSeed) % 5) !== 0;
-    if (lit) drawRect(sx, sy, 1, 1, '#ffffff');
+  // Stable starfield — positions seeded from cutsceneStart so they don't
+  // flicker frame-to-frame. A few stars twinkle on a slow cycle for life.
+  const STAR_COUNT = 70;
+  for (let i = 0; i < STAR_COUNT; i++) {
+    const sx = (i * 73 + 17) % PF_W;
+    const sy = (i * 137 + 41) % PF_H;
+    const twinkles = i % 7 === 0;
+    const lit = twinkles ? (Math.floor(tMs / 350 + i) % 2) === 0 : true;
+    if (lit) drawRect(sx, sy, 1, 1, twinkles ? '#ffd84a' : '#ffffff');
   }
 
-  // Earth grows from a dot to ~36 PF radius over the first 3 s.
+  // Earth grows from a dot to ~46 PF radius over the first 3 s (bigger
+  // than the previous 36 so the planet has presence).
   const growT = Math.min(1, tMs / 3000);
-  const radius = 2 + growT * 34;
+  const radius = 3 + growT * 43;
   drawPixelEarth(cx, cy, radius);
 
-  // Ship orbits — starts at t≈3s, makes ~1.5 laps.
+  // Ship orbits — starts at t≈3 s, ~1.5 laps over 4 s. Bigger sprite
+  // (8 wide × 6 tall PF, mirrors the in-game player ship silhouette) so
+  // it actually reads at this zoom.
   if (tMs > 2800) {
-    const orbitT = (tMs - 2800) / 4000;        // 4 s for the orbit phase
-    const angle  = orbitT * Math.PI * 3 - Math.PI / 2;  // start above
-    const orbitR = radius + 14;
-    const sx = cx + Math.cos(angle) * orbitR - 4;
-    const sy = cy + Math.sin(angle) * orbitR - 2;
-    drawRect(sx,     sy + 2, 8, 2, '#ff7ab8');
-    drawRect(sx + 2, sy,     4, 2, '#ff7ab8');
-    drawRect(sx + 3, sy - 2, 2, 2, '#ffffff');
-    // Cyan thrust trail behind the ship
+    const orbitT = (tMs - 2800) / 4000;
+    const angle  = orbitT * Math.PI * 3 - Math.PI / 2;
+    const orbitR = radius + 18;
+    const sx = cx + Math.cos(angle) * orbitR - 4;   // 8-wide sprite, centre it
+    const sy = cy + Math.sin(angle) * orbitR - 3;
+    // Hull (pink)
+    drawRect(sx,     sy + 4, 8, 2, '#ff7ab8');
+    drawRect(sx + 2, sy + 2, 4, 2, '#ff7ab8');
+    // Turret tip (white) + cockpit (cyan)
+    drawRect(sx + 3, sy,     2, 2, '#ffffff');
+    drawRect(sx + 3, sy + 3, 2, 1, '#2dd4ff');
+    // Cyan thrust trail trailing the ship
     const tailAng = angle - Math.PI;
-    drawRect(cx + Math.cos(tailAng) * (orbitR + 2),
-             cy + Math.sin(tailAng) * (orbitR + 2),
-             2, 2, '#2dd4ff');
+    for (let k = 1; k <= 3; k++) {
+      drawRect(cx + Math.cos(tailAng) * (orbitR + k * 3) - 1,
+               cy + Math.sin(tailAng) * (orbitR + k * 3) - 1,
+               2, 2, k === 1 ? '#2dd4ff' : 'rgba(45, 212, 255, 0.4)');
+    }
   }
 
-  // Flag planted on the earth around t≈6 s.
+  // Flag planted on the north pole around t≈6 s — much bigger now.
   if (tMs > 6000) {
     const flagAlpha = Math.min(1, (tMs - 6000) / 600);
     ctx.save();
     ctx.globalAlpha = flagAlpha;
     const fx = cx - 1;
-    const fy = cy - radius - 8;
-    drawRect(fx, fy, 1, 9, '#ffffff');          // pole
-    drawRect(fx + 1, fy, 6, 4, '#ffd84a');       // flag cloth (gold ★)
-    drawRect(fx + 3, fy + 1, 2, 2, '#ff3aa1');   // pink dot like an oyster pearl
+    const fy = cy - radius - 14;
+    drawRect(fx, fy, 2, 14, '#ffffff');           // taller white pole
+    drawRect(fx + 2, fy + 1, 9, 6, '#ffd84a');     // gold cloth
+    drawRect(fx + 2, fy + 1, 9, 1, '#ff3aa1');     // pink top stripe
+    drawRect(fx + 2, fy + 6, 9, 1, '#ff3aa1');     // pink bottom stripe
+    drawRect(fx + 5, fy + 3, 3, 2, '#ff3aa1');     // pearl in the middle
     ctx.restore();
   }
 
@@ -1725,21 +1736,57 @@ function drawCutscene() {
   }
 }
 
-// Pixel Earth — blue water + green continents + dark dot polar caps,
-// drawn as a filled circle at (cx, cy) with the given radius (PF px).
+// 16×16 continent bitmap. 'X' = land, '.' = ocean. Drawn organic enough to
+// read as proper continents rather than Tetris blocks.
+const EARTH_BITMAP = [
+  '................',
+  '......XX........',
+  '....XXXXXX..X...',
+  '..XXX..XXXXXX...',
+  '.XX...XXX.XXX...',
+  'XXXX.XXX..XX....',
+  'XXX..X.....X....',
+  '..XX...XX.XX....',
+  '...XX..XXXXX....',
+  '....XX.XXXX.....',
+  '.....XXX.XX.....',
+  '....XX..XXX.....',
+  '.....XXXXX......',
+  '......XXXX......',
+  '.......XX.......',
+  '................',
+];
+
+// Pixel Earth — blue water + green continents + soft polar caps. Continents
+// sampled from EARTH_BITMAP scaled to fit the circle so they curve with the
+// sphere instead of looking like axis-aligned blocks.
 function drawPixelEarth(cx, cy, radius) {
   const r2 = radius * radius;
+  const bmW = EARTH_BITMAP[0].length;
+  const bmH = EARTH_BITMAP.length;
   for (let dy = -radius; dy <= radius; dy++) {
     for (let dx = -radius; dx <= radius; dx++) {
       if (dx * dx + dy * dy > r2) continue;
-      // Polar caps near the top/bottom — small ice patches.
-      const polar = Math.abs(dy) > radius * 0.78 && Math.abs(dx) < radius * 0.45;
-      // Continent blobs — sample a couple of "noise" zones.
-      const cont = (dx > -radius * 0.6 && dx < -radius * 0.1 && dy > -radius * 0.3 && dy < radius * 0.2)
-                || (dx > radius * 0.1 && dx < radius * 0.55 && dy > -radius * 0.15 && dy < radius * 0.45)
-                || (dx > -radius * 0.2 && dx < radius * 0.2 && dy > radius * 0.4 && dy < radius * 0.7);
-      const colour = polar ? '#e8f0ff' : (cont ? '#4ade80' : '#2080d8');
-      drawRect(cx + dx, cy + dy, 1, 1, colour);
+      // Polar caps follow the sphere — the slice at top/bottom inside the
+      // circle naturally tapers because we're sampling within r2.
+      const polarTop = dy < -radius * 0.78;
+      const polarBot = dy >  radius * 0.78;
+      if (polarTop || polarBot) {
+        drawRect(cx + dx, cy + dy, 1, 1, '#e8f0ff');
+        continue;
+      }
+      // Sample continent bitmap. Map (dx, dy) ∈ [-r, r] → bitmap cell.
+      const col = Math.floor((dx + radius) / (2 * radius) * bmW);
+      const row = Math.floor((dy + radius) / (2 * radius) * bmH);
+      const ch  = EARTH_BITMAP[Math.max(0, Math.min(bmH - 1, row))][Math.max(0, Math.min(bmW - 1, col))];
+      drawRect(cx + dx, cy + dy, 1, 1, ch === 'X' ? '#4ade80' : '#2080d8');
+    }
+  }
+  // 1-pixel cyan rim on the right side for a tiny shadow-side highlight.
+  for (let dy = -radius; dy <= radius; dy++) {
+    const dxEdge = Math.floor(Math.sqrt(Math.max(0, r2 - dy * dy)));
+    if (dxEdge > 0 && Math.abs(dy) < radius - 1) {
+      drawRect(cx + dxEdge - 1, cy + dy, 1, 1, 'rgba(120, 200, 255, 0.5)');
     }
   }
 }
