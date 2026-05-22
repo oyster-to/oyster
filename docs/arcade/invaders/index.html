@@ -1716,50 +1716,47 @@ function drawCutscene() {
     }
   }
 
-  // EARTH IS SAFE — appears after orbit completes, marquee-red.
+  // EARTH IS SAFE — bitmap font for crisp pixel typography matching the
+  // rest of the cabinet art. Yellow drop shadow + red main, marquee style.
   if (tMs > 6800) {
     const textAlpha = Math.min(1, (tMs - 6800) / 500);
-    const [, , s] = pfToCanvas(0, 0);
     ctx.save();
     ctx.globalAlpha = textAlpha;
-    ctx.font = `${Math.round(20 * s)}px "Press Start 2P", monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#ff2020';
-    const [tx, ty] = pfToCanvas(PF_W / 2, PF_H - 60);
-    // Yellow drop shadow first, then red on top — matches splash title.
-    ctx.fillStyle = '#ffd84a';
-    ctx.fillText('EARTH IS SAFE', tx + 4 * s, ty + 4 * s);
-    ctx.fillStyle = '#ff2020';
-    ctx.fillText('EARTH IS SAFE', tx, ty);
+    const text = 'EARTH IS SAFE';
+    const scale = 3;
+    const totalW = text.length * 6 * scale - scale;   // last char no trailing gap
+    const baseX = (PF_W - totalW) / 2;
+    const baseY = PF_H - 56;
+    drawPixelText(text, baseX + scale, baseY + scale, scale, '#ffd84a');
+    drawPixelText(text, baseX,         baseY,         scale, '#ff2020');
     ctx.restore();
   }
 }
 
-// 16×16 continent bitmap. 'X' = land, '.' = ocean. Drawn organic enough to
-// read as proper continents rather than Tetris blocks.
+// 16×16 Earth bitmap. 'X' = green continent, '/' = pale ice patch, '.' = ocean.
+// Ice baked into the bitmap so caps blend organically with the rest of the
+// silhouette instead of being slapped-on horizontal bars.
 const EARTH_BITMAP = [
-  '................',
+  '......//........',
+  '.....XX.X.......',
+  '....XXXXXX.XX...',
+  '..XXX.XXXX..XX..',
+  '.XXXX..XXX..XXX.',
+  '.XXX....XXXX.X..',
+  '.XX....XXXX.....',
+  '.XXX..XXXXXX....',
+  '..XX..XX.XXX....',
+  '..XX..XX.XX.....',
+  '...XX.XXXX......',
+  '....XXXX.X......',
+  '....XXX..X......',
   '......XX........',
-  '....XXXXXX..X...',
-  '..XXX..XXXXXX...',
-  '.XX...XXX.XXX...',
-  'XXXX.XXX..XX....',
-  'XXX..X.....X....',
-  '..XX...XX.XX....',
-  '...XX..XXXXX....',
-  '....XX.XXXX.....',
-  '.....XXX.XX.....',
-  '....XX..XXX.....',
-  '.....XXXXX......',
-  '......XXXX......',
-  '.......XX.......',
-  '................',
+  '.......X........',
+  '.....//.........',
 ];
 
-// Pixel Earth — blue water + green continents + soft polar caps. Continents
-// sampled from EARTH_BITMAP scaled to fit the circle so they curve with the
-// sphere instead of looking like axis-aligned blocks.
+// Pixel Earth — sphere with bitmap-sampled continents + ice. Right-edge cyan
+// rim for a faint shadow-side highlight.
 function drawPixelEarth(cx, cy, radius) {
   const r2 = radius * radius;
   const bmW = EARTH_BITMAP[0].length;
@@ -1767,27 +1764,51 @@ function drawPixelEarth(cx, cy, radius) {
   for (let dy = -radius; dy <= radius; dy++) {
     for (let dx = -radius; dx <= radius; dx++) {
       if (dx * dx + dy * dy > r2) continue;
-      // Polar caps follow the sphere — the slice at top/bottom inside the
-      // circle naturally tapers because we're sampling within r2.
-      const polarTop = dy < -radius * 0.78;
-      const polarBot = dy >  radius * 0.78;
-      if (polarTop || polarBot) {
-        drawRect(cx + dx, cy + dy, 1, 1, '#e8f0ff');
-        continue;
-      }
-      // Sample continent bitmap. Map (dx, dy) ∈ [-r, r] → bitmap cell.
       const col = Math.floor((dx + radius) / (2 * radius) * bmW);
       const row = Math.floor((dy + radius) / (2 * radius) * bmH);
       const ch  = EARTH_BITMAP[Math.max(0, Math.min(bmH - 1, row))][Math.max(0, Math.min(bmW - 1, col))];
-      drawRect(cx + dx, cy + dy, 1, 1, ch === 'X' ? '#4ade80' : '#2080d8');
+      const colour = ch === 'X' ? '#4ade80'
+                   : ch === '/' ? '#d0e8ff'
+                                : '#2080d8';
+      drawRect(cx + dx, cy + dy, 1, 1, colour);
     }
   }
-  // 1-pixel cyan rim on the right side for a tiny shadow-side highlight.
+  // Soft cyan rim on the right side for a tiny shadow-side highlight.
   for (let dy = -radius; dy <= radius; dy++) {
     const dxEdge = Math.floor(Math.sqrt(Math.max(0, r2 - dy * dy)));
     if (dxEdge > 0 && Math.abs(dy) < radius - 1) {
       drawRect(cx + dxEdge - 1, cy + dy, 1, 1, 'rgba(120, 200, 255, 0.5)');
     }
+  }
+}
+
+// Pixel font — 5×7 glyphs for the cutscene title. Drawn as drawRect cells so
+// the type stays crisp at any canvas scale, unlike ctx.fillText which
+// antialiases against fractional pixel positions.
+const PIXEL_FONT = {
+  A: ['.XXX.','X...X','X...X','XXXXX','X...X','X...X','X...X'],
+  E: ['XXXXX','X....','X....','XXXX.','X....','X....','XXXXX'],
+  F: ['XXXXX','X....','X....','XXXX.','X....','X....','X....'],
+  H: ['X...X','X...X','X...X','XXXXX','X...X','X...X','X...X'],
+  I: ['XXXXX','..X..','..X..','..X..','..X..','..X..','XXXXX'],
+  R: ['XXXX.','X...X','X...X','XXXX.','X.X..','X..X.','X...X'],
+  S: ['.XXXX','X....','X....','.XXX.','....X','....X','XXXX.'],
+  T: ['XXXXX','..X..','..X..','..X..','..X..','..X..','..X..'],
+  ' ': ['.....','.....','.....','.....','.....','.....','.....'],
+};
+function drawPixelText(text, baseX, baseY, scale, colour) {
+  const charW = 5, charH = 7, gap = 1;
+  let x = baseX;
+  for (const c of text) {
+    const glyph = PIXEL_FONT[c.toUpperCase()];
+    if (glyph) {
+      for (let r = 0; r < charH; r++) {
+        for (let col = 0; col < charW; col++) {
+          if (glyph[r][col] === 'X') drawRect(x + col * scale, baseY + r * scale, scale, scale, colour);
+        }
+      }
+    }
+    x += (charW + gap) * scale;
   }
 }
 
