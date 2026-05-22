@@ -329,6 +329,7 @@ function maybeSpawnUfo(now) {
 }
 function scheduleNextUfo(now) {
   ufoNextAt = now + (UFO_MIN_INTERVAL + Math.random() * (UFO_MAX_INTERVAL - UFO_MIN_INTERVAL)) * 1000;
+  ufoWarbleAccumulator = 0;
 }
 
 function tryInvaderFire() {
@@ -736,6 +737,9 @@ function update(dt) {
     invaderBullets = [];
     playerBullet = null;
     shields = newShields();
+    // Clear any in-flight UFO so the bonus restarts cleanly with the new wave.
+    ufo = null;
+    scheduleNextUfo(performance.now());
   }
 
   // If hurtPlayer just ended the run on the third life, skip the lose-check
