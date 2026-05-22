@@ -116,6 +116,17 @@ export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activ
   const placeholderIndexRef = useRef(0);
   const isHero = !!isHeroProp;
 
+  const [providerConfigured, setProviderConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/chat/provider-status")
+      .then((r) => (r.ok ? r.json() : { configured: false }))
+      .then((data) => { if (!cancelled) setProviderConfigured(Boolean(data.configured)); })
+      .catch(() => { if (!cancelled) setProviderConfigured(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   const { messages, setMessages, sessionId, expanded, setExpanded, pushSessionUrl } = useChatSession();
 
   // Compute slash autocomplete items
@@ -624,6 +635,20 @@ export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activ
         {streaming && statusText ? (
           <div className="chatbar-status">{statusText}</div>
         ) : null}
+        {providerConfigured === false ? (
+          <div className="chatbar-add-provider">
+            <span className="chatbar-add-provider-text">No chat provider yet.</span>
+            <a
+              href="https://oyster.to/docs/chat-provider"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="chatbar-add-provider-link"
+            >
+              Add chat provider →
+            </a>
+          </div>
+        ) : (
+        <>
         <input
           ref={inputRef}
           type="text"
@@ -706,6 +731,8 @@ export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activ
         >
           {streaming ? "..." : "↑"}
         </button>
+        </>
+        )}
       </div>
 
     </div>

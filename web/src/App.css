@@ -2823,3 +2823,26 @@ body {
 /* Both Open and Minimised tiles get the same teal dot — they're both running. */
 .tile-presence-dot.tpd--attached::before,
 .tile-presence-dot.tpd--running::before { background: #a78bfa; box-shadow: 0 0 8px rgba(167,139,250,0.85); }
+
+.chatbar-add-provider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: rgba(20, 21, 42, 0.5);
+  border: 1px dashed rgba(124, 107, 255, 0.3);
+  border-radius: 12px;
+  color: rgba(232, 233, 240, 0.66);
+  font-size: 13px;
+}
+.chatbar-add-provider-text {
+  flex: 1;
+}
+.chatbar-add-provider-link {
+  color: #9b8cff;
+  text-decoration: none;
+  font-weight: 500;
+}
+.chatbar-add-provider-link:hover {
+  text-decoration: underline;
+}
