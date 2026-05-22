@@ -27,9 +27,10 @@
 (function () {
   // Punctuation before digits — matches Rocket Ship's original convention,
   // standardised across all three games via the DRY framework pass. Trailing
-  // ♥ (U+2665) and ★ (U+2605) for personality — Press Start 2P ships both
-  // glyphs in the pixel-art style. Worker INITIALS_RE was widened to match.
-  const DEFAULT_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ.-♥★0123456789';
+  // ♥ (U+2665), ★ (U+2605) and ♠ (U+2660) for personality — Press Start 2P
+  // ships all three glyphs in the pixel-art style. Worker INITIALS_RE was
+  // widened to match.
+  const DEFAULT_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ.-♥★♠0123456789';
   const DEFAULTS = {
     slotsSelector:     '#go-initials .go-slot',
     containerSelector: '#go-initials',
