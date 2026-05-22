@@ -20,14 +20,6 @@ const placeholders = [
   "Describe what you're building...",
 ];
 
-const taglines = [
-  { dim: "Go on,", bright: "open the shell." },
-  { dim: "Your next idea", bright: "is waiting." },
-  { dim: "The pearl", bright: "won't find itself." },
-  { dim: "Still thinking?", bright: "Good. Type it." },
-  { dim: "One prompt away", bright: "from something great." },
-  { dim: "Don't be shy.", bright: "The shell listens." },
-];
 
 function ReasoningBlock({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
@@ -87,7 +79,6 @@ const SLASH_COMMANDS = [
 
 interface Props {
   onOpenTerminal: () => void;
-  isHero?: boolean;
   spaces?: Space[];
   activeSpace?: string;
   onSpaceChange?: (space: string) => void;
@@ -99,23 +90,18 @@ interface Props {
   onAiError?: (message: string | null) => void;
 }
 
-export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activeSpace, onSpaceChange, inputRef: externalInputRef, artifacts = [], onArtifactOpen, onArtifactPublish, onArtifactUnpublish, onAiError }: Props) {
+export function ChatBar({ onOpenTerminal, spaces = [], activeSpace, onSpaceChange, inputRef: externalInputRef, artifacts = [], onArtifactOpen, onArtifactPublish, onArtifactUnpublish, onAiError }: Props) {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [statusText, setStatusText] = useState("");
-  const [focused, setFocused] = useState(false);
-  const [tagline, setTagline] = useState<{ dim: string; bright: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
-  const taglineIndexRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const localInputRef = useRef<HTMLInputElement>(null);
   const inputRef = externalInputRef || localInputRef;
   const [placeholder, setPlaceholder] = useState(() => placeholders[Math.floor(Math.random() * placeholders.length)]);
   const placeholderIndexRef = useRef(0);
-  const isHero = !!isHeroProp;
-
   const [providerConfigured, setProviderConfigured] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -487,33 +473,7 @@ export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activ
   }
 
   return (
-    <div ref={wrapperRef} className={`chatbar-wrapper ${isHero ? "chatbar-hero" : ""}`}>
-      {/* Hero tagline — one block, three states */}
-      {/* Hidden when the input is focused OR once any chat message exists,
-          so it doesn't reappear behind streamed output if the user clicks
-          out of the input. */}
-      {isHero && (() => {
-        const taglineHidden = focused || messages.length > 0;
-        return (
-        <div
-          className={`chatbar-hero-tagline${taglineHidden ? " tagline-hidden" : ""}`}
-          aria-hidden={taglineHidden || undefined}
-        >
-          {tagline ? (
-            <>
-              <span className="tagline-dim">{tagline.dim}</span>{" "}
-              <span className="tagline-bright">{tagline.bright}</span>
-            </>
-          ) : (
-            <>
-              <span className="tagline-dim">Apps are dead.</span>{" "}
-              <span className="tagline-bright">Welcome to your surface.</span>
-            </>
-          )}
-        </div>
-        );
-      })()}
-
+    <div ref={wrapperRef} className="chatbar-wrapper">
       {/* Messages panel — expands upward */}
       {messages.length > 0 && (
         <div className={`chatbar-messages ${expanded ? "chat-expanded" : "chat-collapsed"}${slashOpen ? " slash-dimmed" : ""}`}>
@@ -702,19 +662,15 @@ export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activ
             if (e.key === "Enter") handleSend();
           }}
           onFocus={() => {
-            setFocused(true);
             if (messages.length > 0) setExpanded(true);
           }}
           onBlur={() => {
             if (!input.trim()) {
-              setFocused(false);
-              setTagline(taglines[taglineIndexRef.current % taglines.length]);
-              taglineIndexRef.current++;
               setPlaceholder(placeholders[placeholderIndexRef.current % placeholders.length]);
               placeholderIndexRef.current++;
             }
           }}
-          placeholder={streaming ? "" : (isHero && !focused ? "" : placeholder)}
+          placeholder={streaming ? "" : placeholder}
           disabled={streaming}
           className={`chatbar-input ${streaming ? "chatbar-input-streaming" : ""}`}
         />

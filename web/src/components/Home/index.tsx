@@ -41,7 +41,6 @@ interface Props {
   activeSpace: string;
   spaces: Space[];
   desktopProps: Omit<Parameters<typeof Desktop>[0], "isHero">;
-  isHero?: boolean;
   onSpaceChange: (space: string) => void;
   onPromoteFolderToSpace?: (path: string) => Promise<Space | null>;
   /** Removing the last folder from a real space collapses the space —
@@ -162,7 +161,7 @@ const FILTER_LABELS: Record<StateFilter, string> = {
   all: "all",
 };
 
-export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onSubViewActiveChange, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount }: Props) {
+export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onSubViewActiveChange, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount }: Props) {
   const presence = useTerminalPresence(sessions, terminalWindows ?? []);
   const signedIn = useAuthSignedIn();
   const myDevice = useMyDeviceId();
@@ -739,7 +738,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
       <div className="home-orb" />
       <div className="home-grain" />
 
-      <div className={`home-scroll${isHero ? " home-scroll--hero" : ""}`}>
+      <div className="home-scroll">
         {/* Top space nav — stable on every screen. Pills carry numbered
             badges for non-zero active/waiting/disconnected counts so the
             at-a-glance dashboard info lives in the nav itself; no need

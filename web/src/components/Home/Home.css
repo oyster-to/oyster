@@ -82,11 +82,6 @@
   padding-bottom: 240px;
 }
 
-.home-scroll--hero {
-  -webkit-mask-image: linear-gradient(to bottom, black 18%, transparent 38%);
-  mask-image: linear-gradient(to bottom, black 18%, transparent 38%);
-}
-
 /* Soft fade behind the chat bar so content dissolves into the bg rather
    than colliding with the pills. Matches docs/mockups/brain-prototype.html
    exactly — bottom 30% solid (chat bar zone), then taper. Earlier pass
