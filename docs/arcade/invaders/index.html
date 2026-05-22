@@ -208,6 +208,7 @@
 <script src="../shared/touch.js"></script>
 <script src="../shared/iframe-host.js"></script>
 <script src="../shared/leaderboard.js"></script>
+<script src="../shared/initials.js"></script>
 <audio id="sfx-explosion" src="../shared/sfx-explosion.mp3" preload="auto"></audio>
 <audio id="sfx-lose"      src="../shared/sfx-lose.mp3"      preload="auto"></audio>
 <audio id="sfx-shoot"     src="sfx-shoot.mp3"               preload="auto"></audio>
@@ -348,6 +349,23 @@ function stopBgm()  { playBgm('none'); }
 
 // Leaderboard scaffold so the splash hi-score line lights up once cloud lands.
 Arcade.Leaderboard.init({ game: 'invaders', max: 10 });
+
+// Initials entry — keyboard + touch state machine lives in shared/initials.js.
+// onSubmit handles the per-game UX (SCORE SAVED text, restart grace, server
+// submit + splash repaint).
+Arcade.Initials.mount({
+  fireButton: '#tc-fire',
+  fireLabel:  { idle: 'FIRE', select: 'SELECT' },
+  onSubmit: (initials) => {
+    const goHi = document.getElementById('go-hiscore');
+    if (goHi) goHi.textContent = `SCORE SAVED · ${initials}`;
+    endOverlayInputAllowedAt = performance.now() + 400;
+    Arcade.Leaderboard.submit(score, initials).then(res => {
+      if (!res.ok) console.warn('leaderboard submit failed:', res.error);
+      paintSplashHiScore();
+    });
+  },
+});
 
 // Always show the hi-score row, falling back to 0000 / --- on a fresh
 // install — matches the rocket-ship pattern so an empty cabinet still
@@ -498,7 +516,6 @@ let lives = 3;
 let wave = 1;
 let endOverlayInputAllowedAt = 0;
 let respawnAt = 0;
-let initialsActive = false;
 // True between endRun() and the first post-grace keypress when the score
 // qualifies for the leaderboard. That keypress opens initials entry; a
 // subsequent keypress restarts.
@@ -852,14 +869,14 @@ function dismissSplashAndStart() {
 function consumePendingOrRestart() {
   if (pendingInitials) {
     pendingInitials = false;
-    startInitialsEntry();
+    Arcade.Initials.open();
     return;
   }
   dismissSplashAndStart();
 }
 
 window.addEventListener('keydown', e => {
-  if (initialsActive) return;
+  if (Arcade.Initials.isActive()) return;
   if (e.key === 'Escape') return;
   // Cutscene waiting at the end of the EARTH IS SAFE pose → hand off to
   // endRun(true) so the GAME COMPLETE overlay can take over.
@@ -882,7 +899,7 @@ window.addEventListener('keydown', e => {
 
 // Pointer-tap restart (covers splash dismiss AND post-game-over taps).
 document.addEventListener('pointerdown', e => {
-  if (initialsActive) return;
+  if (Arcade.Initials.isActive()) return;
   if (e.target.closest('.arcade-pause')) return;
   if (e.target.closest('#go-initials')) return;
   if (phase === 'cutscene' && cutsceneWaiting) {
@@ -906,7 +923,7 @@ Arcade.Pause.canPause = () => running;
 window.addEventListener('keydown', e => {
   if (e.key !== 'b' && e.key !== 'B') return;
   if (!running) return;
-  if (initialsActive) return;
+  if (Arcade.Initials.isActive()) return;
   const t = e.target;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
   if (phase === 'grid') {
@@ -941,14 +958,14 @@ window.addEventListener('keyup', e => keys[e.key] = false);
   const right = document.getElementById('tc-right');
   const fire  = document.getElementById('tc-fire');
   Arcade.Touch.bind(left,
-    () => { if (initialsActive) { initialsAction('letter-prev'); return; } keys['ArrowLeft']  = true;  },
-    () => { if (initialsActive) return; keys['ArrowLeft']  = false; });
+    () => { if (Arcade.Initials.isActive()) { Arcade.Initials.action('letter-prev'); return; } keys['ArrowLeft']  = true;  },
+    () => { if (Arcade.Initials.isActive()) return; keys['ArrowLeft']  = false; });
   Arcade.Touch.bind(right,
-    () => { if (initialsActive) { initialsAction('letter-next'); return; } keys['ArrowRight'] = true;  },
-    () => { if (initialsActive) return; keys['ArrowRight'] = false; });
+    () => { if (Arcade.Initials.isActive()) { Arcade.Initials.action('letter-next'); return; } keys['ArrowRight'] = true;  },
+    () => { if (Arcade.Initials.isActive()) return; keys['ArrowRight'] = false; });
   Arcade.Touch.bind(fire,
-    () => { if (initialsActive) { initialsAction('advance');     return; } keys[' '] = true; },
-    () => { if (initialsActive) return; keys[' '] = false; });
+    () => { if (Arcade.Initials.isActive()) { Arcade.Initials.action('advance');     return; } keys[' '] = true; },
+    () => { if (Arcade.Initials.isActive()) return; keys[' '] = false; });
 })();
 
 // ============================================
@@ -1026,127 +1043,12 @@ function hideEndOverlay() {
   document.getElementById('go-initials').hidden = true;
   document.getElementById('go-prompt').hidden = false;
   document.getElementById('go-title').classList.remove('is-win');
-  initialsActive = false;
-  setFireLabel('fire');
+  Arcade.Initials.close();
   endOverlayInputAllowedAt = 0;
 }
 
-// ============================================
-// INITIALS ENTRY — shown in the game-over overlay when the score qualifies.
-// ============================================
-const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-';
-let initialsSlot = 0;
-let initialsLetters = [0, 0, 0];
-
-function paintInitials() {
-  const slots = document.querySelectorAll('#go-initials .go-slot');
-  slots.forEach((s, i) => {
-    s.textContent = LETTERS[initialsLetters[i]];
-    s.classList.toggle('is-active', i === initialsSlot);
-  });
-}
-function setFireLabel(mode /* 'fire' | 'select' */) {
-  const btn = document.getElementById('tc-fire');
-  if (!btn) return;
-  btn.textContent = mode === 'select' ? 'SELECT' : 'FIRE';
-  btn.setAttribute('aria-label', mode === 'select' ? 'Select / advance' : 'Fire');
-}
-function startInitialsEntry() {
-  initialsActive = true;
-  initialsSlot = 0;
-  initialsLetters = [0, 0, 0];
-  document.getElementById('go-prompt').hidden = true;
-  document.getElementById('go-initials').hidden = false;
-  setFireLabel('select');
-  paintInitials();
-}
-function finishInitialsEntry() {
-  const initials = initialsLetters.map(i => LETTERS[i]).join('');
-  initialsActive = false;
-  setFireLabel('fire');
-  document.getElementById('go-initials').hidden = true;
-  document.getElementById('go-prompt').hidden = false;
-  const goHi = document.getElementById('go-hiscore');
-  if (goHi) goHi.textContent = `SCORE SAVED · ${initials}`;
-  endOverlayInputAllowedAt = performance.now() + 400;
-  Arcade.Leaderboard.submit(score, initials).then(res => {
-    if (!res.ok) console.warn('leaderboard submit failed:', res.error);
-    paintSplashHiScore();
-  });
-}
-function initialsAction(action) {
-  if (!initialsActive) return false;
-  if (action === 'letter-prev') {
-    initialsLetters[initialsSlot] = (initialsLetters[initialsSlot] - 1 + LETTERS.length) % LETTERS.length;
-  } else if (action === 'letter-next') {
-    initialsLetters[initialsSlot] = (initialsLetters[initialsSlot] + 1) % LETTERS.length;
-  } else if (action === 'slot-prev') {
-    initialsSlot = Math.max(0, initialsSlot - 1);
-  } else if (action === 'slot-next' || action === 'advance') {
-    if (initialsSlot < 2) initialsSlot++;
-    else { finishInitialsEntry(); return true; }
-  }
-  paintInitials();
-  return true;
-}
-
-// Keyboard during initials entry.
-window.addEventListener('keydown', e => {
-  if (!initialsActive) return;
-  let action = null;
-  if      (e.key === 'ArrowUp')    action = 'letter-prev';
-  else if (e.key === 'ArrowDown')  action = 'letter-next';
-  else if (e.key === 'ArrowLeft')  action = 'slot-prev';
-  else if (e.key === 'ArrowRight') action = 'slot-next';
-  else if (e.key === 'Enter' || e.key === ' ') action = 'advance';
-  else if (e.key.length === 1) {
-    const c = e.key.toUpperCase();
-    const idx = LETTERS.indexOf(c);
-    if (idx >= 0) {
-      initialsLetters[initialsSlot] = idx;
-      if (initialsSlot < 2) { initialsSlot++; paintInitials(); }
-      else { paintInitials(); finishInitialsEntry(); }
-      e.preventDefault(); e.stopPropagation();
-      return;
-    }
-  }
-  if (action) { initialsAction(action); e.preventDefault(); e.stopPropagation(); }
-});
-
-// Tap-a-slot + horizontal-swipe-to-cycle-letters touch UX.
-(function wireInitialsTouch() {
-  const slots = document.querySelectorAll('#go-initials .go-slot');
-  slots.forEach(s => {
-    s.style.cursor = 'pointer';
-    s.addEventListener('click', e => {
-      if (!initialsActive) return;
-      const idx = parseInt(s.dataset.slot, 10);
-      if (Number.isInteger(idx) && idx >= 0 && idx <= 2) { initialsSlot = idx; paintInitials(); }
-      e.stopPropagation();
-    });
-  });
-  const container = document.getElementById('go-initials');
-  if (!container) return;
-  let dragStartX = 0, dragStartLetter = 0, dragging = false;
-  container.addEventListener('pointerdown', e => {
-    if (!initialsActive) return;
-    if (e.target && e.target.classList && e.target.classList.contains('go-slot')) return;
-    dragStartX = e.clientX; dragStartLetter = initialsLetters[initialsSlot]; dragging = true;
-    try { container.setPointerCapture(e.pointerId); } catch (_) {}
-  });
-  container.addEventListener('pointermove', e => {
-    if (!dragging || !initialsActive) return;
-    const step = Math.round((e.clientX - dragStartX) / 40);
-    const newLetter = ((dragStartLetter + step) % LETTERS.length + LETTERS.length) % LETTERS.length;
-    if (newLetter !== initialsLetters[initialsSlot]) {
-      initialsLetters[initialsSlot] = newLetter;
-      paintInitials();
-    }
-  });
-  const endDrag = () => { dragging = false; };
-  container.addEventListener('pointerup', endDrag);
-  container.addEventListener('pointercancel', endDrag);
-})();
+// (Initials state machine + listeners now live in shared/initials.js — see
+// the Arcade.Initials.mount(...) call above for the per-game config.)
 
 // Pixels per second for the row-drop slide. INV_SPACING_Y / 0.18 ≈ 78 px/s,
 // so a full row drops in 180ms — fast enough to keep the march feeling
