@@ -1255,8 +1255,14 @@ function comboMultiplier() {
 }
 
 function scheduleNextMarked(now) {
-  // 5–15 s gap between marked invaders, per wave.
-  markedSpawnAt = now + (5 + Math.random() * 10) * 1000;
+  // 5–15 s gap between marked invaders during the wave. When only ONE
+  // invader is left the loner panics — short rest then immediately swoops
+  // again, giving you the classic "last bug" endgame harassment.
+  if (grid && grid.aliveCount === 1) {
+    markedSpawnAt = now + (0.4 + Math.random() * 0.5) * 1000;   // 0.4–0.9 s
+  } else {
+    markedSpawnAt = now + (5 + Math.random() * 10) * 1000;       // 5–15 s
+  }
 }
 
 function maybeSpawnMarked(now) {
