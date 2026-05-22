@@ -382,9 +382,9 @@ function tryInvaderFire() {
 // Invader grid — 5 rows × 11 cols. Each cell is { alive }.
 // grid.frame flips 0/1 each march tick for the shared shuffle animation.
 const COLS = 11, ROWS = 5;
-const INV_W = 16, INV_H = 16;
-const INV_SPACING_X = 18;        // cell width — 11 cols * 18 + offset still fits 240 PF
-const INV_SPACING_Y = 20;
+const INV_W = 12, INV_H = 8;
+const INV_SPACING_X = 16;        // cell width
+const INV_SPACING_Y = 14;
 // Top-down: row 0 = cyan squid (30 pts), row 1-2 = pink crabs (20),
 // row 3-4 = green octopi (10).
 // One distinct colour per row — easier on the eye than 5×11 walls of two
@@ -485,7 +485,7 @@ function newGrid(waveNum) {
   const dropRows = Math.min(3, waveNum - 1);
   const startY = 36 + dropRows * INV_SPACING_Y;
   return {
-    offsetX: 12,             // reduced left margin so 11-col grid at 2× sprites still fits 240
+    offsetX: 24,
     offsetY: startY,
     targetOffsetY: startY,   // marchStep advances this on bounce; update() lerps offsetY toward it
     dir: 1,                  // +1 = right, -1 = left
@@ -1080,8 +1080,7 @@ function drawInvader(px, py, row, frame) {
 }
 
 function drawSquid(px, py, colour, f) {
-  // Squid source is 6 cols wide → 12 PF px at 2× scale; centred in INV_W=16
-  // cell with a 2-PF-px margin each side.
+  // 6×8 body within the 12×8 cell, centred.
   const ox = 2;
   const pixels = f === 0
     ? ['..XX..', '.XXXX.', 'XXXXXX', 'XX..XX', 'XXXXXX', '.X..X.', 'X.XX.X', '.X..X.']
@@ -1100,16 +1099,10 @@ function drawOctopus(px, py, colour, f) {
     : ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '...XX...', '..X..X..', '.X....X.'];
   paintPixels(px, py, pixels, colour);
 }
-// Each source-string pixel renders as SPRITE_SCALE × SPRITE_SCALE PF pixels.
-// 2× turned 6-8 char wide source sprites into chunky 12-16 PF-px invaders.
-const SPRITE_SCALE = 2;
 function paintPixels(px, py, pixels, colour) {
   for (let y = 0; y < pixels.length; y++) {
     for (let x = 0; x < pixels[y].length; x++) {
-      if (pixels[y][x] === 'X') {
-        drawRect(px + x * SPRITE_SCALE, py + y * SPRITE_SCALE,
-                 SPRITE_SCALE, SPRITE_SCALE, colour);
-      }
+      if (pixels[y][x] === 'X') drawRect(px + x, py + y, 1, 1, colour);
     }
   }
 }
