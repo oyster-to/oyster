@@ -26,6 +26,22 @@
     text-align: center; padding: 40px 24px;
     gap: clamp(18px, 3vw, 32px);
   }
+  .splash .title-invader {
+    display: block;
+    width: clamp(64px, 14vw, 128px);
+    height: auto;
+    margin: 0 auto clamp(6px, 1.5vw, 12px);
+    image-rendering: pixelated; image-rendering: crisp-edges;
+    /* Subtle two-step shuffle — steps(2) gives the classic chunky "march"
+       hop instead of a smooth slide. */
+    animation: title-invader-bob 1.4s steps(2) infinite alternate;
+    filter: drop-shadow(0 0 6px rgba(240, 136, 188, 0.45));
+  }
+  @keyframes title-invader-bob {
+    0%   { transform: translateY(0); }
+    100% { transform: translateY(-8px); }
+  }
+
   .splash .title {
     /* Classic INVADERS marquee block-letter look: bold red on thick black
        outline with a yellow drop-shadow that suggests 3D extruded depth.
@@ -252,6 +268,27 @@
       <div class="splash-main">
         <!-- Title card + leaderboard alternate every ~5.5 s. -->
         <div class="title-card splash-view is-active">
+          <svg class="title-invader" viewBox="0 0 8 8" aria-hidden="true" shape-rendering="crispEdges">
+            <!-- Pastel-pink crab (matches the in-game row 1 sprite) -->
+            <rect x="1" y="0" width="1" height="1" fill="#f088bc"/>
+            <rect x="6" y="0" width="1" height="1" fill="#f088bc"/>
+            <rect x="2" y="1" width="1" height="1" fill="#f088bc"/>
+            <rect x="5" y="1" width="1" height="1" fill="#f088bc"/>
+            <rect x="1" y="2" width="6" height="1" fill="#f088bc"/>
+            <rect x="0" y="3" width="2" height="1" fill="#f088bc"/>
+            <rect x="3" y="3" width="2" height="1" fill="#f088bc"/>
+            <rect x="6" y="3" width="2" height="1" fill="#f088bc"/>
+            <rect x="0" y="4" width="8" height="1" fill="#f088bc"/>
+            <rect x="0" y="5" width="1" height="1" fill="#f088bc"/>
+            <rect x="2" y="5" width="4" height="1" fill="#f088bc"/>
+            <rect x="7" y="5" width="1" height="1" fill="#f088bc"/>
+            <rect x="1" y="6" width="1" height="1" fill="#f088bc"/>
+            <rect x="6" y="6" width="1" height="1" fill="#f088bc"/>
+            <rect x="0" y="7" width="1" height="1" fill="#f088bc"/>
+            <rect x="2" y="7" width="1" height="1" fill="#f088bc"/>
+            <rect x="5" y="7" width="1" height="1" fill="#f088bc"/>
+            <rect x="7" y="7" width="1" height="1" fill="#f088bc"/>
+          </svg>
           <div class="title">INVADERS</div>
           <div class="start"><span class="key-only">INSERT COIN TO PLAY</span><span class="touch-only">TAP TO PLAY</span></div>
           <div class="controls">
