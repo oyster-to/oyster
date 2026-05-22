@@ -575,7 +575,7 @@ function startRun() {
   // Reset gimmick state for the new run.
   chargeStartAt = 0;
   prevSpaceHeld = false;
-  superShotAmmo = 0;
+  superShotAmmo = SUPER_SHOT_MAX;   // start with a full clip; UFO kills refill
   comboCount = 0;
   lastKillAt = 0;
   markedCell = null;
@@ -1005,11 +1005,11 @@ function update(dt) {
           playerBullet.y < UFO_Y + UFO_H && playerBullet.y + bh > UFO_Y) {
         const award = UFO_SCORES[Math.floor(Math.random() * UFO_SCORES.length)];
         score += award;
-        // Each UFO kill grants one super-shot charge (cap SUPER_SHOT_MAX).
+        // Each UFO kill refills your super-shot clip to full.
         const gotAmmo = superShotAmmo < SUPER_SHOT_MAX;
-        if (gotAmmo) superShotAmmo++;
+        superShotAmmo = SUPER_SHOT_MAX;
         addPopup(ufo.x + UFO_W / 2, UFO_Y,
-                 gotAmmo ? `+${award} ⚡SUPER` : `+${award}`,
+                 gotAmmo ? `+${award} ⚡REFILL` : `+${award}`,
                  '#ffd84a');
         Arcade.Audio.play('sfx-explosion', 0.6);
         ufo = null;
