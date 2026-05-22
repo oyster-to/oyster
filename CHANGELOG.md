@@ -4,6 +4,10 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **Oyster opens to your work, not to a setup wizard.** First launch no longer requires an AI provider, no longer demands you create a space, and shows your sessions on the home screen immediately. Set-up surfaces only appear when something is genuinely missing.
+
 ## [0.9.8] - 2026-05-21
 
 ### Changed
