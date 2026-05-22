@@ -521,7 +521,8 @@ let stageAnnounceUntil = 0;
 let stageAnnounceText = '';
 
 // Boss
-const BOSS_W = 32, BOSS_H = 32; // 4× octopus sprite
+const BOSS_SCALE = 5;                              // 8-source-px × 5 = 40 PF
+const BOSS_W = 8 * BOSS_SCALE, BOSS_H = 8 * BOSS_SCALE;
 let boss = null;                // { x, hp, hpMax, dir, speed, nextShotAt, fireInterval } | null
 const BULLET_SPEED = 220;       // px/sec, canvas-down-positive in pf coords
 
@@ -1120,7 +1121,10 @@ function update(dt) {
     }
   }
 
-  // Player bullet vs boss (boss phase only).
+  // Player bullet vs boss (boss phase only). Bullet is CONSUMED on hit
+  // regardless of charged state — boss is one big target, no piercing
+  // discount. (Previous behaviour let a charged shot deal 3 dmg per frame
+  // for its whole traversal, one-shotting the boss.)
   if (phase === 'boss' && boss && playerBullet) {
     const bw = playerBullet.charged ? CHARGED_BULLET_W : BULLET_W;
     const bh = playerBullet.charged ? CHARGED_BULLET_H : BULLET_H;
@@ -1130,7 +1134,7 @@ function update(dt) {
       boss.hp -= dmg;
       addPopup(boss.x + BOSS_W / 2, boss.y, `-${dmg}`, '#ffffff');
       Arcade.Audio.play('sfx-kill', 0.5);
-      if (!playerBullet.charged) playerBullet = null;
+      playerBullet = null;
     }
   }
 
@@ -1306,16 +1310,18 @@ function showStageAnnounce(text) {
 }
 
 function spawnBoss(setNum) {
-  const hp = 12 + (setNum - 1) * 8;
+  // 30 HP at set 1 makes a charged-shot rush a real fight: 30 / 3-dmg = 10
+  // direct hits, or 30 normal shots. Set 2 = 45, set 3 = 60, ...
+  const hp = 30 + (setNum - 1) * 15;
   return {
     x: PF_W / 2 - BOSS_W / 2,
-    y: 28,
+    y: 24,
     hp,
     hpMax: hp,
     dir: 1,
-    speed: 30 + (setNum - 1) * 10,
-    nextShotAt: performance.now() + 1200,
-    fireInterval: Math.max(450, 1300 - (setNum - 1) * 220),
+    speed: 38 + (setNum - 1) * 12,
+    nextShotAt: performance.now() + 1100,
+    fireInterval: Math.max(380, 1100 - (setNum - 1) * 200),
   };
 }
 
@@ -1341,7 +1347,7 @@ function drawBoss() {
   const pixels = f === 0
     ? ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '..X..X..', '.X.XX.X.', 'X.X..X.X']
     : ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '...XX...', '..X..X..', '.X....X.'];
-  const S = 4;   // 8-source-px × 4 = 32 PF px
+  const S = BOSS_SCALE;
   // Body colour cycles through a warm red palette based on HP — deeper red as
   // it gets healthier, brighter as it loses HP (just enough cue to feel it).
   const ratio = boss.hp / boss.hpMax;
@@ -1351,9 +1357,9 @@ function drawBoss() {
       if (pixels[y][x] === 'X') drawRect(boss.x + x * S, boss.y + y * S, S, S, bodyColour);
     }
   }
-  // White "eyes" centred on the body for menace.
-  drawRect(boss.x + 9,  boss.y + 13, 4, 4, '#ffffff');
-  drawRect(boss.x + 19, boss.y + 13, 4, 4, '#ffffff');
+  // White "eyes" — scale with the body so they stay in the right spot.
+  drawRect(boss.x + S * 2,     boss.y + S * 3, S, S, '#ffffff');
+  drawRect(boss.x + S * 5,     boss.y + S * 3, S, S, '#ffffff');
   // HP bar above the boss.
   const barY = boss.y - 5;
   drawRect(boss.x, barY, BOSS_W, 2, '#440010');
