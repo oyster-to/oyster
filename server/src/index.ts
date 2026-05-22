@@ -36,6 +36,7 @@ import { tryHandleMemoryRoute } from "./routes/memories.js";
 import { tryHandleAuthRoute } from "./routes/auth.js";
 import { tryHandlePublishRoute } from "./routes/publish.js";
 import { tryHandlePinRoute } from "./routes/pin.js";
+import { tryHandleProviderStatusRoute } from "./routes/provider-status.js";
 import { tryHandleDeviceRoute } from "./routes/device.js";
 import { createPublishService, PublishError } from "./publish-service.js";
 import { createSpaceSyncService } from "./space-sync-service.js";
@@ -841,6 +842,7 @@ async function handleHttpRequest(req: IncomingMessage, res: ServerResponse) {
 
   // /api/artifacts/:id/pin — pin / unpin an artefact (#387).
   if (await tryHandlePinRoute(req, res, url, ctx, { artifactService, broadcastUiEvent })) return;
+  if (await tryHandleProviderStatusRoute(req, res, url, ctx)) return;
 
   // /api/device/identity — local device UUID + label for the cross-device UI chip.
   if (await tryHandleDeviceRoute(req, res, url, ctx, { db })) return;
