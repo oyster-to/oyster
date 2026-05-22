@@ -13,7 +13,7 @@
      don't extract into shared CSS until a third game wants it. */
   .splash {
     position: absolute; inset: 0; z-index: 3; overflow: hidden;
-    background: linear-gradient(180deg, #04050f 0%, #0a0a14 100%);
+    background: linear-gradient(180deg, #0d1a60 0%, #050a30 100%);
     font-family: 'Press Start 2P', ui-monospace, monospace;
     color: #fff;
     animation: splash-poweron 0.55s ease-out;
@@ -294,7 +294,7 @@ const synth = (function () {
 // ============================================
 // Logical playfield is internally a fixed 240×280 grid scaled to canvas.
 // Keeps sprite sizes/speeds stable across screen sizes.
-const PF_W = 240, PF_H = 280;
+const PF_W = 260, PF_H = 280;   // widened from 240 → gives the 11-col grid real walking room
 function pfToCanvas(x, y) {
   // Fit the playfield into the canvas with letterboxing.
   const scale = Math.min(W / PF_W, H / PF_H);
@@ -382,14 +382,15 @@ function tryInvaderFire() {
 // Invader grid — 5 rows × 11 cols. Each cell is { alive }.
 // grid.frame flips 0/1 each march tick for the shared shuffle animation.
 const COLS = 11, ROWS = 5;
-const INV_W = 12, INV_H = 8;
-const INV_SPACING_X = 16;        // cell width
-const INV_SPACING_Y = 14;
+const INV_W = 18, INV_H = 12;    // sprite source × SPRITE_SCALE (1.5×)
+const INV_SPACING_X = 18;        // cells touch — gives more wall-to-wall walk room
+const INV_SPACING_Y = 15;        // 3px row gap; smaller drop per bounce too
 // Top-down: row 0 = cyan squid (30 pts), row 1-2 = pink crabs (20),
 // row 3-4 = green octopi (10).
-// One distinct colour per row — easier on the eye than 5×11 walls of two
-// repeated tints, and reads "wave of attackers" rather than "two stripes".
-const ROW_COLOURS = ['#2dd4ff', '#ff3aa1', '#ffd84a', '#ff8800', '#4ade80'];
+// Pastel-on-navy palette (per user reference). Soft mint / pink / cream /
+// peach / periwinkle — feels atmospheric rather than neon, and reads as a
+// wave of distinct attackers without screaming at the eye.
+const ROW_COLOURS = ['#a0e6c8', '#e89cc0', '#e8d894', '#e8b896', '#8090d0'];
 const ROW_POINTS  = [30,        20,        20,        10,        10];
 
 let grid = null;        // { offsetX, offsetY, dir, cells: 2D array, aliveCount, frame }
@@ -404,25 +405,33 @@ let marchAccumulator = 0;
 const SHIELD_W = 22, SHIELD_H = 16;
 const SHIELD_Y = PLAYER_Y - 30;
 const SHIELD_COUNT = 4;
-// Bunker silhouette: solid rectangle with a hollow arch at the bottom
-// centre. The arch is what makes them iconic — and gives the player a
-// place to crouch behind.
+// Classic bunker silhouette — dome top + square sides + small arched alcove
+// at the bottom-centre for the ship to crouch behind. Defined as string-art
+// so the shape is obvious in code and easy to tweak. MUST be SHIELD_H rows
+// of SHIELD_W chars (1 = solid, anything else = empty).
+const SHIELD_SHAPE = [
+  '.....XXXXXXXXXXXX.....',
+  '...XXXXXXXXXXXXXXXX...',
+  '..XXXXXXXXXXXXXXXXXX..',
+  '.XXXXXXXXXXXXXXXXXXXX.',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXX......XXXXXXXX',
+  'XXXXXXX........XXXXXXX',
+  'XXXXXXX........XXXXXXX',
+  'XXXXXXX........XXXXXXX',
+];
 function makeShieldBitmap() {
   const buf = new Uint8Array(SHIELD_W * SHIELD_H);
   for (let y = 0; y < SHIELD_H; y++) {
     for (let x = 0; x < SHIELD_W; x++) {
-      let solid = 1;
-      // Trim top corners.
-      if (y < 3 && (x < 2 || x >= SHIELD_W - 2)) solid = 0;
-      if (y < 2 && (x < 3 || x >= SHIELD_W - 3)) solid = 0;
-      // Carve bottom arch.
-      if (y >= SHIELD_H - 6) {
-        const cx = SHIELD_W / 2;
-        const dx = x + 0.5 - cx;
-        const dy = y - (SHIELD_H - 6);
-        if (dx * dx / 25 + dy * dy / 25 < 1) solid = 0;
-      }
-      buf[y * SHIELD_W + x] = solid;
+      buf[y * SHIELD_W + x] = SHIELD_SHAPE[y][x] === 'X' ? 1 : 0;
     }
   }
   return buf;
@@ -445,7 +454,7 @@ function drawShields() {
   for (const sh of shields) {
     for (let y = 0; y < SHIELD_H; y++) {
       for (let x = 0; x < SHIELD_W; x++) {
-        if (sh.bits[y * SHIELD_W + x]) drawRect(sh.x + x, sh.y + y, 1, 1, '#a3e635');
+        if (sh.bits[y * SHIELD_W + x]) drawRect(sh.x + x, sh.y + y, 1, 1, '#a0d8e0');
       }
     }
   }
@@ -485,7 +494,7 @@ function newGrid(waveNum) {
   const dropRows = Math.min(3, waveNum - 1);
   const startY = 36 + dropRows * INV_SPACING_Y;
   return {
-    offsetX: 24,
+    offsetX: 24,             // restored left margin — wider PF_W has the room now
     offsetY: startY,
     targetOffsetY: startY,   // marchStep advances this on bounce; update() lerps offsetY toward it
     dir: 1,                  // +1 = right, -1 = left
@@ -579,7 +588,7 @@ window.addEventListener('keyup', e => keys[e.key] = false);
 // ============================================
 const PLAYER_SPEED = 130;     // px/sec
 const BASE_MARCH_INTERVAL = 0.9; // seconds between ticks when grid is full
-const MIN_MARCH_INTERVAL  = 0.05;
+const MIN_MARCH_INTERVAL  = 0.09;   // raised from 0.05 — endgame is fast but not panicky
 let lastT = performance.now();
 
 function tick(now) {
@@ -1031,10 +1040,11 @@ function drawRect(pfX, pfY, pfW, pfH, fill) {
 
 function drawPlayer() {
   if (!player.alive) return;
-  // Classic ship: cyan trapezoid body + cyan turret base + white turret tip.
-  // The white dome gives the ship a focal point that reads from a distance.
-  drawRect(player.x, PLAYER_Y, PLAYER_W, 4, '#2dd4ff');
-  drawRect(player.x + 4, PLAYER_Y - 2, PLAYER_W - 8, 2, '#2dd4ff');
+  // Bright magenta-pink body + white turret tip — the player is the only
+  // saturated colour on screen, so the eye locks to "you" against the
+  // muted pastel invaders.
+  drawRect(player.x, PLAYER_Y, PLAYER_W, 4, '#ff7ab8');
+  drawRect(player.x + 4, PLAYER_Y - 2, PLAYER_W - 8, 2, '#ff7ab8');
   drawRect(player.x + 6, PLAYER_Y - 4, 4, 2, '#ffffff');
 }
 
@@ -1080,8 +1090,10 @@ function drawInvader(px, py, row, frame) {
 }
 
 function drawSquid(px, py, colour, f) {
-  // 6×8 body within the 12×8 cell, centred.
-  const ox = 2;
+  // Squid source is 6 cols × 8 rows → 9×12 PF px at 1.5×. Centred in
+  // INV_W=18 cell with a 4.5pf margin each side (rounded to 4 for integer
+  // alignment — slight left bias is invisible at typical screen sizes).
+  const ox = 4;
   const pixels = f === 0
     ? ['..XX..', '.XXXX.', 'XXXXXX', 'XX..XX', 'XXXXXX', '.X..X.', 'X.XX.X', '.X..X.']
     : ['..XX..', '.XXXX.', 'XXXXXX', 'XX..XX', 'XXXXXX', '.X..X.', 'X....X', 'X.XX.X'];
@@ -1099,10 +1111,20 @@ function drawOctopus(px, py, colour, f) {
     : ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '...XX...', '..X..X..', '.X....X.'];
   paintPixels(px, py, pixels, colour);
 }
+// 1.5× sprite scale — bigger than the original 6×8 sprites but smaller than
+// the chunky 2× variant. Each source pixel renders as a 1.5×1.5 PF rect.
+// Caveat: fractional rect sizes get sub-pixel anti-aliased by canvas, so
+// edges may look slightly soft on lower-DPI displays. At high-DPI it's
+// usually invisible. If we ever want crisp pixel edges back, drop to
+// scale=1 or scale=2 (both render to integer canvas pixels).
+const SPRITE_SCALE = 1.5;
 function paintPixels(px, py, pixels, colour) {
   for (let y = 0; y < pixels.length; y++) {
     for (let x = 0; x < pixels[y].length; x++) {
-      if (pixels[y][x] === 'X') drawRect(px + x, py + y, 1, 1, colour);
+      if (pixels[y][x] === 'X') {
+        drawRect(px + x * SPRITE_SCALE, py + y * SPRITE_SCALE,
+                 SPRITE_SCALE, SPRITE_SCALE, colour);
+      }
     }
   }
 }
