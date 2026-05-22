@@ -995,16 +995,22 @@ function drawScene() {
 }
 
 function drawHUD() {
-  const [x, y, s] = pfToCanvas(8, 8);
+  const [, , s] = pfToCanvas(0, 0);
   ctx.fillStyle = '#fff';
   ctx.font = `${Math.round(10 * s)}px "Press Start 2P", monospace`;
   ctx.textBaseline = 'top';
-  ctx.fillText(`SCORE ${String(score).padStart(4, '0')}`, x, y);
+  // Anchor each chunk to its own edge — SCORE left, HI centred, LIVES
+  // right. Press Start 2P is wider than its nominal size; explicit text-
+  // align prevents the three chunks from ever colliding.
   const top = Arcade.Leaderboard.getHighScore();
-  const hi = top ? String(top.score).padStart(4, '0') : '0000';
-  ctx.fillText(`HI ${hi}`, ...pfToCanvas(PF_W / 2 - 18, 8).slice(0, 2));
-  ctx.fillText(`LIVES ${lives}`,
-    ...pfToCanvas(PF_W - 64, 8).slice(0, 2));
+  const hi  = top ? String(top.score).padStart(4, '0') : '0000';
+  ctx.textAlign = 'left';
+  ctx.fillText(`SCORE ${String(score).padStart(4, '0')}`, ...pfToCanvas(8, 8).slice(0, 2));
+  ctx.textAlign = 'center';
+  ctx.fillText(`HI ${hi}`, ...pfToCanvas(PF_W / 2, 8).slice(0, 2));
+  ctx.textAlign = 'right';
+  ctx.fillText(`LIVES ${lives}`, ...pfToCanvas(PF_W - 8, 8).slice(0, 2));
+  ctx.textAlign = 'left';   // restore default for any subsequent drawing
 }
 
 function drawRect(pfX, pfY, pfW, pfH, fill) {
