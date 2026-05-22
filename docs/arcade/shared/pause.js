@@ -123,6 +123,7 @@
         }
         .arcade-pause.is-active { display: flex; }
         .arcade-pause-card {
+          position: relative;
           background: linear-gradient(180deg, #1a0d3a 0%, #050a25 100%);
           border: 3px solid #2dd4ff;
           padding: clamp(20px, 4vw, 40px) clamp(28px, 6vw, 56px);
@@ -130,6 +131,22 @@
           display: flex; flex-direction: column; gap: clamp(12px, 2vw, 18px);
           box-shadow: 0 0 40px rgba(45, 212, 255, 0.35), 6px 6px 0 #000;
           min-width: 240px;
+        }
+        /* CRT scanlines + RGB sub-pixel gradient on the pause card itself.
+           cabinet.css's .overlay::before runs at z-index:2 — the pause overlay
+           sits at 9999 and would otherwise look like a clean modern panel
+           pasted over the tube. This pseudo brings the scanline texture
+           through onto the card so it reads as part of the same CRT. */
+        .arcade-pause-card::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background:
+            linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%),
+            linear-gradient(90deg, rgba(255, 0, 0, 0.1), rgba(0, 255, 0, 0.04), rgba(0, 0, 255, 0.1));
+          background-size: 100% 3px, 3px 100%;
+          z-index: 1;
         }
         .arcade-pause-title {
           font-size: clamp(18px, 4vw, 32px);

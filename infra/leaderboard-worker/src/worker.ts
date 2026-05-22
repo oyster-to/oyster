@@ -35,7 +35,10 @@ const ALLOWED_ORIGINS = new Set([
   "https://www.oyster.to",
   "https://arcade.oyster.to",
 ]);
-const INITIALS_RE = /^[A-Z0-9.\-]{1,3}$/;
+// A-Z, digits, dot, dash, plus ♥ (U+2665), ★ (U+2605), ♠ (U+2660) and
+//  (U+F8FF Apple PUA glyph) for personality. The shared Arcade.Initials
+// charset must stay aligned with this regex.
+const INITIALS_RE = /^[A-Z0-9.\-♥★♠\u{F8FF}]{1,3}$/u;
 // Per-game configuration. Add an entry here to enable a new game.
 // Null prototype so the `resolveGame` allowlist check can't be fooled
 // by inherited `Object.prototype` keys ("toString", "constructor", …).
