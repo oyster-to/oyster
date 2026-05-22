@@ -203,8 +203,7 @@ function dismissSplash() {
   document.querySelector('.tube').classList.add('is-ready');
   Arcade.Audio.ensureCtx();   // unlock WebAudio inside the gesture (iOS)
 }
-window.addEventListener('keydown', e => { if (e.key !== 'Escape') dismissSplash(); }, { once: true });
-splashEl.addEventListener('pointerdown', dismissSplash, { once: true });
+// Listeners registered below, after startRun() is defined.
 
 // Leaderboard scaffold so the splash hi-score line lights up once cloud lands.
 Arcade.Leaderboard.init({ game: 'invaders', max: 10 });
@@ -222,13 +221,290 @@ function paintSplashHiScore() {
 paintSplashHiScore();
 Arcade.Leaderboard.refresh().then(paintSplashHiScore);
 
-// Frame loop placeholder — draws a black field. Task 2 swaps in the real loop.
-function draw() {
+// ============================================
+// GAME STATE
+// ============================================
+// Logical playfield is internally a fixed 240×280 grid scaled to canvas.
+// Keeps sprite sizes/speeds stable across screen sizes.
+const PF_W = 240, PF_H = 280;
+function pfToCanvas(x, y) {
+  // Fit the playfield into the canvas with letterboxing.
+  const scale = Math.min(W / PF_W, H / PF_H);
+  const dx = (W - PF_W * scale) / 2;
+  const dy = (H - PF_H * scale) / 2;
+  return [dx + x * scale, dy + y * scale, scale];
+}
+
+// Run-level state — reset on each new game.
+let running = false;
+let score = 0;
+let lives = 3;
+let wave = 1;
+
+// Player.
+const PLAYER_Y = PF_H - 24;
+const PLAYER_W = 16;
+const PLAYER_H = 10;
+let player = { x: PF_W / 2 - PLAYER_W / 2, alive: true };
+
+// Bullets — ONE player bullet on screen at a time. Iconic constraint;
+// do not relax. `null` = no shot in flight.
+let playerBullet = null;        // { x, y } or null
+const BULLET_W = 2, BULLET_H = 6;
+const BULLET_SPEED = 220;       // px/sec, canvas-down-positive in pf coords
+
+// Invader grid — 5 rows × 11 cols. Each cell is { alive, frame } where
+// frame flips 0/1 each march tick for the shuffle animation.
+const COLS = 11, ROWS = 5;
+const INV_W = 12, INV_H = 8;
+const INV_SPACING_X = 16;        // cell width
+const INV_SPACING_Y = 14;
+// Top-down: row 0 = cyan squid (30 pts), row 1-2 = pink crabs (20),
+// row 3-4 = green octopi (10).
+const ROW_COLOURS = ['#2dd4ff', '#ff3aa1', '#ff3aa1', '#4ade80', '#4ade80'];
+const ROW_POINTS  = [30,        20,        20,        10,        10];
+
+let grid = null;        // { offsetX, offsetY, dir, cells: 2D array, aliveCount, frame }
+let marchAccumulator = 0;
+
+function newGrid(waveNum) {
+  const cells = [];
+  for (let r = 0; r < ROWS; r++) {
+    const row = [];
+    for (let c = 0; c < COLS; c++) row.push({ alive: true });
+    cells.push(row);
+  }
+  // Each wave starts one row lower than wave 1, capped at 3 rows lower.
+  const dropRows = Math.min(3, waveNum - 1);
+  return {
+    offsetX: 24,
+    offsetY: 36 + dropRows * INV_SPACING_Y,
+    dir: 1,            // +1 = right, -1 = left
+    cells,
+    aliveCount: ROWS * COLS,
+    frame: 0,
+  };
+}
+
+function startRun() {
+  score = 0;
+  lives = 3;
+  wave = 1;
+  player = { x: PF_W / 2 - PLAYER_W / 2, alive: true };
+  playerBullet = null;
+  grid = newGrid(wave);
+  marchAccumulator = 0;
+  running = true;
+}
+
+// Splash dismiss now starts the run too. Replace the Task 1 listeners
+// (registered above as a comment placeholder) with wrappers that dismiss
+// the splash AND begin gameplay.
+splashEl.addEventListener('pointerdown', () => { dismissSplash(); startRun(); }, { once: true });
+window.addEventListener('keydown', e => {
+  if (running) return;
+  if (e.key === 'Escape') return;     // pause/close belongs to shared modules
+  dismissSplash();
+  startRun();
+}, { once: true });
+
+// ============================================
+// INPUT
+// ============================================
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (['ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
+});
+window.addEventListener('keyup', e => keys[e.key] = false);
+
+// Touch buttons proxy through the same keys[] flags.
+(function () {
+  const left  = document.getElementById('tc-left');
+  const right = document.getElementById('tc-right');
+  const fire  = document.getElementById('tc-fire');
+  Arcade.Touch.bind(left,
+    () => { keys['ArrowLeft']  = true;  },
+    () => { keys['ArrowLeft']  = false; });
+  Arcade.Touch.bind(right,
+    () => { keys['ArrowRight'] = true;  },
+    () => { keys['ArrowRight'] = false; });
+  Arcade.Touch.bind(fire,
+    () => { keys[' '] = true;  },
+    () => { keys[' '] = false; });
+})();
+
+// ============================================
+// GAME LOOP
+// ============================================
+const PLAYER_SPEED = 130;     // px/sec
+const BASE_MARCH_INTERVAL = 0.9; // seconds between ticks when grid is full
+const MIN_MARCH_INTERVAL  = 0.05;
+let lastT = performance.now();
+
+function tick(now) {
+  requestAnimationFrame(tick);
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+
+  // Always paint the background even when paused / pre-start.
   ctx.fillStyle = '#04050f';
   ctx.fillRect(0, 0, W, H);
-  requestAnimationFrame(draw);
+
+  if (!running) return;
+  if (Arcade.Pause.isPaused()) {
+    drawScene();
+    return;
+  }
+
+  update(dt);
+  drawScene();
 }
-draw();
+
+function update(dt) {
+  // Player movement.
+  if (keys['ArrowLeft'])  player.x -= PLAYER_SPEED * dt;
+  if (keys['ArrowRight']) player.x += PLAYER_SPEED * dt;
+  player.x = Math.max(8, Math.min(PF_W - 8 - PLAYER_W, player.x));
+
+  // Fire — one shot on screen at a time. Releasing+pressing is fine; held
+  // Space does NOT spam (player must wait for the previous to leave/hit).
+  if (keys[' '] && !playerBullet && player.alive) {
+    playerBullet = { x: player.x + PLAYER_W / 2 - BULLET_W / 2, y: PLAYER_Y - BULLET_H };
+  }
+
+  // Bullet motion + off-screen cleanup.
+  if (playerBullet) {
+    playerBullet.y -= BULLET_SPEED * dt;
+    if (playerBullet.y + BULLET_H < 0) playerBullet = null;
+  }
+
+  // March tempo: shorter interval as the grid thins, capped at MIN.
+  // The 0.7 exponent makes the curve start slow then ramp hard at the end —
+  // the classic "uh-oh, three left, going fast" feel.
+  const fillRatio = grid.aliveCount / (ROWS * COLS);
+  const interval = Math.max(MIN_MARCH_INTERVAL,
+    BASE_MARCH_INTERVAL * Math.pow(fillRatio, 0.7) * Math.pow(0.9, wave - 1));
+  marchAccumulator += dt;
+  while (marchAccumulator >= interval && grid.aliveCount > 0) {
+    marchAccumulator -= interval;
+    marchStep();
+  }
+}
+
+function marchStep() {
+  grid.frame ^= 1;
+  const step = 2;        // pixels per tick
+  // Find the alive bounding box so reverse triggers on the actual edge.
+  let minC = COLS, maxC = -1;
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if (grid.cells[r][c].alive) { if (c < minC) minC = c; if (c > maxC) maxC = c; }
+  }
+  if (maxC < 0) return;
+  const leftEdge  = grid.offsetX + minC * INV_SPACING_X;
+  const rightEdge = grid.offsetX + maxC * INV_SPACING_X + INV_W;
+  const nextLeft  = leftEdge  + step * grid.dir;
+  const nextRight = rightEdge + step * grid.dir;
+  if (nextRight > PF_W - 8 || nextLeft < 8) {
+    grid.dir *= -1;
+    grid.offsetY += INV_SPACING_Y;
+  } else {
+    grid.offsetX += step * grid.dir;
+  }
+}
+
+// ============================================
+// RENDER
+// ============================================
+function drawScene() {
+  drawHUD();
+  drawGrid();
+  drawPlayer();
+  drawBullet();
+}
+
+function drawHUD() {
+  const [x, y, s] = pfToCanvas(8, 8);
+  ctx.fillStyle = '#fff';
+  ctx.font = `${Math.round(10 * s)}px "Press Start 2P", monospace`;
+  ctx.textBaseline = 'top';
+  ctx.fillText(`SCORE ${String(score).padStart(4, '0')}`, x, y);
+  const top = Arcade.Leaderboard.getHighScore();
+  const hi = top ? String(top.score).padStart(4, '0') : '0000';
+  ctx.fillText(`HI ${hi}`, ...pfToCanvas(PF_W / 2 - 18, 8).slice(0, 2));
+  ctx.fillText(`LIVES ${lives}`,
+    ...pfToCanvas(PF_W - 64, 8).slice(0, 2));
+}
+
+function drawRect(pfX, pfY, pfW, pfH, fill) {
+  const [x, y, s] = pfToCanvas(pfX, pfY);
+  ctx.fillStyle = fill;
+  ctx.fillRect(x, y, pfW * s, pfH * s);
+}
+
+function drawPlayer() {
+  if (!player.alive) return;
+  // Classic ship: trapezoid body + dome.
+  drawRect(player.x, PLAYER_Y, PLAYER_W, 4, '#2dd4ff');
+  drawRect(player.x + 4, PLAYER_Y - 2, PLAYER_W - 8, 2, '#2dd4ff');
+  drawRect(player.x + 6, PLAYER_Y - 4, 4, 2, '#2dd4ff');
+}
+
+function drawBullet() {
+  if (!playerBullet) return;
+  drawRect(playerBullet.x, playerBullet.y, BULLET_W, BULLET_H, '#ffffff');
+}
+
+function drawGrid() {
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const cell = grid.cells[r][c];
+    if (!cell.alive) continue;
+    const px = grid.offsetX + c * INV_SPACING_X;
+    const py = grid.offsetY + r * INV_SPACING_Y;
+    drawInvader(px, py, r, grid.frame);
+  }
+}
+
+// Three sprite tiers, two frames each. Sprites are intentionally simple
+// 12×8 chunky pixel-blocks — readable on a small mobile canvas, faithful
+// to the original silhouettes. Frame 0/1 toggles a couple of body/limb
+// pixels for the shuffle.
+function drawInvader(px, py, row, frame) {
+  const colour = ROW_COLOURS[row];
+  if (row === 0) drawSquid(px, py, colour, frame);
+  else if (row === 1 || row === 2) drawCrab(px, py, colour, frame);
+  else drawOctopus(px, py, colour, frame);
+}
+
+function drawSquid(px, py, colour, f) {
+  // 8×8 body within the 12×8 cell, centred.
+  const ox = 2;
+  const pixels = f === 0
+    ? ['..XX..', '.XXXX.', 'XXXXXX', 'XX..XX', 'XXXXXX', '.X..X.', 'X.XX.X', '.X..X.']
+    : ['..XX..', '.XXXX.', 'XXXXXX', 'XX..XX', 'XXXXXX', '.X..X.', 'X....X', 'X.XX.X'];
+  paintPixels(px + ox, py, pixels, colour);
+}
+function drawCrab(px, py, colour, f) {
+  const pixels = f === 0
+    ? ['..X..X..', '...XX...', '..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'X.XXXX.X', 'X.X..X.X', '.X....X.']
+    : ['X..X..X.', '.X.XX.X.', 'XXXXXXXX', 'XXX..XXX', 'XXXXXXXX', '.XXXXXX.', 'X......X', '.X....X.'];
+  paintPixels(px, py, pixels, colour);
+}
+function drawOctopus(px, py, colour, f) {
+  const pixels = f === 0
+    ? ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '..X..X..', '.X.XX.X.', 'X.X..X.X']
+    : ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '...XX...', '..X..X..', '.X....X.'];
+  paintPixels(px, py, pixels, colour);
+}
+function paintPixels(px, py, pixels, colour) {
+  for (let y = 0; y < pixels.length; y++) {
+    for (let x = 0; x < pixels[y].length; x++) {
+      if (pixels[y][x] === 'X') drawRect(px + x, py + y, 1, 1, colour);
+    }
+  }
+}
+
+requestAnimationFrame(tick);
 </script>
 </body>
 </html>
