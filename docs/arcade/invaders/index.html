@@ -347,11 +347,16 @@ const BULLET_W = 2, BULLET_H = 6;
 
 // Charged shot — hold SPACE ≥ CHARGE_THRESHOLD_MS, release for a piercing,
 // fatter, faster bullet that passes through shields and the whole grid.
+// Super shots are a scarce resource: you only earn one per UFO killed
+// (cap SUPER_SHOT_MAX). Holding SPACE with zero ammo does nothing special
+// — short tap still fires a normal shot.
 const CHARGE_THRESHOLD_MS = 500;
 const CHARGED_BULLET_W = 4, CHARGED_BULLET_H = 12;
 const CHARGED_BULLET_SPEED = 380;
+const SUPER_SHOT_MAX = 3;
 let chargeStartAt = 0;          // performance.now() when SPACE went down; 0 = not charging
 let prevSpaceHeld = false;
+let superShotAmmo = 0;
 
 // Combo chain — kills within COMBO_WINDOW_MS extend the chain; multiplier
 // ramps × 1 → × 2 → × 3 → × 4 by kill count.
@@ -570,6 +575,7 @@ function startRun() {
   // Reset gimmick state for the new run.
   chargeStartAt = 0;
   prevSpaceHeld = false;
+  superShotAmmo = 0;
   comboCount = 0;
   lastKillAt = 0;
   markedCell = null;
@@ -872,7 +878,9 @@ function update(dt) {
     }
     if (player.alive && justReleased && chargeStartAt > 0 && !playerBullet) {
       const heldMs = performance.now() - chargeStartAt;
-      const charged = heldMs >= CHARGE_THRESHOLD_MS;
+      // Charged shot only fires if you held long enough AND have super ammo.
+      // Otherwise you still get a normal shot — the hold gesture isn't wasted.
+      const charged = heldMs >= CHARGE_THRESHOLD_MS && superShotAmmo > 0;
       const bw = charged ? CHARGED_BULLET_W : BULLET_W;
       const bh = charged ? CHARGED_BULLET_H : BULLET_H;
       playerBullet = {
@@ -880,6 +888,7 @@ function update(dt) {
         y: PLAYER_Y - bh,
         charged,
       };
+      if (charged) superShotAmmo--;
       Arcade.Audio.play('sfx-shoot', charged ? 0.75 : 0.55);
     }
     if (!spaceHeld) chargeStartAt = 0;     // released without firing (e.g. died mid-charge)
@@ -996,7 +1005,12 @@ function update(dt) {
           playerBullet.y < UFO_Y + UFO_H && playerBullet.y + bh > UFO_Y) {
         const award = UFO_SCORES[Math.floor(Math.random() * UFO_SCORES.length)];
         score += award;
-        addPopup(ufo.x + UFO_W / 2, UFO_Y, `+${award}`, '#ffd84a');
+        // Each UFO kill grants one super-shot charge (cap SUPER_SHOT_MAX).
+        const gotAmmo = superShotAmmo < SUPER_SHOT_MAX;
+        if (gotAmmo) superShotAmmo++;
+        addPopup(ufo.x + UFO_W / 2, UFO_Y,
+                 gotAmmo ? `+${award} ⚡SUPER` : `+${award}`,
+                 '#ffd84a');
         Arcade.Audio.play('sfx-explosion', 0.6);
         ufo = null;
         if (!playerBullet.charged) playerBullet = null;
@@ -1222,18 +1236,41 @@ function drawRect(pfX, pfY, pfW, pfH, fill) {
 
 function drawPlayer() {
   if (!player.alive) return;
-  // Charge halo — when SPACE has been held long enough, draw a pulsing
-  // golden glow around the ship so the player knows the next release
-  // will be a piercing shot.
-  if (chargeStartAt > 0) {
-    const heldMs = performance.now() - chargeStartAt;
-    if (heldMs >= CHARGE_THRESHOLD_MS) {
-      const pulse = 1 + Math.floor(performance.now() / 90) % 2;
-      drawRect(player.x - pulse, PLAYER_Y - 4 - pulse,
-               PLAYER_W + pulse * 2, 4 + 4 + pulse * 2,
-               'rgba(255, 216, 74, 0.35)');
+
+  // Super-shot ammo + charge indicator, just above the ship turret.
+  // Layout: three pips at y=PLAYER_Y-12 — filled gold = armed, empty
+  // outline = used. Holding SPACE with ammo > 0 fills a progress bar
+  // beneath the pips; once full, a pulsing halo wraps the ship.
+  const charging = chargeStartAt > 0 && superShotAmmo > 0;
+  const heldMs   = charging ? (performance.now() - chargeStartAt) : 0;
+  const chargeReady = heldMs >= CHARGE_THRESHOLD_MS;
+
+  // Pips
+  for (let i = 0; i < SUPER_SHOT_MAX; i++) {
+    const dx = player.x + 1 + i * 5;
+    if (i < superShotAmmo) {
+      drawRect(dx, PLAYER_Y - 12, 3, 3, '#ffd84a');
+    } else {
+      // Faint outline so the player can see HOW MANY they could stash.
+      drawRect(dx, PLAYER_Y - 12, 3, 3, 'rgba(255, 216, 74, 0.18)');
     }
   }
+
+  // Charge progress bar — only when holding with ammo. Sits under the pips.
+  if (charging) {
+    const ratio = Math.min(1, heldMs / CHARGE_THRESHOLD_MS);
+    drawRect(player.x, PLAYER_Y - 7, PLAYER_W, 2, 'rgba(255, 216, 74, 0.25)');
+    drawRect(player.x, PLAYER_Y - 7, PLAYER_W * ratio, 2, '#ffd84a');
+  }
+
+  // Pulsing halo when fully charged and ready to release.
+  if (chargeReady) {
+    const pulse = 1 + Math.floor(performance.now() / 90) % 2;
+    drawRect(player.x - pulse, PLAYER_Y - 4 - pulse,
+             PLAYER_W + pulse * 2, 4 + 4 + pulse * 2,
+             'rgba(255, 216, 74, 0.35)');
+  }
+
   // Bright magenta-pink body + white turret tip — the player is the only
   // saturated colour on screen, so the eye locks to "you" against the
   // muted pastel invaders.
@@ -1376,7 +1413,8 @@ function drawComboHUD() {
   ctx.textBaseline = 'middle';
   ctx.globalAlpha = remaining;
   ctx.fillStyle = '#ffd84a';
-  const [cx, cy] = pfToCanvas(PF_W / 2, PLAYER_Y - 18);
+  // Sit COMBO above the shield row so the huts never occlude it.
+  const [cx, cy] = pfToCanvas(PF_W / 2, SHIELD_Y - 10);
   ctx.fillText(`COMBO ×${mult}`, cx, cy);
   ctx.restore();
 }
