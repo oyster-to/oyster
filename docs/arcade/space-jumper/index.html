@@ -229,6 +229,7 @@
 <script src="../shared/touch.js"></script>
 <script src="../shared/iframe-host.js"></script>
 <script src="../shared/leaderboard.js"></script>
+<script src="../shared/initials.js"></script>
 <audio id="sfx-powerup"   src="../shared/sfx-powerup.mp3"   preload="auto"></audio>
 <audio id="sfx-explosion" src="../shared/sfx-explosion.mp3" preload="auto"></audio>
 <audio id="sfx-lose"      src="../shared/sfx-lose.mp3"      preload="auto"></audio>
@@ -346,26 +347,23 @@ window.addEventListener('keydown', e => {
   }
 });
 
-// Forward-declared so the touch closures can route to initials entry when
-// it's active. Defined fully further down (after the leaderboard module).
-let initialsActive = false;
-
 // Touch buttons drive the same key flags as the keyboard, so the rest
 // of the input pipeline doesn't care where input came from. While initials
-// entry is active, ◀ ▶ change the letter and JUMP advances / saves.
+// entry is active (Arcade.Initials), ◀ ▶ change the letter and JUMP
+// advances / saves.
 (function () {
   const left  = document.getElementById('tc-left');
   const right = document.getElementById('tc-right');
   const jump  = document.getElementById('tc-jump');
   Arcade.Touch.bind(left,
-    () => { if (initialsActive) { initialsAction('letter-prev'); return; } keys['ArrowLeft']  = true;  },
-    () => { if (initialsActive) return; keys['ArrowLeft']  = false; });
+    () => { if (Arcade.Initials.isActive()) { Arcade.Initials.action('letter-prev'); return; } keys['ArrowLeft']  = true;  },
+    () => { if (Arcade.Initials.isActive()) return; keys['ArrowLeft']  = false; });
   Arcade.Touch.bind(right,
-    () => { if (initialsActive) { initialsAction('letter-next'); return; } keys['ArrowRight'] = true;  },
-    () => { if (initialsActive) return; keys['ArrowRight'] = false; });
+    () => { if (Arcade.Initials.isActive()) { Arcade.Initials.action('letter-next'); return; } keys['ArrowRight'] = true;  },
+    () => { if (Arcade.Initials.isActive()) return; keys['ArrowRight'] = false; });
   Arcade.Touch.bind(jump,
-    () => { if (initialsActive) { initialsAction('advance');     return; } keys[' ']          = true;  },
-    () => { if (initialsActive) return; keys[' ']          = false; });
+    () => { if (Arcade.Initials.isActive()) { Arcade.Initials.action('advance');     return; } keys[' ']          = true;  },
+    () => { if (Arcade.Initials.isActive()) return; keys[' ']          = false; });
 })();
 
 // ============================================
@@ -401,6 +399,26 @@ function resumeBgm() { const a = document.getElementById('bgm'); if (a) { a.curr
 // the rocket-ship board stays separate.
 // ============================================
 Arcade.Leaderboard.init({ game: 'space-jumper', max: 10 });
+
+// Initials entry — keyboard + touch state machine lives in shared/initials.js.
+// Space Jumper labels its main touch button JUMP and ALSO accepts W/S as
+// extra letter prev/next keys (matches Space Jumper's WASD movement scheme).
+// onSubmit handles the per-game UX (SCORE SAVED text, restart grace, server
+// submit + splash repaint).
+Arcade.Initials.mount({
+  fireButton: '#tc-jump',
+  fireLabel:  { idle: 'JUMP', select: 'SELECT' },
+  extraKeys:  { 'letter-prev': ['w', 'W'], 'letter-next': ['s', 'S'] },
+  onSubmit: (initials) => {
+    const goHi = document.getElementById('go-hiscore');
+    if (goHi) goHi.textContent = `SCORE SAVED · ${initials}`;
+    endOverlayInputAllowedAt = performance.now() + 400;
+    Arcade.Leaderboard.submit(score, initials).then(res => {
+      if (!res.ok) console.warn('leaderboard submit failed:', res.error);
+      paintSplashHiScore();
+    });
+  },
+});
 function paintSplashHiScore() {
   const row = document.getElementById('hiscore-row');
   const val = document.getElementById('hs-val-splash');
@@ -416,165 +434,8 @@ paintSplashHiScore();
 // Fire-and-forget cloud refresh; repaint when it lands.
 Arcade.Leaderboard.refresh().then(paintSplashHiScore);
 
-// ============================================
-// INITIALS ENTRY — shown in the HTML game-over overlay when the run's
-// score qualifies for the leaderboard. State resets every new run.
-// ============================================
-const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-';
-let initialsSlot = 0;
-let initialsLetters = [0, 0, 0];
-
-function paintInitials() {
-  const slots = document.querySelectorAll('#go-initials .go-slot');
-  slots.forEach((s, i) => {
-    s.textContent = LETTERS[initialsLetters[i]];
-    s.classList.toggle('is-active', i === initialsSlot);
-  });
-}
-
-// Touch JUMP button doubles as SELECT/CONFIRM during initials entry —
-// re-label it so coarse-pointer users know the new role.
-function setJumpLabel(mode /* 'jump' | 'select' */) {
-  const btn = document.getElementById('tc-jump');
-  if (!btn) return;
-  if (mode === 'select') {
-    btn.textContent = 'SELECT';
-    btn.setAttribute('aria-label', 'Select / advance');
-  } else {
-    btn.textContent = 'JUMP';
-    btn.setAttribute('aria-label', 'Jump');
-  }
-}
-
-function startInitialsEntry() {
-  initialsActive = true;
-  initialsSlot = 0;
-  initialsLetters = [0, 0, 0];
-  document.getElementById('go-prompt').hidden = true;
-  document.getElementById('go-initials').hidden = false;
-  setJumpLabel('select');
-  paintInitials();
-}
-
-function finishInitialsEntry() {
-  const initials = initialsLetters.map(i => LETTERS[i]).join('');
-  initialsActive = false;
-  setJumpLabel('jump');
-  document.getElementById('go-initials').hidden = true;
-  document.getElementById('go-prompt').hidden = false;
-  const goHi = document.getElementById('go-hiscore');
-  if (goHi) goHi.textContent = `SCORE SAVED · ${initials}`;
-  // Small grace so the same key that saved doesn't immediately restart.
-  endOverlayInputAllowedAt = performance.now() + 400;
-  // Fire-and-forget submit; repaint splash hi-score when it lands.
-  Arcade.Leaderboard.submit(score, initials).then(res => {
-    if (!res.ok) console.warn('leaderboard submit failed:', res.error);
-    paintSplashHiScore();
-  });
-}
-
-function initialsAction(action) {
-  if (!initialsActive) return false;
-  if (action === 'letter-prev') {
-    initialsLetters[initialsSlot] = (initialsLetters[initialsSlot] - 1 + LETTERS.length) % LETTERS.length;
-  } else if (action === 'letter-next') {
-    initialsLetters[initialsSlot] = (initialsLetters[initialsSlot] + 1) % LETTERS.length;
-  } else if (action === 'slot-prev') {
-    initialsSlot = Math.max(0, initialsSlot - 1);
-  } else if (action === 'slot-next' || action === 'advance') {
-    if (initialsSlot < 2) initialsSlot++;
-    else { finishInitialsEntry(); return true; }
-  }
-  paintInitials();
-  return true;
-}
-
-// Keyboard during initials entry: ↑↓ change letter, ←→ move slot, Enter/Space saves.
-window.addEventListener('keydown', e => {
-  if (!initialsActive) return;
-  let action = null;
-  if      (e.key === 'ArrowUp'   || e.key === 'w' || e.key === 'W') action = 'letter-prev';
-  else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') action = 'letter-next';
-  else if (e.key === 'ArrowLeft')   action = 'slot-prev';
-  else if (e.key === 'ArrowRight')  action = 'slot-next';
-  else if (e.key === 'Enter' || e.key === ' ') action = 'advance';
-  // Single-letter typed input: jump to that letter at the active slot and
-  // auto-advance — fastest path on a real keyboard.
-  else if (e.key.length === 1) {
-    const c = e.key.toUpperCase();
-    const idx = LETTERS.indexOf(c);
-    if (idx >= 0) {
-      initialsLetters[initialsSlot] = idx;
-      if (initialsSlot < 2) {
-        initialsSlot++;
-        paintInitials();
-      } else {
-        paintInitials();
-        finishInitialsEntry();
-      }
-      e.preventDefault();
-      e.stopPropagation();
-      return;
-    }
-  }
-  if (action) {
-    initialsAction(action);
-    e.preventDefault();
-    e.stopPropagation();
-  }
-});
-
-// Touch UX during initials entry — three affordances on top of the existing
-// ◀/▶/SELECT buttons, so a player who tapped the wrong letter isn't stuck:
-//   1. Tap a slot directly → jump to that slot (fixes typos cheaply)
-//   2. Horizontal swipe across the overlay → cycle letters quickly (~40px/letter)
-//   3. (Existing buttons unchanged: ◀/▶ = letter prev/next, SELECT = advance)
-(function wireInitialsTouch() {
-  // Slots tappable. Each carries data-slot="N" — clicking sets initialsSlot.
-  const slots = document.querySelectorAll('#go-initials .go-slot');
-  slots.forEach(s => {
-    s.style.cursor = 'pointer';
-    s.addEventListener('click', e => {
-      if (!initialsActive) return;
-      const idx = parseInt(s.dataset.slot, 10);
-      if (Number.isInteger(idx) && idx >= 0 && idx <= 2) {
-        initialsSlot = idx;
-        paintInitials();
-      }
-      e.stopPropagation();
-    });
-  });
-
-  // Horizontal-drag → letter cycling on the overlay (not on slots themselves,
-  // so taps still land on the slots). 40px per letter — a fast swipe scrolls
-  // ~5 letters in one gesture.
-  const container = document.getElementById('go-initials');
-  if (!container) return;
-  let dragStartX = 0;
-  let dragStartLetter = 0;
-  let dragging = false;
-  container.addEventListener('pointerdown', e => {
-    if (!initialsActive) return;
-    if (e.target && e.target.classList && e.target.classList.contains('go-slot')) return;
-    dragStartX = e.clientX;
-    dragStartLetter = initialsLetters[initialsSlot];
-    dragging = true;
-    try { container.setPointerCapture(e.pointerId); } catch (_) {}
-  });
-  container.addEventListener('pointermove', e => {
-    if (!dragging || !initialsActive) return;
-    const dx = e.clientX - dragStartX;
-    const step = Math.round(dx / 40);
-    const newLetter = ((dragStartLetter + step) % LETTERS.length + LETTERS.length) % LETTERS.length;
-    if (newLetter !== initialsLetters[initialsSlot]) {
-      initialsLetters[initialsSlot] = newLetter;
-      paintInitials();
-    }
-  });
-  function endDrag() { dragging = false; }
-  container.addEventListener('pointerup', endDrag);
-  container.addEventListener('pointercancel', endDrag);
-})();
+// (Initials state machine + listeners now live in shared/initials.js — see
+// the Arcade.Initials.mount(...) call above for the per-game config.)
 
 // ============================================
 // END-OF-RUN OVERLAY (HTML). One panel for both win and loss states,
@@ -595,9 +456,7 @@ function showEndOverlay({ win }) {
   scoreVal.textContent = score;
   const top = Arcade.Leaderboard.getHighScore();
   if (hiEl) hiEl.textContent = top ? `HIGH ${String(top.score).padStart(3, '0')} ${top.initials || '---'}` : '';
-  document.getElementById('go-prompt').hidden = false;
-  document.getElementById('go-initials').hidden = true;
-  initialsActive = false;
+  Arcade.Initials.close();
   ov.classList.add('is-visible');
   ov.setAttribute('aria-hidden', 'false');
   const graceMs = win ? LEVEL_COMPLETE_GRACE_MS : GAME_OVER_GRACE_MS;
@@ -605,7 +464,7 @@ function showEndOverlay({ win }) {
   // After the grace window, prompt for initials if the score qualifies.
   setTimeout(() => {
     if (!(gameOver || levelComplete)) return;  // already restarted
-    if (Arcade.Leaderboard.qualifies(score)) startInitialsEntry();
+    if (Arcade.Leaderboard.qualifies(score)) Arcade.Initials.open();
   }, graceMs);
 }
 
@@ -614,10 +473,7 @@ function hideEndOverlay() {
   if (!ov) return;
   ov.classList.remove('is-visible');
   ov.setAttribute('aria-hidden', 'true');
-  document.getElementById('go-initials').hidden = true;
-  document.getElementById('go-prompt').hidden = false;
-  initialsActive = false;
-  setJumpLabel('jump');
+  Arcade.Initials.close();
   endOverlayInputAllowedAt = 0;
 }
 
@@ -1219,7 +1075,7 @@ function update() {
   // endOverlayInputAllowedAt so the same key that triggered the end (or
   // saved initials) doesn't immediately restart.
   if (levelComplete || gameOver) {
-    if (initialsActive) return;
+    if (Arcade.Initials.isActive()) return;
     if (now < endOverlayInputAllowedAt) return;
     const anyAction =
       keys[' '] || keys['ArrowUp'] || keys['w'] || keys['W'] ||

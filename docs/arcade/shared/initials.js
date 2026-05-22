@@ -34,6 +34,7 @@
     charset:  DEFAULT_CHARSET,
     fireButton: null,                                   // CSS selector, e.g. '#tc-fire'
     fireLabel:  { idle: 'FIRE', select: 'SELECT' },
+    extraKeys:  null,    // { 'letter-prev': ['w','W'], … } — additional key → action bindings
     onSubmit:   () => {},
   };
 
@@ -120,6 +121,12 @@
       else if (e.key === 'ArrowLeft')  act = 'slot-prev';
       else if (e.key === 'ArrowRight') act = 'slot-next';
       else if (e.key === 'Enter' || e.key === ' ') act = 'advance';
+      // Game-supplied extra bindings (e.g. Space Jumper maps W/S to letter prev/next).
+      else if (opts.extraKeys) {
+        for (const [a, keys] of Object.entries(opts.extraKeys)) {
+          if (keys.includes(e.key)) { act = a; break; }
+        }
+      }
       else if (e.key.length === 1) {
         // Type-a-letter shortcut — jump to the typed char + auto-advance.
         const c = e.key.toUpperCase();
