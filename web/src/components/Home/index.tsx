@@ -1115,7 +1115,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
 
           {loading && sessions.length === 0 ? (
             <div className="home-empty">Loading sessions…</div>
-          ) : visibleSessions.length === 0 ? (
+          ) : visibleSessions.length === 0 && !(stateCounts.all === 0 && isHomeView && !showElsewhere) ? (
             <div className="home-empty">No sessions match this filter yet.</div>
           ) : (
             <>
@@ -1169,6 +1169,14 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
                 />
               )}
             </>
+          )}
+          {stateCounts.all === 0 && isHomeView && !showElsewhere && (
+            <div className="home-empty-state">
+              <div className="home-empty-state-title">No sessions found yet.</div>
+              <div className="home-empty-state-body">
+                Start a Claude Code session in a project. Oyster will pick it up automatically.
+              </div>
+            </div>
           )}
         </section>
 
