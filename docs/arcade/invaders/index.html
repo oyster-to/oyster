@@ -997,19 +997,29 @@ function drawScene() {
 function drawHUD() {
   const [, , s] = pfToCanvas(0, 0);
   ctx.fillStyle = '#fff';
-  ctx.font = `${Math.round(10 * s)}px "Press Start 2P", monospace`;
+  ctx.font = `${Math.round(8 * s)}px "Press Start 2P", monospace`;
   ctx.textBaseline = 'top';
-  // Anchor each chunk to its own edge — SCORE left, HI centred, LIVES
-  // right. Press Start 2P is wider than its nominal size; explicit text-
-  // align prevents the three chunks from ever colliding.
+  // Classic cabinet two-line HUD — labels on top, values below — anchored
+  // left/centre/right. Press Start 2P is wide enough that any one-line
+  // layout with three chunks collides on small playfields; the stack
+  // avoids that completely and matches the 1978 marquee.
   const top = Arcade.Leaderboard.getHighScore();
   const hi  = top ? String(top.score).padStart(4, '0') : '0000';
+  const scoreStr = String(score).padStart(4, '0');
+  const livesStr = String(lives);
+
   ctx.textAlign = 'left';
-  ctx.fillText(`SCORE ${String(score).padStart(4, '0')}`, ...pfToCanvas(8, 8).slice(0, 2));
+  ctx.fillText('SCORE',  ...pfToCanvas(8, 4).slice(0, 2));
+  ctx.fillText(scoreStr, ...pfToCanvas(8, 14).slice(0, 2));
+
   ctx.textAlign = 'center';
-  ctx.fillText(`HI ${hi}`, ...pfToCanvas(PF_W / 2, 8).slice(0, 2));
+  ctx.fillText('HI', ...pfToCanvas(PF_W / 2, 4).slice(0, 2));
+  ctx.fillText(hi,   ...pfToCanvas(PF_W / 2, 14).slice(0, 2));
+
   ctx.textAlign = 'right';
-  ctx.fillText(`LIVES ${lives}`, ...pfToCanvas(PF_W - 8, 8).slice(0, 2));
+  ctx.fillText('LIVES',  ...pfToCanvas(PF_W - 8, 4).slice(0, 2));
+  ctx.fillText(livesStr, ...pfToCanvas(PF_W - 8, 14).slice(0, 2));
+
   ctx.textAlign = 'left';   // restore default for any subsequent drawing
 }
 
