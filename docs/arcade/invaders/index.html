@@ -128,6 +128,24 @@
   /* Canvas is the playfield. Crisp pixels — nearest-neighbour scaling so
      the chunky sprites read like an arcade screen, not antialiased mush. */
   canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+  /* CRT scanlines on the pause overlay. The cabinet's shared .overlay::before
+     applies scanlines at z-index:2; the shared pause overlay sits at
+     z-index:9999 and would otherwise block the CRT effect from reading on
+     the PAUSED card. Replicate the same scanline + RGB sub-pixel gradient
+     on the pause card so the CRT carries through end-to-end. */
+  .arcade-pause-card { position: relative; }
+  .arcade-pause-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%),
+      linear-gradient(90deg, rgba(255, 0, 0, 0.1), rgba(0, 255, 0, 0.04), rgba(0, 0, 255, 0.1));
+    background-size: 100% 3px, 3px 100%;
+    z-index: 1;
+  }
 </style>
 </head>
 <body>
