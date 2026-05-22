@@ -83,28 +83,30 @@ interface ChecklistItem {
   actionLabel: string;
 }
 
-// Order matters: required first, then optionals in install-friction order
-// (publish = no install; MCP = config edit; memories = external AI roundtrip).
+// MCP is the required item — driving Oyster from your existing agent
+// is the central value prop. Spaces / publish / memories are optional
+// discoverable extras. Order: required first, then optionals roughly
+// by install-friction.
 const ITEMS: ChecklistItem[] = [
   {
-    key: "spaces",
-    title: "Set up your spaces",
+    key: "mcp",
+    title: "Connect an agent",
     required: true,
-    desc: "Let Oyster scan your dev folders and group your work into spaces.",
-    actionLabel: "Set up Oyster",
+    desc: "Drive Oyster from Claude Code, Cursor, VS Code or Windsurf.",
+    actionLabel: "Connect",
+  },
+  {
+    key: "spaces",
+    title: "Organise into spaces",
+    required: false,
+    desc: "Group your work into spaces — useful once you have a few projects on the go.",
+    actionLabel: "Organise",
   },
   {
     key: "publish",
     title: "Publish your first artefact",
     required: false,
     desc: "Make a thing in chat, click Publish — get a share URL.",
-    actionLabel: "Show me how",
-  },
-  {
-    key: "mcp",
-    title: "Connect another agent (MCP)",
-    required: false,
-    desc: "Drive Oyster from Claude Code, Cursor, VS Code or Windsurf.",
     actionLabel: "Show me how",
   },
   {
@@ -257,7 +259,7 @@ export function OnboardingDock({ userSpaceCount = 0 }: OnboardingDockProps = {})
   }, [userSpaceCount]);
 
   const done = allDone(state);
-  const requiredDone = state.spacesComplete;
+  const requiredDone = state.mcpComplete;
 
   return (
     <div className="onboarding-dock-wrap">
@@ -267,33 +269,15 @@ export function OnboardingDock({ userSpaceCount = 0 }: OnboardingDockProps = {})
         className={`onboarding-dock${done ? " onboarding-dock--ready" : ""}${popoverOpen ? " onboarding-dock--active" : ""}`}
         onClick={togglePopover}
         aria-expanded={popoverOpen}
-        aria-label={
-          done
-            ? "Oyster setup complete"
-            : requiredDone
-              ? "Continue Oyster setup"
-              : "Set up Oyster"
-        }
+        aria-label="Onboarding checklist"
       >
-        {/* Three pill states. Pre-required: amber pulsing dot + "Set up
-            Oyster", attention-grabbing. Post-required-with-optionals-pending:
-            purple pill (matches "+ New session") with a gold ◐ half-circle
-            glyph — the glyph is the only state cue; the pill stays quiet so
-            it doesn't out-shout the active space pill. All-done: chrome
-            drops away and only the 🦪 oyster remains — silent on-brand
-            confirmation, the "you found your pearl" moment. */}
-        {!requiredDone && <span className="onboarding-dock-progress" />}
-        {requiredDone && !done && <span className="onboarding-dock-mid-glyph" aria-hidden="true">◐</span>}
-        {done && (
-          <span className="onboarding-dock-check" role="img" aria-label="Setup complete">
-            🦪
-          </span>
-        )}
-        {!done && (
-          <span className="onboarding-dock-label">
-            {requiredDone ? "Continue setup" : "Set up Oyster"}
-          </span>
-        )}
+        {/* Neutralised pill. No amber pulse, no "Set up Oyster" label, no
+            state cue — just a quiet 🦪 icon that opens the checklist. The
+            items themselves (spaces, publish, MCP, memories) stay in the
+            popover; the pill stops shouting to discover them. */}
+        <span className="onboarding-dock-check" role="img" aria-hidden="true">
+          🦪
+        </span>
       </button>
 
       {popoverOpen && (
