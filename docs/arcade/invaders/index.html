@@ -195,11 +195,15 @@
 // ============================================
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-let W, H;
+let W, H, bgGradient;
 function resize() {
   const rect = canvas.getBoundingClientRect();
   W = canvas.width = rect.width;
   H = canvas.height = rect.height;
+  // Build the washed navy gradient once per resize — matches the splash.
+  bgGradient = ctx.createLinearGradient(0, 0, 0, H);
+  bgGradient.addColorStop(0, '#0d1a60');
+  bgGradient.addColorStop(1, '#050a30');
 }
 resize();
 window.addEventListener('resize', resize);
@@ -597,7 +601,7 @@ function tick(now) {
   lastT = now;
 
   // Always paint the background even when paused / pre-start.
-  ctx.fillStyle = '#0a1554';   // deep navy — matches splash
+  ctx.fillStyle = bgGradient;   // washed navy gradient — matches splash
   ctx.fillRect(0, 0, W, H);
 
   if (!running) return;
