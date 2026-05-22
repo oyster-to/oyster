@@ -212,6 +212,56 @@ paintSplashHiScore();
 Arcade.Leaderboard.refresh().then(paintSplashHiScore);
 
 // ============================================
+// SYNTH SFX — square-wave blips for the classic 1978 sounds. Reads the
+// Arcade.Audio master volume so the cabinet's SFX slider still applies.
+// ============================================
+const synth = (function () {
+  let actx = null;
+  function ensure() {
+    if (actx) { if (actx.state === 'suspended') actx.resume().catch(()=>{}); return actx; }
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      actx = new Ctx();
+    } catch (_) { return null; }
+    return actx;
+  }
+  function masterVol() {
+    return (window.Arcade && Arcade.Audio && Arcade.Audio.getVolume) ? Arcade.Audio.getVolume() : 1;
+  }
+  function blip(freqStart, freqEnd, durMs, gain, type) {
+    const c = ensure(); if (!c) return;
+    const v = masterVol() * (gain || 0.25);
+    if (v <= 0) return;
+    const t = c.currentTime;
+    const dur = durMs / 1000;
+    const osc = c.createOscillator();
+    osc.type = type || 'square';
+    osc.frequency.setValueAtTime(freqStart, t);
+    osc.frequency.linearRampToValueAtTime(freqEnd, t + dur);
+    const g = c.createGain();
+    g.gain.setValueAtTime(v, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(g).connect(c.destination);
+    osc.start(t);
+    osc.stop(t + dur);
+  }
+  function note(freq, durMs, gain) { blip(freq, freq, durMs, gain, 'square'); }
+  function shoot()  { blip(900, 220, 90, 0.22, 'square'); }
+  // March heartbeat — four notes cycled E2, D2, C2, B1 (the canonical sequence).
+  const MARCH_NOTES = [82.41, 73.42, 65.41, 61.74];
+  let marchIdx = 0;
+  function march() { note(MARCH_NOTES[marchIdx % 4], 110, 0.20); marchIdx++; }
+  function marchReset() { marchIdx = 0; }
+  // UFO siren — sine sweep up-down, called repeatedly while UFO on-screen.
+  function ufoWarble(t /* 0..1 progress across screen */) {
+    const f = 480 + Math.sin(t * Math.PI * 8) * 90;
+    blip(f, f, 100, 0.15, 'sine');
+  }
+  return { ensure, shoot, march, marchReset, ufoWarble };
+})();
+
+// ============================================
 // GAME STATE
 // ============================================
 // Logical playfield is internally a fixed 240×280 grid scaled to canvas.
@@ -255,6 +305,31 @@ const INV_FIRE_INTERVAL = 0.8;     // seconds between fire opportunities
 const INV_FIRE_CHANCE_BASE = 0.4;  // per-opportunity, wave 1
 let invaderBullets = [];
 let invFireAccumulator = 0;
+
+// ============================================
+// UFO — bonus saucer that crosses the top intermittently once the grid
+// has thinned a bit. Scores 50 / 100 / 150 / 300 (random).
+// ============================================
+const UFO_Y = 18;
+const UFO_W = 16, UFO_H = 7;
+const UFO_SPEED = 50;             // px/sec
+const UFO_MIN_INTERVAL = 25;       // s — earliest possible respawn
+const UFO_MAX_INTERVAL = 45;       // s — latest
+const UFO_SCORES = [50, 100, 150, 300];
+let ufo = null;                   // { x, dir } or null
+let ufoNextAt = 0;
+let ufoWarbleAccumulator = 0;
+
+function maybeSpawnUfo(now) {
+  if (ufo) return;
+  if (grid.aliveCount > ROWS * COLS - 8) return;   // wait until ~8 dead
+  if (now < ufoNextAt) return;
+  const fromLeft = Math.random() < 0.5;
+  ufo = { x: fromLeft ? -UFO_W : PF_W, dir: fromLeft ? 1 : -1 };
+}
+function scheduleNextUfo(now) {
+  ufoNextAt = now + (UFO_MIN_INTERVAL + Math.random() * (UFO_MAX_INTERVAL - UFO_MIN_INTERVAL)) * 1000;
+}
 
 function tryInvaderFire() {
   if (invaderBullets.length >= MAX_INV_BULLETS) return;
@@ -397,6 +472,10 @@ function startRun() {
   shields = newShields();
   grid = newGrid(wave);
   marchAccumulator = 0;
+  synth.marchReset();
+  ufo = null;
+  scheduleNextUfo(performance.now());
+  ufoWarbleAccumulator = 0;
   running = true;
   // Clear stale input state so the key used to restart doesn't carry over.
   for (const k in keys) keys[k] = false;
@@ -409,6 +488,7 @@ window.addEventListener('keydown', e => {
   // Overlay grace prevents the same key that lost the run from restarting it.
   if (performance.now() < endOverlayInputAllowedAt) return;
   Arcade.Audio.ensureCtx();   // unlock WebAudio on keyboard-only iOS
+  synth.ensure();
   hideEndOverlay();
   startRun();
 });
@@ -423,6 +503,7 @@ document.addEventListener('pointerdown', e => {
   splashEl.classList.add('is-hidden');
   document.querySelector('.tube').classList.add('is-ready');
   Arcade.Audio.ensureCtx();
+  synth.ensure();
   startRun();
 });
 
@@ -541,6 +622,7 @@ function update(dt) {
   // Space does NOT spam (player must wait for the previous to leave/hit).
   if (player.alive && keys[' '] && !playerBullet) {
     playerBullet = { x: player.x + PLAYER_W / 2 - BULLET_W / 2, y: PLAYER_Y - BULLET_H };
+    synth.shoot();
   }
 
   // Bullet motion + off-screen cleanup.
@@ -615,6 +697,37 @@ function update(dt) {
     }
   }
 
+  // UFO spawn + motion + collision.
+  const now = performance.now();
+  maybeSpawnUfo(now);
+  if (ufo) {
+    ufo.x += UFO_SPEED * ufo.dir * dt;
+    // Warble — throttled to one blip per ~100ms so we don't stack dozens of
+    // oscillator nodes at 60fps.
+    ufoWarbleAccumulator += dt;
+    if (ufoWarbleAccumulator >= 0.1) {
+      ufoWarbleAccumulator = 0;
+      const progress = (ufo.x + UFO_W) / (PF_W + UFO_W * 2);
+      synth.ufoWarble(progress);
+    }
+    // Off-screen exit.
+    if ((ufo.dir > 0 && ufo.x > PF_W) || (ufo.dir < 0 && ufo.x + UFO_W < 0)) {
+      ufo = null;
+      scheduleNextUfo(now);
+    }
+    // Player bullet vs UFO.
+    if (ufo && playerBullet &&
+        playerBullet.x < ufo.x + UFO_W && playerBullet.x + BULLET_W > ufo.x &&
+        playerBullet.y < UFO_Y + UFO_H && playerBullet.y + BULLET_H > UFO_Y) {
+      const award = UFO_SCORES[Math.floor(Math.random() * UFO_SCORES.length)];
+      score += award;
+      Arcade.Audio.play('sfx-explosion', 0.6);
+      ufo = null;
+      playerBullet = null;
+      scheduleNextUfo(now);
+    }
+  }
+
   // Wave clear → next wave, one row lower (capped in newGrid).
   if (grid.aliveCount === 0) {
     wave++;
@@ -645,6 +758,7 @@ function update(dt) {
 }
 
 function marchStep() {
+  synth.march();
   grid.frame ^= 1;
   const step = 2;        // pixels per tick
   // Find the alive bounding box so reverse triggers on the actual edge.
@@ -690,6 +804,7 @@ function marchStep() {
 // ============================================
 function drawScene() {
   drawHUD();
+  drawUfo();
   drawGrid();
   drawShields();
   drawPlayer();
@@ -731,6 +846,17 @@ function drawBullet() {
 
 function drawInvaderBullets() {
   for (const b of invaderBullets) drawRect(b.x, b.y, INV_BULLET_W, INV_BULLET_H, '#ffffff');
+}
+
+function drawUfo() {
+  if (!ufo) return;
+  // Saucer silhouette: 3 stacked rows in purple with cyan glints.
+  drawRect(ufo.x + 2, UFO_Y + 0, UFO_W - 4, 1, '#a855f7');
+  drawRect(ufo.x + 0, UFO_Y + 1, UFO_W,     2, '#a855f7');
+  drawRect(ufo.x + 2, UFO_Y + 3, UFO_W - 4, 1, '#a855f7');
+  drawRect(ufo.x + 1, UFO_Y + 4, 2, 1, '#2dd4ff');
+  drawRect(ufo.x + UFO_W - 3, UFO_Y + 4, 2, 1, '#2dd4ff');
+  drawRect(ufo.x + 4, UFO_Y + 4, UFO_W - 8, 1, '#a855f7');
 }
 
 function drawGrid() {
