@@ -10,6 +10,8 @@
 
 Oyster opens to your work. Setup is only there if something is missing.
 
+**MCP is post-onboarding.** It's the *"oh that's cool — I can drive Oyster from Claude Code"* moment users discover *later*. Not the gateway. First-run UI does not nudge toward MCP at all — value lands before the user ever hears the word "MCP."
+
 ## Why now
 
 A cold-install test on 2026-05-22 surfaced that **the core product is already working** — sessions are auto-detected, Claude Code is identified, projects are inferred from folders, artefacts are collected, timestamps are visible. The data layer is correct.
@@ -76,9 +78,13 @@ Spaces are just organisation, later. First-run copy implies *"Your work is here.
 
 If no chat provider exists, the chat bar should not break or gate the app. Show either an *"Add chat provider"* affordance, or hide it quietly.
 
-### 7. MCP / agent connection is helpful, not required
+### 7. MCP is a post-onboarding power-up, not a first-run step
 
-Show a small *"Use with Claude Code"* affordance. Do not make it a required onboarding step.
+First-run UI does not nudge toward MCP. The user reaches value without it.
+
+MCP is discovered *later* — in settings, in docs, or as a contextual tip when the user is doing something MCP would amplify (e.g. looking at the artefacts grid → small inline tip: *"You can publish these from Claude Code via MCP →"*).
+
+The framing: Oyster works *out of the box*. MCP makes Oyster work *with* your agent. The latter is delightful; it isn't the entry point.
 
 ## Three first-run states
 
@@ -101,15 +107,16 @@ Start a Claude Code session in a project. Oyster will pick it up automatically.
 
 Optional secondary action: *"Choose folders to scan"*.
 
-### C — No agent integration detected
+### C — No agent installed (rare for the 1.0 ICP)
 
-Still do not block. Show:
+The user has no Claude Code (or other supported agent) on this machine. Don't block. Show:
 
 ```
-Oyster works best with Claude Code, Cursor, or another MCP-capable agent.
+Oyster works alongside Claude Code, Cursor, and other AI coding agents.
+Install one to see your sessions here.
 ```
 
-Small CTA: *"Connect an agent"*.
+Link out to docs explaining how to install an agent. **No "Connect via MCP" CTA** — there's no agent to connect, and MCP isn't first-run vocabulary anyway.
 
 ## Concrete 1.0 change list
 
@@ -136,6 +143,7 @@ Small CTA: *"Connect an agent"*.
 - Native binary distribution (Bun-compiled, signed, notarised)
 - `install.sh` / `install.md` improvements (separate spec)
 - Empty-state coach-mark (#312 in roadmap — reassess after 1.0 lands)
+- First-run MCP nudges of any kind (topbar pill, dock item, coach-mark). MCP discoverability moves to settings / contextual tips, not first-run. Revisit post-1.0 with telemetry on how users actually discover MCP.
 
 ## Risks
 
@@ -159,12 +167,13 @@ Small CTA: *"Connect an agent"*.
    - Browser opens at `http://localhost:4444`
    - Home shows real session data (from `oystertestone`'s existing Claude Code work)
    - No "Set up Oyster" pill dominating, no "Set up your first space" copy
-2. **Connect Claude Code via MCP** (still works — verify the dock auto-tick via `mcp_client_connected` still fires).
-3. **Chat bar with no provider** — shows "Add chat provider" affordance or hides cleanly. Doesn't error.
-4. **Chat bar with provider configured** (existing user case) — works as today, unchanged.
-5. **Empty home (state B)** — when no sessions found, the empty state reads as *"Start a session, then refresh"*, not *"You haven't set up Oyster"*.
-6. **Spaces are findable but optional** — user can create / use / ignore them without onboarding pressure.
-7. **Fresh user with no Claude sessions** (true zero-data path):
+2. **MCP is NOT visible in first-run UI.** No topbar pill, no dock item, no coach-mark referencing MCP. MCP setup is reachable from settings / docs only.
+3. **MCP still works when the user opts in.** Following the docs / settings flow, an agent can still connect via `/mcp/` and use Oyster's tools. The connection capability is unchanged — only its onboarding visibility is removed.
+4. **Chat bar with no provider** — shows "Add chat provider" affordance or hides cleanly. Doesn't error.
+5. **Chat bar with provider configured** (existing user case) — works as today, unchanged.
+6. **Empty home (state B)** — when no sessions found, the empty state reads as *"Start a session. Oyster will pick it up automatically."*, not *"You haven't set up Oyster"*.
+7. **Spaces are findable but optional** — user can create / use / ignore them without onboarding pressure.
+8. **Fresh user with no Claude sessions** (true zero-data path):
    - Oyster still opens
    - No setup wizard
    - Empty state is calm
@@ -175,3 +184,4 @@ Small CTA: *"Connect an agent"*.
 - *2026-05-22 — Spec rescoped from "MCP-first onboarding" to "sessions-first simplification".* MCP is implementation detail; the user benefit is *"open Oyster and see the work your agents have already done."*
 - *2026-05-22 — Decided A (ship simplification for 1.0) over slipping for full data-model refactor.* Test evidence showed the data layer already supports the desired UX; only the UI needs to stop apologising. ~1-2 days of work, not 3 weeks.
 - *2026-05-22 — Install path improvements (install.sh, install.md fixes) split into a separate spec.* This spec focuses purely on first-run product behaviour after `oyster` is on PATH.
+- *2026-05-22 — MCP demoted from "small first-run affordance" to "post-onboarding discovery".* User framing: MCP is the *"oh that's cool"* moment, not the gateway. First-run UI doesn't say the word "MCP."
