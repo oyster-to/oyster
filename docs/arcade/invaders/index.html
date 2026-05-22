@@ -523,7 +523,42 @@ let stageAnnounceText = '';
 // Boss
 const BOSS_SCALE = 5;                              // 8-source-px × 5 = 40 PF
 const BOSS_W = 8 * BOSS_SCALE, BOSS_H = 8 * BOSS_SCALE;
-let boss = null;                // { x, hp, hpMax, dir, speed, nextShotAt, fireInterval } | null
+let boss = null;                // { x, hp, hpMax, dir, speed, nextShotAt, fireInterval, type } | null
+
+// One distinct boss design per set, cycling after 4 — different sprite +
+// colour palette so 1-BOSS, 2-BOSS, 3-BOSS, 4-BOSS each feel unique.
+// Each .f0 / .f1 is an 8×8 string-art frame; colours[] is a 3-band gradient
+// driven by HP ratio (healthy / mid / low).
+const BOSS_TYPES = [
+  {
+    name: 'CRIMSON OCTOPUS',
+    f0: ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '..X..X..', '.X.XX.X.', 'X.X..X.X'],
+    f1: ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '...XX...', '..X..X..', '.X....X.'],
+    colours: ['#c0303a', '#e05050', '#ff7a7a'],
+    eyes: true,
+  },
+  {
+    name: 'VIOLET CRAB',
+    f0: ['.X....X.', '..X..X..', '.XXXXXX.', 'XX.XX.XX', 'XXXXXXXX', 'X.XXXX.X', '.X....X.', 'X.X..X.X'],
+    f1: ['X.X..X.X', '.X.XX.X.', 'XXXXXXXX', 'XXX..XXX', 'XXXXXXXX', '.XXXXXX.', 'X......X', '.X....X.'],
+    colours: ['#5020a0', '#8050d0', '#b080f0'],
+    eyes: false,
+  },
+  {
+    name: 'AZURE SQUID',
+    f0: ['...XX...', '..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '.X....X.', 'X.X..X.X'],
+    f1: ['...XX...', '..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', 'X......X', '.X.XX.X.'],
+    colours: ['#1070a0', '#30a0c0', '#50d0f0'],
+    eyes: false,
+  },
+  {
+    name: 'JADE SKULL',
+    f0: ['.XXXXXX.', 'X.XXXX.X', 'XXXXXXXX', 'X.X..X.X', 'XXXXXXXX', 'XX.XX.XX', 'X.XXXX.X', '.X.XX.X.'],
+    f1: ['.XXXXXX.', 'X.XXXX.X', 'XXXXXXXX', 'X.X..X.X', 'XXXXXXXX', 'XXX..XXX', 'X.XXXX.X', '..X..X..'],
+    colours: ['#205020', '#408040', '#60c060'],
+    eyes: true,
+  },
+];
 
 // Boss minions — flashing-style adds that swoop in front of the boss. Count
 // scales with set number (2 in 1-BOSS, 3 in 2-BOSS, 4 in 3-BOSS, ...).
@@ -1350,6 +1385,7 @@ function spawnBoss(setNum) {
     speed: 38 + (setNum - 1) * 12,
     nextShotAt: performance.now() + 1100,
     fireInterval: Math.max(380, 1100 - (setNum - 1) * 200),
+    type: BOSS_TYPES[(setNum - 1) % BOSS_TYPES.length],
   };
 }
 
@@ -1437,27 +1473,30 @@ function updateBoss(dt, now) {
 
 function drawBoss() {
   if (!boss) return;
+  const type = boss.type || BOSS_TYPES[0];
   const f = Math.floor(performance.now() / 400) % 2;
-  const pixels = f === 0
-    ? ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '..X..X..', '.X.XX.X.', 'X.X..X.X']
-    : ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '...XX...', '..X..X..', '.X....X.'];
+  const pixels = f === 0 ? type.f0 : type.f1;
   const S = BOSS_SCALE;
-  // Body colour cycles through a warm red palette based on HP — deeper red as
-  // it gets healthier, brighter as it loses HP (just enough cue to feel it).
+  // 3-band colour gradient driven by HP — deeper hue when healthy, lighter
+  // tint as it bleeds, per-boss palette via type.colours.
   const ratio = boss.hp / boss.hpMax;
-  const bodyColour = ratio > 0.66 ? '#c0303a' : (ratio > 0.33 ? '#e05050' : '#ff7a7a');
+  const bodyColour = ratio > 0.66 ? type.colours[0]
+                   : ratio > 0.33 ? type.colours[1]
+                                  : type.colours[2];
   for (let y = 0; y < 8; y++) {
     for (let x = 0; x < 8; x++) {
       if (pixels[y][x] === 'X') drawRect(boss.x + x * S, boss.y + y * S, S, S, bodyColour);
     }
   }
-  // White "eyes" — scale with the body so they stay in the right spot.
-  drawRect(boss.x + S * 2,     boss.y + S * 3, S, S, '#ffffff');
-  drawRect(boss.x + S * 5,     boss.y + S * 3, S, S, '#ffffff');
-  // HP bar above the boss.
+  // Optional white eye overlays — some boss silhouettes read better with them.
+  if (type.eyes) {
+    drawRect(boss.x + S * 2, boss.y + S * 3, S, S, '#ffffff');
+    drawRect(boss.x + S * 5, boss.y + S * 3, S, S, '#ffffff');
+  }
+  // HP bar above the boss — colour matches body for visual cohesion.
   const barY = boss.y - 5;
   drawRect(boss.x, barY, BOSS_W, 2, '#440010');
-  drawRect(boss.x, barY, BOSS_W * (boss.hp / boss.hpMax), 2, '#ff5050');
+  drawRect(boss.x, barY, BOSS_W * ratio, 2, type.colours[1]);
 }
 
 // Called when the grid is fully cleared while phase === 'grid'. Advances
@@ -1505,6 +1544,8 @@ function defeatBoss() {
   flashUntil = now + 500;
   Arcade.Audio.play('sfx-explosion', 0.75);
   addPopup(boss.x + BOSS_W / 2, boss.y + BOSS_H / 2, `+${bonus} BOSS!`, '#ffd84a');
+  // Repair the most-battered shield as a reward — keeps long runs winnable.
+  repairMostDamagedShield();
   // Walk score-threshold supers up to current score in case the bonus crossed them.
   while (score >= nextSuperAt) {
     if (superShotAmmo < SUPER_SHOT_MAX) superShotAmmo++;
@@ -1527,6 +1568,26 @@ function defeatBoss() {
   scheduleNextMarked(now);
   superShotAmmo = SUPER_SHOT_MAX;
   showStageAnnounce(`STAGE ${stageSet}-${stageNum}`);
+}
+
+// Rebuild the shield bitmap of whichever shield has the fewest solid bits
+// left. Silent no-op if every shield is already fully intact.
+function repairMostDamagedShield() {
+  if (!shields || !shields.length) return;
+  let target = null;
+  let lowestCount = Infinity;
+  for (const sh of shields) {
+    let solid = 0;
+    for (let i = 0; i < sh.bits.length; i++) if (sh.bits[i]) solid++;
+    if (solid < lowestCount) { lowestCount = solid; target = sh; }
+  }
+  if (!target) return;
+  const fresh = makeShieldBitmap();
+  let maxSolid = 0;
+  for (let i = 0; i < fresh.length; i++) if (fresh[i]) maxSolid++;
+  if (lowestCount >= maxSolid) return;   // already pristine
+  target.bits = fresh;
+  addPopup(target.x + SHIELD_W / 2, target.y - 4, '⚙ REPAIR', '#7ad0e0');
 }
 
 function drawStageAnnouncement() {
