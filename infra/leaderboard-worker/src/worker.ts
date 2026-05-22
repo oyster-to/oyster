@@ -42,6 +42,7 @@ const INITIALS_RE = /^[A-Z0-9.\-]{1,3}$/;
 const GAMES: Record<string, { maxScore: number }> = Object.assign(Object.create(null), {
   "rocket-ship":  { maxScore: 999 },
   "space-jumper": { maxScore: 9999 },
+  "invaders":     { maxScore: 99999 },
 });
 const DEFAULT_GAME = "rocket-ship";
 const TOP_N = 10;

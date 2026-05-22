@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Invaders</title>
+<link rel="stylesheet" href="../shared/pixel-font.css">
+<link rel="stylesheet" href="../shared/cabinet.css">
+<link rel="stylesheet" href="../shared/touch.css">
+<style>
+  /* Splash + game-over overlay styles — copied from space-jumper/index.html
+     lines ~31-230 with palette tweaks. Keep ONE source of truth per game;
+     don't extract into shared CSS until a third game wants it. */
+  .splash {
+    position: absolute; inset: 0; z-index: 3;
+    background: linear-gradient(180deg, #04050f 0%, #0a0a14 100%);
+    font-family: 'Press Start 2P', ui-monospace, monospace;
+    color: #fff;
+    animation: splash-poweron 0.55s ease-out;
+  }
+  .splash.is-hidden { opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
+  .splash .splash-main {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 40px 24px;
+    gap: clamp(18px, 3vw, 32px);
+  }
+  .splash .title {
+    font-size: clamp(28px, 6.5vw, 64px);
+    letter-spacing: 0.04em;
+    color: #2dd4ff;
+    text-shadow: 3px 3px 0 #ff3aa1, 6px 6px 0 #a855f7, 0 0 18px rgba(45, 212, 255, 0.45);
+  }
+  .splash .start {
+    font-size: clamp(11px, 2vw, 16px);
+    letter-spacing: 0.16em;
+    color: #fff;
+    animation: arcade-blink 1s steps(1) infinite;
+  }
+  .splash .controls {
+    display: grid; grid-template-columns: auto auto;
+    gap: 10px 18px;
+    font-size: clamp(8px, 1.2vw, 11px);
+    letter-spacing: 0.08em;
+    color: #b8b8d0; margin-top: 6px;
+  }
+  .splash .controls .key { color: #2dd4ff; text-align: right; }
+  .splash .controls .desc { color: #fff; text-align: left; }
+  .splash .credit {
+    font-size: clamp(7px, 1vw, 9px);
+    letter-spacing: 0.2em;
+    color: rgba(255, 255, 255, 0.35);
+    margin-top: clamp(12px, 2vw, 20px);
+  }
+  .splash .hiscore-row {
+    font-size: clamp(9px, 1.3vw, 12px);
+    letter-spacing: 0.18em;
+    color: #ff3aa1;
+    margin-top: clamp(8px, 1.4vw, 14px);
+    display: inline-flex; align-items: center; gap: 12px;
+  }
+  .splash .hiscore-row .hs-val { color: #ffd84a; }
+  .splash .hiscore-row .hs-initials { color: #2dd4ff; }
+  @keyframes arcade-blink { 50% { opacity: 0; } }
+  @keyframes splash-poweron { 0% { transform: scaleY(0.02); opacity: 0; } 100% { transform: scaleY(1); opacity: 1; } }
+
+  /* Per-button touch overrides — FIRE button is pink to set it apart from
+     the cyan ◀ ▶ cluster (matches space-jumper's JUMP-button pattern). */
+  .touch-controls .tc-fire-btn {
+    border-color: rgba(255, 58, 161, 0.7);
+    color: #ff3aa1;
+  }
+  .touch-controls .tc-fire-btn:active,
+  .touch-controls .tc-fire-btn.is-pressed {
+    background: rgba(255, 58, 161, 0.25);
+    border-color: #ff3aa1;
+    color: #fff;
+  }
+
+  /* Game-over overlay — verbatim from space-jumper/index.html ~140-230. */
+  .gameover {
+    position: absolute; inset: 0; z-index: 4;
+    background: rgba(0, 0, 0, 0.88);
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    font-family: 'Press Start 2P', ui-monospace, monospace;
+    color: #fff;
+    gap: clamp(16px, 2.6vw, 26px);
+    padding: 40px 24px;
+    animation: splash-poweron 0.3s ease-out;
+  }
+  .gameover.is-visible { display: flex; }
+  .gameover .go-title {
+    font-size: clamp(28px, 6.5vw, 60px);
+    color: #ff3aa1;
+    text-shadow: 3px 3px 0 #2dd4ff, 6px 6px 0 #ffd84a, 0 0 16px rgba(255, 58, 161, 0.45);
+  }
+  .gameover .go-score { font-size: clamp(14px, 2.2vw, 18px); color: #ffd84a; letter-spacing: 0.18em; }
+  .gameover .go-hiscore { font-size: clamp(9px, 1.3vw, 12px); color: #2dd4ff; letter-spacing: 0.18em; min-height: 14px; }
+  .gameover .go-prompt {
+    font-size: clamp(10px, 1.6vw, 14px); letter-spacing: 0.18em; color: #fff;
+    animation: arcade-blink 1s steps(1) infinite;
+  }
+  .gameover .go-initials { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 8px; }
+  .gameover .go-initials-label { font-size: clamp(10px, 1.5vw, 13px); letter-spacing: 0.2em; color: #ff3aa1; }
+  .gameover .go-initials-slots {
+    display: inline-flex; gap: 18px;
+    font-size: clamp(28px, 5vw, 44px);
+    color: #ffd84a;
+    text-shadow: 2px 2px 0 #ff3aa1, 4px 4px 0 #2dd4ff;
+    letter-spacing: 0.1em;
+  }
+  .gameover .go-slot { display: inline-block; min-width: 1ch; padding: 0 4px; border-bottom: 4px solid rgba(255, 216, 74, 0.3); }
+  .gameover .go-slot.is-active { border-bottom-color: #2dd4ff; animation: arcade-blink 0.6s steps(1) infinite; }
+  .gameover .go-initials-hint { font-size: clamp(8px, 1.1vw, 10px); letter-spacing: 0.16em; color: rgba(255, 255, 255, 0.6); }
+
+  /* Canvas is the playfield. Crisp pixels — nearest-neighbour scaling so
+     the chunky sprites read like an arcade screen, not antialiased mush. */
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+</style>
+</head>
+<body>
+<script src="../shared/audio.js"></script>
+<script src="../shared/pause.js"></script>
+<script src="../shared/touch.js"></script>
+<script src="../shared/iframe-host.js"></script>
+<script src="../shared/leaderboard.js"></script>
+<audio id="sfx-explosion" src="../shared/sfx-explosion.mp3" preload="auto"></audio>
+<audio id="sfx-lose"      src="../shared/sfx-lose.mp3"      preload="auto"></audio>
+<div class="screen">
+  <div class="tube">
+    <canvas id="c"></canvas>
+    <div class="overlay"></div>
+    <div class="vignette"></div>
+    <div class="touch-controls">
+      <div class="tc-group tc-move">
+        <button type="button" class="tc-btn" id="tc-left"  aria-label="Move left"  tabindex="-1">◀</button>
+        <button type="button" class="tc-btn" id="tc-right" aria-label="Move right" tabindex="-1">▶</button>
+      </div>
+      <div class="tc-group tc-fire">
+        <button type="button" class="tc-btn tc-fire-btn" id="tc-fire" aria-label="Fire" tabindex="-1">FIRE</button>
+      </div>
+    </div>
+    <div class="gameover" id="gameover" aria-hidden="true">
+      <div class="go-title" id="go-title">GAME OVER</div>
+      <div class="go-score">SCORE <span id="go-score-val">0</span></div>
+      <div class="go-hiscore" id="go-hiscore"></div>
+      <div class="go-prompt" id="go-prompt"><span class="key-only">PRESS ANY KEY TO RESTART</span><span class="touch-only">TAP TO RESTART</span></div>
+      <div class="go-initials" id="go-initials" hidden>
+        <div class="go-initials-label">NEW HIGH SCORE — ENTER INITIALS</div>
+        <div class="go-initials-slots">
+          <span class="go-slot is-active" data-slot="0">A</span>
+          <span class="go-slot" data-slot="1">A</span>
+          <span class="go-slot" data-slot="2">A</span>
+        </div>
+        <div class="go-initials-hint">
+          <span class="key-only">↑↓ LETTER · ←→ SLOT · ENTER SAVE</span>
+          <span class="touch-only">TAP SLOT · SWIPE LETTER · SELECT SAVES</span>
+        </div>
+      </div>
+    </div>
+    <div class="splash" id="splash">
+      <div class="splash-main">
+        <div class="title-card">
+          <div class="title">INVADERS</div>
+          <div class="start"><span class="key-only">INSERT COIN TO PLAY</span><span class="touch-only">TAP TO PLAY</span></div>
+          <div class="controls">
+            <div class="key key-only">← →</div><div class="key touch-only">TAP ◀ ▶</div><div class="desc">MOVE</div>
+            <div class="key key-only">SPACE</div><div class="key touch-only">TAP FIRE</div><div class="desc">FIRE</div>
+          </div>
+          <div class="hiscore-row" id="hiscore-row" hidden>HIGH SCORE <span class="hs-val" id="hs-val-splash">0000</span> <span class="hs-initials" id="hs-initials-splash">---</span></div>
+          <div class="credit">© OYSTER 2026 — <span class="key-only">PRESS ANY KEY</span><span class="touch-only">TAP TO PLAY</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================
+// CANVAS + RESIZE
+// ============================================
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize() {
+  const rect = canvas.getBoundingClientRect();
+  W = canvas.width = rect.width;
+  H = canvas.height = rect.height;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Splash dismiss — first key or tap starts the game (placeholder for Task 2's startRun).
+const splashEl = document.getElementById('splash');
+let splashDismissed = false;
+function dismissSplash() {
+  if (splashDismissed) return;
+  splashDismissed = true;
+  splashEl.classList.add('is-hidden');
+  document.querySelector('.tube').classList.add('is-ready');
+  Arcade.Audio.ensureCtx();   // unlock WebAudio inside the gesture (iOS)
+}
+window.addEventListener('keydown', dismissSplash, { once: true });
+splashEl.addEventListener('pointerdown', dismissSplash, { once: true });
+
+// Leaderboard scaffold so the splash hi-score line lights up once cloud lands.
+Arcade.Leaderboard.init({ game: 'invaders', max: 10 });
+function paintSplashHiScore() {
+  const row = document.getElementById('hiscore-row');
+  const val = document.getElementById('hs-val-splash');
+  const ini = document.getElementById('hs-initials-splash');
+  const top = Arcade.Leaderboard.getHighScore();
+  if (!top) { row.hidden = true; return; }
+  row.hidden = false;
+  val.textContent = String(top.score).padStart(4, '0');
+  ini.textContent = top.initials || '---';
+}
+paintSplashHiScore();
+Arcade.Leaderboard.refresh().then(paintSplashHiScore);
+
+// Frame loop placeholder — draws a black field. Task 2 swaps in the real loop.
+function draw() {
+  ctx.fillStyle = '#04050f';
+  ctx.fillRect(0, 0, W, H);
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+</body>
+</html>
