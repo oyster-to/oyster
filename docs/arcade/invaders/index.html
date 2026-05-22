@@ -130,7 +130,6 @@
 <audio id="sfx-explosion" src="../shared/sfx-explosion.mp3" preload="auto"></audio>
 <audio id="sfx-lose"      src="../shared/sfx-lose.mp3"      preload="auto"></audio>
 <audio id="sfx-shoot"     src="sfx-shoot.mp3"               preload="auto"></audio>
-<audio id="bgm"           src="bgm.mp3"                     preload="auto" loop></audio>
 <div class="screen">
   <div class="tube">
     <canvas id="c"></canvas>
@@ -209,19 +208,6 @@ Arcade.Audio.init({
   mutedKey:  'oyster-arcade-sfx-muted',    // legacy fallback
 });
 
-// In-game BGM. shared/pause.js auto-applies music volume to any
-// <audio id^="bgm"> so the cabinet MUSIC slider just works.
-function startBgm() {
-  const a = document.getElementById('bgm');
-  if (!a) return;
-  try { a.currentTime = 0; a.play().catch(() => {}); } catch (_) {}
-}
-function stopBgm() {
-  const a = document.getElementById('bgm');
-  if (!a) return;
-  try { a.pause(); } catch (_) {}
-}
-
 // Leaderboard scaffold so the splash hi-score line lights up once cloud lands.
 Arcade.Leaderboard.init({ game: 'invaders', max: 10 });
 function paintSplashHiScore() {
@@ -274,11 +260,11 @@ const synth = (function () {
     osc.stop(t + dur);
   }
   function note(freq, durMs, gain) { blip(freq, freq, durMs, gain, 'square'); }
-  // Short, sharp square-wave drop — what the SN76477 in the 1978 cabinet
-  // actually generated. ~55ms is the classic "pyoo" length; higher start
-  // and a slightly steeper drop sound more like the arcade than a longer,
-  // softer sweep.
-  function shoot()  { blip(1200, 180, 55, 0.25, 'square'); }
+  function shoot()  { blip(900, 220, 90, 0.22, 'square'); }
+  // Soft sawtooth chirp for an invader kill — distinct from the heavier
+  // sfx-explosion sample (kept for player death + UFO), and sonically
+  // distinct from shoot's square wave so the ear can tell them apart.
+  function kill()   { blip(520, 110, 95, 0.22, 'sawtooth'); }
   // March heartbeat — four notes cycled E2, D2, C2, B1 (the canonical sequence).
   const MARCH_NOTES = [82.41, 73.42, 65.41, 61.74];
   let marchIdx = 0;
@@ -289,7 +275,7 @@ const synth = (function () {
     const f = 480 + Math.sin(t * Math.PI * 8) * 90;
     blip(f, f, 100, 0.15, 'sine');
   }
-  return { ensure, shoot, march, marchReset, ufoWarble };
+  return { ensure, shoot, kill, march, marchReset, ufoWarble };
 })();
 
 // ============================================
@@ -512,7 +498,6 @@ function startRun() {
   running = true;
   // Clear stale input state so the key used to restart doesn't carry over.
   for (const k in keys) keys[k] = false;
-  startBgm();
 }
 
 // Unified restart handler — covers splash dismiss AND post-game-over keypress.
@@ -615,7 +600,6 @@ function hurtPlayer() {
 
 function endRun(_winFlag) {
   running = false;
-  stopBgm();
   // Mirror startRun's flush — without this, a held key at the moment of death
   // never generates a fresh keydown and the restart listener stays silent.
   for (const k in keys) keys[k] = false;
@@ -785,7 +769,7 @@ function update(dt) {
   // Space does NOT spam (player must wait for the previous to leave/hit).
   if (player.alive && keys[' '] && !playerBullet) {
     playerBullet = { x: player.x + PLAYER_W / 2 - BULLET_W / 2, y: PLAYER_Y - BULLET_H };
-    synth.shoot();
+    Arcade.Audio.play('sfx-shoot', 0.55);
   }
 
   // Bullet motion + off-screen cleanup.
@@ -816,7 +800,7 @@ function update(dt) {
           grid.aliveCount--;
           score += ROW_POINTS[r];
           playerBullet = null;
-          Arcade.Audio.play('sfx-explosion', 0.5);
+          synth.kill();
           break outer;
         }
       }
