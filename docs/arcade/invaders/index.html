@@ -524,6 +524,12 @@ let stageAnnounceText = '';
 const BOSS_SCALE = 5;                              // 8-source-px × 5 = 40 PF
 const BOSS_W = 8 * BOSS_SCALE, BOSS_H = 8 * BOSS_SCALE;
 let boss = null;                // { x, hp, hpMax, dir, speed, nextShotAt, fireInterval } | null
+
+// Boss minions — flashing-style adds that swoop in front of the boss. Count
+// scales with set number (2 in 1-BOSS, 3 in 2-BOSS, 4 in 3-BOSS, ...).
+const BOSS_ADD_RESPAWN_MS = 5000;
+const BOSS_ADD_SCORE = 50;
+let bossAdds = [];              // [{ baseX, baseY, x, y, alive, swoopStart, swoopDuration, respawnAt, tier }]
 const BULLET_SPEED = 220;       // px/sec, canvas-down-positive in pf coords
 
 // Invader bullets — at most MAX_INV_BULLETS in flight. Each tick (independent
@@ -732,6 +738,7 @@ function startRun() {
   stageNum = 1;
   phase = 'grid';
   boss = null;
+  bossAdds = [];
   showStageAnnounce(`STAGE ${stageSet}-${stageNum}`);
   comboCount = 0;
   lastKillAt = 0;
@@ -1121,6 +1128,26 @@ function update(dt) {
     }
   }
 
+  // Player bullet vs boss-adds — flashing minions catch bullets before
+  // they reach the boss (their whole purpose). Each add takes one hit.
+  // Charged bullets pierce through adds (consistent with grid pierce).
+  if (phase === 'boss' && playerBullet && bossAdds.length) {
+    const bw = playerBullet.charged ? CHARGED_BULLET_W : BULLET_W;
+    const bh = playerBullet.charged ? CHARGED_BULLET_H : BULLET_H;
+    for (const a of bossAdds) {
+      if (!a.alive) continue;
+      if (playerBullet.x < a.x + INV_W && playerBullet.x + bw > a.x &&
+          playerBullet.y < a.y + INV_H && playerBullet.y + bh > a.y) {
+        a.alive = false;
+        a.respawnAt = performance.now() + BOSS_ADD_RESPAWN_MS;
+        score += BOSS_ADD_SCORE;
+        addPopup(a.x + INV_W / 2, a.y, `+${BOSS_ADD_SCORE}`, '#ffffff');
+        Arcade.Audio.play('sfx-kill', 0.5);
+        if (!playerBullet.charged) { playerBullet = null; break; }
+      }
+    }
+  }
+
   // Player bullet vs boss (boss phase only). Bullet is CONSUMED on hit
   // regardless of charged state — boss is one big target, no piercing
   // discount. (Previous behaviour let a charged shot deal 3 dmg per frame
@@ -1157,6 +1184,7 @@ function update(dt) {
     }
   } else if (phase === 'boss') {
     updateBoss(dt, performance.now());
+    updateBossAdds(performance.now());
   }
 
   // Move invader bullets + collide with shields, player, off-screen.
@@ -1325,12 +1353,78 @@ function spawnBoss(setNum) {
   };
 }
 
+function spawnBossAdds(setNum) {
+  // 2 minions in 1-BOSS, +1 per set. Staggered swoop phases so they don't
+  // all dive at the same instant. Use the pink-crab tier visually.
+  const count = 2 + (setNum - 1);
+  const adds = [];
+  const baseY = 24 + BOSS_H + 24;     // sits just below the boss
+  const totalW = PF_W - 60;
+  const step = totalW / (count + 1);
+  const now = performance.now();
+  for (let i = 0; i < count; i++) {
+    adds.push({
+      baseX: 30 + step * (i + 1) - INV_W / 2,
+      baseY,
+      x: 30 + step * (i + 1) - INV_W / 2,
+      y: baseY,
+      alive: true,
+      swoopStart: now + i * 700,
+      swoopDuration: 4500 + Math.random() * 1500,
+      respawnAt: 0,
+      tier: 1,                         // pink crab sprite
+    });
+  }
+  return adds;
+}
+
+function updateBossAdds(now) {
+  for (const a of bossAdds) {
+    if (!a.alive) {
+      if (now >= a.respawnAt) {
+        a.alive = true;
+        a.swoopStart = now;
+      }
+      continue;
+    }
+    // Loop the swoop indefinitely while alive.
+    const elapsed = now - a.swoopStart;
+    if (elapsed >= a.swoopDuration) a.swoopStart = now;
+    const t = (now - a.swoopStart) / a.swoopDuration;
+    const easeV = 0.5 - 0.5 * Math.cos(t * Math.PI * 2);   // 0→1→0
+    const swoopAmount = Math.min(80, PLAYER_Y - a.baseY - INV_H - 60);
+    const dy = easeV * swoopAmount;
+    const dx = Math.sin(t * Math.PI * 4) * 22 * easeV;
+    a.x = a.baseX + dx;
+    a.y = a.baseY + dy;
+  }
+}
+
+function drawBossAdds() {
+  if (!bossAdds.length) return;
+  const now = performance.now();
+  for (const a of bossAdds) {
+    if (!a.alive) continue;
+    // Pulse white/tier-colour like the marked invader.
+    const colour = Math.floor(now / 80) % 2 === 0 ? '#ffffff' : ROW_COLOURS[a.tier];
+    drawInvader(a.x, a.y, a.tier, Math.floor(now / 300) % 2, colour);
+  }
+}
+
 function updateBoss(dt, now) {
   if (!boss) return;
   // Horizontal bounce.
   boss.x += boss.speed * boss.dir * dt;
   if (boss.x < 8)                  { boss.x = 8;                  boss.dir =  1; }
   if (boss.x > PF_W - 8 - BOSS_W)  { boss.x = PF_W - 8 - BOSS_W;  boss.dir = -1; }
+  // Progressive descent — boss creeps toward the player so the fight has a
+  // ticking clock. Slow at set 1 (1.6 px/s), faster each set; pause once it
+  // hits the shield row so it doesn't punch straight through them.
+  const descentSpeed = 1.6 + (stageSet - 1) * 0.8;
+  const ceiling = SHIELD_Y - BOSS_H - 4;
+  if (boss.y < ceiling) {
+    boss.y = Math.min(ceiling, boss.y + descentSpeed * dt);
+  }
   // Fire — boss is allowed more concurrent bullets than the grid normally is.
   if (now >= boss.nextShotAt && invaderBullets.length < MAX_INV_BULLETS + 2) {
     invaderBullets.push({
@@ -1395,6 +1489,7 @@ function advanceStage() {
     // Boss time — skip spawning a new grid; the empty grid stays.
     phase = 'boss';
     boss = spawnBoss(stageSet);
+    bossAdds = spawnBossAdds(stageSet);
     showStageAnnounce(`STAGE ${stageSet}-BOSS`);
     // Refill supers for the boss fight.
     superShotAmmo = SUPER_SHOT_MAX;
@@ -1416,6 +1511,7 @@ function defeatBoss() {
     nextSuperAt += SUPER_SCORE_INTERVAL;
   }
   boss = null;
+  bossAdds = [];
   stageSet++;
   stageNum = 1;
   wave++;
@@ -1575,7 +1671,7 @@ function drawScene() {
   drawHUD();
   drawUfo();
   if (phase === 'grid') drawGrid();
-  else if (phase === 'boss') drawBoss();
+  else if (phase === 'boss') { drawBoss(); drawBossAdds(); }
   drawShields();
   drawPlayer();
   drawBullet();
