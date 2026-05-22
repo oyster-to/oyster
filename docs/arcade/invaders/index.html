@@ -274,7 +274,11 @@ const synth = (function () {
     osc.stop(t + dur);
   }
   function note(freq, durMs, gain) { blip(freq, freq, durMs, gain, 'square'); }
-  function shoot()  { blip(900, 220, 90, 0.22, 'square'); }
+  // Short, sharp square-wave drop — what the SN76477 in the 1978 cabinet
+  // actually generated. ~55ms is the classic "pyoo" length; higher start
+  // and a slightly steeper drop sound more like the arcade than a longer,
+  // softer sweep.
+  function shoot()  { blip(1200, 180, 55, 0.25, 'square'); }
   // March heartbeat — four notes cycled E2, D2, C2, B1 (the canonical sequence).
   const MARCH_NOTES = [82.41, 73.42, 65.41, 61.74];
   let marchIdx = 0;
@@ -781,7 +785,7 @@ function update(dt) {
   // Space does NOT spam (player must wait for the previous to leave/hit).
   if (player.alive && keys[' '] && !playerBullet) {
     playerBullet = { x: player.x + PLAYER_W / 2 - BULLET_W / 2, y: PLAYER_Y - BULLET_H };
-    Arcade.Audio.play('sfx-shoot', 0.55);
+    synth.shoot();
   }
 
   // Bullet motion + off-screen cleanup.
