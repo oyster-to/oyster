@@ -7,10 +7,11 @@
 <link rel="stylesheet" href="../shared/pixel-font.css">
 <link rel="stylesheet" href="../shared/cabinet.css">
 <link rel="stylesheet" href="../shared/touch.css">
+<link rel="stylesheet" href="../shared/overlays.css">
 <style>
-  /* Splash + game-over overlay styles — copied from space-jumper/index.html
-     lines ~31-230 with palette tweaks. Keep ONE source of truth per game;
-     don't extract into shared CSS until a third game wants it. */
+  /* Splash styles for Invaders. The game-over overlay now lives in
+     ../shared/overlays.css — Invaders uses its defaults verbatim. Splash
+     is still inline here (Round 6 of the DRY pass will extract it). */
   .splash {
     position: absolute; inset: 0; z-index: 3; overflow: hidden;
     background: linear-gradient(180deg, #0d1a60 0%, #050a30 100%);
@@ -152,47 +153,9 @@
     color: #fff;
   }
 
-  /* Game-over overlay — verbatim from space-jumper/index.html ~140-230. */
-  .gameover {
-    position: absolute; inset: 0; z-index: 4;
-    background: rgba(0, 0, 0, 0.88);
-    display: none; flex-direction: column;
-    align-items: center; justify-content: center;
-    text-align: center;
-    font-family: 'Press Start 2P', ui-monospace, monospace;
-    color: #fff;
-    gap: clamp(16px, 2.6vw, 26px);
-    padding: 40px 24px;
-    animation: splash-poweron 0.3s ease-out;
-  }
-  .gameover.is-visible { display: flex; }
-  .gameover .go-title {
-    font-size: clamp(28px, 6.5vw, 60px);
-    color: #ff3aa1;
-    text-shadow: 3px 3px 0 #2dd4ff, 6px 6px 0 #ffd84a, 0 0 16px rgba(255, 58, 161, 0.45);
-  }
-  .gameover .go-title.is-win {
-    color: #4ade80;
-    text-shadow: 3px 3px 0 #ffd84a, 6px 6px 0 #2dd4ff, 0 0 22px rgba(74, 222, 128, 0.55);
-  }
-  .gameover .go-score { font-size: clamp(14px, 2.2vw, 18px); color: #ffd84a; letter-spacing: 0.18em; }
-  .gameover .go-hiscore { font-size: clamp(9px, 1.3vw, 12px); color: #2dd4ff; letter-spacing: 0.18em; min-height: 14px; }
-  .gameover .go-prompt {
-    font-size: clamp(10px, 1.6vw, 14px); letter-spacing: 0.18em; color: #fff;
-    animation: arcade-blink 1s steps(1) infinite;
-  }
-  .gameover .go-initials { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 8px; }
-  .gameover .go-initials-label { font-size: clamp(10px, 1.5vw, 13px); letter-spacing: 0.2em; color: #ff3aa1; }
-  .gameover .go-initials-slots {
-    display: inline-flex; gap: 18px;
-    font-size: clamp(28px, 5vw, 44px);
-    color: #ffd84a;
-    text-shadow: 2px 2px 0 #ff3aa1, 4px 4px 0 #2dd4ff;
-    letter-spacing: 0.1em;
-  }
-  .gameover .go-slot { display: inline-block; min-width: 1ch; padding: 0 4px; border-bottom: 4px solid rgba(255, 216, 74, 0.3); }
-  .gameover .go-slot.is-active { border-bottom-color: #2dd4ff; animation: arcade-blink 0.6s steps(1) infinite; }
-  .gameover .go-initials-hint { font-size: clamp(8px, 1.1vw, 10px); letter-spacing: 0.16em; color: rgba(255, 255, 255, 0.6); }
+  /* Game-over overlay (.gameover + .go-*) styles live in shared/overlays.css.
+     Invaders uses the default palette baked into that stylesheet, so no
+     per-game CSS variable overrides are needed here. */
 
   /* Canvas is the playfield. Crisp pixels — nearest-neighbour scaling so
      the chunky sprites read like an arcade screen, not antialiased mush. */
