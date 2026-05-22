@@ -728,7 +728,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
   }, []);
 
   const activeSpaceRow = scopedSpace ? spaces.find((s) => s.id === scopedSpace) : null;
-  const eyebrow = isHomeView ? (showElsewhere ? "Unsorted" : "Home")
+  const eyebrow = isHomeView ? (showElsewhere ? "All" : "Home")
     : isAllView ? "All"
     : isArchivedView ? "Archived"
     : activeSpaceRow?.displayName ?? scopedSpace ?? "";
@@ -850,7 +850,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
                     {renderPipCounts(orphanCounts)}
                   </span>
                 )}
-                <span className="home-breadcrumb-pill-label">Unsorted</span>
+                <span className="home-breadcrumb-pill-label">All</span>
               </button>
             )}
             </div>
