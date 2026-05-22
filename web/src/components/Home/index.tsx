@@ -728,7 +728,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
   }, []);
 
   const activeSpaceRow = scopedSpace ? spaces.find((s) => s.id === scopedSpace) : null;
-  const eyebrow = isHomeView ? (showElsewhere ? "All" : "Home")
+  const eyebrow = isHomeView ? (showElsewhere ? "Unassigned" : "Home")
     : isAllView ? "All"
     : isArchivedView ? "Archived"
     : activeSpaceRow?.displayName ?? scopedSpace ?? "";
@@ -825,7 +825,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
                 </button>
               );
             })}
-            {orphanCounts.total > 0 && (
+            {orphanCounts.total > 0 && realSpaces.length > 0 && (
               <button
                 type="button"
                 className={`home-breadcrumb-pill home-breadcrumb-pill--elsewhere${showElsewhere && isHomeView ? " selected" : ""}`}
@@ -850,7 +850,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
                     {renderPipCounts(orphanCounts)}
                   </span>
                 )}
-                <span className="home-breadcrumb-pill-label">All</span>
+                <span className="home-breadcrumb-pill-label">Unassigned</span>
               </button>
             )}
             </div>
@@ -877,7 +877,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
           {/* Eyebrow dropped — the breadcrumb above already shows the
               active scope, so a separate "HOME" / "OYSTER" label is
               redundant. */}
-          <h1 className="home-title">{isHomeView ? "Recent sessions." : eyebrow}</h1>
+          <h1 className="home-title">{isHomeView ? (showElsewhere ? "Unassigned sessions." : "Recent sessions.") : eyebrow}</h1>
           {error && <div className="home-error">Couldn't load sessions: {error.message}</div>}
         </header>
 
