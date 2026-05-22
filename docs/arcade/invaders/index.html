@@ -12,7 +12,7 @@
      lines ~31-230 with palette tweaks. Keep ONE source of truth per game;
      don't extract into shared CSS until a third game wants it. */
   .splash {
-    position: absolute; inset: 0; z-index: 3;
+    position: absolute; inset: 0; z-index: 3; overflow: hidden;
     background: linear-gradient(180deg, #04050f 0%, #0a0a14 100%);
     font-family: 'Press Start 2P', ui-monospace, monospace;
     color: #fff;
@@ -203,7 +203,7 @@ function dismissSplash() {
   document.querySelector('.tube').classList.add('is-ready');
   Arcade.Audio.ensureCtx();   // unlock WebAudio inside the gesture (iOS)
 }
-window.addEventListener('keydown', dismissSplash, { once: true });
+window.addEventListener('keydown', e => { if (e.key !== 'Escape') dismissSplash(); }, { once: true });
 splashEl.addEventListener('pointerdown', dismissSplash, { once: true });
 
 // Leaderboard scaffold so the splash hi-score line lights up once cloud lands.
@@ -212,6 +212,7 @@ function paintSplashHiScore() {
   const row = document.getElementById('hiscore-row');
   const val = document.getElementById('hs-val-splash');
   const ini = document.getElementById('hs-initials-splash');
+  if (!row || !val || !ini) return;
   const top = Arcade.Leaderboard.getHighScore();
   if (!top) { row.hidden = true; return; }
   row.hidden = false;
