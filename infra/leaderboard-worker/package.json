@@ -10,7 +10,10 @@
     "db:create": "wrangler d1 create oyster-leaderboard",
     "db:migrate": "wrangler d1 execute oyster-leaderboard --file=migrations/0001_init.sql --remote && wrangler d1 execute oyster-leaderboard --file=migrations/0002_rate_limit.sql --remote",
     "db:migrate:local": "wrangler d1 execute oyster-leaderboard --file=migrations/0001_init.sql --local && wrangler d1 execute oyster-leaderboard --file=migrations/0002_rate_limit.sql --local",
-    "db:dump": "wrangler d1 execute oyster-leaderboard --remote --command=\"SELECT initials, score, datetime(created_at/1000,'unixepoch') AS dt FROM scores ORDER BY score DESC, created_at ASC LIMIT 50\""
+    "db:dump": "wrangler d1 execute oyster-leaderboard --remote --command=\"SELECT game, initials, score, datetime(created_at/1000,'unixepoch') AS dt FROM scores ORDER BY game ASC, score DESC, created_at ASC LIMIT 100\"",
+    "db:dump:invaders":    "wrangler d1 execute oyster-leaderboard --remote --command=\"SELECT initials, score, datetime(created_at/1000,'unixepoch') AS dt FROM scores WHERE game='invaders' ORDER BY score DESC, created_at ASC LIMIT 25\"",
+    "db:dump:rocket":      "wrangler d1 execute oyster-leaderboard --remote --command=\"SELECT initials, score, datetime(created_at/1000,'unixepoch') AS dt FROM scores WHERE game='rocket-ship' ORDER BY score DESC, created_at ASC LIMIT 25\"",
+    "db:dump:spacejumper": "wrangler d1 execute oyster-leaderboard --remote --command=\"SELECT initials, score, datetime(created_at/1000,'unixepoch') AS dt FROM scores WHERE game='space-jumper' ORDER BY score DESC, created_at ASC LIMIT 25\""
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260101.0",

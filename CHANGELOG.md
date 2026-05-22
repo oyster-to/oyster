@@ -4,6 +4,10 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **INVADERS** — new arcade game. Classic fixed-shooter; 5 rows of marching aliens, destructible shields, bonus UFO, 3 lives, top-10 leaderboard.
+
 ## [0.9.8] - 2026-05-21
 
 ### Changed
