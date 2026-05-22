@@ -193,17 +193,7 @@ function resize() {
 resize();
 window.addEventListener('resize', resize);
 
-// Splash dismiss — first key or tap starts the game (placeholder for Task 2's startRun).
 const splashEl = document.getElementById('splash');
-let splashDismissed = false;
-function dismissSplash() {
-  if (splashDismissed) return;
-  splashDismissed = true;
-  splashEl.classList.add('is-hidden');
-  document.querySelector('.tube').classList.add('is-ready');
-  Arcade.Audio.ensureCtx();   // unlock WebAudio inside the gesture (iOS)
-}
-// Listeners registered below, after startRun() is defined.
 
 // Leaderboard scaffold so the splash hi-score line lights up once cloud lands.
 Arcade.Leaderboard.init({ game: 'invaders', max: 10 });
@@ -295,18 +285,32 @@ function startRun() {
   grid = newGrid(wave);
   marchAccumulator = 0;
   running = true;
+  // Clear stale input state so the key used to restart doesn't carry over.
+  for (const k in keys) keys[k] = false;
 }
 
-// Splash dismiss now starts the run too. Replace the Task 1 listeners
-// (registered above as a comment placeholder) with wrappers that dismiss
-// the splash AND begin gameplay.
-splashEl.addEventListener('pointerdown', () => { dismissSplash(); startRun(); }, { once: true });
+// Unified restart handler — covers splash dismiss AND post-game-over keypress.
 window.addEventListener('keydown', e => {
   if (running) return;
-  if (e.key === 'Escape') return;     // pause/close belongs to shared modules
-  dismissSplash();
+  if (e.key === 'Escape') return;
+  // Overlay grace prevents the same key that lost the run from restarting it.
+  if (performance.now() < endOverlayInputAllowedAt) return;
+  hideEndOverlay();
   startRun();
-}, { once: true });
+});
+
+// Pointer-tap restart (covers splash dismiss AND post-game-over taps).
+document.addEventListener('pointerdown', e => {
+  if (running) return;
+  if (performance.now() < endOverlayInputAllowedAt) return;
+  // Ignore taps on the pause overlay's own controls.
+  if (e.target.closest('.arcade-pause')) return;
+  hideEndOverlay();
+  splashEl.classList.add('is-hidden');
+  document.querySelector('.tube').classList.add('is-ready');
+  Arcade.Audio.ensureCtx();
+  startRun();
+});
 
 // ============================================
 // INPUT
@@ -361,6 +365,33 @@ function tick(now) {
   drawScene();
 }
 
+let endOverlayInputAllowedAt = 0;
+const GAME_OVER_GRACE_MS = 1200;
+
+function endRun(_winFlag) {
+  running = false;
+  Arcade.Audio.play('sfx-lose', 0.55);
+  const ov = document.getElementById('gameover');
+  document.getElementById('go-title').textContent = 'GAME OVER';
+  document.getElementById('go-score-val').textContent = score;
+  const top = Arcade.Leaderboard.getHighScore();
+  const hi = document.getElementById('go-hiscore');
+  hi.textContent = top ? `HIGH ${String(top.score).padStart(4, '0')} ${top.initials || '---'}` : '';
+  document.getElementById('go-prompt').hidden = false;
+  document.getElementById('go-initials').hidden = true;
+  ov.classList.add('is-visible');
+  ov.setAttribute('aria-hidden', 'false');
+  endOverlayInputAllowedAt = performance.now() + GAME_OVER_GRACE_MS;
+  // Initials prompt arrives in Task 6 — leave this scaffolding for then.
+}
+
+function hideEndOverlay() {
+  const ov = document.getElementById('gameover');
+  ov.classList.remove('is-visible');
+  ov.setAttribute('aria-hidden', 'true');
+  endOverlayInputAllowedAt = 0;
+}
+
 function update(dt) {
   // Player movement.
   if (keys['ArrowLeft'])  player.x -= PLAYER_SPEED * dt;
@@ -377,6 +408,51 @@ function update(dt) {
   if (playerBullet) {
     playerBullet.y -= BULLET_SPEED * dt;
     if (playerBullet.y + BULLET_H < 0) playerBullet = null;
+  }
+
+  // Player bullet vs invader grid.
+  if (playerBullet) {
+    outer: for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const cell = grid.cells[r][c];
+        if (!cell.alive) continue;
+        const ix = grid.offsetX + c * INV_SPACING_X;
+        const iy = grid.offsetY + r * INV_SPACING_Y;
+        if (playerBullet.x < ix + INV_W &&
+            playerBullet.x + BULLET_W > ix &&
+            playerBullet.y < iy + INV_H &&
+            playerBullet.y + BULLET_H > iy) {
+          cell.alive = false;
+          grid.aliveCount--;
+          score += ROW_POINTS[r];
+          playerBullet = null;
+          Arcade.Audio.play('sfx-explosion', 0.5);
+          break outer;
+        }
+      }
+    }
+  }
+
+  // Wave clear → next wave, one row lower (capped in newGrid).
+  if (grid.aliveCount === 0) {
+    wave++;
+    grid = newGrid(wave);
+    marchAccumulator = 0;
+    playerBullet = null;
+  }
+
+  // Lose condition: any alive invader has reached the player line. Faithful
+  // to the original — there's no "ran out of lives" path for this case; it
+  // ends the run immediately.
+  for (let r = ROWS - 1; r >= 0; r--) {
+    for (let c = 0; c < COLS; c++) {
+      if (!grid.cells[r][c].alive) continue;
+      const iy = grid.offsetY + r * INV_SPACING_Y;
+      if (iy + INV_H >= PLAYER_Y) {
+        endRun(false);
+        return;
+      }
+    }
   }
 
   // March tempo: shorter interval as the grid thins, capped at MIN.
