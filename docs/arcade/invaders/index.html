@@ -129,6 +129,8 @@
 <script src="../shared/leaderboard.js"></script>
 <audio id="sfx-explosion" src="../shared/sfx-explosion.mp3" preload="auto"></audio>
 <audio id="sfx-lose"      src="../shared/sfx-lose.mp3"      preload="auto"></audio>
+<audio id="sfx-shoot"     src="sfx-shoot.mp3"               preload="auto"></audio>
+<audio id="bgm"           src="bgm.mp3"                     preload="auto" loop></audio>
 <div class="screen">
   <div class="tube">
     <canvas id="c"></canvas>
@@ -194,6 +196,31 @@ resize();
 window.addEventListener('resize', resize);
 
 const splashEl = document.getElementById('splash');
+
+// Register SFX samples with Arcade.Audio so play() uses the WebAudio buffer
+// path (no decode-on-retrigger hitch on repeated shoots).
+Arcade.Audio.init({
+  sfx: {
+    'sfx-shoot':     'sfx-shoot.mp3',
+    'sfx-explosion': '../shared/sfx-explosion.mp3',
+    'sfx-lose':      '../shared/sfx-lose.mp3',
+  },
+  volumeKey: 'oyster-arcade-sfx-volume',   // global across all arcade games
+  mutedKey:  'oyster-arcade-sfx-muted',    // legacy fallback
+});
+
+// In-game BGM. shared/pause.js auto-applies music volume to any
+// <audio id^="bgm"> so the cabinet MUSIC slider just works.
+function startBgm() {
+  const a = document.getElementById('bgm');
+  if (!a) return;
+  try { a.currentTime = 0; a.play().catch(() => {}); } catch (_) {}
+}
+function stopBgm() {
+  const a = document.getElementById('bgm');
+  if (!a) return;
+  try { a.pause(); } catch (_) {}
+}
 
 // Leaderboard scaffold so the splash hi-score line lights up once cloud lands.
 Arcade.Leaderboard.init({ game: 'invaders', max: 10 });
@@ -481,6 +508,7 @@ function startRun() {
   running = true;
   // Clear stale input state so the key used to restart doesn't carry over.
   for (const k in keys) keys[k] = false;
+  startBgm();
 }
 
 // Unified restart handler — covers splash dismiss AND post-game-over keypress.
@@ -583,6 +611,7 @@ function hurtPlayer() {
 
 function endRun(_winFlag) {
   running = false;
+  stopBgm();
   // Mirror startRun's flush — without this, a held key at the moment of death
   // never generates a fresh keydown and the restart listener stays silent.
   for (const k in keys) keys[k] = false;
@@ -752,7 +781,7 @@ function update(dt) {
   // Space does NOT spam (player must wait for the previous to leave/hit).
   if (player.alive && keys[' '] && !playerBullet) {
     playerBullet = { x: player.x + PLAYER_W / 2 - BULLET_W / 2, y: PLAYER_Y - BULLET_H };
-    synth.shoot();
+    Arcade.Audio.play('sfx-shoot', 0.55);
   }
 
   // Bullet motion + off-screen cleanup.
