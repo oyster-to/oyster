@@ -9,19 +9,39 @@ import { join } from "node:path";
 import { getProviderStatus } from "../src/routes/provider-status.js";
 
 describe("provider-status", () => {
+  const ENV_KEYS = [
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GEMINI_API_KEY",
+  ] as const;
+
   let tmpHome: string;
   let originalHome: string | undefined;
+  let savedKeys: Partial<Record<typeof ENV_KEYS[number], string>>;
 
   beforeEach(() => {
     tmpHome = mkdtempSync(join(tmpdir(), "oyster-provider-status-"));
     originalHome = process.env.HOME;
     process.env.HOME = tmpHome;
+
+    // Clear any AI provider keys from the developer's environment so the
+    // file-system-path tests aren't shortcut by the env-var bypass.
+    savedKeys = {};
+    for (const k of ENV_KEYS) {
+      if (process.env[k] !== undefined) savedKeys[k] = process.env[k];
+      delete process.env[k];
+    }
   });
 
   afterEach(() => {
     rmSync(tmpHome, { recursive: true, force: true });
     if (originalHome !== undefined) process.env.HOME = originalHome;
     else delete process.env.HOME;
+    for (const k of ENV_KEYS) {
+      if (k in savedKeys) process.env[k] = savedKeys[k];
+      else delete process.env[k];
+    }
   });
 
   it("returns configured: false when auth.json is absent", () => {
@@ -50,13 +70,7 @@ describe("provider-status", () => {
   });
 
   it("returns configured: true when ANTHROPIC_API_KEY is in env (env-key bypass)", () => {
-    const originalKey = process.env.ANTHROPIC_API_KEY;
     process.env.ANTHROPIC_API_KEY = "sk-test";
-    try {
-      expect(getProviderStatus()).toEqual({ configured: true });
-    } finally {
-      if (originalKey !== undefined) process.env.ANTHROPIC_API_KEY = originalKey;
-      else delete process.env.ANTHROPIC_API_KEY;
-    }
+    expect(getProviderStatus()).toEqual({ configured: true });
   });
 });

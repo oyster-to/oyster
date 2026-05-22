@@ -5,7 +5,11 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 // Pure function — exported for direct unit testing.
-// Mirrors bin/oyster.mjs's hasAuth() + env-key check.
+// Mirrors the combined hasEnvKey || hasAuth() gate used at boot time
+// in bin/oyster.mjs::main() (before this branch removed that gate).
+// Either an AI provider env var (ANTHROPIC_API_KEY / OPENAI_API_KEY /
+// GOOGLE_API_KEY / GEMINI_API_KEY) or a non-empty auth.json from
+// OpenCode's TUI login is enough to be "configured".
 export function getProviderStatus(): { configured: boolean } {
   if (
     process.env.ANTHROPIC_API_KEY ||
