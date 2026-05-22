@@ -372,22 +372,11 @@ async function main() {
   // needs (db/, apps/, spaces/, backups/) on first boot.
   mkdirSync(OYSTER_HOME, { recursive: true });
 
-  // Skip auth check if any provider API key is in env
-  const hasEnvKey = env.ANTHROPIC_API_KEY || env.OPENAI_API_KEY || env.GOOGLE_API_KEY || env.GEMINI_API_KEY;
-
-  // Check auth — if none, run login inline
-  if (!hasEnvKey && !hasAuth()) {
-    console.log("\n  🦪 Welcome to Oyster");
-    console.log("  Mission control for your agents.\n");
-    console.log("  First, let's connect an AI provider.\n");
-
-    const ok = await runLogin(opencodeBin);
-    if (!ok || !hasAuth(opencodeBin)) {
-      console.log("\n  No provider configured. Run `oyster` again to retry.\n");
-      process.exit(1);
-    }
-    console.log("\n  Provider connected. Starting Oyster...\n");
-  }
+  // No auth gate. The server starts unconditionally — provider auth
+  // (OpenCode TUI / API key / OAuth) is only needed if the user opts
+  // into the in-Oyster chat bar later. Keep hasAuth() + runLogin()
+  // defined above; the chat-bar "Add chat provider" affordance can
+  // reuse them when the user explicitly chooses to wire one up.
 
   // Mark as installed (not running from source)
   env.OYSTER_INSTALLED = "1";
