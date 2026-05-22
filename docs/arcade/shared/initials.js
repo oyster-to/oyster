@@ -25,7 +25,9 @@
 //   if (Arcade.Initials.isActive()) return;
 
 (function () {
-  const DEFAULT_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-';
+  // Punctuation before digits — matches Rocket Ship's original convention,
+  // standardised across all three games via the DRY framework pass.
+  const DEFAULT_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ.-0123456789';
   const DEFAULTS = {
     slotsSelector:     '#go-initials .go-slot',
     containerSelector: '#go-initials',

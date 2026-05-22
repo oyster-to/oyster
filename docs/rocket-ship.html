@@ -721,6 +721,7 @@
 <script src="arcade/shared/audio.js"></script>
 <script src="arcade/shared/touch.js"></script>
 <script src="arcade/shared/leaderboard.js"></script>
+<script src="arcade/shared/initials.js"></script>
 <script src="arcade/shared/iframe-host.js"></script>
 <div class="screen">
   <div class="tube">
@@ -1852,27 +1853,29 @@ const Splash = (function () {
 (function () {
   const ov = document.getElementById('gameover');
   if (!ov) return;
-  const slotsEl = ov.querySelectorAll('.go-slot');
-  const initialsBox = document.getElementById('go-initials');
-  const promptEl = document.getElementById('go-prompt');
+  const initialsBox   = document.getElementById('go-initials');
+  const promptEl      = document.getElementById('go-prompt');
   const hiscoreLineEl = document.getElementById('go-hiscore');
-  const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ.-0123456789';
-  let enteringInitials = false;
-  let activeSlot = 0;
-  let letters = ['A', 'A', 'A'];
-
-  function paintSlots() {
-    slotsEl.forEach((el, i) => {
-      el.textContent = letters[i];
-      el.classList.toggle('is-active', i === activeSlot && enteringInitials);
-    });
-  }
 
   let pendingScore = 0;
+
+  // Initials state machine + listeners are owned by shared/initials.js.
+  // Rocket Ship uses ▲ as the SELECT button during initials. onSubmit kicks
+  // back into attract-mode after writing the score.
+  Arcade.Initials.mount({
+    fireButton: '#tc-thrust',
+    fireLabel:  { idle: '▲', select: '✓' },
+    onSubmit: (initials) => {
+      addToLeaderboard(pendingScore, initials);
+      ov.classList.remove('is-visible');
+      Splash.enterAttractMode();
+    },
+  });
+
   function isNewBest(score) {
     const list = readLeaderboard();
     if (!list.length) return score > 0;
-    return score > list[0].score; // strictly beat the current top (ties keep the older entry)
+    return score > list[0].score;   // strictly beat current top
   }
   function showGameOverWith(score) {
     pendingScore = score;
@@ -1886,18 +1889,14 @@ const Splash = (function () {
   }
   function paintGameOverOverlay(beat) {
     ov.classList.add('is-visible');
-    initialsBox.hidden = !beat;
-    promptEl.hidden = beat;
     const hs = getHighScore();
     if (beat) {
-      enteringInitials = true;
-      activeSlot = 0;
-      letters = ['A', 'A', 'A'];
-      paintSlots();
       hiscoreLineEl.textContent = `RANK ON THE LEADERBOARD — TOP ${LB_SIZE}`;
+      Arcade.Initials.open();
     } else {
-      enteringInitials = false;
       hiscoreLineEl.textContent = `HIGH SCORE ${String(hs.score).padStart(3,'0')} ${hs.initials}`;
+      initialsBox.hidden = true;
+      promptEl.hidden    = false;
     }
   }
 
@@ -1906,32 +1905,16 @@ const Splash = (function () {
 
   // Touch routing for the game-over overlay. Returns true if the action was
   // consumed so the touch-button bindings know to suppress their game
-  // (rotate/thrust) side-effects. Three actions mapped from the on-screen
-  // buttons: ◀/▶ cycle the active letter, ▲ advances to the next slot or
-  // saves on the last one.
+  // (rotate/thrust) side-effects. ◀/▶ cycle the active letter, ▲ advances /
+  // saves on the last slot — handled by Arcade.Initials.action() while
+  // entering initials, dismiss-to-attract-mode otherwise.
   window.__rocketGameOverTouch = function (action) {
     if (!ov.classList.contains('is-visible')) return false;
-    if (enteringInitials) {
-      const idx = CHARS.indexOf(letters[activeSlot]);
-      if (action === 'letter-prev') {
-        letters[activeSlot] = CHARS[(idx - 1 + CHARS.length) % CHARS.length];
-      } else if (action === 'letter-next') {
-        letters[activeSlot] = CHARS[(idx + 1) % CHARS.length];
-      } else if (action === 'advance') {
-        if (activeSlot < 2) {
-          activeSlot++;
-        } else {
-          addToLeaderboard(pendingScore, letters.join(''));
-          enteringInitials = false;
-          ov.classList.remove('is-visible');
-          Splash.enterAttractMode();
-        }
-      }
-      paintSlots();
+    if (Arcade.Initials.isActive()) {
+      Arcade.Initials.action(action);
       return true;
     }
-    // Non-initials game-over: any touch button dismisses, matching the
-    // keyboard "any key" behavior.
+    // Non-initials game-over: any touch button dismisses.
     ov.classList.remove('is-visible');
     Splash.enterAttractMode();
     return true;
@@ -1940,47 +1923,21 @@ const Splash = (function () {
   // Click on the gameover overlay dismisses when not entering initials.
   // Direct-on-element click is reliable on iOS inside iframes where the
   // older window.touchstart pattern was flaky. Initials entry uses the
-  // dedicated on-screen buttons instead.
+  // dedicated on-screen buttons instead (handled by shared/initials.js).
   ov.addEventListener('click', () => {
     if (!ov.classList.contains('is-visible')) return;
-    if (enteringInitials) return;
+    if (Arcade.Initials.isActive()) return;
     ov.classList.remove('is-visible');
     Splash.enterAttractMode();
   });
 
+  // Non-initials dismiss path — shared/initials.js handles the keyboard
+  // while it's active, so we only handle the "no initials, any key
+  // dismisses to attract mode" case here.
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') return;
     if (!ov.classList.contains('is-visible')) return;
-    if (enteringInitials) {
-      e.preventDefault();
-      const idx = CHARS.indexOf(letters[activeSlot]);
-      if (e.key === 'ArrowUp') {
-        letters[activeSlot] = CHARS[(idx + 1) % CHARS.length];
-      } else if (e.key === 'ArrowDown') {
-        letters[activeSlot] = CHARS[(idx - 1 + CHARS.length) % CHARS.length];
-      } else if (e.key === 'ArrowRight') {
-        activeSlot = Math.min(2, activeSlot + 1);
-      } else if (e.key === 'ArrowLeft') {
-        activeSlot = Math.max(0, activeSlot - 1);
-      } else if (e.key === 'Enter' || e.key === ' ') {
-        addToLeaderboard(pendingScore, letters.join(''));
-        enteringInitials = false;
-        ov.classList.remove('is-visible');
-        // Celebration (if any) already happened before this prompt — always
-        // proceed to the leaderboard → title-card flow.
-        Splash.enterAttractMode();
-      } else if (e.key.length === 1) {
-        // Typed letter: shortcut input
-        const c = e.key.toUpperCase();
-        if (CHARS.includes(c)) {
-          letters[activeSlot] = c;
-          if (activeSlot < 2) activeSlot++;
-        }
-      }
-      paintSlots();
-      return;
-    }
-    // Not entering initials → route through attract mode (leaderboard → title → key)
+    if (Arcade.Initials.isActive()) return;
     ov.classList.remove('is-visible');
     Splash.enterAttractMode();
   });
