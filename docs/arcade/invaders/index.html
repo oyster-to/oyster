@@ -472,6 +472,10 @@ let wave = 1;
 let endOverlayInputAllowedAt = 0;
 let respawnAt = 0;
 let initialsActive = false;
+// True between endRun() and the first post-grace keypress when the score
+// qualifies for the leaderboard. That keypress opens initials entry; a
+// subsequent keypress restarts.
+let pendingInitials = false;
 
 // Player.
 const PLAYER_Y = PF_H - 24;
@@ -811,13 +815,24 @@ function dismissSplashAndStart() {
   startRun();
 }
 
+// Post-game-over: if the score qualifies, the first key/tap opens initials
+// entry; the next one restarts. Falls through to splash-dismiss otherwise.
+function consumePendingOrRestart() {
+  if (pendingInitials) {
+    pendingInitials = false;
+    startInitialsEntry();
+    return;
+  }
+  dismissSplashAndStart();
+}
+
 window.addEventListener('keydown', e => {
   if (running) return;
   if (initialsActive) return;
   if (e.key === 'Escape') return;
   // Overlay grace prevents the same key that lost the run from restarting it.
   if (performance.now() < endOverlayInputAllowedAt) return;
-  dismissSplashAndStart();
+  consumePendingOrRestart();
 });
 
 // Pointer-tap restart (covers splash dismiss AND post-game-over taps).
@@ -828,7 +843,7 @@ document.addEventListener('pointerdown', e => {
   // Ignore taps on the pause overlay's own controls.
   if (e.target.closest('.arcade-pause')) return;
   if (e.target.closest('#go-initials')) return;
-  dismissSplashAndStart();
+  consumePendingOrRestart();
 });
 
 // Don't allow pause from non-running states (splash, game-over, initials).
@@ -948,10 +963,11 @@ function endRun(winFlag) {
   ov.classList.add('is-visible');
   ov.setAttribute('aria-hidden', 'false');
   endOverlayInputAllowedAt = performance.now() + GAME_OVER_GRACE_MS;
-  setTimeout(() => {
-    if (running) return;
-    if (Arcade.Leaderboard.qualifies(score)) startInitialsEntry();
-  }, GAME_OVER_GRACE_MS);
+  // Defer the initials prompt — the FIRST key/tap after the grace expires
+  // either opens initials entry (if the score qualifies) or restarts the
+  // game (if it doesn't). User asked for "don't progress to name entry
+  // until you press a key".
+  pendingInitials = Arcade.Leaderboard.qualifies(score);
 }
 
 function hideEndOverlay() {
@@ -1716,42 +1732,47 @@ function drawCutscene() {
     }
   }
 
-  // EARTH IS SAFE — bitmap font for crisp pixel typography matching the
-  // rest of the cabinet art. Yellow drop shadow + red main, marquee style.
+  // EARTH IS SAFE — Press Start 2P with the red-on-gold marquee treatment,
+  // matching the splash title. Font size is rounded to an integer canvas
+  // pixel count to dodge the worst fractional-baseline antialiasing.
   if (tMs > 6800) {
     const textAlpha = Math.min(1, (tMs - 6800) / 500);
+    const [, , s] = pfToCanvas(0, 0);
+    const fontPx = Math.max(12, Math.round(20 * s));
     ctx.save();
     ctx.globalAlpha = textAlpha;
-    const text = 'EARTH IS SAFE';
-    const scale = 3;
-    const totalW = text.length * 6 * scale - scale;   // last char no trailing gap
-    const baseX = (PF_W - totalW) / 2;
-    const baseY = PF_H - 56;
-    drawPixelText(text, baseX + scale, baseY + scale, scale, '#ffd84a');
-    drawPixelText(text, baseX,         baseY,         scale, '#ff2020');
+    ctx.font = `${fontPx}px "Press Start 2P", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const [tx, ty] = pfToCanvas(PF_W / 2, PF_H - 50);
+    // Gold drop shadow first, then red main on top — splash-marquee style.
+    ctx.fillStyle = '#ffd84a';
+    ctx.fillText('EARTH IS SAFE', Math.round(tx + 4 * s), Math.round(ty + 4 * s));
+    ctx.fillStyle = '#ff2020';
+    ctx.fillText('EARTH IS SAFE', Math.round(tx), Math.round(ty));
     ctx.restore();
   }
 }
 
 // 16×16 Earth bitmap. 'X' = green continent, '/' = pale ice patch, '.' = ocean.
-// Ice baked into the bitmap so caps blend organically with the rest of the
-// silhouette instead of being slapped-on horizontal bars.
+// Continents are SOLID — no interior ocean holes (no giant lakes mid-land).
+// Ocean gaps only exist at coastline edges and between distinct landmasses.
 const EARTH_BITMAP = [
   '......//........',
-  '.....XX.X.......',
-  '....XXXXXX.XX...',
-  '..XXX.XXXX..XX..',
-  '.XXXX..XXX..XXX.',
-  '.XXX....XXXX.X..',
-  '.XX....XXXX.....',
-  '.XXX..XXXXXX....',
-  '..XX..XX.XXX....',
-  '..XX..XX.XX.....',
-  '...XX.XXXX......',
-  '....XXXX.X......',
-  '....XXX..X......',
-  '......XX........',
-  '.......X........',
+  '....XX..........',
+  '..XXXXX.XX......',
+  '.XXXXXX.XXXX....',
+  '.XXXXX..XXXXX...',
+  '.XXXXX..XXXXX...',
+  '.XXXX...XXXXX...',
+  '.XXX....XXXX....',
+  '..XX....XXXX....',
+  '..XX....XXX.....',
+  '..XX....XX......',
+  '...X....XX......',
+  '...X....XX......',
+  '...X.....X......',
+  '....X...........',
   '.....//.........',
 ];
 
@@ -1782,35 +1803,6 @@ function drawPixelEarth(cx, cy, radius) {
   }
 }
 
-// Pixel font — 5×7 glyphs for the cutscene title. Drawn as drawRect cells so
-// the type stays crisp at any canvas scale, unlike ctx.fillText which
-// antialiases against fractional pixel positions.
-const PIXEL_FONT = {
-  A: ['.XXX.','X...X','X...X','XXXXX','X...X','X...X','X...X'],
-  E: ['XXXXX','X....','X....','XXXX.','X....','X....','XXXXX'],
-  F: ['XXXXX','X....','X....','XXXX.','X....','X....','X....'],
-  H: ['X...X','X...X','X...X','XXXXX','X...X','X...X','X...X'],
-  I: ['XXXXX','..X..','..X..','..X..','..X..','..X..','XXXXX'],
-  R: ['XXXX.','X...X','X...X','XXXX.','X.X..','X..X.','X...X'],
-  S: ['.XXXX','X....','X....','.XXX.','....X','....X','XXXX.'],
-  T: ['XXXXX','..X..','..X..','..X..','..X..','..X..','..X..'],
-  ' ': ['.....','.....','.....','.....','.....','.....','.....'],
-};
-function drawPixelText(text, baseX, baseY, scale, colour) {
-  const charW = 5, charH = 7, gap = 1;
-  let x = baseX;
-  for (const c of text) {
-    const glyph = PIXEL_FONT[c.toUpperCase()];
-    if (glyph) {
-      for (let r = 0; r < charH; r++) {
-        for (let col = 0; col < charW; col++) {
-          if (glyph[r][col] === 'X') drawRect(x + col * scale, baseY + r * scale, scale, scale, colour);
-        }
-      }
-    }
-    x += (charW + gap) * scale;
-  }
-}
 
 function drawStageAnnouncement() {
   const now = performance.now();
