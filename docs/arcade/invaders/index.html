@@ -676,8 +676,10 @@ function newGrid(waveNum) {
     cells.push(row);
   }
   // Each wave starts one row lower than wave 1, capped at 3 rows lower.
+  // Baseline moved up (was 36) so the grid sits noticeably closer to the
+  // shield row from stage 1-1 onward — wave 1 used to feel airless.
   const dropRows = Math.min(3, waveNum - 1);
-  const startY = 36 + dropRows * INV_SPACING_Y;
+  const startY = 60 + dropRows * INV_SPACING_Y;
   return {
     offsetX: 24,             // restored left margin — wider PF_W has the room now
     offsetY: startY,
