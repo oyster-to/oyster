@@ -8,9 +8,9 @@
 
 > Oyster should not say "Set me up." It should say "Here is what your agents have been doing."
 
-Oyster opens to your work. Setup is only there if something is missing.
+Oyster opens to your work. Setup is **present but not visually dominating**. The onboarding dock retains its four-item checklist (spaces, publish, MCP, memories) as a quiet entry point — but the pill itself stops shouting (no amber pulse, no "Set up Oyster" label). The required item is **Connect an agent (MCP)**, because driving Oyster from your existing Claude Code / Cursor / Windsurf is the central value prop.
 
-**MCP is post-onboarding.** It's the *"oh that's cool — I can drive Oyster from Claude Code"* moment users discover *later*. Not the gateway. First-run UI does not nudge toward MCP at all — value lands before the user ever hears the word "MCP."
+The change is in **dominance**, not in **presence**. Setup affordances exist; they don't pollute the topbar.
 
 ## Why now
 
@@ -78,13 +78,20 @@ Spaces are just organisation, later. First-run copy implies *"Your work is here.
 
 If no chat provider exists, the chat bar should not break or gate the app. Show either an *"Add chat provider"* affordance, or hide it quietly.
 
-### 7. MCP is a post-onboarding power-up, not a first-run step
+### 7. MCP stays in onboarding — quietly
 
-First-run UI does not nudge toward MCP. The user reaches value without it.
+MCP is the **required** item in the dock. The dock retains four items: spaces, publish, MCP, memories. The pill itself is neutralised (no amber pulse, no "Set up Oyster" label) so onboarding doesn't dominate. Users see their sessions immediately; the dock is a quiet 🦪 icon they can open if they want.
 
-MCP is discovered *later* — in settings, in docs, or as a contextual tip when the user is doing something MCP would amplify (e.g. looking at the artefacts grid → small inline tip: *"You can publish these from Claude Code via MCP →"*).
+Wording shift on the MCP item:
 
-The framing: Oyster works *out of the box*. MCP makes Oyster work *with* your agent. The latter is delightful; it isn't the entry point.
+```
+title: "Connect an agent"
+desc:  "Drive Oyster from Claude Code, Cursor, VS Code or Windsurf."
+actionLabel: "Connect"
+required: true
+```
+
+Framing: the onboarding affordance exists; it just stops shouting.
 
 ## Three first-run states
 
@@ -116,7 +123,7 @@ Oyster works alongside Claude Code, Cursor, and other AI coding agents.
 Install one to see your sessions here.
 ```
 
-Link out to docs explaining how to install an agent. **No "Connect via MCP" CTA** — there's no agent to connect, and MCP isn't first-run vocabulary anyway.
+Link out to docs explaining how to install an agent. The dock's "Connect an agent" item still appears in the checklist — but the empty-state copy frames the prerequisite ("install one first").
 
 ## Concrete 1.0 change list
 
@@ -124,10 +131,7 @@ Link out to docs explaining how to install an agent. **No "Connect via MCP" CTA*
 2. Let server / browser launch unconditionally.
 3. Make "Recent sessions" the home / default view.
 4. Rename "Everything else" to "Recent sessions" (or "All work").
-5. Rename "Unsorted" — choose by what the pill actually represents:
-   - If it truly shows everything → **All**
-   - If it only shows unassigned work → **Recent**
-   - If no spaces exist → **hide the pill entirely**
+5. Rename "Unsorted" → **All**. (Both views — default Home and the elsewhere-pill view — show the same heading "Recent sessions." The pill itself is the scope selector.)
 6. Remove "Click + to set up your first space".
 7. Demote or remove the "Set up Oyster" pill.
 8. Hide / disable chat input cleanly when no provider exists.
@@ -143,7 +147,6 @@ Link out to docs explaining how to install an agent. **No "Connect via MCP" CTA*
 - Native binary distribution (Bun-compiled, signed, notarised)
 - `install.sh` / `install.md` improvements (separate spec)
 - Empty-state coach-mark (#312 in roadmap — reassess after 1.0 lands)
-- First-run MCP nudges of any kind (topbar pill, dock item, coach-mark). MCP discoverability moves to settings / contextual tips, not first-run. Revisit post-1.0 with telemetry on how users actually discover MCP.
 
 ## Risks
 
@@ -167,8 +170,8 @@ Link out to docs explaining how to install an agent. **No "Connect via MCP" CTA*
    - Browser opens at `http://localhost:4444`
    - Home shows real session data (from `oystertestone`'s existing Claude Code work)
    - No "Set up Oyster" pill dominating, no "Set up your first space" copy
-2. **MCP is NOT visible in first-run UI.** No topbar pill, no dock item, no coach-mark referencing MCP. MCP setup is reachable from settings / docs only.
-3. **MCP still works when the user opts in.** Following the docs / settings flow, an agent can still connect via `/mcp/` and use Oyster's tools. The connection capability is unchanged — only its onboarding visibility is removed.
+2. **MCP is the required dock item.** The dock's checklist has "Connect an agent" as the one required item, with the action label "Connect" that surfaces the per-client copy-paste command (Claude Code / Cursor / VS Code / Windsurf).
+3. **The dock pill is neutralised.** No amber pulse, no "Set up Oyster" label — just a quiet 🦪 icon that opens the checklist on click. The auto-tick from `mcp_client_connected` SSE event still works.
 4. **Chat bar with no provider** — shows "Add chat provider" affordance or hides cleanly. Doesn't error.
 5. **Chat bar with provider configured** (existing user case) — works as today, unchanged.
 6. **Empty home (state B)** — when no sessions found, the empty state reads as *"Start a session. Oyster will pick it up automatically."*, not *"You haven't set up Oyster"*.
@@ -184,4 +187,6 @@ Link out to docs explaining how to install an agent. **No "Connect via MCP" CTA*
 - *2026-05-22 — Spec rescoped from "MCP-first onboarding" to "sessions-first simplification".* MCP is implementation detail; the user benefit is *"open Oyster and see the work your agents have already done."*
 - *2026-05-22 — Decided A (ship simplification for 1.0) over slipping for full data-model refactor.* Test evidence showed the data layer already supports the desired UX; only the UI needs to stop apologising. ~1-2 days of work, not 3 weeks.
 - *2026-05-22 — Install path improvements (install.sh, install.md fixes) split into a separate spec.* This spec focuses purely on first-run product behaviour after `oyster` is on PATH.
-- *2026-05-22 — MCP demoted from "small first-run affordance" to "post-onboarding discovery".* User framing: MCP is the *"oh that's cool"* moment, not the gateway. First-run UI doesn't say the word "MCP."
+- *2026-05-22 — MCP demoted from "small first-run affordance" to "post-onboarding discovery".* (Superseded same day — see next entry.)
+- *2026-05-22 — MCP reinstated as the **required** dock item.* The earlier "MCP is post-onboarding" framing went too far: keeping a four-item dock with MCP at the centre is more honest to Oyster's value prop. The fix is in **dominance** (neutralised pill, no amber pulse, no "Set up Oyster" label) — not in **presence** (the items themselves stay). Single required item: MCP. Spaces / publish / memories remain optional.
+- *2026-05-22 — "Unsorted" → "All" not "Loose".* Both home views use the same heading "Recent sessions." The pill is the scope selector.
