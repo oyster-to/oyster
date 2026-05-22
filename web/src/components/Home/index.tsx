@@ -877,23 +877,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
           {/* Eyebrow dropped — the breadcrumb above already shows the
               active scope, so a separate "HOME" / "OYSTER" label is
               redundant. */}
-          <h1 className="home-title">{isHomeView ? (showElsewhere ? "Everything else." : "Everything active.") : eyebrow}</h1>
-          {/* First-run teaching line on Unsorted: orphan tiles look passive,
-              so point at the per-tile affordance. With zero spaces the action
-              is *creating* one (the popover says "promote this folder"), not
-              attaching — so frame as "set up". Drops once any real space
-              exists; by then the user has met the model. Inlines the actual
-              FolderPlus glyph (size + stroke matches the tile button) so the
-              instruction visually points at exactly the icon to click. */}
-          {isHomeView && showElsewhere && realSpaces.length === 0 && (
-            <div className="home-subtitle">
-              Click the
-              {" "}
-              <FolderPlus size={14} strokeWidth={2} role="img" aria-label="folder plus" className="home-subtitle-glyph" />
-              {" "}
-              on a tile to set up your first space.
-            </div>
-          )}
+          <h1 className="home-title">{isHomeView ? "Recent sessions." : eyebrow}</h1>
           {error && <div className="home-error">Couldn't load sessions: {error.message}</div>}
         </header>
 
