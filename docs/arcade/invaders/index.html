@@ -9,9 +9,9 @@
 <link rel="stylesheet" href="../shared/touch.css">
 <link rel="stylesheet" href="../shared/overlays.css">
 <style>
-  /* Splash + game-over overlay styles — copied from space-jumper/index.html
-     lines ~31-230 with palette tweaks. Keep ONE source of truth per game;
-     don't extract into shared CSS until a third game wants it. */
+  /* Splash styles for Invaders. The game-over overlay now lives in
+     ../shared/overlays.css — Invaders uses its defaults verbatim. Splash
+     is still inline here (Round 6 of the DRY pass will extract it). */
   .splash {
     position: absolute; inset: 0; z-index: 3; overflow: hidden;
     background: linear-gradient(180deg, #0d1a60 0%, #050a30 100%);

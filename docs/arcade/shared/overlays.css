@@ -8,12 +8,17 @@
  * Defaults below use Invaders' palette. Other games set --go-* vars in
  * their own <style> block to retint without duplicating geometry.
  *
+ * Dependencies: the @keyframes splash-poweron and arcade-blink used below
+ * live in ../shared/cabinet.css — each consuming game must <link> that
+ * stylesheet too (every game already does for the cabinet shell).
+ *
  * Usage (each game):
+ *   <link rel="stylesheet" href="../shared/cabinet.css">
  *   <link rel="stylesheet" href="../shared/overlays.css">
  *
  *   <style>
  *     :root {
- *       --go-title-color-win: #ffd84a;          // example override
+ *       --go-title-color-win: #ffd84a;          (example override)
  *     }
  *   </style>
  *
