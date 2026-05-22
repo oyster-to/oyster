@@ -213,6 +213,7 @@
 <audio id="sfx-shoot"     src="sfx-shoot.mp3"               preload="auto"></audio>
 <audio id="sfx-kill"      src="sfx-kill.wav"                preload="auto"></audio>
 <audio id="bgm"           src="bgm.mp3"                     preload="auto" loop></audio>
+<audio id="bgm-title"     src="bgm-title.mp3"               preload="auto" loop></audio>
 <audio id="bgm-boss"      src="bgm-boss.mp3"                preload="auto" loop></audio>
 <audio id="bgm-win"       src="bgm-win.mp3"                 preload="auto"></audio>
 <div class="screen">
@@ -309,7 +310,7 @@ Arcade.Audio.init({
 // BGM — three tracks: main gameplay, boss (Egyptian), win cutscene.
 // shared/pause.js applies the cabinet MUSIC slider to any <audio id^="bgm">
 // so all three follow the same volume.
-const BGM_IDS = { main: 'bgm', boss: 'bgm-boss', win: 'bgm-win' };
+const BGM_IDS = { main: 'bgm', title: 'bgm-title', boss: 'bgm-boss', win: 'bgm-win' };
 function playBgm(which /* 'main' | 'boss' | 'win' | 'none' */) {
   for (const [k, id] of Object.entries(BGM_IDS)) {
     const a = document.getElementById(id);
@@ -395,6 +396,11 @@ Arcade.Leaderboard.refresh().then(() => {
   paintSplashHiScore();
   paintLeaderboard();
 });
+
+// Title theme — tries to play right away (works if the page already has a
+// gesture from the cabinet launch). If browsers block it, the first
+// keydown/pointerdown on the splash will trigger it (see dismissSplashAndStart).
+playBgm('title');
 
 // ============================================
 // SYNTH SFX — square-wave blips for the classic 1978 sounds. Reads the
