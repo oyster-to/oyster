@@ -1644,43 +1644,20 @@ function sincePhrase(ts) {
 }
 
 function paintSplashHighScore() {
-  const hs = getHighScore();
-  const v = document.getElementById('hs-val-splash');
-  const i = document.getElementById('hs-initials-splash');
-  if (v) v.textContent = String(hs.score).padStart(3, '0');
-  if (i) i.textContent = hs.initials;
+  Arcade.Leaderboard.paintHiScoreRow({
+    valueSelector:    '#hs-val-splash',
+    initialsSelector: '#hs-initials-splash',
+    pad: 3,
+  });
 }
 function paintLeaderboard() {
-  const list = readLeaderboard();
-  const ol = document.getElementById('lb-list');
-  if (!ol) return;
-  // Clear safely
-  ol.textContent = '';
-  if (!list.length) {
-    const li = document.createElement('li');
-    const span = document.createElement('span');
-    span.className = 'lb-empty';
-    span.textContent = 'NO SCORES YET — BE THE FIRST';
-    li.appendChild(span);
-    ol.appendChild(li);
-    return;
-  }
-  // Build via DOM nodes so user-provided initials can't be interpreted as HTML.
-  list.forEach((e, i) => {
-    const li = document.createElement('li');
-    const cols = [
-      ['lb-rank', String(i + 1).padStart(2, '0') + '.'],
-      ['lb-initials', e.initials],
-      ['lb-score', String(e.score).padStart(3, '0')],
-      ['lb-since', sincePhrase(e.created_at)],
-    ];
-    for (const [cls, text] of cols) {
-      const span = document.createElement('span');
-      span.className = cls;
-      span.textContent = text;
-      li.appendChild(span);
-    }
-    ol.appendChild(li);
+  // Rocket Ship is the only game showing the humanised "since" column on the
+  // leaderboard list. Module supports it via showSince + sinceFormatter.
+  Arcade.Leaderboard.paintList({
+    listSelector:   '#lb-list',
+    pad:            3,
+    showSince:      true,
+    sinceFormatter: sincePhrase,
   });
 }
 paintSplashHighScore();
