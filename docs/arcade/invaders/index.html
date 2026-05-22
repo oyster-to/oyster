@@ -342,8 +342,34 @@ let player = { x: PF_W / 2 - PLAYER_W / 2, alive: true };
 
 // Bullets — ONE player bullet on screen at a time. Iconic constraint;
 // do not relax. `null` = no shot in flight.
-let playerBullet = null;        // { x, y } or null
+let playerBullet = null;        // { x, y, charged } or null
 const BULLET_W = 2, BULLET_H = 6;
+
+// Charged shot — hold SPACE ≥ CHARGE_THRESHOLD_MS, release for a piercing,
+// fatter, faster bullet that passes through shields and the whole grid.
+const CHARGE_THRESHOLD_MS = 500;
+const CHARGED_BULLET_W = 4, CHARGED_BULLET_H = 12;
+const CHARGED_BULLET_SPEED = 380;
+let chargeStartAt = 0;          // performance.now() when SPACE went down; 0 = not charging
+let prevSpaceHeld = false;
+
+// Combo chain — kills within COMBO_WINDOW_MS extend the chain; multiplier
+// ramps × 1 → × 2 → × 3 → × 4 by kill count.
+const COMBO_WINDOW_MS = 1500;
+let comboCount = 0;
+let lastKillAt = 0;
+
+// Marked invader — once per ~5–15 s, a random alive invader pulses white.
+// Shoot it before MARKED_DURATION_MS expires for MARKED_BONUS_POINTS + flash.
+const MARKED_BONUS_POINTS = 200;
+const MARKED_DURATION_MS = 4000;
+let markedSpawnAt = 0;
+let markedCell = null;          // { r, c } | null
+let markedUntil = 0;
+let flashUntil = 0;             // performance.now() while the screen briefly flashes
+
+// Floating popup texts (e.g. "+30", "×3 +60"). Drawn over gameplay, fade out.
+const popups = [];              // { x, y, text, colour, untilMs }
 const BULLET_SPEED = 220;       // px/sec, canvas-down-positive in pf coords
 
 // Invader bullets — at most MAX_INV_BULLETS in flight. Each tick (independent
@@ -542,6 +568,16 @@ function startRun() {
   scheduleNextUfo(performance.now());
   ufoWarbleAccumulator = 0;
   running = true;
+  // Reset gimmick state for the new run.
+  chargeStartAt = 0;
+  prevSpaceHeld = false;
+  comboCount = 0;
+  lastKillAt = 0;
+  markedCell = null;
+  markedUntil = 0;
+  scheduleNextMarked(performance.now());
+  flashUntil = 0;
+  popups.length = 0;
   // Clear stale input state so the key used to restart doesn't carry over.
   for (const k in keys) keys[k] = false;
 }
@@ -826,25 +862,56 @@ function update(dt) {
 
   // Fire — one shot on screen at a time. Releasing+pressing is fine; held
   // Space does NOT spam (player must wait for the previous to leave/hit).
-  if (player.alive && keys[' '] && !playerBullet) {
-    playerBullet = { x: player.x + PLAYER_W / 2 - BULLET_W / 2, y: PLAYER_Y - BULLET_H };
-    Arcade.Audio.play('sfx-shoot', 0.55);
+  // Charge shot: holding ≥ CHARGE_THRESHOLD_MS before release fires a fat
+  // golden bullet that pierces shields AND the entire grid column.
+  {
+    const spaceHeld = !!keys[' '];
+    const justPressed  = spaceHeld && !prevSpaceHeld;
+    const justReleased = !spaceHeld && prevSpaceHeld;
+    if (player.alive && justPressed && chargeStartAt === 0) {
+      chargeStartAt = performance.now();
+    }
+    if (player.alive && justReleased && chargeStartAt > 0 && !playerBullet) {
+      const heldMs = performance.now() - chargeStartAt;
+      const charged = heldMs >= CHARGE_THRESHOLD_MS;
+      const bw = charged ? CHARGED_BULLET_W : BULLET_W;
+      const bh = charged ? CHARGED_BULLET_H : BULLET_H;
+      playerBullet = {
+        x: player.x + PLAYER_W / 2 - bw / 2,
+        y: PLAYER_Y - bh,
+        charged,
+      };
+      Arcade.Audio.play('sfx-shoot', charged ? 0.75 : 0.55);
+    }
+    if (!spaceHeld) chargeStartAt = 0;     // released without firing (e.g. died mid-charge)
+    prevSpaceHeld = spaceHeld;
   }
 
   // Bullet motion + off-screen cleanup.
   if (playerBullet) {
-    playerBullet.y -= BULLET_SPEED * dt;
-    if (playerBullet.y + BULLET_H < 0) playerBullet = null;
+    const speed = playerBullet.charged ? CHARGED_BULLET_SPEED : BULLET_SPEED;
+    const bh    = playerBullet.charged ? CHARGED_BULLET_H : BULLET_H;
+    playerBullet.y -= speed * dt;
+    if (playerBullet.y + bh < 0) playerBullet = null;
   }
 
-  // Player bullet vs shield — must come BEFORE bullet-vs-invader so a bullet
-  // that clips a shield doesn't punch through to the grid.
-  if (playerBullet && carveShield(playerBullet.x + BULLET_W / 2, playerBullet.y + BULLET_H / 2, 2)) {
-    playerBullet = null;
-  }
-
-  // Player bullet vs invader grid.
+  // Player bullet vs shield — must come BEFORE bullet-vs-invader so a normal
+  // bullet that clips a shield doesn't punch through to the grid. A charged
+  // bullet carves a bigger hole AND keeps going.
   if (playerBullet) {
+    const bw    = playerBullet.charged ? CHARGED_BULLET_W : BULLET_W;
+    const bh    = playerBullet.charged ? CHARGED_BULLET_H : BULLET_H;
+    const radius = playerBullet.charged ? 4 : 2;
+    if (carveShield(playerBullet.x + bw / 2, playerBullet.y + bh / 2, radius)) {
+      if (!playerBullet.charged) playerBullet = null;
+    }
+  }
+
+  // Player bullet vs invader grid. Normal bullet: one kill, consumed.
+  // Charged bullet: pierces — every overlapping cell dies, bullet keeps flying.
+  if (playerBullet) {
+    const bw    = playerBullet.charged ? CHARGED_BULLET_W : BULLET_W;
+    const bh    = playerBullet.charged ? CHARGED_BULLET_H : BULLET_H;
     outer: for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
         const cell = grid.cells[r][c];
@@ -852,15 +919,16 @@ function update(dt) {
         const ix = grid.offsetX + c * INV_SPACING_X;
         const iy = grid.offsetY + r * INV_SPACING_Y;
         if (playerBullet.x < ix + INV_W &&
-            playerBullet.x + BULLET_W > ix &&
+            playerBullet.x + bw > ix &&
             playerBullet.y < iy + INV_H &&
-            playerBullet.y + BULLET_H > iy) {
+            playerBullet.y + bh > iy) {
           cell.alive = false;
           grid.aliveCount--;
-          score += ROW_POINTS[r];
-          playerBullet = null;
-          Arcade.Audio.play('sfx-kill', 0.55);
-          break outer;
+          onInvaderKilled(r, c);
+          if (!playerBullet.charged) {
+            playerBullet = null;
+            break outer;
+          }
         }
       }
     }
@@ -922,16 +990,27 @@ function update(dt) {
       scheduleNextUfo(now);
     }
     // Player bullet vs UFO.
-    if (ufo && playerBullet &&
-        playerBullet.x < ufo.x + UFO_W && playerBullet.x + BULLET_W > ufo.x &&
-        playerBullet.y < UFO_Y + UFO_H && playerBullet.y + BULLET_H > UFO_Y) {
-      const award = UFO_SCORES[Math.floor(Math.random() * UFO_SCORES.length)];
-      score += award;
-      Arcade.Audio.play('sfx-explosion', 0.6);
-      ufo = null;
-      playerBullet = null;
-      scheduleNextUfo(now);
+    if (ufo && playerBullet) {
+      const bw = playerBullet.charged ? CHARGED_BULLET_W : BULLET_W;
+      const bh = playerBullet.charged ? CHARGED_BULLET_H : BULLET_H;
+      if (playerBullet.x < ufo.x + UFO_W && playerBullet.x + bw > ufo.x &&
+          playerBullet.y < UFO_Y + UFO_H && playerBullet.y + bh > UFO_Y) {
+        const award = UFO_SCORES[Math.floor(Math.random() * UFO_SCORES.length)];
+        score += award;
+        addPopup(ufo.x + UFO_W / 2, UFO_Y, `+${award}`, '#ffd84a');
+        Arcade.Audio.play('sfx-explosion', 0.6);
+        ufo = null;
+        if (!playerBullet.charged) playerBullet = null;
+        scheduleNextUfo(now);
+      }
     }
+  }
+
+  // Marked invader scheduling + expiry.
+  maybeSpawnMarked(now);
+  if (markedCell && now > markedUntil) {
+    markedCell = null;
+    scheduleNextMarked(now);
   }
 
   // Wave clear → next wave, one row lower (capped in newGrid). Shields are
@@ -947,6 +1026,12 @@ function update(dt) {
     // Clear any in-flight UFO so the bonus restarts cleanly with the new wave.
     ufo = null;
     scheduleNextUfo(performance.now());
+    // Reset combo + marked for the new wave so each wave is its own arc.
+    comboCount = 0;
+    lastKillAt = 0;
+    markedCell = null;
+    markedUntil = 0;
+    scheduleNextMarked(performance.now());
   }
 
   // If hurtPlayer just ended the run on the third life, skip the lose-check
@@ -1013,6 +1098,79 @@ function marchStep() {
 }
 
 // ============================================
+// GIMMICK HELPERS — combo chain, marked invader, kill side-effects, popups.
+// ============================================
+function comboMultiplier() {
+  if (comboCount >= 8) return 4;
+  if (comboCount >= 5) return 3;
+  if (comboCount >= 3) return 2;
+  return 1;
+}
+
+function scheduleNextMarked(now) {
+  // 5–15 s gap between marked invaders, per wave.
+  markedSpawnAt = now + (5 + Math.random() * 10) * 1000;
+}
+
+function maybeSpawnMarked(now) {
+  if (markedCell) return;
+  if (now < markedSpawnAt) return;
+  if (!grid || grid.aliveCount === 0) return;
+  // Pick a random alive cell.
+  const alive = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (grid.cells[r][c].alive) alive.push({ r, c });
+    }
+  }
+  if (alive.length === 0) return;
+  markedCell = alive[Math.floor(Math.random() * alive.length)];
+  markedUntil = now + MARKED_DURATION_MS;
+}
+
+function addPopup(x, y, text, colour) {
+  popups.push({ x, y, text, colour: colour || '#ffffff', untilMs: performance.now() + 800 });
+}
+
+// Single kill side-effect path — score, combo, marked-bonus, popup, sfx.
+// Called from the bullet-vs-invader collision loop, including for each
+// invader killed by a piercing charged shot.
+function onInvaderKilled(r, c) {
+  const now = performance.now();
+  const basePoints = ROW_POINTS[r];
+
+  // Combo chain.
+  if (now - lastKillAt <= COMBO_WINDOW_MS) comboCount++;
+  else comboCount = 1;
+  lastKillAt = now;
+
+  const mult = comboMultiplier();
+  const earned = basePoints * mult;
+  score += earned;
+
+  // Marked-invader bonus.
+  let markedHit = false;
+  if (markedCell && markedCell.r === r && markedCell.c === c && now < markedUntil) {
+    score += MARKED_BONUS_POINTS;
+    flashUntil = now + 200;
+    markedCell = null;
+    scheduleNextMarked(now);
+    markedHit = true;
+  }
+
+  // Popup text — yellow + bigger pop if marked, plain white otherwise.
+  const px = grid.offsetX + c * INV_SPACING_X + INV_W / 2;
+  const py = grid.offsetY + r * INV_SPACING_Y;
+  let text;
+  if (markedHit)        text = `+${earned + MARKED_BONUS_POINTS}!`;
+  else if (mult > 1)    text = `+${earned} ×${mult}`;
+  else                  text = `+${earned}`;
+  addPopup(px, py, text, markedHit ? '#ffd84a' : '#ffffff');
+
+  Arcade.Audio.play('sfx-kill', 0.55);
+}
+
+// ============================================
 // RENDER
 // ============================================
 function drawScene() {
@@ -1023,6 +1181,9 @@ function drawScene() {
   drawPlayer();
   drawBullet();
   drawInvaderBullets();
+  drawPopups();
+  drawComboHUD();
+  drawFlash();   // last — overlays everything when active
 }
 
 function drawHUD() {
@@ -1062,6 +1223,18 @@ function drawRect(pfX, pfY, pfW, pfH, fill) {
 
 function drawPlayer() {
   if (!player.alive) return;
+  // Charge halo — when SPACE has been held long enough, draw a pulsing
+  // golden glow around the ship so the player knows the next release
+  // will be a piercing shot.
+  if (chargeStartAt > 0) {
+    const heldMs = performance.now() - chargeStartAt;
+    if (heldMs >= CHARGE_THRESHOLD_MS) {
+      const pulse = 1 + Math.floor(performance.now() / 90) % 2;
+      drawRect(player.x - pulse, PLAYER_Y - 4 - pulse,
+               PLAYER_W + pulse * 2, 4 + 4 + pulse * 2,
+               'rgba(255, 216, 74, 0.35)');
+    }
+  }
   // Bright magenta-pink body + white turret tip — the player is the only
   // saturated colour on screen, so the eye locks to "you" against the
   // muted pastel invaders.
@@ -1072,7 +1245,13 @@ function drawPlayer() {
 
 function drawBullet() {
   if (!playerBullet) return;
-  drawRect(playerBullet.x, playerBullet.y, BULLET_W, BULLET_H, '#ffffff');
+  if (playerBullet.charged) {
+    // Fat golden piercing slug with a white core.
+    drawRect(playerBullet.x, playerBullet.y, CHARGED_BULLET_W, CHARGED_BULLET_H, '#ffd84a');
+    drawRect(playerBullet.x + 1, playerBullet.y + 1, CHARGED_BULLET_W - 2, CHARGED_BULLET_H - 2, '#ffffff');
+  } else {
+    drawRect(playerBullet.x, playerBullet.y, BULLET_W, BULLET_H, '#ffffff');
+  }
 }
 
 function drawInvaderBullets() {
@@ -1091,12 +1270,18 @@ function drawUfo() {
 }
 
 function drawGrid() {
+  const now = performance.now();
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     const cell = grid.cells[r][c];
     if (!cell.alive) continue;
     const px = grid.offsetX + c * INV_SPACING_X;
     const py = grid.offsetY + r * INV_SPACING_Y;
-    drawInvader(px, py, r, grid.frame);
+    // Marked invader pulses between its row colour and white (~80ms cycle).
+    const isMarked = markedCell && markedCell.r === r && markedCell.c === c && now < markedUntil;
+    const colour = (isMarked && Math.floor(now / 80) % 2 === 0)
+      ? '#ffffff'
+      : ROW_COLOURS[r];
+    drawInvader(px, py, r, grid.frame, colour);
   }
 }
 
@@ -1104,8 +1289,8 @@ function drawGrid() {
 // 12×8 chunky pixel-blocks — readable on a small mobile canvas, faithful
 // to the original silhouettes. Frame 0/1 toggles a couple of body/limb
 // pixels for the shuffle.
-function drawInvader(px, py, row, frame) {
-  const colour = ROW_COLOURS[row];
+function drawInvader(px, py, row, frame, colourOverride) {
+  const colour = colourOverride || ROW_COLOURS[row];
   if (row === 0) drawSquid(px, py, colour, frame);
   else if (row === 1 || row === 2) drawCrab(px, py, colour, frame);
   else drawOctopus(px, py, colour, frame);
@@ -1150,6 +1335,59 @@ function paintPixels(px, py, pixels, colour) {
       }
     }
   }
+}
+
+// ============================================
+// POPUPS / COMBO HUD / SCREEN FLASH
+// ============================================
+function drawPopups() {
+  const now = performance.now();
+  for (let i = popups.length - 1; i >= 0; i--) {
+    if (now > popups[i].untilMs) popups.splice(i, 1);
+  }
+  if (!popups.length) return;
+  const [, , s] = pfToCanvas(0, 0);
+  ctx.save();
+  ctx.font = `${Math.round(7 * s)}px "Press Start 2P", monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const p of popups) {
+    // 0..1 progress through life; popups drift up and fade out.
+    const remaining = (p.untilMs - now) / 800;
+    const yOffset = (1 - remaining) * -8;
+    ctx.globalAlpha = Math.max(0, remaining);
+    ctx.fillStyle = p.colour;
+    const [cx, cy] = pfToCanvas(p.x, p.y + yOffset);
+    ctx.fillText(p.text, cx, cy);
+  }
+  ctx.restore();
+}
+
+function drawComboHUD() {
+  const now = performance.now();
+  if (comboCount <= 1) return;
+  if (now - lastKillAt > COMBO_WINDOW_MS) return;
+  const mult = comboMultiplier();
+  if (mult <= 1) return;
+  const remaining = 1 - (now - lastKillAt) / COMBO_WINDOW_MS;
+  const [, , s] = pfToCanvas(0, 0);
+  ctx.save();
+  ctx.font = `${Math.round(9 * s)}px "Press Start 2P", monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.globalAlpha = remaining;
+  ctx.fillStyle = '#ffd84a';
+  const [cx, cy] = pfToCanvas(PF_W / 2, PLAYER_Y - 18);
+  ctx.fillText(`COMBO ×${mult}`, cx, cy);
+  ctx.restore();
+}
+
+function drawFlash() {
+  const now = performance.now();
+  if (now >= flashUntil) return;
+  const alpha = Math.max(0, (flashUntil - now) / 200) * 0.5;
+  ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+  ctx.fillRect(0, 0, W, H);
 }
 
 requestAnimationFrame(tick);
