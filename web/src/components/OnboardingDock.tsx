@@ -266,7 +266,7 @@ export function OnboardingDock({ userSpaceCount = 0 }: OnboardingDockProps = {})
       <button
         type="button"
         ref={dockRef}
-        className={`onboarding-dock${done ? " onboarding-dock--ready" : ""}${popoverOpen ? " onboarding-dock--active" : ""}`}
+        className={`onboarding-dock${popoverOpen ? " onboarding-dock--active" : ""}`}
         onClick={togglePopover}
         aria-expanded={popoverOpen}
         aria-label="Onboarding checklist"
