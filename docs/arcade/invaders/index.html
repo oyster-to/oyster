@@ -1090,10 +1090,11 @@ function drawInvader(px, py, row, frame) {
 }
 
 function drawSquid(px, py, colour, f) {
-  // Squid source is 6 cols × 8 rows → 9×12 PF px at 1.5×. Centred in
-  // INV_W=18 cell with a 4.5pf margin each side (rounded to 4 for integer
-  // alignment — slight left bias is invisible at typical screen sizes).
-  const ox = 4;
+  // Squid source is 6 cols × 8 rows → 9×12 PF px at 1.5×. ox shifts the
+  // sprite within the 18pf cell so the squid columns line up visually
+  // with the wider crab/octopus rows below (their natural left-edge
+  // placement sits ~2pf left of where a strict centre would be).
+  const ox = 2;
   const pixels = f === 0
     ? ['..XX..', '.XXXX.', 'XXXXXX', 'XX..XX', 'XXXXXX', '.X..X.', 'X.XX.X', '.X..X.']
     : ['..XX..', '.XXXX.', 'XXXXXX', 'XX..XX', 'XXXXXX', '.X..X.', 'X....X', 'X.XX.X'];
