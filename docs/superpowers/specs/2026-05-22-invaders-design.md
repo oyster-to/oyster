@@ -85,7 +85,7 @@ Two-frame animation per invader (limbs in/out), advanced once per march step —
 ## Controls
 
 - Keyboard: `←` / `→` move, `Space` shoot, `P` pause, `Esc` pause (or close-to-cabinet when embedded — `shared/pause.js` owns ESC).
-- Touch (`shared/touch.js`): drag along bottom area to move ship; tap upper half to shoot. Mirror Space Jumper's touch-zone pattern so muscle memory carries between games.
+- Touch (`shared/touch.js`): three on-screen buttons — ◀ ▶ to move, FIRE to shoot. Mirrors Space Jumper's ◀ ▶ JUMP button cluster so muscle memory carries between games. (No drag/zone pattern — buttons stay consistent with the rest of the cabinet.)
 - No mouse controls.
 
 ## Audio
@@ -93,25 +93,22 @@ Two-frame animation per invader (limbs in/out), advanced once per march step —
 - Reuse shared SFX where they fit:
   - `shared/sfx-explosion.mp3` — invader killed, player killed.
   - `shared/sfx-lose.mp3` — game over.
-- New SFX local to `docs/arcade/invaders/`:
-  - `sfx-shoot.mp3` — short blip on player fire.
-  - `sfx-march-1.mp3` … `sfx-march-4.mp3` — four-note descending heartbeat, cycled on each tick (the iconic dum-dum-dum-dum that speeds up).
-  - `sfx-ufo.mp3` — UFO traversal warble (optional v1).
+- Synthesize the classic SFX in WebAudio (no new MP3 assets — the 1978 cabinet generated these in hardware too):
+  - **Shoot blip** — short descending square-wave pew (~80 ms).
+  - **March heartbeat** — four descending square-wave notes cycled on each tick (E2 → D2 → C2 → B1, ~120 ms each), tempo carried by tick interval.
+  - **UFO warble** — siren-style sine sweep while UFO is on-screen (optional v1; can come in step 5).
+- A small local helper `synthSfx()` reads `Arcade.Audio.getVolume()` and uses its return value as a master multiplier so the cabinet's SFX slider still controls volume. The helper builds its own `AudioContext` lazily on first user gesture (same iOS-gesture rule as `shared/audio.js`).
 - No BGM. The march tick *is* the soundtrack.
-- All audio gated through `shared/audio.js` so mute state respects the cabinet preference.
+- All audio gated through `Arcade.Audio.getVolume()` so mute state respects the cabinet preference.
 
 ## File layout
 
 ```
 docs/arcade/invaders/
-  index.html        single-file game (canvas + JS + inline styles)
-  sfx-shoot.mp3
-  sfx-march-1.mp3
-  sfx-march-2.mp3
-  sfx-march-3.mp3
-  sfx-march-4.mp3
-  sfx-ufo.mp3      (deferrable to follow-up)
+  index.html        single-file game (canvas + JS + inline styles + synth SFX)
 ```
+
+(No new audio assets — see Audio section. Game reuses `../shared/sfx-explosion.mp3` and `../shared/sfx-lose.mp3` via `Arcade.Audio`, and synthesizes shoot blip / march heartbeat / UFO warble inline.)
 
 The HTML mirrors `docs/arcade/space-jumper/index.html` structure: stylesheet links to shared CSS, `<canvas>` element, script tags for shared modules in this order — `iframe-host.js`, `audio.js`, `leaderboard.js`, `touch.js`, `pause.js` — then the inline game module.
 
