@@ -283,7 +283,8 @@ export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activ
 
   // Queue for prompts dispatched before the chat session has finished
   // initialising. createSession() can take a few seconds while OpenCode
-  // boots; without this, clicking "Set up Oyster" during the boot window
+  // boots; without this, a prompt dispatched via the `oyster:send-prompt`
+  // event (or a typed-then-submitted prompt) during the boot window
   // silently no-ops because handleSend bails on `!sessionId`. Now we
   // capture the latest pending text and drain it once sessionId arrives.
   const pendingPromptRef = useRef<string | null>(null);
@@ -446,9 +447,9 @@ export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activ
     handleSend(queued);
   }, [sessionId, streaming, handleSend]);
 
-  // Cross-component prompt trigger. Other surfaces (currently the onboarding
-  // dock's "Set up Oyster" button) dispatch `oyster:send-prompt` with a text
-  // payload to fire the same handleSend path as the hero CTA. Detail.text
+  // Cross-component prompt trigger. Any component that wants to pre-fill
+  // the chat (e.g. the onboarding dock) can dispatch `oyster:send-prompt` with a text
+  // payload. Detail.text
   // must be a non-empty string; we don't auto-focus the input or change the
   // chat-expand state — handleSend manages all of that.
   useEffect(() => {
