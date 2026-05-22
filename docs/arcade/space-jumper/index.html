@@ -445,17 +445,14 @@ Arcade.Leaderboard.refresh().then(paintSplashHiScore);
 // ============================================
 function showEndOverlay({ win }) {
   Arcade.Initials.close();
+  // Space Jumper uses a custom 3-digit hiscore format (legacy from when
+  // scores capped at 999) — pass the rendered string explicitly.
+  const top = Arcade.Leaderboard.getHighScore();
   Arcade.EndOverlay.show({
     score,
     title:      gameComplete ? 'GAME COMPLETE' : (win ? 'LEVEL COMPLETE' : 'GAME OVER'),
     titleClass: win ? 'is-win' : 'is-loss',
-    hiscore:    Arcade.Leaderboard.getHighScore(),
-    // Space Jumper uses a custom 3-digit hiscore format (legacy from when
-    // scores capped at 999) — pass the rendered string explicitly.
-    hiscoreText: (() => {
-      const top = Arcade.Leaderboard.getHighScore();
-      return top ? `HIGH ${String(top.score).padStart(3, '0')} ${top.initials || '---'}` : '';
-    })(),
+    hiscoreText: top ? `HIGH ${String(top.score).padStart(3, '0')} ${top.initials || '---'}` : '',
     graceMs:    win ? LEVEL_COMPLETE_GRACE_MS : GAME_OVER_GRACE_MS,
     qualifies:  Arcade.Leaderboard.qualifies(score),
   });

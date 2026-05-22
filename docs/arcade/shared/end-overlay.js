@@ -18,11 +18,11 @@
 //   // ...on game over:
 //   Arcade.EndOverlay.show({
 //     score,
-//     title:     win ? 'GAME COMPLETE' : 'GAME OVER',
-//     win,                                       // applies .is-win class
-//     hiscore:   Arcade.Leaderboard.getHighScore(),
-//     graceMs:   1200,
-//     qualifies: Arcade.Leaderboard.qualifies(score),
+//     title:      win ? 'GAME COMPLETE' : 'GAME OVER',
+//     titleClass: win ? 'is-win' : '',          // CSS class on the title el
+//     hiscore:    Arcade.Leaderboard.getHighScore(),
+//     graceMs:    1200,
+//     qualifies:  Arcade.Leaderboard.qualifies(score),
 //   });
 //   // ...in restart listeners:
 //   if (!Arcade.EndOverlay.acceptsInput()) return;
@@ -116,11 +116,13 @@
     return ov ? ov.classList.contains(opts.visibleClass) : false;
   }
 
-  // True once the grace window has elapsed AND the overlay is at least
-  // armed (inputAllowedAt > 0). Returns false outright if show() hasn't
-  // been called yet this run.
+  // True when input is NOT being held back by the grace window. Returns
+  // true when no overlay has been armed yet (inputAllowedAt === 0) so the
+  // initial splash-dismiss path isn't accidentally gated. The only time
+  // this returns false is during the active grace window after show().
   function acceptsInput() {
-    return inputAllowedAt > 0 && performance.now() >= inputAllowedAt;
+    if (inputAllowedAt === 0) return true;
+    return performance.now() >= inputAllowedAt;
   }
 
   // Returns true exactly ONCE per show() if qualifies was true. Game's
