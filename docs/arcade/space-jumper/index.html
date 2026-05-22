@@ -420,15 +420,16 @@ Arcade.Initials.mount({
   },
 });
 function paintSplashHiScore() {
-  const row = document.getElementById('hiscore-row');
-  const val = document.getElementById('hs-val-splash');
-  const ini = document.getElementById('hs-initials-splash');
-  if (!row || !val || !ini) return;
-  const top = Arcade.Leaderboard.getHighScore();
-  if (!top) { row.hidden = true; return; }
-  row.hidden = false;
-  val.textContent = String(top.score).padStart(3, '0');
-  ini.textContent = top.initials || '---';
+  // Space Jumper hides the row entirely when there are no scores (vs Invaders'
+  // "show 0000 ---" placeholder). 3-digit pad — legacy from when scores
+  // capped at 999.
+  Arcade.Leaderboard.paintHiScoreRow({
+    rowSelector:      '#hiscore-row',
+    valueSelector:    '#hs-val-splash',
+    initialsSelector: '#hs-initials-splash',
+    pad: 3,
+    hideWhenEmpty: true,
+  });
 }
 paintSplashHiScore();
 // Fire-and-forget cloud refresh; repaint when it lands.

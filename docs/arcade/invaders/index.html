@@ -367,49 +367,16 @@ Arcade.Initials.mount({
   },
 });
 
-// Always show the hi-score row, falling back to 0000 / --- on a fresh
-// install — matches the rocket-ship pattern so an empty cabinet still
-// reads as a proper arcade title screen.
+// Splash painters delegate to Arcade.Leaderboard (shared DOM builders).
 function paintSplashHiScore() {
-  const val = document.getElementById('hs-val-splash');
-  const ini = document.getElementById('hs-initials-splash');
-  if (!val || !ini) return;
-  const top = Arcade.Leaderboard.getHighScore();
-  val.textContent = String(top ? top.score : 0).padStart(4, '0');
-  ini.textContent = (top && top.initials) || '---';
-}
-
-// Title ↔ leaderboard cycle on the splash.
-function paintLeaderboard() {
-  const ol = document.getElementById('lb-list');
-  if (!ol) return;
-  ol.textContent = '';
-  const list = Arcade.Leaderboard.read();
-  if (!list.length) {
-    const li = document.createElement('li');
-    const span = document.createElement('span');
-    span.className = 'lb-empty';
-    span.textContent = 'NO SCORES YET — BE THE FIRST';
-    li.appendChild(span);
-    ol.appendChild(li);
-    return;
-  }
-  // Build via DOM so user-supplied initials can't be interpreted as HTML.
-  list.forEach((e, i) => {
-    const li = document.createElement('li');
-    const cols = [
-      ['lb-rank',     String(i + 1).padStart(2, '0') + '.'],
-      ['lb-initials', e.initials || '---'],
-      ['lb-score',    String(e.score).padStart(4, '0')],
-    ];
-    for (const [cls, text] of cols) {
-      const span = document.createElement('span');
-      span.className = cls;
-      span.textContent = text;
-      li.appendChild(span);
-    }
-    ol.appendChild(li);
+  Arcade.Leaderboard.paintHiScoreRow({
+    valueSelector:    '#hs-val-splash',
+    initialsSelector: '#hs-initials-splash',
+    pad: 4,
   });
+}
+function paintLeaderboard() {
+  Arcade.Leaderboard.paintList({ listSelector: '#lb-list', pad: 4 });
 }
 
 let splashCycleTimer = null;
