@@ -2838,11 +2838,12 @@ body {
 .chatbar-add-provider-text {
   flex: 1;
 }
-.chatbar-add-provider-link {
-  color: #9b8cff;
-  text-decoration: none;
-  font-weight: 500;
-}
-.chatbar-add-provider-link:hover {
-  text-decoration: underline;
+.chatbar-add-provider-code {
+  font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  background: rgba(124, 107, 255, 0.12);
+  color: #c4b8ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
 }

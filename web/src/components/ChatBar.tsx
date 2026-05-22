@@ -637,15 +637,9 @@ export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activ
         ) : null}
         {providerConfigured === false ? (
           <div className="chatbar-add-provider">
-            <span className="chatbar-add-provider-text">No chat provider yet.</span>
-            <a
-              href="https://oyster.to/docs/chat-provider"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="chatbar-add-provider-link"
-            >
-              Add chat provider →
-            </a>
+            <span className="chatbar-add-provider-text">
+              No chat provider yet. Run <code className="chatbar-add-provider-code">opencode auth login</code> in your terminal to set one up.
+            </span>
           </div>
         ) : (
         <>
