@@ -435,10 +435,9 @@ const INV_SPACING_X = 18;        // cells touch — gives more wall-to-wall walk
 const INV_SPACING_Y = 15;        // 3px row gap; smaller drop per bounce too
 // Top-down: row 0 = cyan squid (30 pts), row 1-2 = pink crabs (20),
 // row 3-4 = green octopi (10).
-// Pastel-on-navy palette (per user reference). Soft mint / pink / cream /
-// peach / periwinkle — feels atmospheric rather than neon, and reads as a
-// wave of distinct attackers without screaming at the eye.
-const ROW_COLOURS = ['#a0e6c8', '#e89cc0', '#e8d894', '#e8b896', '#8090d0'];
+// Pastel-on-navy palette — same five hues, saturation nudged up so each
+// row reads more vividly against the navy without losing the soft feel.
+const ROW_COLOURS = ['#7adfb1', '#f088bc', '#f0d070', '#f0a070', '#7088dc'];
 const ROW_POINTS  = [30,        20,        20,        10,        10];
 
 let grid = null;        // { offsetX, offsetY, dir, cells: 2D array, aliveCount, frame }
@@ -502,7 +501,7 @@ function drawShields() {
   for (const sh of shields) {
     for (let y = 0; y < SHIELD_H; y++) {
       for (let x = 0; x < SHIELD_W; x++) {
-        if (sh.bits[y * SHIELD_W + x]) drawRect(sh.x + x, sh.y + y, 1, 1, '#a0d8e0');
+        if (sh.bits[y * SHIELD_W + x]) drawRect(sh.x + x, sh.y + y, 1, 1, '#7ad0e0');
       }
     }
   }
