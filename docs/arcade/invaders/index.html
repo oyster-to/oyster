@@ -536,6 +536,8 @@ let stageAnnounceText = '';
 // Win cutscene (option 2 — pixel Earth + orbiting ship + flag + EARTH IS SAFE)
 const CUTSCENE_MS = 9500;
 let cutsceneStart = 0;
+let cutsceneWaiting = false;     // true once the cutscene anim is finished
+                                 // and we're waiting for a key/tap to continue
 
 // Boss
 const BOSS_SCALE = 5;                              // 8-source-px × 5 = 40 PF
@@ -827,9 +829,16 @@ function consumePendingOrRestart() {
 }
 
 window.addEventListener('keydown', e => {
-  if (running) return;
   if (initialsActive) return;
   if (e.key === 'Escape') return;
+  // Cutscene waiting at the end of the EARTH IS SAFE pose → hand off to
+  // endRun(true) so the GAME COMPLETE overlay can take over.
+  if (phase === 'cutscene' && cutsceneWaiting) {
+    cutsceneWaiting = false;
+    endRun(true);
+    return;
+  }
+  if (running) return;
   // Overlay grace prevents the same key that lost the run from restarting it.
   if (performance.now() < endOverlayInputAllowedAt) return;
   consumePendingOrRestart();
@@ -837,12 +846,16 @@ window.addEventListener('keydown', e => {
 
 // Pointer-tap restart (covers splash dismiss AND post-game-over taps).
 document.addEventListener('pointerdown', e => {
-  if (running) return;
   if (initialsActive) return;
-  if (performance.now() < endOverlayInputAllowedAt) return;
-  // Ignore taps on the pause overlay's own controls.
   if (e.target.closest('.arcade-pause')) return;
   if (e.target.closest('#go-initials')) return;
+  if (phase === 'cutscene' && cutsceneWaiting) {
+    cutsceneWaiting = false;
+    endRun(true);
+    return;
+  }
+  if (running) return;
+  if (performance.now() < endOverlayInputAllowedAt) return;
   consumePendingOrRestart();
 });
 
@@ -1265,10 +1278,11 @@ function update(dt) {
     updateBoss(dt, performance.now());
     updateBossAdds(performance.now());
   } else if (phase === 'cutscene') {
-    // Win cutscene: end after CUTSCENE_MS, then hand off to endRun(true).
-    if (performance.now() - cutsceneStart >= CUTSCENE_MS) {
-      endRun(true);
-      return;
+    // Win cutscene: animation runs to CUTSCENE_MS, then we hold on the
+    // EARTH IS SAFE pose and wait for a key/tap (see consumePendingOrRestart
+    // / the cutscene-aware listener below).
+    if (!cutsceneWaiting && performance.now() - cutsceneStart >= CUTSCENE_MS) {
+      cutsceneWaiting = true;
     }
   }
 
@@ -1610,6 +1624,7 @@ function defeatBoss() {
     bossAdds = [];
     phase = 'cutscene';
     cutsceneStart = performance.now();
+    cutsceneWaiting = false;
     playBgm('win');
     return;
   }
@@ -1744,13 +1759,32 @@ function drawCutscene() {
     ctx.font = `${fontPx}px "Press Start 2P", monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const [tx, ty] = pfToCanvas(PF_W / 2, PF_H - 50);
+    const [tx, ty] = pfToCanvas(PF_W / 2, PF_H - 60);
     // Gold drop shadow first, then red main on top — splash-marquee style.
     ctx.fillStyle = '#ffd84a';
     ctx.fillText('EARTH IS SAFE', Math.round(tx + 4 * s), Math.round(ty + 4 * s));
     ctx.fillStyle = '#ff2020';
     ctx.fillText('EARTH IS SAFE', Math.round(tx), Math.round(ty));
     ctx.restore();
+  }
+
+  // Once the animation has played through, sit on the pose and show a
+  // blinking "PRESS ANY KEY TO CONTINUE" hint. The user advances when they
+  // want — keypress hands off to endRun(true).
+  if (cutsceneWaiting) {
+    const blink = Math.floor(performance.now() / 500) % 2 === 0;
+    if (blink) {
+      const [, , s] = pfToCanvas(0, 0);
+      const hintPx = Math.max(8, Math.round(8 * s));
+      ctx.save();
+      ctx.font = `${hintPx}px "Press Start 2P", monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      const [hx, hy] = pfToCanvas(PF_W / 2, PF_H - 22);
+      ctx.fillText('PRESS ANY KEY TO CONTINUE', Math.round(hx), Math.round(hy));
+      ctx.restore();
+    }
   }
 }
 
