@@ -27,10 +27,19 @@
     gap: clamp(18px, 3vw, 32px);
   }
   .splash .title {
-    font-size: clamp(28px, 6.5vw, 64px);
-    letter-spacing: 0.04em;
-    color: #2dd4ff;
-    text-shadow: 3px 3px 0 #ff3aa1, 6px 6px 0 #a855f7, 0 0 18px rgba(45, 212, 255, 0.45);
+    /* Classic INVADERS marquee block-letter look: bold red on thick black
+       outline with a yellow drop-shadow that suggests 3D extruded depth.
+       Press Start 2P already gives the chunky pixel-letter silhouette;
+       this just paints it the way the original cabinet sticker did. */
+    font-size: clamp(36px, 8.5vw, 90px);
+    letter-spacing: 0.05em;
+    line-height: 1.0;
+    color: #ff2020;
+    -webkit-text-stroke: 2px #0a0a0a;
+    text-shadow:
+      4px 4px 0 #ffd84a,                /* yellow depth — the "extrusion" */
+      5px 5px 0 #0a0a0a,                /* black slab behind it for weight */
+      0 0 22px rgba(255, 48, 48, 0.45); /* soft warm glow */
   }
   .splash .start {
     font-size: clamp(11px, 2vw, 16px);
