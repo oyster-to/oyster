@@ -625,6 +625,10 @@ function update(dt) {
     shields = newShields();
   }
 
+  // If hurtPlayer just ended the run on the third life, skip the lose-check
+  // below — otherwise endRun fires twice and the restart grace doubles.
+  if (!running) return;
+
   // Lose condition: any alive invader has reached the player line. Faithful
   // to the original — there's no "ran out of lives" path for this case; it
   // ends the run immediately.
