@@ -249,7 +249,7 @@
           <div class="controls">
             <div class="key key-only">← →</div><div class="key touch-only">TAP ◀ ▶</div><div class="desc">MOVE</div>
             <div class="key key-only">SPACE</div><div class="key touch-only">TAP FIRE</div><div class="desc">FIRE</div>
-            <div class="key key-only">HOLD ⎵</div><div class="key touch-only">HOLD FIRE</div><div class="desc">SUPER ⚡</div>
+            <div class="key key-only">HOLD SPACE</div><div class="key touch-only">HOLD FIRE</div><div class="desc">SUPER SHOT ⚡</div>
             <div class="key">🛸</div><div class="desc">KILL UFO TO REFILL ⚡</div>
           </div>
           <div class="hiscore-row" id="hiscore-row">HIGH SCORE <span class="hs-val" id="hs-val-splash">0000</span> <span class="hs-initials" id="hs-initials-splash">---</span></div>
@@ -487,6 +487,10 @@ const MARKED_DURATION_MS = 4000;
 let markedSpawnAt = 0;
 let markedCell = null;          // { r, c } | null
 let markedUntil = 0;
+// Position of the marked invader while it's swooping out of formation. When
+// markedCell is null, these are ignored. Recomputed each frame in update().
+let markedSwoopX = 0;
+let markedSwoopY = 0;
 let flashUntil = 0;             // performance.now() while the screen briefly flashes
 
 // Floating popup texts (e.g. "+30", "×3 +60"). Drawn over gameplay, fade out.
@@ -1043,8 +1047,10 @@ function update(dt) {
       for (let c = 0; c < COLS; c++) {
         const cell = grid.cells[r][c];
         if (!cell.alive) continue;
-        const ix = grid.offsetX + c * INV_SPACING_X;
-        const iy = grid.offsetY + r * INV_SPACING_Y;
+        // Marked invader collides at its swoop position, not its grid slot.
+        const isMarked = markedCell && markedCell.r === r && markedCell.c === c;
+        const ix = isMarked ? markedSwoopX : grid.offsetX + c * INV_SPACING_X;
+        const iy = isMarked ? markedSwoopY : grid.offsetY + r * INV_SPACING_Y;
         if (playerBullet.x < ix + INV_W &&
             playerBullet.x + bw > ix &&
             playerBullet.y < iy + INV_H &&
@@ -1138,12 +1144,13 @@ function update(dt) {
     }
   }
 
-  // Marked invader scheduling + expiry.
+  // Marked invader scheduling + expiry + swoop position.
   maybeSpawnMarked(now);
   if (markedCell && now > markedUntil) {
     markedCell = null;
     scheduleNextMarked(now);
   }
+  if (markedCell) updateMarkedSwoop(now);
 
   // Wave clear → next wave, one row lower (capped in newGrid). Shields are
   // NOT restored — surviving them across waves is part of the challenge,
@@ -1215,6 +1222,9 @@ function marchStep() {
   // After any march step, alive invaders that now overlap a shield erode it.
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     if (!grid.cells[r][c].alive) continue;
+    // The marked invader is mid-swoop and not in its grid slot — don't erode
+    // shields from its empty cell.
+    if (markedCell && markedCell.r === r && markedCell.c === c) continue;
     const ix = grid.offsetX + c * INV_SPACING_X;
     const iy = grid.offsetY + r * INV_SPACING_Y;
     for (const sh of shields) {
@@ -1263,6 +1273,28 @@ function maybeSpawnMarked(now) {
   if (alive.length === 0) return;
   markedCell = alive[Math.floor(Math.random() * alive.length)];
   markedUntil = now + MARKED_DURATION_MS;
+  // Snap swoop position to the grid cell at spawn so the first frame
+  // doesn't visibly jump from (0,0) to grid.
+  markedSwoopX = grid.offsetX + markedCell.c * INV_SPACING_X;
+  markedSwoopY = grid.offsetY + markedCell.r * INV_SPACING_Y;
+}
+
+// Recompute the marked invader's swoop position each frame. The path is a
+// downward swoop with a side-to-side loopy waggle, returning to its grid
+// slot just as the mark expires. Vertical eased 0→1→0 over the mark
+// duration so the bug arrives back home exactly at t=1.
+function updateMarkedSwoop(now) {
+  if (!markedCell) return;
+  const t = 1 - Math.max(0, Math.min(1, (markedUntil - now) / MARKED_DURATION_MS));
+  const gridX = grid.offsetX + markedCell.c * INV_SPACING_X;
+  const gridY = grid.offsetY + markedCell.r * INV_SPACING_Y;
+  const easeV = 0.5 - 0.5 * Math.cos(t * Math.PI * 2);   // 0→1→0
+  // Cap the dive so it doesn't crowd the shields/player line.
+  const swoopAmount = Math.min(140, Math.max(0, PLAYER_Y - gridY - INV_H - 36));
+  markedSwoopY = gridY + easeV * swoopAmount;
+  // 2.5 horizontal cycles over the duration → reads as a loop-de-loop.
+  const sway = Math.sin(t * Math.PI * 5) * 30 * easeV;
+  markedSwoopX = gridX + sway;
 }
 
 function addPopup(x, y, text, colour) {
@@ -1444,10 +1476,11 @@ function drawGrid() {
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     const cell = grid.cells[r][c];
     if (!cell.alive) continue;
-    const px = grid.offsetX + c * INV_SPACING_X;
-    const py = grid.offsetY + r * INV_SPACING_Y;
-    // Marked invader pulses between its row colour and white (~80ms cycle).
     const isMarked = markedCell && markedCell.r === r && markedCell.c === c && now < markedUntil;
+    // Marked invader breaks formation and follows the swoop path; render at
+    // markedSwoopX/Y, pulse white. Others render at their grid slot.
+    const px = isMarked ? markedSwoopX : grid.offsetX + c * INV_SPACING_X;
+    const py = isMarked ? markedSwoopY : grid.offsetY + r * INV_SPACING_Y;
     const colour = (isMarked && Math.floor(now / 80) % 2 === 0)
       ? '#ffffff'
       : ROW_COLOURS[r];
