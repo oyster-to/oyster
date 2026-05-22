@@ -213,6 +213,8 @@
 <audio id="sfx-shoot"     src="sfx-shoot.mp3"               preload="auto"></audio>
 <audio id="sfx-kill"      src="sfx-kill.wav"                preload="auto"></audio>
 <audio id="bgm"           src="bgm.mp3"                     preload="auto" loop></audio>
+<audio id="bgm-boss"      src="bgm-boss.mp3"                preload="auto" loop></audio>
+<audio id="bgm-win"       src="bgm-win.mp3"                 preload="auto"></audio>
 <div class="screen">
   <div class="tube">
     <canvas id="c"></canvas>
@@ -304,19 +306,23 @@ Arcade.Audio.init({
   mutedKey:  'oyster-arcade-sfx-muted',    // legacy fallback
 });
 
-// In-game BGM. shared/pause.js auto-applies the cabinet MUSIC slider to any
-// <audio id^="bgm"> so the slider just works. Plays during a run, pauses on
-// game-over.
-function startBgm() {
-  const a = document.getElementById('bgm');
-  if (!a) return;
-  try { a.currentTime = 0; a.play().catch(() => {}); } catch (_) {}
+// BGM — three tracks: main gameplay, boss (Egyptian), win cutscene.
+// shared/pause.js applies the cabinet MUSIC slider to any <audio id^="bgm">
+// so all three follow the same volume.
+const BGM_IDS = { main: 'bgm', boss: 'bgm-boss', win: 'bgm-win' };
+function playBgm(which /* 'main' | 'boss' | 'win' | 'none' */) {
+  for (const [k, id] of Object.entries(BGM_IDS)) {
+    const a = document.getElementById(id);
+    if (!a) continue;
+    if (k === which) {
+      try { a.currentTime = 0; a.play().catch(() => {}); } catch (_) {}
+    } else {
+      try { a.pause(); } catch (_) {}
+    }
+  }
 }
-function stopBgm() {
-  const a = document.getElementById('bgm');
-  if (!a) return;
-  try { a.pause(); } catch (_) {}
-}
+function startBgm() { playBgm('main'); }
+function stopBgm()  { playBgm('none'); }
 
 // Leaderboard scaffold so the splash hi-score line lights up once cloud lands.
 Arcade.Leaderboard.init({ game: 'invaders', max: 10 });
@@ -520,9 +526,12 @@ const popups = [];              // { x, y, text, colour, untilMs }
 const STAGES_PER_SET = 3;
 let stageSet = 1;
 let stageNum = 1;
-let phase = 'grid';             // 'grid' | 'boss'
+let phase = 'grid';             // 'grid' | 'boss' | 'cutscene'
 let stageAnnounceUntil = 0;
 let stageAnnounceText = '';
+// Win cutscene (option 2 — pixel Earth + orbiting ship + flag + EARTH IS SAFE)
+const CUTSCENE_MS = 9500;
+let cutsceneStart = 0;
 
 // Boss
 const BOSS_SCALE = 5;                              // 8-source-px × 5 = 40 PF
@@ -1239,6 +1248,12 @@ function update(dt) {
   } else if (phase === 'boss') {
     updateBoss(dt, performance.now());
     updateBossAdds(performance.now());
+  } else if (phase === 'cutscene') {
+    // Win cutscene: end after CUTSCENE_MS, then hand off to endRun(true).
+    if (performance.now() - cutsceneStart >= CUTSCENE_MS) {
+      endRun(true);
+      return;
+    }
   }
 
   // Move invader bullets + collide with shields, player, off-screen.
@@ -1551,6 +1566,7 @@ function advanceStage() {
     showStageAnnounce(`STAGE ${stageSet}-BOSS`);
     // Refill supers for the boss fight.
     superShotAmmo = SUPER_SHOT_MAX;
+    playBgm('boss');
   }
 }
 
@@ -1570,12 +1586,15 @@ function defeatBoss() {
     if (superShotAmmo < SUPER_SHOT_MAX) superShotAmmo++;
     nextSuperAt += SUPER_SCORE_INTERVAL;
   }
-  // Last boss in the rotation → GAME COMPLETE. Lets the explosion + flash
-  // breathe for ~700 ms before the overlay so the kill feels earned.
+  // Last boss in the rotation → enter the WIN CUTSCENE. Pixel Earth grows,
+  // ship orbits and plants a flag, EARTH IS SAFE text, then endRun(true)
+  // shows the GAME COMPLETE overlay.
   if (stageSet >= BOSS_TYPES.length) {
     boss = null;
     bossAdds = [];
-    setTimeout(() => { if (!running) return; endRun(true); }, 700);
+    phase = 'cutscene';
+    cutsceneStart = performance.now();
+    playBgm('win');
     return;
   }
   boss = null;
@@ -1595,6 +1614,7 @@ function defeatBoss() {
   scheduleNextMarked(now);
   superShotAmmo = SUPER_SHOT_MAX;
   showStageAnnounce(`STAGE ${stageSet}-${stageNum}`);
+  playBgm('main');
 }
 
 // Rebuild the shield bitmap of whichever shield has the fewest solid bits
@@ -1615,6 +1635,113 @@ function repairMostDamagedShield() {
   if (lowestCount >= maxSolid) return;   // already pristine
   target.bits = fresh;
   addPopup(target.x + SHIELD_W / 2, target.y - 4, '⚙ REPAIR', '#7ad0e0');
+}
+
+// =============================================================
+// WIN CUTSCENE — pixel Earth grows, ship orbits, plants a flag,
+// starburst + EARTH IS SAFE banner. Plays after defeating 4-BOSS.
+// =============================================================
+function drawCutscene() {
+  const now = performance.now();
+  const tMs = now - cutsceneStart;
+  const t = Math.min(1, tMs / CUTSCENE_MS);
+  const cx = PF_W / 2;
+  const cy = PF_H / 2 - 10;
+
+  // Starfield — twinkles throughout the cutscene.
+  const starSeed = Math.floor(tMs / 200);
+  for (let i = 0; i < 40; i++) {
+    const sx = ((i * 73 + starSeed * 13) % PF_W);
+    const sy = ((i * 41 + starSeed * 7)  % PF_H);
+    const lit = ((i + starSeed) % 5) !== 0;
+    if (lit) drawRect(sx, sy, 1, 1, '#ffffff');
+  }
+
+  // Earth grows from a dot to ~36 PF radius over the first 3 s.
+  const growT = Math.min(1, tMs / 3000);
+  const radius = 2 + growT * 34;
+  drawPixelEarth(cx, cy, radius);
+
+  // Ship orbits — starts at t≈3s, makes ~1.5 laps.
+  if (tMs > 2800) {
+    const orbitT = (tMs - 2800) / 4000;        // 4 s for the orbit phase
+    const angle  = orbitT * Math.PI * 3 - Math.PI / 2;  // start above
+    const orbitR = radius + 14;
+    const sx = cx + Math.cos(angle) * orbitR - 4;
+    const sy = cy + Math.sin(angle) * orbitR - 2;
+    drawRect(sx,     sy + 2, 8, 2, '#ff7ab8');
+    drawRect(sx + 2, sy,     4, 2, '#ff7ab8');
+    drawRect(sx + 3, sy - 2, 2, 2, '#ffffff');
+    // Cyan thrust trail behind the ship
+    const tailAng = angle - Math.PI;
+    drawRect(cx + Math.cos(tailAng) * (orbitR + 2),
+             cy + Math.sin(tailAng) * (orbitR + 2),
+             2, 2, '#2dd4ff');
+  }
+
+  // Flag planted on the earth around t≈6 s.
+  if (tMs > 6000) {
+    const flagAlpha = Math.min(1, (tMs - 6000) / 600);
+    ctx.save();
+    ctx.globalAlpha = flagAlpha;
+    const fx = cx - 1;
+    const fy = cy - radius - 8;
+    drawRect(fx, fy, 1, 9, '#ffffff');          // pole
+    drawRect(fx + 1, fy, 6, 4, '#ffd84a');       // flag cloth (gold ★)
+    drawRect(fx + 3, fy + 1, 2, 2, '#ff3aa1');   // pink dot like an oyster pearl
+    ctx.restore();
+  }
+
+  // Star burst from the planet around t≈5 s.
+  if (tMs > 5000) {
+    const burstT = (tMs - 5000) / 2500;
+    for (let i = 0; i < 20; i++) {
+      const a = (i / 20) * Math.PI * 2;
+      const dist = 8 + burstT * 90;
+      const sx = cx + Math.cos(a) * dist;
+      const sy = cy + Math.sin(a) * dist;
+      if (sx < 0 || sx > PF_W || sy < 0 || sy > PF_H) continue;
+      drawRect(sx, sy, 2, 2, '#ffd84a');
+    }
+  }
+
+  // EARTH IS SAFE — appears after orbit completes, marquee-red.
+  if (tMs > 6800) {
+    const textAlpha = Math.min(1, (tMs - 6800) / 500);
+    const [, , s] = pfToCanvas(0, 0);
+    ctx.save();
+    ctx.globalAlpha = textAlpha;
+    ctx.font = `${Math.round(20 * s)}px "Press Start 2P", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ff2020';
+    const [tx, ty] = pfToCanvas(PF_W / 2, PF_H - 60);
+    // Yellow drop shadow first, then red on top — matches splash title.
+    ctx.fillStyle = '#ffd84a';
+    ctx.fillText('EARTH IS SAFE', tx + 4 * s, ty + 4 * s);
+    ctx.fillStyle = '#ff2020';
+    ctx.fillText('EARTH IS SAFE', tx, ty);
+    ctx.restore();
+  }
+}
+
+// Pixel Earth — blue water + green continents + dark dot polar caps,
+// drawn as a filled circle at (cx, cy) with the given radius (PF px).
+function drawPixelEarth(cx, cy, radius) {
+  const r2 = radius * radius;
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      if (dx * dx + dy * dy > r2) continue;
+      // Polar caps near the top/bottom — small ice patches.
+      const polar = Math.abs(dy) > radius * 0.78 && Math.abs(dx) < radius * 0.45;
+      // Continent blobs — sample a couple of "noise" zones.
+      const cont = (dx > -radius * 0.6 && dx < -radius * 0.1 && dy > -radius * 0.3 && dy < radius * 0.2)
+                || (dx > radius * 0.1 && dx < radius * 0.55 && dy > -radius * 0.15 && dy < radius * 0.45)
+                || (dx > -radius * 0.2 && dx < radius * 0.2 && dy > radius * 0.4 && dy < radius * 0.7);
+      const colour = polar ? '#e8f0ff' : (cont ? '#4ade80' : '#2080d8');
+      drawRect(cx + dx, cy + dy, 1, 1, colour);
+    }
+  }
 }
 
 function drawStageAnnouncement() {
@@ -1756,6 +1883,11 @@ function onInvaderKilled(r, c) {
 // RENDER
 // ============================================
 function drawScene() {
+  if (phase === 'cutscene') {
+    drawCutscene();
+    drawFlash();
+    return;
+  }
   drawHUD();
   drawUfo();
   if (phase === 'grid') drawGrid();
