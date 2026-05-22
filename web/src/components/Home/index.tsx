@@ -1170,7 +1170,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
               )}
             </>
           )}
-          {stateCounts.all === 0 && isHomeView && !showElsewhere && (
+          {stateCounts.all === 0 && isHomeView && !showElsewhere && !loading && (
             <div className="home-empty-state">
               <div className="home-empty-state-title">No sessions found yet.</div>
               <div className="home-empty-state-body">

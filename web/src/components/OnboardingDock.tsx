@@ -239,9 +239,9 @@ export function OnboardingDock({ userSpaceCount = 0 }: OnboardingDockProps = {})
   }, []);
 
   const handleSetUpSpaces = useCallback(() => {
-    // Send the canonical setup prompt to the chat. ChatBar listens for this
-    // event and routes through the same handleSend path as its hero
-    // "Set up Oyster" button.
+    // Send the canonical setup prompt to the chat via the cross-component
+    // oyster:send-prompt event. ChatBar's listener routes it through the
+    // same handleSend path used for typed input.
     window.dispatchEvent(
       new CustomEvent("oyster:send-prompt", { detail: { text: "Set up Oyster" } }),
     );
@@ -346,8 +346,10 @@ function Checklist({ state, requiredDone, done, onSetUpSpaces, onShowStep, onTog
           : item.required
             ? "required"
             : "optional";
-        // Click-to-tick for optionals — spaces (required) auto-derives
-        // from userSpaceCount and would fight a manual toggle.
+        // Click-to-tick for optionals — MCP (required) auto-derives from the
+        // SSE listener + API check; spaces auto-derives from userSpaceCount.
+        // Both would fight a manual toggle, so non-required items are the only
+        // ones the user can tick directly.
         const canToggle = !item.required;
         const iconClass = `onboarding-item-icon onboarding-item-icon--${tag}${canToggle ? " onboarding-item-icon--clickable" : ""}`;
         return (
