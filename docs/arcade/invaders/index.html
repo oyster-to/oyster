@@ -253,8 +253,8 @@ let playerBullet = null;        // { x, y } or null
 const BULLET_W = 2, BULLET_H = 6;
 const BULLET_SPEED = 220;       // px/sec, canvas-down-positive in pf coords
 
-// Invader grid — 5 rows × 11 cols. Each cell is { alive, frame } where
-// frame flips 0/1 each march tick for the shuffle animation.
+// Invader grid — 5 rows × 11 cols. Each cell is { alive }.
+// grid.frame flips 0/1 each march tick for the shared shuffle animation.
 const COLS = 11, ROWS = 5;
 const INV_W = 12, INV_H = 8;
 const INV_SPACING_X = 16;        // cell width
