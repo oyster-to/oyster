@@ -71,6 +71,56 @@
   }
   .splash .hiscore-row .hs-val { color: #ffd84a; }
   .splash .hiscore-row .hs-initials { color: #2dd4ff; }
+
+  /* Two splash views (title-card + leaderboard) auto-cycle every ~5.5 s.
+     Pattern lifted from rocket-ship.html so the arcade feels consistent. */
+  .splash-main .splash-view {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(14px, 2.4vw, 28px);
+    padding: 40px 24px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+  .splash-main .splash-view.is-active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .leaderboard {
+    color: #fff;
+    font-family: 'Press Start 2P', ui-monospace, monospace;
+  }
+  .leaderboard .lb-title {
+    font-size: clamp(18px, 3.5vw, 32px);
+    color: #ffd84a;
+    letter-spacing: 0.12em;
+    text-shadow: 3px 3px 0 #ff3aa1, 5px 5px 0 #2dd4ff;
+    margin-bottom: clamp(8px, 1.5vw, 16px);
+  }
+  .leaderboard .lb-list {
+    list-style: none; padding: 0; margin: 0;
+    display: grid;
+    grid-template-columns: auto auto auto;
+    gap: 6px 22px;
+    font-size: clamp(10px, 1.5vw, 14px);
+    letter-spacing: 0.14em;
+    align-items: center;
+  }
+  .leaderboard .lb-list li { display: contents; }
+  .leaderboard .lb-rank     { color: #ff3aa1; text-align: right; }
+  .leaderboard .lb-initials { color: #2dd4ff; text-align: left; letter-spacing: 0.2em; }
+  .leaderboard .lb-score    { color: #ffd84a; text-align: right; }
+  .leaderboard .lb-empty {
+    font-size: clamp(10px, 1.4vw, 12px);
+    color: rgba(255, 255, 255, 0.55);
+    grid-column: 1 / -1;
+    text-align: center;
+  }
   @keyframes arcade-blink { 50% { opacity: 0; } }
   @keyframes splash-poweron { 0% { transform: scaleY(0.02); opacity: 0; } 100% { transform: scaleY(1); opacity: 1; } }
 
@@ -192,14 +242,22 @@
     </div>
     <div class="splash" id="splash">
       <div class="splash-main">
-        <div class="title-card">
+        <!-- Title card + leaderboard alternate every ~5.5 s. -->
+        <div class="title-card splash-view is-active">
           <div class="title">INVADERS</div>
           <div class="start"><span class="key-only">INSERT COIN TO PLAY</span><span class="touch-only">TAP TO PLAY</span></div>
           <div class="controls">
             <div class="key key-only">← →</div><div class="key touch-only">TAP ◀ ▶</div><div class="desc">MOVE</div>
             <div class="key key-only">SPACE</div><div class="key touch-only">TAP FIRE</div><div class="desc">FIRE</div>
+            <div class="key key-only">HOLD ⎵</div><div class="key touch-only">HOLD FIRE</div><div class="desc">SUPER ⚡</div>
+            <div class="key">🛸</div><div class="desc">KILL UFO TO REFILL ⚡</div>
           </div>
-          <div class="hiscore-row" id="hiscore-row" hidden>HIGH SCORE <span class="hs-val" id="hs-val-splash">0000</span> <span class="hs-initials" id="hs-initials-splash">---</span></div>
+          <div class="hiscore-row" id="hiscore-row">HIGH SCORE <span class="hs-val" id="hs-val-splash">0000</span> <span class="hs-initials" id="hs-initials-splash">---</span></div>
+          <div class="credit">© OYSTER 2026 — <span class="key-only">PRESS ANY KEY</span><span class="touch-only">TAP TO PLAY</span></div>
+        </div>
+        <div class="leaderboard splash-view">
+          <div class="lb-title">HIGH SCORES</div>
+          <ol class="lb-list" id="lb-list"></ol>
           <div class="credit">© OYSTER 2026 — <span class="key-only">PRESS ANY KEY</span><span class="touch-only">TAP TO PLAY</span></div>
         </div>
       </div>
@@ -243,19 +301,75 @@ Arcade.Audio.init({
 
 // Leaderboard scaffold so the splash hi-score line lights up once cloud lands.
 Arcade.Leaderboard.init({ game: 'invaders', max: 10 });
+
+// Always show the hi-score row, falling back to 0000 / --- on a fresh
+// install — matches the rocket-ship pattern so an empty cabinet still
+// reads as a proper arcade title screen.
 function paintSplashHiScore() {
-  const row = document.getElementById('hiscore-row');
   const val = document.getElementById('hs-val-splash');
   const ini = document.getElementById('hs-initials-splash');
-  if (!row || !val || !ini) return;
+  if (!val || !ini) return;
   const top = Arcade.Leaderboard.getHighScore();
-  if (!top) { row.hidden = true; return; }
-  row.hidden = false;
-  val.textContent = String(top.score).padStart(4, '0');
-  ini.textContent = top.initials || '---';
+  val.textContent = String(top ? top.score : 0).padStart(4, '0');
+  ini.textContent = (top && top.initials) || '---';
 }
+
+// Title ↔ leaderboard cycle on the splash.
+function paintLeaderboard() {
+  const ol = document.getElementById('lb-list');
+  if (!ol) return;
+  ol.textContent = '';
+  const list = Arcade.Leaderboard.read();
+  if (!list.length) {
+    const li = document.createElement('li');
+    const span = document.createElement('span');
+    span.className = 'lb-empty';
+    span.textContent = 'NO SCORES YET — BE THE FIRST';
+    li.appendChild(span);
+    ol.appendChild(li);
+    return;
+  }
+  // Build via DOM so user-supplied initials can't be interpreted as HTML.
+  list.forEach((e, i) => {
+    const li = document.createElement('li');
+    const cols = [
+      ['lb-rank',     String(i + 1).padStart(2, '0') + '.'],
+      ['lb-initials', e.initials || '---'],
+      ['lb-score',    String(e.score).padStart(4, '0')],
+    ];
+    for (const [cls, text] of cols) {
+      const span = document.createElement('span');
+      span.className = cls;
+      span.textContent = text;
+      li.appendChild(span);
+    }
+    ol.appendChild(li);
+  });
+}
+
+let splashCycleTimer = null;
+function startSplashCycle() {
+  stopSplashCycle();
+  const views = document.querySelectorAll('#splash .splash-view');
+  if (!views.length) return;
+  let idx = 0;
+  splashCycleTimer = setInterval(() => {
+    idx = (idx + 1) % views.length;
+    views.forEach((v, i) => v.classList.toggle('is-active', i === idx));
+    if (views[idx].classList.contains('leaderboard')) paintLeaderboard();
+  }, 5500);
+}
+function stopSplashCycle() {
+  if (splashCycleTimer) { clearInterval(splashCycleTimer); splashCycleTimer = null; }
+}
+
 paintSplashHiScore();
-Arcade.Leaderboard.refresh().then(paintSplashHiScore);
+paintLeaderboard();
+startSplashCycle();
+Arcade.Leaderboard.refresh().then(() => {
+  paintSplashHiScore();
+  paintLeaderboard();
+});
 
 // ============================================
 // SYNTH SFX — square-wave blips for the classic 1978 sounds. Reads the
@@ -354,9 +468,11 @@ const CHARGE_THRESHOLD_MS = 500;
 const CHARGED_BULLET_W = 4, CHARGED_BULLET_H = 12;
 const CHARGED_BULLET_SPEED = 380;
 const SUPER_SHOT_MAX = 3;
+const SUPER_SCORE_INTERVAL = 1000;   // a super shot is granted every N score points
 let chargeStartAt = 0;          // performance.now() when SPACE went down; 0 = not charging
 let prevSpaceHeld = false;
 let superShotAmmo = 0;
+let nextSuperAt = SUPER_SCORE_INTERVAL;   // next score threshold that grants a super
 
 // Combo chain — kills within COMBO_WINDOW_MS extend the chain; multiplier
 // ramps × 1 → × 2 → × 3 → × 4 by kill count.
@@ -576,6 +692,7 @@ function startRun() {
   chargeStartAt = 0;
   prevSpaceHeld = false;
   superShotAmmo = SUPER_SHOT_MAX;   // start with a full clip; UFO kills refill
+  nextSuperAt = SUPER_SCORE_INTERVAL;
   comboCount = 0;
   lastKillAt = 0;
   markedCell = null;
@@ -588,16 +705,23 @@ function startRun() {
 }
 
 // Unified restart handler — covers splash dismiss AND post-game-over keypress.
+function dismissSplashAndStart() {
+  stopSplashCycle();
+  splashEl.classList.add('is-hidden');
+  document.querySelector('.tube').classList.add('is-ready');
+  Arcade.Audio.ensureCtx();
+  synth.ensure();
+  hideEndOverlay();
+  startRun();
+}
+
 window.addEventListener('keydown', e => {
   if (running) return;
   if (initialsActive) return;
   if (e.key === 'Escape') return;
   // Overlay grace prevents the same key that lost the run from restarting it.
   if (performance.now() < endOverlayInputAllowedAt) return;
-  hideEndOverlay();
-  Arcade.Audio.ensureCtx();   // unlock WebAudio on keyboard-only iOS
-  synth.ensure();
-  startRun();
+  dismissSplashAndStart();
 });
 
 // Pointer-tap restart (covers splash dismiss AND post-game-over taps).
@@ -608,12 +732,7 @@ document.addEventListener('pointerdown', e => {
   // Ignore taps on the pause overlay's own controls.
   if (e.target.closest('.arcade-pause')) return;
   if (e.target.closest('#go-initials')) return;
-  hideEndOverlay();
-  splashEl.classList.add('is-hidden');
-  document.querySelector('.tube').classList.add('is-ready');
-  Arcade.Audio.ensureCtx();
-  synth.ensure();
-  startRun();
+  dismissSplashAndStart();
 });
 
 // Don't allow pause from non-running states (splash, game-over, initials).
@@ -1045,6 +1164,11 @@ function update(dt) {
     markedCell = null;
     markedUntil = 0;
     scheduleNextMarked(performance.now());
+    // Wave-clear reward — one super shot (capped at SUPER_SHOT_MAX).
+    if (superShotAmmo < SUPER_SHOT_MAX) {
+      superShotAmmo++;
+      addPopup(PF_W / 2, PF_H / 2, '⚡ WAVE BONUS', '#ffd84a');
+    }
   }
 
   // If hurtPlayer just ended the run on the third life, skip the lose-check
@@ -1181,6 +1305,16 @@ function onInvaderKilled(r, c) {
   addPopup(px, py, text, markedHit ? '#ffd84a' : '#ffffff');
 
   Arcade.Audio.play('sfx-kill', 0.55);
+  // Score-threshold super grant — every SUPER_SCORE_INTERVAL points banks one
+  // charge, capped at SUPER_SHOT_MAX. Walks the threshold up in case a big
+  // combo pushed past more than one boundary in a single kill.
+  while (score >= nextSuperAt) {
+    if (superShotAmmo < SUPER_SHOT_MAX) {
+      superShotAmmo++;
+      addPopup(player.x + PLAYER_W / 2, PLAYER_Y - 30, '⚡ SUPER!', '#ffd84a');
+    }
+    nextSuperAt += SUPER_SCORE_INTERVAL;
+  }
 }
 
 // ============================================
