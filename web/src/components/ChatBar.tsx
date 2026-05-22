@@ -96,11 +96,10 @@ interface Props {
   onArtifactOpen?: (artifact: Artifact) => void;
   onArtifactPublish?: (artifact: Artifact) => void;
   onArtifactUnpublish?: (artifact: Artifact) => void;
-  isFirstRun?: boolean;
   onAiError?: (message: string | null) => void;
 }
 
-export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activeSpace, onSpaceChange, inputRef: externalInputRef, artifacts = [], onArtifactOpen, onArtifactPublish, onArtifactUnpublish, isFirstRun, onAiError }: Props) {
+export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activeSpace, onSpaceChange, inputRef: externalInputRef, artifacts = [], onArtifactOpen, onArtifactPublish, onArtifactUnpublish, onAiError }: Props) {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [statusText, setStatusText] = useState("");
@@ -488,27 +487,7 @@ export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activ
           className={`chatbar-hero-tagline${taglineHidden ? " tagline-hidden" : ""}`}
           aria-hidden={taglineHidden || undefined}
         >
-          {isFirstRun ? (
-            <>
-              <span className="tagline-bright">Welcome to your surface.</span>
-              <div className="chatbar-hero-sub">
-                Ask:{" "}
-                <button
-                  type="button"
-                  className="chatbar-hero-prompt"
-                  onClick={() => handleSend("Set up Oyster")}
-                  // Only block during an active stream — when sessionId is
-                  // null (chat still booting), the click queues and fires
-                  // automatically once the session arrives.
-                  disabled={streaming}
-                  tabIndex={taglineHidden ? -1 : 0}
-                  title="Click to send, or type it yourself"
-                >
-                  Set up Oyster
-                </button>
-              </div>
-            </>
-          ) : tagline ? (
+          {tagline ? (
             <>
               <span className="tagline-dim">{tagline.dim}</span>{" "}
               <span className="tagline-bright">{tagline.bright}</span>

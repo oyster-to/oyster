@@ -863,7 +863,6 @@ export default function App() {
         onArtifactOpen={handleArtifactClick}
         onArtifactPublish={handleArtifactPublish}
         onArtifactUnpublish={handleArtifactUnpublish}
-        isFirstRun={isFirstRun}
         onAiError={setAiError}
       />
 
