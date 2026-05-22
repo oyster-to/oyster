@@ -230,6 +230,8 @@ let running = false;
 let score = 0;
 let lives = 3;
 let wave = 1;
+let endOverlayInputAllowedAt = 0;
+let respawnAt = 0;
 
 // Player.
 const PLAYER_Y = PF_H - 24;
@@ -242,6 +244,35 @@ let player = { x: PF_W / 2 - PLAYER_W / 2, alive: true };
 let playerBullet = null;        // { x, y } or null
 const BULLET_W = 2, BULLET_H = 6;
 const BULLET_SPEED = 220;       // px/sec, canvas-down-positive in pf coords
+
+// Invader bullets — at most MAX_INV_BULLETS in flight. Each tick (independent
+// of the march), a random eligible column's lowest live invader has a small
+// chance of firing. Slower than the player's shot, falls straight down.
+const MAX_INV_BULLETS = 3;
+const INV_BULLET_W = 2, INV_BULLET_H = 6;
+const INV_BULLET_SPEED = 90;       // px/sec
+const INV_FIRE_INTERVAL = 0.8;     // seconds between fire opportunities
+const INV_FIRE_CHANCE_BASE = 0.4;  // per-opportunity, wave 1
+let invaderBullets = [];
+let invFireAccumulator = 0;
+
+function tryInvaderFire() {
+  if (invaderBullets.length >= MAX_INV_BULLETS) return;
+  // Eligible columns: those with at least one live invader.
+  const liveCols = [];
+  for (let c = 0; c < COLS; c++) {
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (grid.cells[r][c].alive) { liveCols.push({ c, bottomR: r }); break; }
+    }
+  }
+  if (liveCols.length === 0) return;
+  const chance = Math.min(0.95, INV_FIRE_CHANCE_BASE + (wave - 1) * 0.08);
+  if (Math.random() > chance) return;
+  const pick = liveCols[Math.floor(Math.random() * liveCols.length)];
+  const ix = grid.offsetX + pick.c * INV_SPACING_X;
+  const iy = grid.offsetY + pick.bottomR * INV_SPACING_Y + INV_H;
+  invaderBullets.push({ x: ix + INV_W / 2 - INV_BULLET_W / 2, y: iy });
+}
 
 // Invader grid — 5 rows × 11 cols. Each cell is { alive }.
 // grid.frame flips 0/1 each march tick for the shared shuffle animation.
@@ -256,6 +287,85 @@ const ROW_POINTS  = [30,        20,        20,        10,        10];
 
 let grid = null;        // { offsetX, offsetY, dir, cells: 2D array, aliveCount, frame }
 let marchAccumulator = 0;
+
+// ============================================
+// SHIELDS — 4 bunkers between player and grid. Each shield is a 22×16
+// bitmap stored as a Uint8Array (row-major, 1 = solid). Bullets carve
+// small circular holes into the bitmap on hit. Bitmap → screen pixel is
+// 1:1 in playfield space.
+// ============================================
+const SHIELD_W = 22, SHIELD_H = 16;
+const SHIELD_Y = PLAYER_Y - 30;
+const SHIELD_COUNT = 4;
+// Bunker silhouette: solid rectangle with a hollow arch at the bottom
+// centre. The arch is what makes them iconic — and gives the player a
+// place to crouch behind.
+function makeShieldBitmap() {
+  const buf = new Uint8Array(SHIELD_W * SHIELD_H);
+  for (let y = 0; y < SHIELD_H; y++) {
+    for (let x = 0; x < SHIELD_W; x++) {
+      let solid = 1;
+      // Trim top corners.
+      if (y < 3 && (x < 2 || x >= SHIELD_W - 2)) solid = 0;
+      if (y < 2 && (x < 3 || x >= SHIELD_W - 3)) solid = 0;
+      // Carve bottom arch.
+      if (y >= SHIELD_H - 6) {
+        const cx = SHIELD_W / 2;
+        const dx = x + 0.5 - cx;
+        const dy = y - (SHIELD_H - 6);
+        if (dx * dx / 25 + dy * dy / 25 < 1) solid = 0;
+      }
+      buf[y * SHIELD_W + x] = solid;
+    }
+  }
+  return buf;
+}
+let shields = null;     // [{ x, y, bits: Uint8Array }, ...]
+function newShields() {
+  const list = [];
+  const gap = (PF_W - SHIELD_W * SHIELD_COUNT) / (SHIELD_COUNT + 1);
+  for (let i = 0; i < SHIELD_COUNT; i++) {
+    list.push({
+      x: gap + i * (SHIELD_W + gap),
+      y: SHIELD_Y,
+      bits: makeShieldBitmap(),
+    });
+  }
+  return list;
+}
+
+function drawShields() {
+  for (const sh of shields) {
+    for (let y = 0; y < SHIELD_H; y++) {
+      for (let x = 0; x < SHIELD_W; x++) {
+        if (sh.bits[y * SHIELD_W + x]) drawRect(sh.x + x, sh.y + y, 1, 1, '#a855f7');
+      }
+    }
+  }
+}
+
+// Carve a circular hole at (cx, cy) world-space. Returns true if any pixel
+// was destroyed (= bullet hit something).
+function carveShield(cx, cy, radius) {
+  let hit = false;
+  for (const sh of shields) {
+    if (cx + radius < sh.x || cx - radius > sh.x + SHIELD_W) continue;
+    if (cy + radius < sh.y || cy - radius > sh.y + SHIELD_H) continue;
+    const lx = cx - sh.x, ly = cy - sh.y;
+    const r2 = radius * radius;
+    for (let y = 0; y < SHIELD_H; y++) {
+      for (let x = 0; x < SHIELD_W; x++) {
+        if (!sh.bits[y * SHIELD_W + x]) continue;
+        const dx = x + 0.5 - lx, dy = y + 0.5 - ly;
+        if (dx * dx + dy * dy <= r2) {
+          sh.bits[y * SHIELD_W + x] = 0;
+          hit = true;
+        }
+      }
+    }
+  }
+  return hit;
+}
 
 function newGrid(waveNum) {
   const cells = [];
@@ -282,6 +392,9 @@ function startRun() {
   wave = 1;
   player = { x: PF_W / 2 - PLAYER_W / 2, alive: true };
   playerBullet = null;
+  invaderBullets = [];
+  invFireAccumulator = 0;
+  shields = newShields();
   grid = newGrid(wave);
   marchAccumulator = 0;
   running = true;
@@ -312,6 +425,9 @@ document.addEventListener('pointerdown', e => {
   Arcade.Audio.ensureCtx();
   startRun();
 });
+
+// Don't allow pause from non-running states (splash, game-over, initials).
+Arcade.Pause.canPause = () => running;
 
 // ============================================
 // INPUT
@@ -366,8 +482,17 @@ function tick(now) {
   drawScene();
 }
 
-let endOverlayInputAllowedAt = 0;
 const GAME_OVER_GRACE_MS = 1200;
+
+function hurtPlayer() {
+  if (!player.alive) return;
+  Arcade.Audio.play('sfx-explosion', 0.55);
+  player.alive = false;
+  lives--;
+  if (lives <= 0) { endRun(false); return; }
+  // Brief respawn delay — gives the player a beat to breathe.
+  respawnAt = performance.now() + 900;
+}
 
 function endRun(_winFlag) {
   running = false;
@@ -397,14 +522,24 @@ function hideEndOverlay() {
 }
 
 function update(dt) {
-  // Player movement.
-  if (keys['ArrowLeft'])  player.x -= PLAYER_SPEED * dt;
-  if (keys['ArrowRight']) player.x += PLAYER_SPEED * dt;
+  // Respawn check — if player was just killed and the delay has elapsed,
+  // bring them back at centre and clear nearby invader bullets.
+  if (!player.alive && performance.now() >= respawnAt) {
+    player.alive = true;
+    player.x = PF_W / 2 - PLAYER_W / 2;
+    // Clear any in-flight invader bullets near the spawn area so respawn
+    // isn't instant-death.
+    invaderBullets = invaderBullets.filter(b => b.y < PLAYER_Y - 40);
+  }
+
+  // Player movement — gated on alive so a dead ship can't drift.
+  if (player.alive && keys['ArrowLeft'])  player.x -= PLAYER_SPEED * dt;
+  if (player.alive && keys['ArrowRight']) player.x += PLAYER_SPEED * dt;
   player.x = Math.max(8, Math.min(PF_W - 8 - PLAYER_W, player.x));
 
   // Fire — one shot on screen at a time. Releasing+pressing is fine; held
   // Space does NOT spam (player must wait for the previous to leave/hit).
-  if (keys[' '] && !playerBullet && player.alive) {
+  if (player.alive && keys[' '] && !playerBullet) {
     playerBullet = { x: player.x + PLAYER_W / 2 - BULLET_W / 2, y: PLAYER_Y - BULLET_H };
   }
 
@@ -412,6 +547,12 @@ function update(dt) {
   if (playerBullet) {
     playerBullet.y -= BULLET_SPEED * dt;
     if (playerBullet.y + BULLET_H < 0) playerBullet = null;
+  }
+
+  // Player bullet vs shield — must come BEFORE bullet-vs-invader so a bullet
+  // that clips a shield doesn't punch through to the grid.
+  if (playerBullet && carveShield(playerBullet.x + BULLET_W / 2, playerBullet.y + BULLET_H / 2, 2)) {
+    playerBullet = null;
   }
 
   // Player bullet vs invader grid.
@@ -437,12 +578,51 @@ function update(dt) {
     }
   }
 
+  // March tempo: shorter interval as the grid thins, capped at MIN.
+  // The 0.7 exponent makes the curve start slow then ramp hard at the end —
+  // the classic "uh-oh, three left, going fast" feel.
+  const fillRatio = grid.aliveCount / (ROWS * COLS);
+  const interval = Math.max(MIN_MARCH_INTERVAL,
+    BASE_MARCH_INTERVAL * Math.pow(fillRatio, 0.7) * Math.pow(0.9, wave - 1));
+  marchAccumulator += dt;
+  while (marchAccumulator >= interval && grid.aliveCount > 0) {
+    marchAccumulator -= interval;
+    marchStep();
+  }
+
+  // Invader-fire timer.
+  invFireAccumulator += dt;
+  while (invFireAccumulator >= INV_FIRE_INTERVAL) {
+    invFireAccumulator -= INV_FIRE_INTERVAL;
+    tryInvaderFire();
+  }
+
+  // Move invader bullets + collide with shields, player, off-screen.
+  for (let i = invaderBullets.length - 1; i >= 0; i--) {
+    const b = invaderBullets[i];
+    b.y += INV_BULLET_SPEED * dt;
+    if (b.y > PF_H) { invaderBullets.splice(i, 1); continue; }
+    if (carveShield(b.x + INV_BULLET_W / 2, b.y + INV_BULLET_H / 2, 3)) {
+      invaderBullets.splice(i, 1);
+      continue;
+    }
+    // Player hit.
+    if (player.alive &&
+        b.x < player.x + PLAYER_W && b.x + INV_BULLET_W > player.x &&
+        b.y < PLAYER_Y + PLAYER_H && b.y + INV_BULLET_H > PLAYER_Y) {
+      invaderBullets.splice(i, 1);
+      hurtPlayer();
+    }
+  }
+
   // Wave clear → next wave, one row lower (capped in newGrid).
   if (grid.aliveCount === 0) {
     wave++;
     grid = newGrid(wave);
     marchAccumulator = 0;
+    invaderBullets = [];
     playerBullet = null;
+    shields = newShields();
   }
 
   // Lose condition: any alive invader has reached the player line. Faithful
@@ -457,18 +637,6 @@ function update(dt) {
         return;
       }
     }
-  }
-
-  // March tempo: shorter interval as the grid thins, capped at MIN.
-  // The 0.7 exponent makes the curve start slow then ramp hard at the end —
-  // the classic "uh-oh, three left, going fast" feel.
-  const fillRatio = grid.aliveCount / (ROWS * COLS);
-  const interval = Math.max(MIN_MARCH_INTERVAL,
-    BASE_MARCH_INTERVAL * Math.pow(fillRatio, 0.7) * Math.pow(0.9, wave - 1));
-  marchAccumulator += dt;
-  while (marchAccumulator >= interval && grid.aliveCount > 0) {
-    marchAccumulator -= interval;
-    marchStep();
   }
 }
 
@@ -491,6 +659,26 @@ function marchStep() {
   } else {
     grid.offsetX += step * grid.dir;
   }
+  // After any march step, alive invaders that now overlap a shield erode it.
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if (!grid.cells[r][c].alive) continue;
+    const ix = grid.offsetX + c * INV_SPACING_X;
+    const iy = grid.offsetY + r * INV_SPACING_Y;
+    for (const sh of shields) {
+      if (ix + INV_W < sh.x || ix > sh.x + SHIELD_W) continue;
+      if (iy + INV_H < sh.y || iy > sh.y + SHIELD_H) continue;
+      // Wipe the overlapping rectangle in shield-local space.
+      for (let y = 0; y < SHIELD_H; y++) {
+        const wy = sh.y + y;
+        if (wy < iy || wy >= iy + INV_H) continue;
+        for (let x = 0; x < SHIELD_W; x++) {
+          const wx = sh.x + x;
+          if (wx < ix || wx >= ix + INV_W) continue;
+          sh.bits[y * SHIELD_W + x] = 0;
+        }
+      }
+    }
+  }
 }
 
 // ============================================
@@ -499,8 +687,10 @@ function marchStep() {
 function drawScene() {
   drawHUD();
   drawGrid();
+  drawShields();
   drawPlayer();
   drawBullet();
+  drawInvaderBullets();
 }
 
 function drawHUD() {
@@ -533,6 +723,10 @@ function drawPlayer() {
 function drawBullet() {
   if (!playerBullet) return;
   drawRect(playerBullet.x, playerBullet.y, BULLET_W, BULLET_H, '#ffffff');
+}
+
+function drawInvaderBullets() {
+  for (const b of invaderBullets) drawRect(b.x, b.y, INV_BULLET_W, INV_BULLET_H, '#ffffff');
 }
 
 function drawGrid() {
