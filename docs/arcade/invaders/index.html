@@ -8,24 +8,14 @@
 <link rel="stylesheet" href="../shared/cabinet.css">
 <link rel="stylesheet" href="../shared/touch.css">
 <link rel="stylesheet" href="../shared/overlays.css">
+<link rel="stylesheet" href="../shared/splash.css">
 <style>
-  /* Splash styles for Invaders. The game-over overlay now lives in
-     ../shared/overlays.css — Invaders uses its defaults verbatim. Splash
-     is still inline here (Round 6 of the DRY pass will extract it). */
-  .splash {
-    position: absolute; inset: 0; z-index: 3; overflow: hidden;
-    background: linear-gradient(180deg, #0d1a60 0%, #050a30 100%);
-    font-family: 'Press Start 2P', ui-monospace, monospace;
-    color: #fff;
-    animation: splash-poweron 0.55s ease-out;
-  }
-  .splash.is-hidden { opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
-  .splash .splash-main {
-    position: absolute; inset: 0;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    text-align: center; padding: 40px 24px;
-    gap: clamp(18px, 3vw, 32px);
+  /* Invaders-specific splash + game-over palette. Shell, .splash-main,
+     .start, .controls, .credit, .hiscore-row, and the prefers-reduced-
+     motion overrides live in ../shared/splash.css. Game-over rules live
+     in ../shared/overlays.css. */
+  :root {
+    --splash-bg: linear-gradient(180deg, #0d1a60 0%, #050a30 100%);
   }
   .splash .title-invader {
     display: block;
@@ -58,37 +48,6 @@
       5px 5px 0 #0a0a0a,                /* black slab behind it for weight */
       0 0 22px rgba(255, 48, 48, 0.45); /* soft warm glow */
   }
-  .splash .start {
-    font-size: clamp(11px, 2vw, 16px);
-    letter-spacing: 0.16em;
-    color: #fff;
-    animation: arcade-blink 1s steps(1) infinite;
-  }
-  .splash .controls {
-    display: grid; grid-template-columns: auto auto;
-    gap: 10px 18px;
-    font-size: clamp(8px, 1.2vw, 11px);
-    letter-spacing: 0.08em;
-    color: #b8b8d0; margin-top: 6px;
-  }
-  .splash .controls .key { color: #2dd4ff; text-align: right; }
-  .splash .controls .desc { color: #fff; text-align: left; }
-  .splash .credit {
-    font-size: clamp(7px, 1vw, 9px);
-    letter-spacing: 0.2em;
-    color: rgba(255, 255, 255, 0.35);
-    margin-top: clamp(12px, 2vw, 20px);
-  }
-  .splash .hiscore-row {
-    font-size: clamp(9px, 1.3vw, 12px);
-    letter-spacing: 0.18em;
-    color: #ff3aa1;
-    margin-top: clamp(8px, 1.4vw, 14px);
-    display: inline-flex; align-items: center; gap: 12px;
-  }
-  .splash .hiscore-row .hs-val { color: #ffd84a; }
-  .splash .hiscore-row .hs-initials { color: #2dd4ff; }
-
   /* Two splash views (title-card + leaderboard) auto-cycle every ~5.5 s.
      Pattern lifted from rocket-ship.html so the arcade feels consistent. */
   .splash-main .splash-view {

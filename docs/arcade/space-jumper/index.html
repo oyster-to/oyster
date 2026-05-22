@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="../shared/cabinet.css">
 <link rel="stylesheet" href="../shared/touch.css">
 <link rel="stylesheet" href="../shared/overlays.css">
+<link rel="stylesheet" href="../shared/splash.css">
 <style>
   /* Platformer-specific styles. Cabinet, pixel font, and touch base styles
      come from ../shared/ — see <link> tags above. */
@@ -28,33 +29,11 @@
     color: #fff;
   }
 
-  /* Splash */
-  .splash {
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    background: #000;
-    font-family: 'Press Start 2P', ui-monospace, monospace;
-    color: #fff;
-    overflow: hidden;
-    animation: splash-poweron 0.55s ease-out;
-  }
-  .splash.is-hidden {
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.25s ease;
-  }
-  .splash .splash-main {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 40px 24px;
-    gap: clamp(18px, 3vw, 32px);
-  }
+  /* Splash shell, .splash-main, .start, .controls, .credit, .hiscore-row,
+     and the prefers-reduced-motion overrides now live in
+     ../shared/splash.css. Space Jumper uses the default --splash-bg
+     (solid black), and only keeps its per-game .title marquee + the
+     SJ-specific .sound-controls / .sound-toggle widget below. */
   .splash .title {
     font-size: clamp(24px, 5.5vw, 56px);
     letter-spacing: 0.04em;
@@ -65,40 +44,6 @@
       6px 6px 0 #2dd4ff,
       0 0 18px rgba(255, 216, 74, 0.45);
   }
-  .splash .start {
-    font-size: clamp(11px, 2vw, 16px);
-    letter-spacing: 0.16em;
-    color: #fff;
-    animation: arcade-blink 1s steps(1) infinite;
-  }
-  .splash .controls {
-    display: grid;
-    grid-template-columns: auto auto;
-    gap: 10px 18px;
-    font-size: clamp(8px, 1.2vw, 11px);
-    letter-spacing: 0.08em;
-    color: #b8b8d0;
-    margin-top: 6px;
-  }
-  .splash .controls .key { color: #2dd4ff; text-align: right; }
-  .splash .controls .desc { color: #fff; text-align: left; }
-  .splash .credit {
-    font-size: clamp(7px, 1vw, 9px);
-    letter-spacing: 0.2em;
-    color: rgba(255, 255, 255, 0.35);
-    margin-top: clamp(12px, 2vw, 20px);
-  }
-  .splash .hiscore-row {
-    font-size: clamp(9px, 1.3vw, 12px);
-    letter-spacing: 0.18em;
-    color: #ff3aa1;
-    margin-top: clamp(8px, 1.4vw, 14px);
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .splash .hiscore-row .hs-val { color: #ffd84a; }
-  .splash .hiscore-row .hs-initials { color: #2dd4ff; }
   .splash .sound-controls {
     position: absolute;
     top: clamp(10px, 1.6vw, 18px);
@@ -132,11 +77,6 @@
     text-decoration: line-through;
     text-decoration-thickness: 0.12em;
   }
-  @media (prefers-reduced-motion: reduce) {
-    .splash { animation: none; }
-    .splash .start { animation: none; opacity: 1; }
-  }
-
   /* Game-over / level-complete panel. Same shell for both states; the
      .go-title gets a state class that swaps colour. Most rules now live
      in shared/overlays.css — Space Jumper overrides only its win-state
