@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="../shared/pixel-font.css">
 <link rel="stylesheet" href="../shared/cabinet.css">
 <link rel="stylesheet" href="../shared/touch.css">
+<link rel="stylesheet" href="../shared/overlays.css">
 <style>
   /* Platformer-specific styles. Cabinet, pixel font, and touch base styles
      come from ../shared/ — see <link> tags above. */
@@ -137,89 +138,14 @@
   }
 
   /* Game-over / level-complete panel. Same shell for both states; the
-     .go-title gets a state class that swaps colour. Verbatim style stack
-     lifted from rocket-ship so the phase-5 extraction is a copy.        */
-  .gameover {
-    position: absolute;
-    inset: 0;
-    z-index: 4;
-    background: rgba(0, 0, 0, 0.88);
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    font-family: 'Press Start 2P', ui-monospace, monospace;
-    color: #fff;
-    gap: clamp(16px, 2.6vw, 26px);
-    padding: 40px 24px;
-    animation: splash-poweron 0.3s ease-out;
-  }
-  .gameover.is-visible { display: flex; }
-  .gameover .go-title {
-    font-size: clamp(28px, 6.5vw, 60px);
-    text-shadow:
-      3px 3px 0 #2dd4ff,
-      6px 6px 0 #ffd84a,
-      0 0 16px rgba(255, 58, 161, 0.45);
-  }
-  .gameover .go-title.is-loss { color: #ff3aa1; }
-  .gameover .go-title.is-win  {
-    color: #ffd84a;
-    text-shadow:
-      3px 3px 0 #ff3aa1,
-      6px 6px 0 #2dd4ff,
-      0 0 18px rgba(255, 216, 74, 0.45);
-  }
-  .gameover .go-score {
-    font-size: clamp(14px, 2.2vw, 18px);
-    color: #ffd84a;
-    letter-spacing: 0.18em;
-  }
-  .gameover .go-hiscore {
-    font-size: clamp(9px, 1.3vw, 12px);
-    color: #2dd4ff;
-    letter-spacing: 0.18em;
-    min-height: 14px;
-  }
-  .gameover .go-prompt {
-    font-size: clamp(10px, 1.6vw, 14px);
-    letter-spacing: 0.18em;
-    color: #fff;
-    animation: arcade-blink 1s steps(1) infinite;
-  }
-  .gameover .go-initials {
-    display: flex; flex-direction: column;
-    align-items: center; gap: 12px;
-    margin-top: 8px;
-  }
-  .gameover .go-initials-label {
-    font-size: clamp(10px, 1.5vw, 13px);
-    letter-spacing: 0.2em;
-    color: #ff3aa1;
-  }
-  .gameover .go-initials-slots {
-    display: inline-flex;
-    gap: 18px;
-    font-size: clamp(28px, 5vw, 44px);
-    color: #ffd84a;
-    text-shadow: 2px 2px 0 #ff3aa1, 4px 4px 0 #2dd4ff;
-    letter-spacing: 0.1em;
-  }
-  .gameover .go-slot {
-    display: inline-block;
-    min-width: 1ch;
-    padding: 0 4px;
-    border-bottom: 4px solid rgba(255, 216, 74, 0.3);
-  }
-  .gameover .go-slot.is-active {
-    border-bottom-color: #2dd4ff;
-    animation: arcade-blink 0.6s steps(1) infinite;
-  }
-  .gameover .go-initials-hint {
-    font-size: clamp(8px, 1.1vw, 10px);
-    letter-spacing: 0.16em;
-    color: rgba(255, 255, 255, 0.6);
+     .go-title gets a state class that swaps colour. Most rules now live
+     in shared/overlays.css — Space Jumper overrides only its win-state
+     palette (gold instead of green) via CSS variables. */
+  :root {
+    --go-title-color-win:    #ffd84a;
+    --go-title-shadow-1-win: 3px 3px 0 #ff3aa1;
+    --go-title-shadow-2-win: 6px 6px 0 #2dd4ff;
+    --go-title-glow-win:     0 0 18px rgba(255, 216, 74, 0.45);
   }
 </style>
 </head>
