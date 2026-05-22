@@ -602,14 +602,14 @@ Expected: FAIL with `Cannot find module '../src/routes/provider-status'`.
 Create `server/src/routes/provider-status.ts`:
 
 ```ts
+import type { IncomingMessage, ServerResponse } from "node:http";
+import type { RouteCtx } from "../http-utils.js";
 import { readFileSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-// Mirror of bin/oyster.mjs's hasAuth() + env-key check. Returns whether
-// the chat bar can spawn a useful OpenCode session, which is the only
-// thing the client uses this signal for. Cheap (one stat / one tiny read)
-// so the chat bar can fetch on mount without latency concerns.
+// Pure function — exported for direct unit testing.
+// Mirrors bin/oyster.mjs's hasAuth() + env-key check.
 export function getProviderStatus(): { configured: boolean } {
   if (
     process.env.ANTHROPIC_API_KEY ||
@@ -628,6 +628,23 @@ export function getProviderStatus(): { configured: boolean } {
     return { configured: false };
   }
 }
+
+// Route handler — matches the tryHandleXxxRoute pattern used by every
+// other server/src/routes/* module (see pin.ts, auth.ts).
+export async function tryHandleProviderStatusRoute(
+  req: IncomingMessage,
+  _res: ServerResponse,
+  url: string,
+  ctx: RouteCtx,
+): Promise<boolean> {
+  if (url !== "/api/chat/provider-status") return false;
+  if (req.method !== "GET") {
+    ctx.sendError(405, "method_not_allowed", "GET only");
+    return true;
+  }
+  ctx.sendJson(getProviderStatus());
+  return true;
+}
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
@@ -637,23 +654,19 @@ Expected: PASS — all 5 tests green.
 
 - [ ] **Step 5: Wire the route into `server/src/index.ts`**
 
-Add this import near the top with the other route imports (around line 36-50):
+Add this import alongside the other `tryHandleXxxRoute` imports (around line 38, near `tryHandlePinRoute`):
 
 ```ts
-import { getProviderStatus } from "./routes/provider-status.js";
+import { tryHandleProviderStatusRoute } from "./routes/provider-status.js";
 ```
 
-Find the route registration block in `server/src/index.ts` (search for an existing simple JSON route — e.g. `/api/mcp/status`). Below it, add:
+Find the dispatcher block (around line 843, immediately after `if (await tryHandlePinRoute(req, res, url, ctx, { artifactService, broadcastUiEvent })) return;`) and add this line directly below it:
 
 ```ts
-if (url.pathname === "/api/chat/provider-status" && req.method === "GET") {
-  res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(getProviderStatus()));
-  return;
-}
+if (await tryHandleProviderStatusRoute(req, res, url, ctx)) return;
 ```
 
-(Adjust to match the exact route-dispatch style used by the file — check whether it uses `if (url.pathname === ...)` or a router object, and mirror that pattern.)
+No `deps` argument — provider-status reads only env vars + a fixed file path, so it doesn't need any service injection.
 
 - [ ] **Step 6: Build the server to verify**
 
@@ -740,7 +753,7 @@ Wrap the existing input markup in the `else` branch. When `providerConfigured ==
 
 - [ ] **Step 3: Add minimal styles for the no-provider state**
 
-In `web/src/components/ChatBar.css` (or wherever `chatbar-input` is styled), add:
+Append to `web/src/App.css` (the file that already owns `.chatbar-input` from line 852 onwards):
 
 ```css
 .chatbar-add-provider {
@@ -766,8 +779,6 @@ In `web/src/components/ChatBar.css` (or wherever `chatbar-input` is styled), add
   text-decoration: underline;
 }
 ```
-
-(If the CSS lives in a different file — e.g. a global `App.css` — adjust accordingly. `grep -rn "chatbar-input" web/src/` will find it.)
 
 - [ ] **Step 4: Type check + lint**
 
@@ -813,7 +824,7 @@ Locate the table render where sessions appear (the `<section className="home-sec
 
 - [ ] **Step 2: Add empty-state block**
 
-After the sessions table render (and within the same `<section>`), add a conditional empty-state:
+The total-session count is `stateCounts.all` (computed via `useMemo` around line 334 of `Home/index.tsx`). After the sessions table render (and within the same `<section className="home-section">` block — search for the `home-section-head` containing the "Sessions" label, then for where the section closes), add this conditional empty-state immediately before the section's closing `</section>`:
 
 ```tsx
 {stateCounts.all === 0 && isHomeView && !showElsewhere && (
@@ -825,8 +836,6 @@ After the sessions table render (and within the same `<section>`), add a conditi
   </div>
 )}
 ```
-
-(The exact prop name for the "all sessions count" may differ — use `stateCounts.all` if that matches, otherwise grep for the variable that holds the total count in this component.)
 
 - [ ] **Step 3: Add minimal styles**
 
@@ -880,23 +889,28 @@ matches the spec's State B copy. Only renders when stateCounts.all is
 
 **Goal:** A terse user-facing CHANGELOG entry under *Changed*, and the version bump from 0.9.8 → 1.0.0.
 
-- [ ] **Step 1: Add CHANGELOG entry**
+- [ ] **Step 1: Add CHANGELOG entry under `[Unreleased]`**
 
-Read the top of `CHANGELOG.md` to find the `[Unreleased]` section (or whichever heading reflects work in progress per project convention).
-
-Under *Changed*, add:
+In `CHANGELOG.md`, find the `## [Unreleased]` heading (currently empty — line 5). Below it, add:
 
 ```markdown
+### Changed
+
 - **Oyster opens to your work, not to a setup wizard.** First launch no longer requires an AI provider, no longer demands you create a space, and shows your sessions on the home screen immediately. Set-up surfaces only appear when something is genuinely missing.
 ```
 
+**Do NOT rename `[Unreleased]` to `[1.0.0]`.** Per the saved project rule, promoting `[Unreleased]` → `[X.Y.Z]` is a manual step the user does at release tag time. Leave the heading as `## [Unreleased]`.
+
 - [ ] **Step 2: Bump version**
 
-Edit `package.json` line 3 (`"version": "0.9.8"`) → `"version": "1.0.0"`.
+Edit `package.json` line 3:
 
-Do NOT run `npm version` — per the saved project memory ([Release: promote Unreleased manually](feedback_changelog_user_facing.md) and similar), the version bump + Unreleased→[1.0.0] promotion is a manual step done before release tagging. This task just updates the version string; the user runs the release process separately.
+```diff
+- "version": "0.9.8",
++ "version": "1.0.0",
+```
 
-If `CHANGELOG.md` has an `[Unreleased]` section, also rename it to `[1.0.0] - 2026-05-22` (or leave for the user to do at tag time — defer per project convention).
+**Do NOT run `npm version`** — the user's `npm run release` flow handles the tag + push.
 
 - [ ] **Step 3: Commit**
 
