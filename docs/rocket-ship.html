@@ -241,12 +241,7 @@
     pointer-events: none;
     transition: opacity 0.25s ease;
   }
-  @keyframes splash-poweron {
-    0%   { transform: scale(1, 0.005); filter: brightness(3.5); }
-    55%  { transform: scale(1, 0.005); filter: brightness(3.5); }
-    80%  { transform: scale(1, 1); filter: brightness(2); }
-    100% { transform: scale(1, 1); filter: brightness(1); }
-  }
+  /* @keyframes splash-poweron lives in shared/cabinet.css */
 
   /* SYSTEM BOOT — easter-egg-only intro on direct visits (not embedded
      in the arcade cabinet, which has its own splash). Phosphor-cyan
@@ -372,10 +367,7 @@
     color: #fff;
     animation: arcade-blink 1s steps(1) infinite;
   }
-  @keyframes arcade-blink {
-    0%, 50% { opacity: 1; }
-    51%, 100% { opacity: 0; }
-  }
+  /* @keyframes arcade-blink lives in shared/cabinet.css */
   .splash .controls {
     display: grid;
     grid-template-columns: auto auto;
