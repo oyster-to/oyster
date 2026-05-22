@@ -295,6 +295,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape') return;
   // Overlay grace prevents the same key that lost the run from restarting it.
   if (performance.now() < endOverlayInputAllowedAt) return;
+  Arcade.Audio.ensureCtx();   // unlock WebAudio on keyboard-only iOS
   hideEndOverlay();
   startRun();
 });
@@ -370,6 +371,9 @@ const GAME_OVER_GRACE_MS = 1200;
 
 function endRun(_winFlag) {
   running = false;
+  // Mirror startRun's flush — without this, a held key at the moment of death
+  // never generates a fresh keydown and the restart listener stays silent.
+  for (const k in keys) keys[k] = false;
   Arcade.Audio.play('sfx-lose', 0.55);
   const ov = document.getElementById('gameover');
   document.getElementById('go-title').textContent = 'GAME OVER';
