@@ -209,6 +209,7 @@
 <script src="../shared/iframe-host.js"></script>
 <script src="../shared/leaderboard.js"></script>
 <script src="../shared/initials.js"></script>
+<script src="../shared/end-overlay.js"></script>
 <audio id="sfx-explosion" src="../shared/sfx-explosion.mp3" preload="auto"></audio>
 <audio id="sfx-lose"      src="../shared/sfx-lose.mp3"      preload="auto"></audio>
 <audio id="sfx-shoot"     src="sfx-shoot.mp3"               preload="auto"></audio>
@@ -359,7 +360,7 @@ Arcade.Initials.mount({
   onSubmit: (initials) => {
     const goHi = document.getElementById('go-hiscore');
     if (goHi) goHi.textContent = `SCORE SAVED · ${initials}`;
-    endOverlayInputAllowedAt = performance.now() + 400;
+    Arcade.EndOverlay.extendGrace(400);
     Arcade.Leaderboard.submit(score, initials).then(res => {
       if (!res.ok) console.warn('leaderboard submit failed:', res.error);
       paintSplashHiScore();
@@ -514,12 +515,8 @@ let running = false;
 let score = 0;
 let lives = 3;
 let wave = 1;
-let endOverlayInputAllowedAt = 0;
 let respawnAt = 0;
-// True between endRun() and the first post-grace keypress when the score
-// qualifies for the leaderboard. That keypress opens initials entry; a
-// subsequent keypress restarts.
-let pendingInitials = false;
+// (End-overlay grace + pendingInitials gate now live in Arcade.EndOverlay.)
 
 // Player.
 const PLAYER_Y = PF_H - 24;
@@ -867,8 +864,7 @@ function dismissSplashAndStart() {
 // Post-game-over: if the score qualifies, the first key/tap opens initials
 // entry; the next one restarts. Falls through to splash-dismiss otherwise.
 function consumePendingOrRestart() {
-  if (pendingInitials) {
-    pendingInitials = false;
+  if (Arcade.EndOverlay.consumePending()) {
     Arcade.Initials.open();
     return;
   }
@@ -888,7 +884,7 @@ window.addEventListener('keydown', e => {
   }
   if (running) return;
   // Overlay grace prevents the same key that lost the run from restarting it.
-  if (performance.now() < endOverlayInputAllowedAt) return;
+  if (!Arcade.EndOverlay.acceptsInput()) return;
   consumePendingOrRestart();
   // Halt subsequent same-event handlers (notably the gameplay input listener
   // below) so the key that STARTS the run doesn't also land in keys[] after
@@ -908,7 +904,7 @@ document.addEventListener('pointerdown', e => {
     return;
   }
   if (running) return;
-  if (performance.now() < endOverlayInputAllowedAt) return;
+  if (!Arcade.EndOverlay.acceptsInput()) return;
   consumePendingOrRestart();
 });
 
@@ -1016,35 +1012,19 @@ function endRun(winFlag) {
   // Loss plays the sad SFX. Win path lets the boss-explosion + flash carry
   // the moment instead.
   if (!winFlag) Arcade.Audio.play('sfx-lose', 0.55);
-  const ov = document.getElementById('gameover');
-  const titleEl = document.getElementById('go-title');
-  titleEl.classList.toggle('is-win', !!winFlag);
-  titleEl.textContent = winFlag ? 'GAME COMPLETE' : 'GAME OVER';
-  document.getElementById('go-score-val').textContent = score;
-  const top = Arcade.Leaderboard.getHighScore();
-  const hi = document.getElementById('go-hiscore');
-  hi.textContent = top ? `HIGH ${String(top.score).padStart(4, '0')} ${top.initials || '---'}` : '';
-  document.getElementById('go-prompt').hidden = false;
-  document.getElementById('go-initials').hidden = true;
-  ov.classList.add('is-visible');
-  ov.setAttribute('aria-hidden', 'false');
-  endOverlayInputAllowedAt = performance.now() + GAME_OVER_GRACE_MS;
-  // Defer the initials prompt — the FIRST key/tap after the grace expires
-  // either opens initials entry (if the score qualifies) or restarts the
-  // game (if it doesn't). User asked for "don't progress to name entry
-  // until you press a key".
-  pendingInitials = Arcade.Leaderboard.qualifies(score);
+  Arcade.EndOverlay.show({
+    score,
+    title:      winFlag ? 'GAME COMPLETE' : 'GAME OVER',
+    titleClass: winFlag ? 'is-win' : '',
+    hiscore:    Arcade.Leaderboard.getHighScore(),
+    graceMs:    GAME_OVER_GRACE_MS,
+    qualifies:  Arcade.Leaderboard.qualifies(score),
+  });
 }
 
 function hideEndOverlay() {
-  const ov = document.getElementById('gameover');
-  ov.classList.remove('is-visible');
-  ov.setAttribute('aria-hidden', 'true');
-  document.getElementById('go-initials').hidden = true;
-  document.getElementById('go-prompt').hidden = false;
-  document.getElementById('go-title').classList.remove('is-win');
   Arcade.Initials.close();
-  endOverlayInputAllowedAt = 0;
+  Arcade.EndOverlay.hide();
 }
 
 // (Initials state machine + listeners now live in shared/initials.js — see

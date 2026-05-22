@@ -230,6 +230,7 @@
 <script src="../shared/iframe-host.js"></script>
 <script src="../shared/leaderboard.js"></script>
 <script src="../shared/initials.js"></script>
+<script src="../shared/end-overlay.js"></script>
 <audio id="sfx-powerup"   src="../shared/sfx-powerup.mp3"   preload="auto"></audio>
 <audio id="sfx-explosion" src="../shared/sfx-explosion.mp3" preload="auto"></audio>
 <audio id="sfx-lose"      src="../shared/sfx-lose.mp3"      preload="auto"></audio>
@@ -412,7 +413,7 @@ Arcade.Initials.mount({
   onSubmit: (initials) => {
     const goHi = document.getElementById('go-hiscore');
     if (goHi) goHi.textContent = `SCORE SAVED · ${initials}`;
-    endOverlayInputAllowedAt = performance.now() + 400;
+    Arcade.EndOverlay.extendGrace(400);
     Arcade.Leaderboard.submit(score, initials).then(res => {
       if (!res.ok) console.warn('leaderboard submit failed:', res.error);
       paintSplashHiScore();
@@ -442,39 +443,30 @@ Arcade.Leaderboard.refresh().then(paintSplashHiScore);
 // styled via .is-win / .is-loss on the title. Replaces the previous
 // canvas drawGameOver / drawLevelComplete.
 // ============================================
-let endOverlayInputAllowedAt = 0;
-
 function showEndOverlay({ win }) {
-  const ov = document.getElementById('gameover');
-  const titleEl = document.getElementById('go-title');
-  const scoreVal = document.getElementById('go-score-val');
-  const hiEl = document.getElementById('go-hiscore');
-  if (!ov) return;
-  titleEl.textContent = gameComplete ? 'GAME COMPLETE' : (win ? 'LEVEL COMPLETE' : 'GAME OVER');
-  titleEl.classList.toggle('is-win', !!win);
-  titleEl.classList.toggle('is-loss', !win);
-  scoreVal.textContent = score;
-  const top = Arcade.Leaderboard.getHighScore();
-  if (hiEl) hiEl.textContent = top ? `HIGH ${String(top.score).padStart(3, '0')} ${top.initials || '---'}` : '';
   Arcade.Initials.close();
-  ov.classList.add('is-visible');
-  ov.setAttribute('aria-hidden', 'false');
-  const graceMs = win ? LEVEL_COMPLETE_GRACE_MS : GAME_OVER_GRACE_MS;
-  endOverlayInputAllowedAt = performance.now() + graceMs;
-  // After the grace window, prompt for initials if the score qualifies.
-  setTimeout(() => {
-    if (!(gameOver || levelComplete)) return;  // already restarted
-    if (Arcade.Leaderboard.qualifies(score)) Arcade.Initials.open();
-  }, graceMs);
+  Arcade.EndOverlay.show({
+    score,
+    title:      gameComplete ? 'GAME COMPLETE' : (win ? 'LEVEL COMPLETE' : 'GAME OVER'),
+    titleClass: win ? 'is-win' : 'is-loss',
+    hiscore:    Arcade.Leaderboard.getHighScore(),
+    // Space Jumper uses a custom 3-digit hiscore format (legacy from when
+    // scores capped at 999) — pass the rendered string explicitly.
+    hiscoreText: (() => {
+      const top = Arcade.Leaderboard.getHighScore();
+      return top ? `HIGH ${String(top.score).padStart(3, '0')} ${top.initials || '---'}` : '';
+    })(),
+    graceMs:    win ? LEVEL_COMPLETE_GRACE_MS : GAME_OVER_GRACE_MS,
+    qualifies:  Arcade.Leaderboard.qualifies(score),
+  });
+  // (Initials prompt now opens on the player's next keypress after the
+  // grace expires — see consumePending() in the restart listener, not the
+  // old setTimeout auto-open.)
 }
 
 function hideEndOverlay() {
-  const ov = document.getElementById('gameover');
-  if (!ov) return;
-  ov.classList.remove('is-visible');
-  ov.setAttribute('aria-hidden', 'true');
   Arcade.Initials.close();
-  endOverlayInputAllowedAt = 0;
+  Arcade.EndOverlay.hide();
 }
 
 // Title-screen MUSIC / SFX toggles. Read/write through the shared
@@ -1072,16 +1064,25 @@ function update() {
 
   // Level complete / game over: freeze gameplay. Initials entry has its
   // own input path (separate keydown listener); restart input is gated by
-  // endOverlayInputAllowedAt so the same key that triggered the end (or
-  // saved initials) doesn't immediately restart.
+  // Arcade.EndOverlay so the same key that triggered the end (or saved
+  // initials) doesn't immediately restart.
   if (levelComplete || gameOver) {
     if (Arcade.Initials.isActive()) return;
-    if (now < endOverlayInputAllowedAt) return;
+    if (!Arcade.EndOverlay.acceptsInput()) return;
     const anyAction =
       keys[' '] || keys['ArrowUp'] || keys['w'] || keys['W'] ||
       keys['ArrowLeft'] || keys['ArrowRight'] || keys['a'] || keys['d'] ||
       keys['A'] || keys['D'] || keys['Enter'];
-    if (anyAction) resetRun();
+    if (anyAction) {
+      // First post-grace keypress with a qualifying score → initials entry.
+      // Subsequent keypress (or any keypress on a non-qualifying score) →
+      // restart the run. Replaces the previous setTimeout auto-open model.
+      if (Arcade.EndOverlay.consumePending()) {
+        Arcade.Initials.open();
+        return;
+      }
+      resetRun();
+    }
     return;
   }
 
