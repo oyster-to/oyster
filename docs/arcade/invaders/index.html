@@ -376,7 +376,9 @@ const INV_SPACING_X = 16;        // cell width
 const INV_SPACING_Y = 14;
 // Top-down: row 0 = cyan squid (30 pts), row 1-2 = pink crabs (20),
 // row 3-4 = green octopi (10).
-const ROW_COLOURS = ['#2dd4ff', '#ff3aa1', '#ff3aa1', '#4ade80', '#4ade80'];
+// One distinct colour per row — easier on the eye than 5×11 walls of two
+// repeated tints, and reads "wave of attackers" rather than "two stripes".
+const ROW_COLOURS = ['#2dd4ff', '#ff3aa1', '#ffd84a', '#ff8800', '#4ade80'];
 const ROW_POINTS  = [30,        20,        20,        10,        10];
 
 let grid = null;        // { offsetX, offsetY, dir, cells: 2D array, aliveCount, frame }
@@ -432,7 +434,7 @@ function drawShields() {
   for (const sh of shields) {
     for (let y = 0; y < SHIELD_H; y++) {
       for (let x = 0; x < SHIELD_W; x++) {
-        if (sh.bits[y * SHIELD_W + x]) drawRect(sh.x + x, sh.y + y, 1, 1, '#a855f7');
+        if (sh.bits[y * SHIELD_W + x]) drawRect(sh.x + x, sh.y + y, 1, 1, '#a3e635');
       }
     }
   }
@@ -470,10 +472,12 @@ function newGrid(waveNum) {
   }
   // Each wave starts one row lower than wave 1, capped at 3 rows lower.
   const dropRows = Math.min(3, waveNum - 1);
+  const startY = 36 + dropRows * INV_SPACING_Y;
   return {
     offsetX: 24,
-    offsetY: 36 + dropRows * INV_SPACING_Y,
-    dir: 1,            // +1 = right, -1 = left
+    offsetY: startY,
+    targetOffsetY: startY,   // marchStep advances this on bounce; update() lerps offsetY toward it
+    dir: 1,                  // +1 = right, -1 = left
     cells,
     aliveCount: ROWS * COLS,
     frame: 0,
@@ -749,7 +753,20 @@ window.addEventListener('keydown', e => {
   container.addEventListener('pointercancel', endDrag);
 })();
 
+// Pixels per second for the row-drop slide. INV_SPACING_Y / 0.18 ≈ 78 px/s,
+// so a full row drops in 180ms — fast enough to keep the march feeling
+// punchy, slow enough to avoid the previous jarring snap.
+const GRID_DROP_SPEED = INV_SPACING_Y / 0.18;
+
 function update(dt) {
+  // Smooth row-drop animation — slide offsetY toward the latest target set
+  // by marchStep's wall-bounce. Collision/lose-check both read offsetY, so
+  // they see the in-flight visual position (intentional — the row "arrives"
+  // when it visually does, not when the tick fires).
+  if (grid.offsetY < grid.targetOffsetY) {
+    grid.offsetY = Math.min(grid.targetOffsetY, grid.offsetY + GRID_DROP_SPEED * dt);
+  }
+
   // Respawn check — if player was just killed and the delay has elapsed,
   // bring them back at centre and clear nearby invader bullets.
   if (!player.alive && performance.now() >= respawnAt) {
@@ -875,14 +892,16 @@ function update(dt) {
     }
   }
 
-  // Wave clear → next wave, one row lower (capped in newGrid).
+  // Wave clear → next wave, one row lower (capped in newGrid). Shields are
+  // NOT restored — surviving them across waves is part of the challenge,
+  // and a fresh new-wave grid against a battered shield line gives the late
+  // game its bite.
   if (grid.aliveCount === 0) {
     wave++;
     grid = newGrid(wave);
     marchAccumulator = 0;
     invaderBullets = [];
     playerBullet = null;
-    shields = newShields();
     // Clear any in-flight UFO so the bonus restarts cleanly with the new wave.
     ufo = null;
     scheduleNextUfo(performance.now());
@@ -923,7 +942,9 @@ function marchStep() {
   const nextRight = rightEdge + step * grid.dir;
   if (nextRight > PF_W - 8 || nextLeft < 8) {
     grid.dir *= -1;
-    grid.offsetY += INV_SPACING_Y;
+    // Advance the TARGET; update() animates offsetY toward it so the drop
+    // slides in over ~180ms instead of snapping a full row.
+    grid.targetOffsetY += INV_SPACING_Y;
   } else {
     grid.offsetX += step * grid.dir;
   }
@@ -983,10 +1004,11 @@ function drawRect(pfX, pfY, pfW, pfH, fill) {
 
 function drawPlayer() {
   if (!player.alive) return;
-  // Classic ship: trapezoid body + dome.
+  // Classic ship: cyan trapezoid body + cyan turret base + white turret tip.
+  // The white dome gives the ship a focal point that reads from a distance.
   drawRect(player.x, PLAYER_Y, PLAYER_W, 4, '#2dd4ff');
   drawRect(player.x + 4, PLAYER_Y - 2, PLAYER_W - 8, 2, '#2dd4ff');
-  drawRect(player.x + 6, PLAYER_Y - 4, 4, 2, '#2dd4ff');
+  drawRect(player.x + 6, PLAYER_Y - 4, 4, 2, '#ffffff');
 }
 
 function drawBullet() {
