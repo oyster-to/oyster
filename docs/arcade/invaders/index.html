@@ -822,19 +822,29 @@ document.addEventListener('pointerdown', e => {
 Arcade.Pause.canPause = () => running;
 
 // Debug cheats — only fire during gameplay; ignored if focus is in a text
-// input or initials entry. Press B to skip to the next BOSS in the current
-// set (clears the grid and snaps stageNum to STAGES_PER_SET so the next
-// wave-clear handler spawns the boss).
+// input or initials entry.
+//   B during a grid stage → skip to the current set's BOSS.
+//   B during a boss fight → defeat the boss + skip through the next set's
+//                           normal stages straight to the NEXT boss.
 window.addEventListener('keydown', e => {
   if (e.key !== 'b' && e.key !== 'B') return;
   if (!running) return;
   if (initialsActive) return;
-  if (phase !== 'grid') return;
   const t = e.target;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-  stageNum = STAGES_PER_SET;
-  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) grid.cells[r][c].alive = false;
-  grid.aliveCount = 0;
+  if (phase === 'grid') {
+    stageNum = STAGES_PER_SET;
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) grid.cells[r][c].alive = false;
+    grid.aliveCount = 0;
+  } else if (phase === 'boss' && boss) {
+    // Kill the current boss (bonus + repair + new-set grid spawn run), then
+    // immediately clear that grid and snap stageNum to last so advanceStage
+    // spawns the next set's boss next frame.
+    defeatBoss();
+    stageNum = STAGES_PER_SET;
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) grid.cells[r][c].alive = false;
+    grid.aliveCount = 0;
+  }
 });
 
 // ============================================
