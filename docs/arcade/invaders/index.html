@@ -208,6 +208,7 @@
 <audio id="sfx-lose"      src="../shared/sfx-lose.mp3"      preload="auto"></audio>
 <audio id="sfx-shoot"     src="sfx-shoot.mp3"               preload="auto"></audio>
 <audio id="sfx-kill"      src="sfx-kill.wav"                preload="auto"></audio>
+<audio id="bgm"           src="bgm.mp3"                     preload="auto" loop></audio>
 <div class="screen">
   <div class="tube">
     <canvas id="c"></canvas>
@@ -298,6 +299,20 @@ Arcade.Audio.init({
   volumeKey: 'oyster-arcade-sfx-volume',   // global across all arcade games
   mutedKey:  'oyster-arcade-sfx-muted',    // legacy fallback
 });
+
+// In-game BGM. shared/pause.js auto-applies the cabinet MUSIC slider to any
+// <audio id^="bgm"> so the slider just works. Plays during a run, pauses on
+// game-over.
+function startBgm() {
+  const a = document.getElementById('bgm');
+  if (!a) return;
+  try { a.currentTime = 0; a.play().catch(() => {}); } catch (_) {}
+}
+function stopBgm() {
+  const a = document.getElementById('bgm');
+  if (!a) return;
+  try { a.pause(); } catch (_) {}
+}
 
 // Leaderboard scaffold so the splash hi-score line lights up once cloud lands.
 Arcade.Leaderboard.init({ game: 'invaders', max: 10 });
@@ -726,6 +741,7 @@ function startRun() {
   popups.length = 0;
   // Clear stale input state so the key used to restart doesn't carry over.
   for (const k in keys) keys[k] = false;
+  startBgm();
 }
 
 // Unified restart handler — covers splash dismiss AND post-game-over keypress.
@@ -761,6 +777,22 @@ document.addEventListener('pointerdown', e => {
 
 // Don't allow pause from non-running states (splash, game-over, initials).
 Arcade.Pause.canPause = () => running;
+
+// Debug cheats — only fire during gameplay; ignored if focus is in a text
+// input or initials entry. Press B to skip to the next BOSS in the current
+// set (clears the grid and snaps stageNum to STAGES_PER_SET so the next
+// wave-clear handler spawns the boss).
+window.addEventListener('keydown', e => {
+  if (e.key !== 'b' && e.key !== 'B') return;
+  if (!running) return;
+  if (initialsActive) return;
+  if (phase !== 'grid') return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  stageNum = STAGES_PER_SET;
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) grid.cells[r][c].alive = false;
+  grid.aliveCount = 0;
+});
 
 // ============================================
 // INPUT
@@ -830,6 +862,7 @@ function hurtPlayer() {
 
 function endRun(_winFlag) {
   running = false;
+  stopBgm();
   // Mirror startRun's flush — without this, a held key at the moment of death
   // never generates a fresh keydown and the restart listener stays silent.
   for (const k in keys) keys[k] = false;
@@ -1410,7 +1443,10 @@ function drawStageAnnouncement() {
   ctx.globalAlpha = alpha;
   // Boss titles in red, normal stages in gold.
   ctx.fillStyle = stageAnnounceText.includes('BOSS') ? '#ff5050' : '#ffd84a';
-  const [cx, cy] = pfToCanvas(PF_W / 2, PF_H / 2 - 20);
+  // Below the grid + above the shields — y=200 leaves clearance even at
+  // the lowest possible grid drop (max wave bottom ≈ y=177), and sits ~25 PF
+  // above shield top (y=226) so the announcement doesn't obscure mobs.
+  const [cx, cy] = pfToCanvas(PF_W / 2, 200);
   ctx.fillText(stageAnnounceText, cx, cy);
   ctx.restore();
 }
