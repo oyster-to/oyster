@@ -241,7 +241,15 @@
     pointer-events: none;
     transition: opacity 0.25s ease;
   }
-  /* @keyframes splash-poweron lives in shared/cabinet.css */
+  /* @keyframes splash-poweron — inline here because rocket-ship.html is a
+     standalone page that doesn't load shared/cabinet.css (it predates the
+     shared cabinet styles + has its own .tube/.overlay setup inline). */
+  @keyframes splash-poweron {
+    0%   { transform: scale(1, 0.005); filter: brightness(3.5); }
+    55%  { transform: scale(1, 0.005); filter: brightness(3.5); }
+    80%  { transform: scale(1, 1); filter: brightness(2); }
+    100% { transform: scale(1, 1); filter: brightness(1); }
+  }
 
   /* SYSTEM BOOT — easter-egg-only intro on direct visits (not embedded
      in the arcade cabinet, which has its own splash). Phosphor-cyan
@@ -367,7 +375,12 @@
     color: #fff;
     animation: arcade-blink 1s steps(1) infinite;
   }
-  /* @keyframes arcade-blink lives in shared/cabinet.css */
+  /* @keyframes arcade-blink — inline for the same reason as splash-poweron
+     above (rocket-ship.html doesn't load shared/cabinet.css). */
+  @keyframes arcade-blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
   .splash .controls {
     display: grid;
     grid-template-columns: auto auto;
