@@ -1,8 +1,16 @@
 # INVADERS — classic fixed-shooter for the Oyster Arcade
 
 **Date:** 2026-05-22
-**Status:** Design approved; ready for implementation plan.
-**Affects:** new `docs/arcade/invaders/` directory, `docs/arcade/index.html` (catalogue + preview template), `infra/leaderboard-worker/src/worker.ts` (allowlist).
+**Status:** SHIPPED. **This document is a historical snapshot of the original v1 design** — the shipped game grew well beyond it during a live co-design / play-test session. The implementation in `docs/arcade/invaders/index.html` is the source of truth.
+
+**What this spec no longer reflects** (i.e. shipped beyond v1):
+- **Stage progression**: 4 sets of `1-1 / 1-2 / 1-3 / 1-BOSS` … `4-BOSS` instead of "endless single mode". Four distinct boss designs (CRIMSON OCTOPUS, VIOLET CRAB, AZURE SQUID, JADE SKULL) with HP/speed scaling, flashing-style minion adds, slow vertical descent.
+- **GAME COMPLETE path**: defeating 4-BOSS triggers a pixel-Earth cutscene → "EARTH IS SAFE" → key-gated GAME COMPLETE overlay.
+- **Audio**: ships with four MP3 tracks (`bgm.mp3` gameplay, `bgm-title.mp3` Space Invaders splash theme, `bgm-boss.mp3` Egyptian boss theme, `bgm-win.mp3` win sting) plus user-provided `sfx-shoot.mp3` and `sfx-kill.wav` samples, ALONGSIDE the WebAudio synth (still used for march heartbeat + UFO warble).
+- **Gameplay gimmicks**: marked invader (swooping flashing bug → bonus), combo chain (×1 → ×4), charged super-shot with 3-ammo clip refilled by UFO kills + every 1000 pts + wave clear, post-boss shield-repair.
+- **Visual identity**: pastel-on-navy palette (mint / pink / yellow / orange / periwinkle), CRT scanlines on pause card, bobbing crab on title splash, two-line HUD with current-stage label.
+
+**Affects:** new `docs/arcade/invaders/` directory (HTML + 6 audio files), `docs/arcade/index.html` (catalogue + preview template), `infra/leaderboard-worker/src/worker.ts` (allowlist), `CHANGELOG.md`.
 
 ## Summary
 

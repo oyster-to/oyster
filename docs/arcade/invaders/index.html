@@ -690,10 +690,13 @@ const COLS = 11, ROWS = 5;
 const INV_W = 18, INV_H = 12;    // sprite source × SPRITE_SCALE (1.5×)
 const INV_SPACING_X = 18;        // cells touch — gives more wall-to-wall walk room
 const INV_SPACING_Y = 15;        // 3px row gap; smaller drop per bounce too
-// Top-down: row 0 = cyan squid (30 pts), row 1-2 = pink crabs (20),
-// row 3-4 = green octopi (10).
-// Pastel-on-navy palette — same five hues, saturation nudged up so each
-// row reads more vividly against the navy without losing the soft feel.
+// Top-down sprite tiers + per-row palette (pastel-on-navy):
+//   row 0 — mint squid       30 pts  #7adfb1
+//   row 1 — pink crab        20 pts  #f088bc
+//   row 2 — yellow crab      20 pts  #f0d070  (same sprite tier as row 1, distinct colour)
+//   row 3 — orange octopus   10 pts  #f0a070  (same sprite tier as row 4, distinct colour)
+//   row 4 — periwinkle octo  10 pts  #7088dc
+// Five distinct row colours (over a two-tone tier scheme) for visual variety.
 const ROW_COLOURS = ['#7adfb1', '#f088bc', '#f0d070', '#f0a070', '#7088dc'];
 const ROW_POINTS  = [30,        20,        20,        10,        10];
 
@@ -879,12 +882,18 @@ window.addEventListener('keydown', e => {
   if (phase === 'cutscene' && cutsceneWaiting) {
     cutsceneWaiting = false;
     endRun(true);
+    e.stopImmediatePropagation();
     return;
   }
   if (running) return;
   // Overlay grace prevents the same key that lost the run from restarting it.
   if (performance.now() < endOverlayInputAllowedAt) return;
   consumePendingOrRestart();
+  // Halt subsequent same-event handlers (notably the gameplay input listener
+  // below) so the key that STARTS the run doesn't also land in keys[] after
+  // startRun cleared it — otherwise pressing ArrowLeft to start makes the
+  // ship drift, and pressing Space starts charging instantly.
+  e.stopImmediatePropagation();
 });
 
 // Pointer-tap restart (covers splash dismiss AND post-game-over taps).
