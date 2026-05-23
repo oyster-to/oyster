@@ -36,12 +36,13 @@
     image-rendering: crisp-edges;
   }
 
-  /* Prescreen — covers the tube while the game is in any non-running
-     state (waiting / ready / countdown / gameover). Tied to
-     .tube.is-ready so a single class swap (set in refreshLobby)
-     controls both canvas visibility AND prescreen visibility.
-     overflow-y: auto so a small portrait viewport can scroll if the
-     big-START + QR push past the fold. */
+  /* Prescreen — covers the tube while the game is in the waiting,
+     ready, or gameover states (the lobby/restart UI). Hidden during
+     countdown + running, when .tube.is-ready is set by refreshLobby
+     — that single class swap toggles canvas visibility AND prescreen
+     visibility together, so 3-2-1 and live gameplay paint on a clear
+     canvas. overflow-y: auto so a small portrait viewport can scroll
+     if the big-START + QR push past the fold. */
   #prescreen {
     position: absolute;
     inset: 0;
@@ -197,6 +198,20 @@
   }
   #prescreen .big-start:not(:disabled) {
     animation: start-pulse 1.8s ease-in-out infinite;
+  }
+  /* Respect users who've opted out of motion. The pulse and the
+     hover/active transform/box-shadow shifts can be vestibular
+     triggers; flatten them. */
+  @media (prefers-reduced-motion: reduce) {
+    #prescreen .big-start,
+    #prescreen .big-start:not(:disabled) {
+      animation: none;
+      transition: none;
+    }
+    #prescreen .big-start:not(:disabled):hover,
+    #prescreen .big-start:not(:disabled):active {
+      transform: none;
+    }
   }
 
   #prescreen #status {
