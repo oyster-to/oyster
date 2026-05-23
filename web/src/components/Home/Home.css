@@ -2084,14 +2084,25 @@
   letter-spacing: -0.005em;
 }
 
-/* Optional indented context line, rendered only in FULL when artifacts attributed.
+/* Card wrapper around row (+ optional chip line). The card owns the divider
+   between sessions so the chip line reads as part of its parent row, not a
+   floating block between rows. */
+.sr-card { border-bottom: 1px solid var(--home-border); transition: background 0.15s ease; }
+.sr-card:last-child { border-bottom: none; }
+.sr-card:hover { background: rgba(124, 107, 255, 0.05); }
+.sr-card .home-row { border-bottom: none; }
+.sr-card .home-row:hover { background: transparent; }
+.sr-card--full { margin-bottom: 4px; }
+.sr-card--full:last-child { margin-bottom: 0; }
+
+/* Optional indented chip line, rendered only in FULL when artifacts attributed.
    Aligns under the .home-row title column. .home-row uses padding 12px 18px and
    grid 18px 130px 1fr ... with gap 14px, so the title column starts at
    18 (padding) + 18 (state) + 14 (gap) + 130 (project) + 14 (gap) = 194px from
-   the row's outer edge. */
+   the row's outer edge. No top margin — visually continues from the row above. */
 .sr-extra {
   margin-left: 194px;
-  padding: 4px 18px 10px 0;
+  padding: 0 18px 10px 0;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2099,9 +2110,7 @@
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--home-text-muted);
-  border-bottom: 1px solid var(--home-border);
 }
-.home-row + .sr-extra { margin-top: -1px; }
 .sr-artifact-chip {
   display: inline-flex;
   align-items: center;

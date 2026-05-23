@@ -87,8 +87,23 @@ export function SessionRow({
   const fullModifier = view === "full" ? " home-row--full" : "";
   const hasExtra = view === "full" && !!session.recentArtifacts && session.recentArtifacts.length > 0;
 
+  // Dedupe recentArtifacts by artifactId, prefer 'create' over 'modify', take 3.
+  const dedupedExtras = hasExtra
+    ? Array.from(
+        session.recentArtifacts!.reduce((acc, a) => {
+          const existing = acc.get(a.artifactId);
+          if (!existing || (a.role === "create" && existing.role === "modify")) {
+            acc.set(a.artifactId, a);
+          }
+          return acc;
+        }, new Map<string, NonNullable<typeof session.recentArtifacts>[number]>()).values(),
+      ).slice(0, 3)
+    : [];
+
+  const cardClass = view === "full" ? "sr-card sr-card--full" : "sr-card";
+
   return (
-    <>
+    <div className={cardClass}>
       <div
         className={`home-row${fullModifier}${rowExtraClass}`}
         onClick={handleRowActivate}
@@ -149,7 +164,7 @@ export function SessionRow({
       </div>
       {hasExtra && (
         <div className="sr-extra">
-          {session.recentArtifacts!.map((a) => (
+          {dedupedExtras.map((a) => (
             <span
               key={a.artifactId}
               className="sr-artifact-chip"
@@ -160,6 +175,6 @@ export function SessionRow({
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
