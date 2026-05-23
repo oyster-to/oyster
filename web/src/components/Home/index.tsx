@@ -958,7 +958,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   onChanged={refreshAllProjects}
                   isLastProject={false}
                   spaceTotalSessions={0}
-                  otherProjects={allProjects.filter((other) => other.id !== p.id)}
+                  // otherProjects intentionally empty — Home strip can't merge across spaces
+                  otherProjects={[]}
                   onLaunchClaude={onLaunchClaude}
                 />
               ))}

@@ -900,27 +900,27 @@ export function runDeferredMigrations(db: Database.Database): void {
   const existing = db.prepare(
     "SELECT 1 FROM app_state WHERE key = 'protocol_artifact_backfill_v2_done'",
   ).get();
-  if (existing) return;
-
-  console.log("[db] running deferred backfill: protocol_artifact_backfill_v2");
-  const t0 = performance.now();
-  // UPDATE + flag-write commit together — otherwise an interrupt between
-  // them leaves the DB half-migrated and the gate set, so we never retry.
-  const applied = db.transaction(() => {
-    const result = db.prepare(`
-      UPDATE session_events
-         SET is_protocol_artifact = 1
-       WHERE is_protocol_artifact = 0
-         AND role = 'system'
-         AND ltrim(text, ' ' || char(9) || char(10) || char(13)) LIKE 'local_command:%'
-    `).run();
-    db.prepare(
-      `INSERT OR IGNORE INTO app_state (key, value, applied_at)
-       VALUES ('protocol_artifact_backfill_v2_done', '1', ?)`,
-    ).run(Date.now());
-    return result;
-  })();
-  console.log(`[db] protocol_artifact_backfill_v2 complete: marked ${applied.changes} rows in ${Math.round(performance.now() - t0)}ms`);
+  if (!existing) {
+    console.log("[db] running deferred backfill: protocol_artifact_backfill_v2");
+    const t0 = performance.now();
+    // UPDATE + flag-write commit together — otherwise an interrupt between
+    // them leaves the DB half-migrated and the gate set, so we never retry.
+    const applied = db.transaction(() => {
+      const result = db.prepare(`
+        UPDATE session_events
+           SET is_protocol_artifact = 1
+         WHERE is_protocol_artifact = 0
+           AND role = 'system'
+           AND ltrim(text, ' ' || char(9) || char(10) || char(13)) LIKE 'local_command:%'
+      `).run();
+      db.prepare(
+        `INSERT OR IGNORE INTO app_state (key, value, applied_at)
+         VALUES ('protocol_artifact_backfill_v2_done', '1', ?)`,
+      ).run(Date.now());
+      return result;
+    })();
+    console.log(`[db] protocol_artifact_backfill_v2 complete: marked ${applied.changes} rows in ${Math.round(performance.now() - t0)}ms`);
+  }
 
   // Backfill: every orphan session (project_id IS NULL) gets a Project row
   // keyed by its cwd. Idempotent: only inserts when no project_path row

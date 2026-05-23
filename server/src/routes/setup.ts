@@ -73,14 +73,21 @@ export function computeSetupProposal(db: Database.Database): SetupProposal {
   };
 
   const groups = new Map<string, Array<{ path: string; label: string; hasLivePath: boolean }>>();
+  const everythingElse: SetupProposal["everythingElse"] = [];
   for (const row of rows) {
     const { basename, firstToken } = tokenize(row.path);
+    // Basenames starting with `-` / `_` produce an empty firstToken; treat
+    // those folders as singletons rather than grouping them under "" (which
+    // would also produce an unappliable empty-name space proposal).
+    if (!firstToken) {
+      everythingElse.push({ path: row.path, label: basename, hasLivePath: row.hasLivePath });
+      continue;
+    }
     if (!groups.has(firstToken)) groups.set(firstToken, []);
     groups.get(firstToken)!.push({ path: row.path, label: basename, hasLivePath: row.hasLivePath });
   }
 
   const spaces: SetupProposal["spaces"] = [];
-  const everythingElse: SetupProposal["everythingElse"] = [];
   const now = Date.now();
 
   let spaceIdx = 0;

@@ -155,7 +155,6 @@ export function SessionRow({
             <span
               key={a.artifactId}
               className="sr-artifact-chip"
-              onClick={(e) => e.stopPropagation()}
             >
               <span className="sr-artifact-chip-glyph">¶</span>{a.label}
             </span>

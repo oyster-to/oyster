@@ -1,8 +1,11 @@
 # 1.0 first run: show sessions, hide setup
 
+**Date:** 2026-05-22
 **Status:** Approved 2026-05-22
 **Author:** Matthew Slight + Claude
 **Driver:** First-install test session in a clean macOS user account (`oystertestone`), 2026-05-22
+
+---
 
 ## Product principle
 
@@ -22,7 +25,7 @@ This spec is about **stopping the UI apologising for itself** — exposing the a
 
 ## Assumption
 
-User has Node + npm. Install is:
+User has Node.js 20+. Install is:
 
 ```bash
 npm install -g oyster-os
@@ -37,7 +40,7 @@ oyster
 
 Do not ask for Anthropic / OpenAI / ChatGPT / OpenCode credentials on first boot. Oyster starts even with no AI provider configured.
 
-**Acceptance:** Oyster must not spawn OpenCode, run `opencode auth login`, or show any provider picker unless the user explicitly chooses *Add chat provider*.
+**Acceptance:** Oyster must not spawn OpenCode, run `opencode providers login`, or show any provider picker unless the user explicitly chooses *Add chat provider*.
 
 ### 2. No setup wizard
 

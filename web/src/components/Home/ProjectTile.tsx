@@ -53,7 +53,8 @@ export function ProjectTile({
     setBusy(true);
     try {
       await deleteProject(project.id);
-      if (willCollapseSpace) await onSpaceDelete!(project.spaceId);
+      // project.spaceId can be null for orphan projects; onSpaceDelete is only meaningful in a space context
+      if (willCollapseSpace && project.spaceId) await onSpaceDelete!(project.spaceId);
       onChanged();
       setConfirmOpen(false);
     } catch (err) {
