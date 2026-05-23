@@ -2,7 +2,7 @@
 // TypeScript discovers this .d.ts automatically because it sits
 // alongside engine.js. Keep these signatures in sync with the JS.
 
-export type Seat = 'p1' | 'p2';
+export type Seat = 'p1' | 'p2' | 'p3' | 'p4';
 export type Status = 'waiting' | 'ready' | 'running' | 'gameover';
 
 export interface Input {
@@ -33,7 +33,7 @@ export interface GameState {
   status: Status;
   won: boolean;
   score: number;
-  ships: { p1: Ship; p2: Ship };
+  ships: Record<Seat, Ship>;
   bullets: Bullet[];
   invaderBullets: Bullet[];
   invaders: Invader[];
@@ -46,6 +46,7 @@ export interface WireSnapshot {
   status: Status;
   won: boolean;
   score: number;
+  /** Always MAX_SEATS entries, indexed by seat position (p1 → 0, …). */
   players: Array<{ x: number; alive: boolean }>;
   bullets: Array<{ x: number; y: number; o: Seat | null }>;
   invaderBullets: Array<{ x: number; y: number }>;
@@ -65,12 +66,15 @@ export const BULLET_SPEED: number;
 export const INV_W: number;
 export const INV_H: number;
 
+export const SEATS: readonly Seat[];
+export const MAX_SEATS: number;
+
 export function zeroInput(): Input;
 export function initState(): GameState;
 export function step(
   state: GameState,
-  inputs: { p1: Input; p2: Input },
+  inputs: Partial<Record<Seat, Input>>,
   dt: number,
-  occupied?: { p1: boolean; p2: boolean },
+  occupied?: Record<Seat, boolean>,
 ): void;
 export function snapshotForClient(state: GameState): WireSnapshot;

@@ -176,7 +176,13 @@
     PF_W, PF_H, SHIP_W, SHIP_H, SHIP_Y, SHIP_SPEED, FIRE_COOLDOWN,
     BULLET_W, BULLET_H, BULLET_SPEED,
     INV_W, INV_H,
+    SEATS, MAX_SEATS,
   } from './engine.js';
+
+  // Per-seat colours for the canvas. SHIP_COLORS[seatIndex] picks the
+  // colour of "other" players' ships; the local player is always cyan.
+  const SHIP_COLORS = ['#2dd4ff', '#ff3aa1', '#6bff8c', '#ffd84a'];
+  const LOCAL_COLOR = '#2dd4ff';
 
   // Netcode version — bump on any wire/protocol or behaviour change.
   // Welcome from the server includes its own value so we can flag a

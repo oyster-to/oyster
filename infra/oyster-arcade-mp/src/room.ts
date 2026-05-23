@@ -21,6 +21,8 @@ import {
   zeroInput,
   PF_W,
   SHIP_W,
+  SEATS,
+  MAX_SEATS,
 } from '../../../docs/arcade/invaders-mp/engine.js';
 import type {
   GameState,
@@ -72,7 +74,13 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //   v18  Host-mode gameplay over DataChannel: P1 runs the engine
 //        locally, broadcasts snapshots via DC, P2 sends inputs over
 //        DC. DO stays as signalling broker + cloud-relay fallback.
-const NETCODE_VERSION = 18;
+//   v19  N players (up to 4). Seat union grows to p1|p2|p3|p4, ships
+//        becomes Record<Seat,Ship>, the wire snapshot's `players`
+//        array is always MAX_SEATS long. assignSeat takes first free
+//        of four. Path renamed /invaders-2p/ → /invaders-mp/ with a
+//        301 from the old path. Engine exports SEATS + MAX_SEATS so
+//        server + client share the constant.
+const NETCODE_VERSION = 19;
 
 type ClientMessage =
   | { type: 'ping';   t: number }
@@ -83,9 +91,13 @@ type ClientMessage =
 
 type Occupancy = Record<Seat, boolean>;
 
+function freshInputs(): Record<Seat, Input> {
+  return Object.fromEntries(SEATS.map((s) => [s, zeroInput()])) as Record<Seat, Input>;
+}
+
 export class InvadersRoom extends DurableObject<Env> {
   private sockets = new Map<Seat, WebSocket>();
-  private inputs: Record<Seat, Input> = { p1: zeroInput(), p2: zeroInput() };
+  private inputs: Record<Seat, Input> = freshInputs();
   private game: GameState = initState();
   private loop: ReturnType<typeof setInterval> | null = null;
   private lastTickMs = 0;
@@ -147,8 +159,7 @@ export class InvadersRoom extends DurableObject<Env> {
   // Seats / sessions
 
   private assignSeat(): Seat | null {
-    if (!this.sockets.has('p1')) return 'p1';
-    if (!this.sockets.has('p2')) return 'p2';
+    for (const s of SEATS) if (!this.sockets.has(s)) return s;
     return null;
   }
 
@@ -257,7 +268,7 @@ export class InvadersRoom extends DurableObject<Env> {
     // candidates). DO doesn't interpret the payload — it just
     // forwards from one seat to the other so neither client needs
     // a direct route until the DataChannel is up.
-    if (msg.to !== 'p1' && msg.to !== 'p2') return;
+    if (!(SEATS as readonly string[]).includes(msg.to)) return;
     if (msg.to === sender) return; // no self-signalling
     const targetWs = this.sockets.get(msg.to);
     if (!targetWs) return;
@@ -324,7 +335,9 @@ export class InvadersRoom extends DurableObject<Env> {
   }
 
   private occupancy(): Occupancy {
-    return { p1: this.sockets.has('p1'), p2: this.sockets.has('p2') };
+    return Object.fromEntries(
+      SEATS.map((s) => [s, this.sockets.has(s)]),
+    ) as Occupancy;
   }
 
   // --------------------------------------------------------------------
@@ -338,11 +351,12 @@ export class InvadersRoom extends DurableObject<Env> {
     // and network jitter without protocol or tick-rate changes).
     const snap = snapshotForClient(this.game);
     // Mask unoccupied seats as not-alive on the wire so the client
-    // doesn't paint a sitting-duck ghost while waiting for the other
-    // player. The server-side ship stays alive in the simulation; it
-    // just can't take damage or contribute to the wipe check.
-    if (!this.sockets.has('p1')) snap.players[0].alive = false;
-    if (!this.sockets.has('p2')) snap.players[1].alive = false;
+    // doesn't paint a sitting-duck ghost while waiting for other
+    // players. The server-side ship stays alive in the simulation;
+    // it just can't take damage or contribute to the wipe check.
+    for (let i = 0; i < MAX_SEATS; i++) {
+      if (!this.sockets.has(SEATS[i])) snap.players[i].alive = false;
+    }
     const msg = JSON.stringify({ type: 'state', t: Date.now(), ...snap });
     for (const ws of this.sockets.values()) {
       try { ws.send(msg); }
