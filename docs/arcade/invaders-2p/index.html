@@ -555,11 +555,14 @@
     ws.addEventListener('message', (e) => {
       let msg;
       try { msg = JSON.parse(e.data); } catch { return; }
-      // Once host mode is engaged, the server keeps ticking (and still
-      // broadcasts snapshots) but it isn't receiving our inputs/pos,
-      // so its state is stale. Pushing those into the interp buffer
-      // would fight the DC snapshots from P1 and produce visible jitter.
-      // Drop them; everything we need flows over the DataChannel now.
+      // Belt-and-braces for the mid-game-engage edge case: if a
+      // cloud-relay game was already running on the DO when host
+      // mode engaged, the DO keeps ticking with stale inputs (we
+      // stopped sending them) and emits stale snapshots. Drop those
+      // here — the authoritative state now flows over the
+      // DataChannel. In the common path (P2P up *before* first
+      // Start) the DO never enters its running state at all, so this
+      // guard is a no-op.
       if (hostEngaged && msg && msg.type === 'state') return;
       handle(msg);
     });

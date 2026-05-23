@@ -19,6 +19,8 @@ import {
   snapshotForClient,
   step,
   zeroInput,
+  PF_W,
+  SHIP_W,
 } from '../../../docs/arcade/invaders-2p/engine.js';
 import type {
   GameState,
@@ -29,6 +31,16 @@ import type { Env } from './worker';
 
 const TICK_HZ = 60;
 const TICK_MS = 1000 / TICK_HZ;
+
+// Defensive cap on incoming WebSocket messages. The endpoint is
+// unauthenticated and JSON.parse is unbounded — without this an
+// attacker (or a buggy client) could spike CPU/memory by sending a
+// huge string. Real messages are tens of bytes (input/pos/ping) or
+// a few KB at most (an SDP offer with trickled candidates), so 8 KB
+// is generous. Over-limit sockets are closed with 1009 "message too
+// big" so a sane client will know to back off rather than reconnect
+// and try again.
+const MAX_WS_MESSAGE_BYTES = 8192;
 
 // Bumped on any wire/protocol or netcode-behaviour change. The client
 // reads the welcome message's `netcode` field and flags a mismatch if
@@ -145,6 +157,10 @@ export class InvadersRoom extends DurableObject<Env> {
 
     ws.addEventListener('message', (event) => {
       if (typeof event.data !== 'string') return;
+      if (event.data.length > MAX_WS_MESSAGE_BYTES) {
+        try { ws.close(1009, 'message too big'); } catch { /* ignore */ }
+        return;
+      }
       this.onMessage(seat, event.data);
     });
     ws.addEventListener('close', () => this.onClose(seat));
@@ -217,8 +233,7 @@ export class InvadersRoom extends DurableObject<Env> {
     if (typeof msg.x !== 'number' || !Number.isFinite(msg.x)) return;
     const ship = this.game.ships[seat];
     if (!ship.alive) return;
-    const max = 240 - 16; // PF_W - SHIP_W (avoids a tiny engine import)
-    ship.x = Math.max(0, Math.min(max, msg.x));
+    ship.x = Math.max(0, Math.min(PF_W - SHIP_W, msg.x));
   }
 
   private relaySignal(sender: Seat, msg: { to: Seat; payload: unknown }): void {
