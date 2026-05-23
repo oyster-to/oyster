@@ -567,10 +567,11 @@ const INV_SPACING_Y = 15;        // 3px row gap; smaller drop per bounce too
 const ROW_COLOURS = ['#7adfb1', '#f088bc', '#f0d070', '#f0a070', '#7088dc'];
 const ROW_POINTS  = [30,        20,        20,        10,        10];
 
-// Easter egg: exactly ONE invader in row 3 is swapped for the Claude creature,
-// rendered in Claude's terracotta. Its column is randomised per grid so it's a
-// "spot the odd one out". Purely cosmetic — it scores/behaves like its row.
-const CLAUDE_ROW = 3;
+// Easter egg: exactly ONE invader in row index 3 — the 4th row from the top,
+// the orange-octopus row — is swapped for the Claude creature, rendered in
+// Claude's terracotta. Its column is randomised per grid so it's a "spot the
+// odd one out". Purely cosmetic — it scores/behaves like its row.
+const CLAUDE_ROW = 3;   // 0-based: 4th row from top
 const CLAUDE_COLOUR = '#d97757';
 
 let grid = null;        // { offsetX, offsetY, dir, cells: 2D array, aliveCount, frame }
@@ -799,12 +800,15 @@ window.addEventListener('keydown', e => {
   if (Arcade.Initials.isActive()) return;
   const t = e.target;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-  cheated = true; // mark the run as a test run — no hi-score will be recorded
+  // Only flag the run as cheated when the cheat actually fires (grid/boss) —
+  // pressing B during the win cutscene must NOT disqualify a legitimate win.
   if (phase === 'grid') {
+    cheated = true; // test run — no hi-score will be recorded
     stageNum = STAGES_PER_SET;
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) grid.cells[r][c].alive = false;
     grid.aliveCount = 0;
   } else if (phase === 'boss' && boss) {
+    cheated = true; // test run — no hi-score will be recorded
     // Kill the current boss (bonus + repair + new-set grid spawn run), then
     // immediately clear that grid and snap stageNum to last so advanceStage
     // spawns the next set's boss next frame.
