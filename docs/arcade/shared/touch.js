@@ -40,12 +40,14 @@
     });
   }
 
-  // Page-level guard for all arcade games (every game loads this file): kill the
-  // mobile long-press menu — Android's "Copy / Web search / Google Lens" popup
-  // and the iOS callout — so a held thumb during play can't trigger it. CSS
-  // (pixel-font.css) handles selection/zoom/scroll; this covers the menu CSS
-  // can't suppress.
-  document.addEventListener('contextmenu', e => e.preventDefault());
+  // Page-level guard for all arcade games (every game loads this file): on TOUCH
+  // devices only, kill the long-press menu — Android's "Copy / Web search /
+  // Google Lens" popup — so a held thumb during play can't trigger it. Gated to
+  // coarse pointers so desktop keeps its normal right-click menu (the launcher
+  // has links). CSS (pixel-font.css) handles selection/zoom/scroll.
+  if (isCoarse()) {
+    document.addEventListener('contextmenu', e => e.preventDefault());
+  }
 
   window.Arcade = window.Arcade || {};
   window.Arcade.Touch = { isCoarse, bind };
