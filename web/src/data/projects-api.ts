@@ -62,13 +62,6 @@ export async function absorbProject(
   return postJson(`/api/projects/${encodeURIComponent(intoId)}/absorb`, { from: fromId });
 }
 
-// Bulk-tag every session whose `cwd === args.cwd` and is not yet bound
-// to a project. Used by the orphan-recovery flow: pick an existing project
-// or create one, then sweep orphans into it. Returns the number claimed.
-export async function claimOrphan(projectId: string, cwd: string): Promise<{ claimed: number }> {
-  return postJson<{ claimed: number }>(`/api/projects/${encodeURIComponent(projectId)}/claim`, { cwd });
-}
-
 export async function renameProject(projectId: string, name: string): Promise<Project> {
   return patchJson<Project>(`/api/projects/${encodeURIComponent(projectId)}`, { name });
 }

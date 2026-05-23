@@ -680,16 +680,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     return () => window.removeEventListener("oyster:open-session", handler);
   }, []);
 
-  useEffect(() => {
-    function handler(e: Event) {
-      const detail = (e as CustomEvent<{ id: string; spaceId: string }>).detail;
-      if (!detail) return;
-      console.log("[spotlight] open-memory", detail);
-    }
-    window.addEventListener("oyster:open-memory", handler);
-    return () => window.removeEventListener("oyster:open-memory", handler);
-  }, []);
-
   // Manual refresh: calls reconcile immediately (bypasses throttle), then
   // refreshes the memories list on success.
   const handleManualReconcile = useCallback(async () => {
@@ -956,6 +946,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             </div>
             <div className="home-projects-grid">
               {visibleProjects.map((p) => (
+                // onSpaceDelete intentionally omitted — Home strip can't collapse spaces.
+                // isLastProject/spaceTotalSessions are inert here (willCollapseSpace = false).
                 <ProjectTile
                   key={p.id}
                   project={p}

@@ -6,7 +6,7 @@ import { join } from "node:path";
 // The route reads ~/.local/share/opencode/auth.json. To test deterministically
 // we point HOME at a temp dir, then assert the route's response by importing
 // the handler in isolation rather than booting the full server.
-import { getProviderStatus } from "../src/routes/provider-status.js";
+import { getProviderStatus, tryHandleProviderStatusRoute } from "../src/routes/provider-status.js";
 
 describe("provider-status", () => {
   const ENV_KEYS = [
@@ -72,5 +72,24 @@ describe("provider-status", () => {
   it("returns configured: true when ANTHROPIC_API_KEY is in env (env-key bypass)", () => {
     process.env.ANTHROPIC_API_KEY = "sk-test";
     expect(getProviderStatus()).toEqual({ configured: true });
+  });
+
+  it("rejects non-local origin with 403 (the file-system read never runs)", async () => {
+    const captured: { status?: number; json?: unknown } = {};
+    const ctx = {
+      sendJson: (j: unknown, s = 200) => { captured.json = j; captured.status = s; },
+      sendError: () => {},
+      rejectIfNonLocalOrigin: () => {
+        captured.json = { error: "Forbidden origin" };
+        captured.status = 403;
+        return true;
+      },
+      readJsonBody: async () => ({}),
+    };
+    const req = { method: "GET", headers: { origin: "http://evil.example" } } as any;
+    const handled = await tryHandleProviderStatusRoute(req, {} as any, "/api/chat/provider-status", ctx as any);
+    expect(handled).toBe(true);
+    expect(captured.status).toBe(403);
+    expect(captured.json).toMatchObject({ error: "Forbidden origin" });
   });
 });

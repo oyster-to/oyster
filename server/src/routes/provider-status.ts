@@ -38,10 +38,12 @@ export async function tryHandleProviderStatusRoute(
   ctx: RouteCtx,
 ): Promise<boolean> {
   if (url !== "/api/chat/provider-status") return false;
+  const { sendJson, rejectIfNonLocalOrigin } = ctx;
+  if (rejectIfNonLocalOrigin()) return true;
   if (req.method !== "GET") {
-    ctx.sendJson({ error: "Method Not Allowed" }, 405);
+    sendJson({ error: "Method Not Allowed" }, 405);
     return true;
   }
-  ctx.sendJson(getProviderStatus());
+  sendJson(getProviderStatus());
   return true;
 }

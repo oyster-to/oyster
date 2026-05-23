@@ -19,7 +19,6 @@
 }
 
 .home,
-.home .home-tile-label,
 .home .home-row-title {
   color: var(--home-text);
 }
@@ -323,108 +322,6 @@
 .home-space-card-counts .signal-muted {
   color: var(--home-text-muted);
 }
-/* Elsewhere card: same shape, dashed border to read as a meta-bucket
-   rather than a real space. Selected state mirrors the chip-bar
-   stat-btn highlight. */
-.home-space-card--elsewhere {
-  border-style: dashed;
-}
-.home-space-card--elsewhere .home-space-card-name {
-  font-style: italic;
-}
-/* Elsewhere keeps its dashed border even when selected — the dashed
-   line is a "you're not in a real space" cue, distinct from the solid
-   space cards. Drop the inset ring used for solid cards; it clashes
-   with the dashes. */
-.home-space-card--elsewhere.selected {
-  box-shadow: none;
-}
-
-/* ── Sessions surface (icon view) ── */
-.home-surface {
-  position: relative;
-  z-index: 1;
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 0 32px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 36px 24px;
-}
-
-.home-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 4px 4px;
-  cursor: default; /* Sprint 4 wires the inspector */
-  animation: home-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-}
-
-@keyframes home-fade-up {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.home-thumb {
-  width: 92px;
-  height: 92px;
-  border-radius: 22px;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32);
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.2s ease;
-}
-.home-tile:hover .home-thumb { transform: translateY(-2px); }
-.home-tile:hover .home-thumb::after { opacity: 1; }
-.home-thumb::after {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: 23px;
-  box-shadow: 0 0 0 1px rgba(124, 107, 255, 0.4), 0 0 20px rgba(124, 107, 255, 0.22);
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  pointer-events: none;
-}
-
-.home-thumb.agent-cc    { background: linear-gradient(135deg, #4a2a1f, #5e3927); }
-.home-thumb.agent-codex { background: linear-gradient(135deg, #143a2c, #1c4f3b); }
-.home-thumb.agent-oc    { background: linear-gradient(135deg, #2a2470, #353089); }
-
-.home-agent-mark {
-  font-family: var(--font-mono);
-  font-size: 26px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  opacity: 0.85;
-}
-.home-thumb.agent-cc .home-agent-mark    { color: #ff9b7a; }
-.home-thumb.agent-codex .home-agent-mark { color: #6ee7a8; }
-.home-thumb.agent-oc .home-agent-mark    { color: #b3a8ff; }
-
-.home-space-chip {
-  position: absolute;
-  top: -3px;
-  left: -3px;
-  padding: 3px 8px;
-  border-radius: 7px;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.02em;
-  color: var(--home-accent-bright);
-  max-width: 96px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* Cross-device chip — same chrome as the space chip but with a distinct
  * tint so it reads as "origin device" not "space membership". Lives in
  * the same top-left slot on tiles; inline-block on rows. */
@@ -490,76 +387,9 @@
   font-size: 10px;
 }
 
-/* ── Status indicator on the thumb ── */
-.home-status {
-  position: absolute;
-  bottom: -3px;
-  right: -3px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--desktop-bg, #1e1f36);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.home-status::before {
-  content: "";
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-.home-status.active::before {
-  background: var(--home-green);
-  box-shadow: 0 0 10px var(--home-green);
-  animation: home-breathe 2.4s ease-in-out infinite;
-}
-.home-status.waiting::before {
-  background: var(--home-amber);
-  box-shadow: 0 0 10px var(--home-amber);
-}
-.home-status.disconnected::before {
-  background: var(--home-red);
-  box-shadow: 0 0 10px var(--home-red);
-}
-.home-status.disconnected {
-  animation: home-pulse-red 2.4s ease-in-out infinite;
-}
-.home-status.done::before {
-  background: rgba(255, 255, 255, 0.18);
-}
-.home-status.dormant::before {
-  background: rgba(255, 255, 255, 0.18); /* same as .done */
-}
 @keyframes home-breathe {
   0%, 100% { opacity: 0.85; transform: scale(1); }
   50%       { opacity: 1;    transform: scale(1.1); }
-}
-@keyframes home-pulse-red {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.4); }
-  50%       { box-shadow: 0 0 0 4px rgba(248, 113, 113, 0); }
-}
-
-.home-tile-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text);
-  text-align: center;
-  line-height: 1.35;
-  max-width: 170px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.home-tile-meta {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--home-text-muted);
-  letter-spacing: 0.02em;
-  text-align: center;
 }
 
 .home-empty {

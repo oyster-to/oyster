@@ -166,8 +166,10 @@ export interface MergedSessionPayload {
   terminalId: string | null;
   /** Count of currently-attached WS clients on the linked terminal. */
   terminalAttachedClients: number;
-  /** Spike (#551): recent create/modify artifact touches, capped to 3,
-   *  ordered by whenAt DESC. Populated for local sessions only. */
+  /** Recent create/modify artifact touches, capped to 3,
+   *  ordered by whenAt DESC. Populated for local sessions only.
+   *  Deduped by artifactId: if the same artifact has both create and
+   *  modify rows, the create wins (more interesting attribution). */
   recentArtifacts?: Array<{
     artifactId: string;
     label: string;
@@ -254,13 +256,12 @@ export async function tryHandleSessionRoute(
       mapSessionRow(row),
     );
 
-    // Spike (#551): attach recent create/modify artifact touches to each
-    // local session. Single batched query keyed on the local session ids
-    // — no N+1. Remote sessions are skipped (cross-device attribution
-    // isn't modeled yet; their session_artifacts rows live on the origin
-    // device). Capped to 3 chips per session, no dedup by artifact_id —
-    // if a session both created and modified the same file you'll see
-    // two chips; accurate but raw, easy to polish later.
+    // Attach recent create/modify artifact touches to each local session.
+    // Single batched query keyed on the local session ids — no N+1. Remote
+    // sessions are skipped (cross-device attribution isn't modeled yet;
+    // their session_artifacts rows live on the origin device). Deduped by
+    // artifact_id BEFORE the cap-of-3: if a session both created and
+    // modified the same artifact, the create wins. Then top-3 by whenAt.
     if (rows.length > 0) {
       const placeholders = rows.map(() => "?").join(",");
       const touchRows = db.prepare(
@@ -281,24 +282,37 @@ export async function tryHandleSessionRoute(
         artifactId: string;
         label: string;
       }>;
-      const bySession = new Map<string, Array<{
-        artifactId: string; label: string; role: "create" | "modify"; whenAt: string;
-      }>>();
+      type Entry = { artifactId: string; label: string; role: "create" | "modify"; whenAt: string };
+      const bySession = new Map<string, Map<string, Entry>>();
       for (const t of touchRows) {
-        const list = bySession.get(t.sessionId) ?? [];
-        if (list.length < 3) {
-          list.push({
-            artifactId: t.artifactId,
-            label: t.label,
-            role: t.role,
-            whenAt: t.whenAt,
-          });
-          bySession.set(t.sessionId, list);
+        let byArtifact = bySession.get(t.sessionId);
+        if (!byArtifact) {
+          byArtifact = new Map<string, Entry>();
+          bySession.set(t.sessionId, byArtifact);
+        }
+        const existing = byArtifact.get(t.artifactId);
+        const incoming: Entry = {
+          artifactId: t.artifactId,
+          label: t.label,
+          role: t.role,
+          whenAt: t.whenAt,
+        };
+        // Prefer create over modify; otherwise keep existing (which is
+        // most-recent because the SQL is ORDER BY when_at DESC and we hit
+        // existing first for the newer row).
+        if (!existing) {
+          byArtifact.set(t.artifactId, incoming);
+        } else if (existing.role === "modify" && incoming.role === "create") {
+          byArtifact.set(t.artifactId, incoming);
         }
       }
       for (const entry of localPayload) {
-        const list = bySession.get(entry.id);
-        if (list && list.length > 0) entry.recentArtifacts = list;
+        const byArtifact = bySession.get(entry.id);
+        if (!byArtifact || byArtifact.size === 0) continue;
+        const list = [...byArtifact.values()]
+          .sort((a, b) => (a.whenAt < b.whenAt ? 1 : a.whenAt > b.whenAt ? -1 : 0))
+          .slice(0, 3);
+        if (list.length > 0) entry.recentArtifacts = list;
       }
     }
 
