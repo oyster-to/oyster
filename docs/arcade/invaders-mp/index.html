@@ -1084,9 +1084,14 @@
       const row = Math.floor(i / SPRITE_COLS);
       const { frames, w } = spriteForRow(row);
       // Centre the sprite in the engine's INV_W cell so collisions
-      // (which use INV_W) stay aligned with what the eye sees.
-      const cellX = lerp(ia.x, ib.x) + (INV_W - w) / 2;
-      const cellY = lerp(ia.y, ib.y);
+      // (which use INV_W) stay aligned with what the eye sees. Snap
+      // to integer playfield pixels — fillRect at fractional coords
+      // anti-aliases each sprite-pixel's edge across two screen pixels
+      // at varying alpha, which reads as flicker during continuous
+      // motion. Rounding makes the swarm step pixel-by-pixel (the
+      // pixel-art look) instead of sub-pixel sliding.
+      const cellX = Math.round(lerp(ia.x, ib.x) + (INV_W - w) / 2);
+      const cellY = Math.round(lerp(ia.y, ib.y));
       paintPixels(ctx, cellX, cellY, frames[frame], 1, ROW_COLORS[row] || '#ffffff');
     }
 
