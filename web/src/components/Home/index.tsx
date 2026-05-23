@@ -885,7 +885,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           {/* Eyebrow dropped — the breadcrumb above already shows the
               active scope, so a separate "HOME" / "OYSTER" label is
               redundant. */}
-          <h1 className="home-title">{isHomeView ? (showElsewhere ? "Unassigned sessions." : "Recent sessions.") : eyebrow}</h1>
+          <h1 className="home-title">{isHomeView ? (showElsewhere ? "Unassigned sessions." : "Your work.") : eyebrow}</h1>
           {error && <div className="home-error">Couldn't load sessions: {error.message}</div>}
         </header>
 
