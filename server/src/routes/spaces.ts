@@ -40,6 +40,24 @@ export async function tryHandleSpaceRoute(
     return true;
   }
 
+  // POST /api/spaces — create a new named space
+  if (url === "/api/spaces" && req.method === "POST") {
+    if (rejectIfNonLocalOrigin()) return true;
+    try {
+      const body = await readJsonBody();
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      if (!name) {
+        sendJson({ error: "name is required" }, 400);
+        return true;
+      }
+      const space = spaceService.createSpace({ name });
+      sendJson(space, 201);
+    } catch (err) {
+      sendError(err);
+    }
+    return true;
+  }
+
   // POST /api/spaces/from-folder — convert a folder group (under home) into
   // its own space. Used by the desktop right-click "Move folder to space" flow.
   if (url === "/api/spaces/from-folder" && req.method === "POST") {

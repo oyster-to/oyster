@@ -14,6 +14,7 @@ import { InspectorPanel, type ActivePanel } from "../InspectorPanel";
 import { SessionInspector } from "../SessionInspector";
 import { ArtefactInspector } from "../ArtefactInspector";
 import { ConfirmModal } from "../ConfirmModal";
+import { PromptModal } from "../PromptModal";
 import { SpaceContextMenu } from "../SpaceContextMenu";
 import { SessionTile } from "./SessionTile";
 import { SessionRow } from "./SessionRow";
@@ -28,6 +29,7 @@ import { VaultInfo } from "./VaultInfo";
 import { homeRelative, renderPipCounts, stateColor } from "./utils";
 import { VAULT, type ArtefactSource, type StateFilter, type ViewMode } from "./types";
 import { attachFolder } from "../../data/projects-api";
+import { createSpace } from "../../data/spaces-api";
 import { deleteMemory, type Memory } from "../../data/memories-api";
 import { ApiError } from "../../data/http";
 import { useTerminalPresence } from "../../hooks/useTerminalPresence";
@@ -240,6 +242,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // native artefacts, otherwise a source_id. The tile grid is the canonical
   // surface for switching between folders; selection is exclusive.
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [addSpaceOpen, setAddSpaceOpen] = useState(false);
 
   const isHomeView = activeSpace === "home";
   const isAllView = activeSpace === "__all__";
@@ -401,19 +404,19 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     if (!isHomeView || showElsewhere) return [];
     const map = new Map<string, {
       projectId: string;
-      spaceId: string;
+      spaceId: string | null;
       label: string;
       counts: { active: number; waiting: number; disconnected: number; done: number };
       lastEventAt: number;
     }>();
     for (const s of sessions) {
-      if (!s.projectId || !s.spaceId) continue;
+      if (!s.projectId) continue;
       let entry = map.get(s.projectId);
       if (!entry) {
         const cwdBasename = s.cwd ? s.cwd.split(/[\\/]/).filter(Boolean).pop() ?? null : null;
         entry = {
           projectId: s.projectId,
-          spaceId: s.spaceId,
+          spaceId: s.spaceId ?? null,
           label: cwdBasename ?? s.projectId,
           counts: { active: 0, waiting: 0, disconnected: 0, done: 0 },
           lastEventAt: 0,
@@ -824,6 +827,22 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 </button>
               );
             })}
+            <button
+              type="button"
+              className="home-breadcrumb-pill home-breadcrumb-pill--add"
+              onClick={() => setAddSpaceOpen(true)}
+              title={realSpaces.length === 0 ? "Create your first space" : "Add a space"}
+              aria-label={realSpaces.length === 0 ? "Create your first space" : "Add a space"}
+            >
+              {realSpaces.length === 0 ? (
+                <>
+                  <span aria-hidden="true">+</span>
+                  <span className="home-breadcrumb-pill-label">Space</span>
+                </>
+              ) : (
+                <span aria-hidden="true">+</span>
+              )}
+            </button>
             {orphanCounts.total > 0 && realSpaces.length > 0 && (
               <button
                 type="button"
@@ -890,7 +909,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           <div className="home-section home-projects-section">
             <div className="home-projects-grid">
               {homeProjects.map((p) => {
-                const space = spaces.find((s) => s.id === p.spaceId);
+                const space = p.spaceId ? spaces.find((s) => s.id === p.spaceId) : undefined;
                 const isSelected = selectedProjectId === p.projectId;
                 return (
                   <div
@@ -903,7 +922,9 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                       onClick={() => setSelectedProjectId(isSelected ? null : p.projectId)}
                       title={`Filter sessions to ${p.label}`}
                     >
-                      <div className="home-projects-strip-meta">{space?.displayName ?? p.spaceId}</div>
+                      {p.spaceId && (
+                        <div className="home-projects-strip-meta">{space?.displayName ?? p.spaceId}</div>
+                      )}
                       <div className="home-projects-strip-name">{p.label}</div>
                       <div className="home-projects-strip-counts">
                         {p.counts.active > 0 && <span className="signal"><span className="pip pip-green" />{p.counts.active} active</span>}
@@ -914,19 +935,21 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                         )}
                       </div>
                     </button>
-                    <button
-                      type="button"
-                      className="home-projects-strip-tile-jump"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        pendingFolderSelection.current = p.projectId;
-                        onSpaceChange(p.spaceId);
-                      }}
-                      aria-label={`Open ${space?.displayName ?? p.spaceId}`}
-                      title={`Open ${space?.displayName ?? p.spaceId}`}
-                    >
-                      <ArrowUpRight size={14} strokeWidth={2} aria-hidden="true" />
-                    </button>
+                    {p.spaceId && (
+                      <button
+                        type="button"
+                        className="home-projects-strip-tile-jump"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          pendingFolderSelection.current = p.projectId;
+                          onSpaceChange(p.spaceId!);
+                        }}
+                        aria-label={`Open ${space?.displayName ?? p.spaceId}`}
+                        title={`Open ${space?.displayName ?? p.spaceId}`}
+                      >
+                        <ArrowUpRight size={14} strokeWidth={2} aria-hidden="true" />
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -1536,6 +1559,25 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           />
         );
       })()}
+      <PromptModal
+        open={addSpaceOpen}
+        title="Name your space"
+        initialValue=""
+        placeholder="e.g. work, personal, tokinvest"
+        confirmLabel="Create"
+        onSubmit={async (name) => {
+          const trimmed = name.trim();
+          if (!trimmed) { setAddSpaceOpen(false); return; }
+          try {
+            const created = await createSpace(trimmed);
+            setAddSpaceOpen(false);
+            if (created?.id) onSpaceChange(created.id);
+          } catch (err) {
+            alert(`Couldn't create space: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }}
+        onCancel={() => setAddSpaceOpen(false)}
+      />
       {pendingMemoryDelete && (
         <ConfirmModal
           open={true}

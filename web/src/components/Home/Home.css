@@ -1431,6 +1431,15 @@
 .home-breadcrumb-pill--elsewhere .home-breadcrumb-pill-label {
   font-style: italic;
 }
+.home-breadcrumb-pill--add {
+  border-style: dashed;
+  border-color: rgba(124, 107, 255, 0.32);
+  color: rgba(232, 233, 240, 0.7);
+}
+.home-breadcrumb-pill--add:hover {
+  border-color: var(--home-border-accent);
+  color: var(--home-accent-bright);
+}
 /* Sliding selection background — animated by Framer Motion's
    shared-layout (LayoutGroup + layoutId), mirrors the chat-bar
    `space-pill-bg`. Sits behind the content. */
