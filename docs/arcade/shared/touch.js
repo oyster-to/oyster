@@ -42,11 +42,15 @@
 
   // Page-level guard for all arcade games (every game loads this file): on TOUCH
   // devices only, kill the long-press menu — Android's "Copy / Web search /
-  // Google Lens" popup — so a held thumb during play can't trigger it. Gated to
-  // coarse pointers so desktop keeps its normal right-click menu (the launcher
-  // has links). CSS (pixel-font.css) handles selection/zoom/scroll.
+  // Google Lens" popup — so a held thumb on the game (incl. its text) can't
+  // trigger it. Gated to coarse pointers so desktop keeps its right-click menu.
+  // Real links (e.g. the launcher's credit link) are exempted so their
+  // long-press "open in new tab / copy link" still works. CSS (pixel-font.css)
+  // handles selection/zoom/scroll.
   if (isCoarse()) {
-    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('contextmenu', e => {
+      if (!e.target.closest('a')) e.preventDefault();
+    });
   }
 
   window.Arcade = window.Arcade || {};
