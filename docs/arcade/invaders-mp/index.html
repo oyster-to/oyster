@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Invaders MP — spike</title>
 <link rel="stylesheet" href="../shared/pixel-font.css">
+<link rel="stylesheet" href="../shared/cabinet.css">
+<link rel="stylesheet" href="../shared/touch.css">
 <style>
   html, body {
     margin: 0; padding: 0; height: 100%;
@@ -17,160 +19,244 @@
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior: none;
   }
-  #root { display: flex; flex-direction: column; height: 100%; }
-
-  /* Lobby */
-  #lobby {
-    padding: 10px 14px max(10px, env(safe-area-inset-top, 0)) 14px;
-    background: #06061a;
-    border-bottom: 1px solid rgba(45, 212, 255, 0.3);
-    flex: 0 0 auto;
+  /* Canvas centring + crisp pixel-art scaling. cabinet.css has a
+     `canvas { width: 100%; height: 100% }` rule for games whose
+     engines size the bitmap to the tube; MP keeps a fixed 240×280
+     bitmap and rescales via fitCanvas's inline style.width/height
+     (integer multiples → no sub-pixel blur). The .tube canvas
+     selector is more specific so this wins. */
+  .tube {
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
-  #lobby .title {
-    font-size: 12px; letter-spacing: 0.15em; color: #2dd4ff;
-    text-transform: uppercase; margin: 0 0 6px;
-  }
-  #lobby .netcode {
-    margin-left: 6px;
-    color: rgba(255, 255, 255, 0.45);
-    font-size: 10px; letter-spacing: 0.1em;
-  }
-  #lobby .netcode.mismatch {
-    color: #ff6666;
-  }
-  #lobby .ping {
-    margin-left: 8px;
-    color: rgba(255, 255, 255, 0.45);
-    font-size: 10px; letter-spacing: 0.1em;
-  }
-  #lobby .ping.low  { color: #6bff8c; }
-  #lobby .ping.mid  { color: #ffd84a; }
-  #lobby .ping.high { color: #ff6666; }
-  #lobby .transport {
-    margin-left: 8px; padding: 1px 6px; border-radius: 3px;
-    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.55);
-    background: rgba(255, 255, 255, 0.06);
-  }
-  #lobby .transport.p2p {
-    color: #1a3a1a;
-    background: #6bff8c;
-    font-weight: bold;
-  }
-  #lobby .transport.connecting {
-    color: #ffd84a;
-    background: rgba(255, 216, 74, 0.15);
-  }
-  #lobby .url {
-    font-size: 11px; opacity: 0.7; word-break: break-all;
-    background: #0a0a28; padding: 4px 6px; border-radius: 3px;
-  }
-  #lobby .room-line {
-    display: flex; align-items: baseline; gap: 8px;
-    margin: 4px 0 6px;
-  }
-  #lobby .room-label {
-    font-size: 10px; letter-spacing: 0.18em;
-    color: rgba(255, 255, 255, 0.5);
-  }
-  #lobby .room-code {
-    font-size: 20px; letter-spacing: 0.25em;
-    color: #ffd84a;
-    font-family: 'Press Start 2P', ui-monospace, monospace;
-    text-shadow: 2px 2px 0 #ff3aa1;
-  }
-  #lobby .row {
-    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-    margin-top: 6px;
-  }
-  #lobby button {
-    background: #1a1a3a; color: #fff; border: 1px solid #2dd4ff;
-    padding: 5px 12px; font: inherit; font-size: 11px; cursor: pointer;
-    letter-spacing: 0.08em;
-  }
-  #lobby button.primary {
-    background: #ff3aa1; border-color: #ff3aa1;
-  }
-  #lobby button:disabled { opacity: 0.4; cursor: not-allowed; }
-  #lobby .name-input {
-    background: #0a0a28; color: #fff;
-    border: 1px solid #2dd4ff; border-radius: 3px;
-    padding: 5px 8px; font: inherit; font-size: 11px;
-    letter-spacing: 0.08em; width: 110px;
-  }
-  #lobby .name-input::placeholder { color: rgba(255,255,255,0.35); }
-  #status {
-    font-size: 11px; color: #ffd84a; margin-top: 6px;
-    min-height: 1.1em; letter-spacing: 0.05em;
-  }
-  #seat { font-size: 11px; color: #2dd4ff; }
-
-  /* Stage */
-  #stage {
-    flex: 1 1 auto;
-    display: flex; align-items: center; justify-content: center;
-    min-height: 0; position: relative;
-    padding: max(8px, env(safe-area-inset-bottom, 0)) 8px;
-  }
-  canvas {
-    background: #000;
+  .tube canvas {
+    width: auto; height: auto;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
-    display: block;
-    box-shadow: 0 0 0 1px rgba(45, 212, 255, 0.2);
   }
 
-  /* Touch overlay — only on coarse pointers */
-  #touch { display: none; }
-  @media (pointer: coarse) {
-    #touch {
-      display: flex; position: absolute;
-      left: 0; right: 0; bottom: 0;
-      height: 28%;
-      pointer-events: none;
-    }
-    #touch .btn {
-      flex: 1; pointer-events: auto;
-      background: rgba(45, 212, 255, 0.06);
-      border-top: 1px solid rgba(45, 212, 255, 0.25);
-      color: rgba(255, 255, 255, 0.65);
-      font-size: 22px;
-      display: flex; align-items: center; justify-content: center;
-      user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
-      touch-action: none;
-    }
-    #touch .btn + .btn { border-left: 1px solid rgba(45, 212, 255, 0.18); }
-    #touch .btn.active { background: rgba(45, 212, 255, 0.25); color: #fff; }
-    #tc-fire { background: rgba(255, 58, 161, 0.08) !important; color: rgba(255, 58, 161, 0.8); }
-    #tc-fire.active { background: rgba(255, 58, 161, 0.35) !important; color: #fff; }
+  /* Prescreen — covers the tube while the game is in any non-running
+     state (waiting / ready / countdown / gameover) so the lobby/lobby-
+     restart UI is the front-of-house and the cabinet's canvas only
+     reads when you're actually playing. Tied to .tube.is-ready so a
+     single class swap (set in refreshLobby) controls both canvas
+     visibility AND prescreen visibility. */
+  #prescreen {
+    position: absolute;
+    inset: 0;
+    z-index: 5;                          /* below cabinet.css overlay (z=10) */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px;
+    text-align: center;
+    background:
+      radial-gradient(ellipse at center, rgba(10,10,40,0.78), rgba(0,0,0,0.92));
+    transition: opacity 0.3s ease;
+  }
+  .tube.is-ready #prescreen {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #prescreen .title {
+    font-size: 14px; letter-spacing: 0.18em; color: #2dd4ff;
+    text-transform: uppercase;
+  }
+  #prescreen .meta {
+    font-size: 9px; letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.45);
+    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  }
+  #prescreen .netcode.mismatch { color: #ff6666; }
+  #prescreen .ping.low  { color: #6bff8c; }
+  #prescreen .ping.mid  { color: #ffd84a; }
+  #prescreen .ping.high { color: #ff6666; }
+  #prescreen .transport {
+    padding: 1px 6px; border-radius: 3px; text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.55);
+  }
+  #prescreen .transport.p2p        { color: #1a3a1a; background: #6bff8c; font-weight: bold; }
+  #prescreen .transport.connecting { color: #ffd84a; background: rgba(255, 216, 74, 0.15); }
+
+  #prescreen .room-line {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  #prescreen .room-label {
+    font-size: 9px; letter-spacing: 0.2em;
+    color: rgba(255, 255, 255, 0.5);
+  }
+  #prescreen .room-code {
+    font-size: 28px; letter-spacing: 0.3em;
+    color: #ffd84a;
+    text-shadow: 3px 3px 0 #ff3aa1;
+  }
+  #prescreen .share {
+    display: flex; align-items: center; gap: 14px;
+    flex-wrap: wrap; justify-content: center;
+  }
+  #prescreen .qr {
+    background: #fff;
+    padding: 8px;
+    border-radius: 4px;
+    line-height: 0;                 /* kill stray inline-img descender gap */
+  }
+  /* qrcode-generator emits an <img> via createImgTag(); pin it crisp so
+     the QR squares are sharp pixels at our display size. */
+  #prescreen .qr img {
+    display: block;
+    width: 140px; height: 140px;
+    image-rendering: pixelated;
+  }
+  #prescreen .url {
+    font-size: 9px; opacity: 0.65;
+    background: #0a0a28; padding: 5px 9px; border-radius: 3px;
+    max-width: min(420px, 90vw);
+    overflow-wrap: anywhere;        /* break long URLs at any point if needed */
+  }
+
+  /* Player slots — one card per seat, dimmed when empty, lit when
+     occupied. Per-seat colour matches SHIP_COLORS so the lobby reads
+     consistently with the in-game ships. */
+  #prescreen .players {
+    display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+  }
+  #prescreen .player-slot {
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    padding: 8px 12px;
+    min-width: 78px;
+    opacity: 0.3;
+    text-align: center;
+    transition: opacity 0.2s ease;
+  }
+  #prescreen .player-slot.is-active { opacity: 1; }
+  #prescreen .player-slot .ps-label {
+    font-size: 8px; letter-spacing: 0.22em;
+  }
+  #prescreen .player-slot .ps-name {
+    margin-top: 6px;
+    font-size: 9px; color: #fff;
+    min-height: 1em; letter-spacing: 0.06em;
+    word-break: break-word;
+  }
+  #prescreen .player-slot.is-empty .ps-name {
+    color: rgba(255,255,255,0.45);
+    font-style: italic;
+  }
+  #prescreen .player-slot .ps-you {
+    display: block;
+    margin-top: 4px;
+    font-size: 6px; letter-spacing: 0.25em;
+    color: rgba(255,255,255,0.55);
+  }
+  #prescreen .player-slot[data-seat="p1"] { color: #2dd4ff; }
+  #prescreen .player-slot[data-seat="p2"] { color: #ff3aa1; }
+  #prescreen .player-slot[data-seat="p3"] { color: #6bff8c; }
+  #prescreen .player-slot[data-seat="p4"] { color: #ffd84a; }
+  #prescreen .row {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    justify-content: center;
+  }
+  #prescreen button {
+    background: #1a1a3a; color: #fff; border: 1px solid #2dd4ff;
+    padding: 6px 14px; font: inherit; font-size: 11px; cursor: pointer;
+    letter-spacing: 0.1em;
+  }
+  #prescreen button.primary {
+    background: #ff3aa1; border-color: #ff3aa1;
+  }
+  #prescreen button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #prescreen .name-input {
+    background: #0a0a28; color: #fff;
+    border: 1px solid #2dd4ff; border-radius: 3px;
+    padding: 6px 10px; font: inherit; font-size: 11px;
+    letter-spacing: 0.08em; width: 130px; text-align: center;
+  }
+  #prescreen .name-input::placeholder { color: rgba(255,255,255,0.35); }
+  #status {
+    font-size: 11px; color: #ffd84a; min-height: 1.1em; letter-spacing: 0.06em;
+  }
+  #seat { font-size: 10px; color: #2dd4ff; letter-spacing: 0.1em; }
+
+  /* Pink fire button — same colour recipe as SP's invaders/. */
+  .touch-controls .tc-fire-btn {
+    border-color: rgba(255, 58, 161, 0.7);
+    color: #ff3aa1;
+  }
+  .touch-controls .tc-fire-btn:active,
+  .touch-controls .tc-fire-btn.is-pressed {
+    background: rgba(255, 58, 161, 0.25);
+    border-color: #ff3aa1;
+    color: #fff;
   }
 </style>
 </head>
 <body>
-<div id="root">
-  <div id="lobby">
-    <div class="title">Invaders MP · spike <span id="netcode" class="netcode">netcode v?</span><span id="ping" class="ping"></span><span id="transport" class="transport">relay</span></div>
-    <div class="room-line">
-      <span class="room-label">ROOM</span>
-      <span class="room-code" id="roomCode">····</span>
-    </div>
-    <div class="url" id="url">…</div>
-    <div class="row">
-      <input id="nameInput" class="name-input" maxlength="12" placeholder="Your name" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <button id="copyBtn">Copy link</button>
-      <button id="startBtn" class="primary" disabled>Start</button>
-      <button id="retryBtn" title="Force a fresh WebRTC handshake (use if the badge is stuck on relay after a late join)">Retry P2P</button>
-      <span id="seat"></span>
-    </div>
-    <div id="status">Connecting…</div>
-  </div>
-
-  <div id="stage">
+<!-- Cabinet shell — bezel + tube + CRT scanlines + vignette come from
+     shared/cabinet.css. The tube starts WITHOUT .is-ready so the
+     canvas is hidden and the prescreen overlay covers it; refreshLobby
+     adds .is-ready when game status flips to 'running' (canvas reveals,
+     prescreen fades). On gameover the class is removed → prescreen
+     comes back so a player can hit Start again to replay. -->
+<div id="stage" class="screen">
+  <div class="tube">
     <canvas id="cv" width="240" height="280"></canvas>
-    <div id="touch">
-      <div class="btn" id="tc-left">◀</div>
-      <div class="btn" id="tc-right">▶</div>
-      <div class="btn" id="tc-fire">FIRE</div>
+    <div class="overlay"></div>
+    <div class="vignette"></div>
+    <div class="touch-controls">
+      <div class="tc-group">
+        <button type="button" class="tc-btn" id="tc-left"  aria-label="Move left"  tabindex="-1">◀</button>
+        <button type="button" class="tc-btn" id="tc-right" aria-label="Move right" tabindex="-1">▶</button>
+      </div>
+      <div class="tc-group">
+        <button type="button" class="tc-btn tc-fire-btn" id="tc-fire" aria-label="Fire" tabindex="-1">FIRE</button>
+      </div>
+    </div>
+    <div id="prescreen">
+      <div class="title">Invaders MP · spike</div>
+
+      <div class="room-line">
+        <span class="room-label">ROOM</span>
+        <span class="room-code" id="roomCode">····</span>
+      </div>
+
+      <!-- QR + URL share targets. QR is the headline (friends scan to
+           join); URL stays as a copy/paste fallback. -->
+      <div class="share">
+        <div class="qr" id="qr"></div>
+        <div class="url" id="url">…</div>
+      </div>
+
+      <!-- One slot per seat, colour-coded. Slots are dimmed when empty,
+           lit when the seat is occupied, with a YOU badge on the local
+           seat. Names come from the snapshot so every viewer sees the
+           same lobby. -->
+      <div class="players">
+        <div class="player-slot" data-seat="p1"><div class="ps-label">P1</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p2"><div class="ps-label">P2</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p3"><div class="ps-label">P3</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p4"><div class="ps-label">P4</div><div class="ps-name">—</div></div>
+      </div>
+
+      <div class="row">
+        <input id="nameInput" class="name-input" maxlength="12" placeholder="Your name" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button id="copyBtn">Copy link</button>
+        <button id="startBtn" class="primary" disabled>Start</button>
+        <button id="retryBtn" title="Force a fresh WebRTC handshake (use if the badge is stuck on relay after a late join)">Retry P2P</button>
+      </div>
+
+      <div id="status">Connecting…</div>
+
+      <div class="meta">
+        <span id="netcode" class="netcode">netcode v?</span>
+        <span id="ping" class="ping"></span>
+        <span id="transport" class="transport">relay</span>
+      </div>
     </div>
   </div>
 </div>
@@ -185,6 +271,10 @@
 
 <script src="../shared/audio.js"></script>
 <script src="./simple-peer.min.js"></script>
+<!-- Kazuhiko Arase's qrcode-generator (MIT) — used to draw the
+     join-link QR in the prescreen lobby. Vendored locally so the
+     arcade site stays self-contained (no third-party CDN runtime). -->
+<script src="./qrcode.min.js"></script>
 <script type="module">
   // Single source of truth for game logic, shared with the server
   // (which bundles this same file via wrangler import).
@@ -283,6 +373,21 @@
 
   document.getElementById('url').textContent = location.href;
   document.getElementById('roomCode').textContent = roomCode;
+  renderQR(location.href);
+
+  // QR code for the join URL. Type 0 = auto-fit the smallest matrix
+  // that fits the URL; 'M' = medium error-correction (handles a 7-bit
+  // ASCII URL of this length comfortably and tolerates the small bit
+  // of camera blur on a phone). createImgTag emits a data-URL <img>;
+  // we size it via CSS in .qr img.
+  function renderQR(url) {
+    const el = document.getElementById('qr');
+    if (!el || typeof qrcode === 'undefined') return;
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    el.innerHTML = qr.createImgTag(4, 0);
+  }
 
   const netcodeEl = document.getElementById('netcode');
   const pingEl    = document.getElementById('ping');
@@ -353,7 +458,6 @@
   // --------------------------------------------------------------------
   // Lobby
   const statusEl = document.getElementById('status');
-  const seatEl   = document.getElementById('seat');
   const startBtn = document.getElementById('startBtn');
   const copyBtn  = document.getElementById('copyBtn');
 
@@ -782,7 +886,9 @@
   function handle(msg) {
     if (msg.type === 'welcome') {
       mySeat = msg.seat;
-      seatEl.textContent = 'You are ' + mySeat.toUpperCase();
+      // The local seat is indicated by the YOU badge on the player slot
+      // (refreshPlayerSlots renders it), so we no longer need a "You are
+      // P1" text node above the controls.
       // Tell the server our display name as soon as we have a seat
       // so the very first snapshot it broadcasts already includes it.
       if (myName) publishName();
@@ -859,6 +965,55 @@
     }
   }
 
+  // Cached once — the tube class toggle drives both canvas reveal
+  // (cabinet.css `.tube.is-ready canvas { visibility: visible }`) and
+  // prescreen fade (our `.tube.is-ready #prescreen` rule). Single
+  // class flip = entire UI transition.
+  const tube = document.querySelector('.tube');
+
+  // Player slot elements, indexed by seat position. Filled from
+  // refreshPlayerSlots on every snapshot.
+  const playerSlotEls = SEATS.map(s =>
+    document.querySelector(`.player-slot[data-seat="${s}"]`));
+
+  function refreshPlayerSlots() {
+    if (!lastState) return;
+    for (let i = 0; i < MAX_SEATS; i++) {
+      const slot = playerSlotEls[i];
+      if (!slot) continue;
+      const p = lastState.players[i];
+      // alive doubles as the occupancy mask the server applies before
+      // broadcasting (initState marks every fresh ship alive; the
+      // broadcast loop overwrites alive=false for any seat with no
+      // socket). Caveat: during 'gameover' a player who actually died
+      // also reads as alive=false here, so their slot briefly shows
+      // empty until Start triggers a fresh initState. Pragmatic for
+      // the spike; if it bites we'll add a dedicated `seats` field
+      // to the wire.
+      const occupied = !!p?.alive;
+      slot.classList.toggle('is-active', occupied);
+      slot.classList.toggle('is-empty', !occupied);
+      const nameEl = slot.querySelector('.ps-name');
+      if (occupied) {
+        const trimmed = (p.name || '').trim();
+        nameEl.textContent = trimmed || 'PLAYER';
+      } else {
+        nameEl.textContent = 'waiting…';
+      }
+      // YOU badge on the local seat (created lazily; idempotent).
+      const isYou = SEATS[i] === mySeat && occupied;
+      let youEl = slot.querySelector('.ps-you');
+      if (isYou && !youEl) {
+        youEl = document.createElement('div');
+        youEl.className = 'ps-you';
+        youEl.textContent = 'YOU';
+        slot.appendChild(youEl);
+      } else if (!isYou && youEl) {
+        youEl.remove();
+      }
+    }
+  }
+
   function refreshLobby() {
     if (!lastState) return;
     const s = lastState.status;
@@ -867,6 +1022,12 @@
     // proxy. During a running game players may legitimately be dead
     // — the count still reads as "currently active".
     const occupied = lastState.players.filter(p => p && p.alive).length;
+    // Reveal the cabinet (canvas visible + prescreen faded) once the
+    // countdown begins, so the 3-2-1 → ATTACK overlay paints on a
+    // visible canvas. Goes back to the prescreen on waiting/ready (no
+    // game yet) and gameover (so the player can hit Start to replay).
+    tube.classList.toggle('is-ready', s === 'countdown' || s === 'running');
+    refreshPlayerSlots();
     if (s === 'waiting') {
       setStatus('Waiting…');
       startBtn.disabled = true;
@@ -942,11 +1103,14 @@
     else if (e.key === ' ' || e.key === 'Spacebar') setInput('fire', false);
   });
 
-  // Touch — hold to engage. Track per-button so simultaneous left+fire works.
+  // Touch — hold to engage. Track per-button so simultaneous left+fire
+  // works. `is-pressed` matches the shared touch.css convention (the
+  // :active pseudo-class alone doesn't cover the "held while finger
+  // slides off" case).
   function bindTouch(elId, field) {
     const el = document.getElementById(elId);
-    const down = (e) => { e.preventDefault(); el.classList.add('active');    setInput(field, true);  };
-    const up   = (e) => { e.preventDefault(); el.classList.remove('active'); setInput(field, false); };
+    const down = (e) => { e.preventDefault(); el.classList.add('is-pressed');    setInput(field, true);  };
+    const up   = (e) => { e.preventDefault(); el.classList.remove('is-pressed'); setInput(field, false); };
     el.addEventListener('touchstart',  down, { passive: false });
     el.addEventListener('touchend',    up,   { passive: false });
     el.addEventListener('touchcancel', up,   { passive: false });
@@ -965,9 +1129,13 @@
   const ctx = canvas.getContext('2d');
 
   function fitCanvas() {
-    const stage = document.getElementById('stage');
-    const sw = stage.clientWidth  - 16;
-    const sh = stage.clientHeight - 16;
+    // Measure the tube, not the screen — the screen includes bezel
+    // padding; the tube is the actual visible playfield area. Subtract
+    // a small slack so the canvas doesn't touch the rounded-glass
+    // corners.
+    const tube = canvas.parentElement;          // .tube
+    const sw = tube.clientWidth  - 16;
+    const sh = tube.clientHeight - 16;
     const scale = Math.max(1, Math.floor(Math.min(sw / PF_W, sh / PF_H)));
     canvas.style.width  = (PF_W * scale) + 'px';
     canvas.style.height = (PF_H * scale) + 'px';
@@ -1188,6 +1356,20 @@
     if (renderNow < attackOverlayUntil) {
       const alpha = (attackOverlayUntil - renderNow) / 600;
       drawCenteredOverlay('ATTACK!', `rgba(255, 58, 161, ${alpha.toFixed(2)})`, 22);
+    }
+
+    // Score HUD — top-left corner, in-canvas so it lives inside the
+    // cabinet's CRT/scanlines instead of bleeding outside the tube.
+    // SP draws labels above values on two lines; we do the same so a
+    // running score doesn't push the label off-screen as digits grow.
+    if (latestSnap.status === 'running' || latestSnap.status === 'gameover') {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '6px "Press Start 2P", monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText('SCORE', 6, 4);
+      ctx.fillStyle = '#ffd84a';
+      ctx.fillText(String(latestSnap.score).padStart(4, '0'), 6, 12);
     }
   }
 
