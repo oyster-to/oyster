@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutGroup, motion } from "framer-motion";
 import { ArrowUpRight, Folder, FolderPlus, Shield } from "lucide-react";
 import type { Session, SessionState, DisplayState } from "../../data/sessions-api";
@@ -51,11 +51,6 @@ interface Props {
   onSpaceDelete?: (spaceId: string) => Promise<void> | void;
   /** Used by the breadcrumb-pill context menu (rename). */
   onSpaceUpdate?: (id: string, fields: { displayName?: string; color?: string }) => void;
-  /** Fires when the user toggles between the bare Home feed and a Home
-   *  sub-view (Pro vault preview or Unsorted orphans). App uses this to
-   *  drop the chat bar out of hero mode so it stops occluding sub-view
-   *  content. */
-  onSubViewActiveChange?: (active: boolean) => void;
   /** Spawn an in-app Claude PTY in the given project's recent path. */
   onLaunchClaude?: (projectId: string) => void;
   /** Resume a session in an Oyster terminal (`claude --resume <id>`). */
@@ -163,7 +158,7 @@ const FILTER_LABELS: Record<StateFilter, string> = {
   all: "all",
 };
 
-export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onSubViewActiveChange, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount }: Props) {
+export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount }: Props) {
   const presence = useTerminalPresence(sessions, terminalWindows ?? []);
   const signedIn = useAuthSignedIn();
   const myDevice = useMyDeviceId();
@@ -219,10 +214,9 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // so each space starts compact and at "all".
   const [artefactSource, setArtefactSource] = useState<ArtefactSource>("all");
   const [artefactsLimit, setArtefactsLimit] = useState(ARTEFACTS_PREVIEW);
-  // Elsewhere project-tile filter: orphan tiles aren't backed by a
-  // source row, so they're keyed by cwd instead of source_id. Lives
-  // alongside selectedProjectId; resets when scope changes.
-  const [selectedOrphanCwd, setSelectedOrphanCwd] = useState<string | null>(null);
+  // Cwd-based tile filter: drives session narrowing on both Home default
+  // and showElsewhere. Lives alongside selectedProjectId; resets when scope changes.
+  const [selectedCwd, setSelectedCwd] = useState<string | null>(null);
   // Cwd of the orphan tile currently mid-promotion (or mid-attach). Disables
   // every FolderPlus button so a slow server response can't kick off a
   // duplicate; also gates the picker popover. Set while either flow runs.
@@ -259,13 +253,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     }
   }, [isHomeView]);
 
-  // Tell App when the user is on a Home sub-view so it can drop the chat
-  // bar out of hero mode (otherwise the centered overlay occludes the
-  // vault preview / orphan tiles). Sub-views only exist while on Home.
-  useLayoutEffect(() => {
-    onSubViewActiveChange?.(isHomeView && (showVault || showElsewhere));
-  }, [isHomeView, showVault, showElsewhere, onSubViewActiveChange]);
-
   const showVaultPage = showVault && isHomeView;
 
   // Collapse limits + filter reset on scope change — switching from a
@@ -287,7 +274,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     } else {
       setSelectedProjectId(null);
     }
-    setSelectedOrphanCwd(null);
+    setSelectedCwd(null);
   }, [scopedSpace, showElsewhere, isHomeView]);
 
   // Auto-reset the live-terminals filter if there are no live terminals
@@ -323,15 +310,13 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
 
   // Folder-narrowed sessions: when a project tile is selected, sessions
   // filter to that source (or sessions without a source for VAULT, or
-  // by cwd when an Elsewhere orphan tile is picked).
+  // by cwd when a cwd-based tile is picked on Home or showElsewhere).
   const folderScopedSessions = useMemo(() => {
-    if (showElsewhere && isHomeView && selectedOrphanCwd) {
-      return scopedSessions.filter((s) => s.cwd === selectedOrphanCwd);
-    }
+    if (selectedCwd) return scopedSessions.filter((s) => s.cwd === selectedCwd);
     if (selectedProjectId === VAULT) return scopedSessions.filter((s) => !s.projectId);
-    if (selectedProjectId) return scopedSessions.filter((s) => s.projectId === selectedProjectId || s.cwd === selectedProjectId);
+    if (selectedProjectId) return scopedSessions.filter((s) => s.projectId === selectedProjectId);
     return scopedSessions;
-  }, [scopedSessions, selectedProjectId, selectedOrphanCwd, showElsewhere, isHomeView]);
+  }, [scopedSessions, selectedProjectId, selectedCwd]);
 
   const stateCounts = useMemo(() => {
     // Bucket by `displayState` (the wire's 5-state projection) so dormant
@@ -395,40 +380,39 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     return { sessionCountsBySpace: bySpace, orphanCounts: orphans, totalCounts: total };
   }, [sessions, presence.byId]);
 
-  // All projects with at least one session, sorted by most recent activity.
-  // Done + dormant sessions count toward the totals — live-ness is a visual
-  // cue on the tile (the green/amber/red pips), not the criterion for
-  // visibility. A project with 100 done sessions and zero live ones still
-  // shows up; the user can click into it.
+  // All projects with at least one session in the current scope, grouped by
+  // cwd (the natural project identity on disk). A folder with a mix of
+  // claimed + orphan sessions still produces a single tile. projectId and
+  // spaceId become metadata — used for the "jump to space" button when at
+  // least one session has them, ignored otherwise.
   const homeProjects = useMemo(() => {
     if (!isHomeView || showElsewhere) return [];
     const map = new Map<string, {
-      key: string;
+      cwd: string;
+      label: string;
       projectId: string | null;
       spaceId: string | null;
-      label: string;
       counts: { active: number; waiting: number; disconnected: number; done: number };
       lastEventAt: number;
     }>();
     for (const s of sessions) {
-      // Orphan sessions have neither projectId nor spaceId — group by cwd so
-      // they still appear as tiles. Sessions with no cwd at all are skipped
-      // (no way to label them).
-      const key = s.projectId ?? s.cwd ?? null;
-      if (!key) continue;
-      let entry = map.get(key);
+      if (!s.cwd) continue;
+      let entry = map.get(s.cwd);
       if (!entry) {
-        const cwdBasename = s.cwd ? s.cwd.split(/[\\/]/).filter(Boolean).pop() ?? null : null;
+        const cwdBasename = s.cwd.split(/[\\/]/).filter(Boolean).pop() ?? s.cwd;
         entry = {
-          key,
+          cwd: s.cwd,
+          label: cwdBasename,
           projectId: s.projectId ?? null,
           spaceId: s.spaceId ?? null,
-          label: cwdBasename ?? s.projectId ?? key,
           counts: { active: 0, waiting: 0, disconnected: 0, done: 0 },
           lastEventAt: 0,
         };
-        map.set(key, entry);
+        map.set(s.cwd, entry);
       }
+      // First non-null projectId/spaceId we see for this cwd wins as metadata.
+      if (!entry.projectId && s.projectId) entry.projectId = s.projectId;
+      if (!entry.spaceId && s.spaceId) entry.spaceId = s.spaceId;
       if (s.displayState === "active") entry.counts.active++;
       else if (s.displayState === "waiting") entry.counts.waiting++;
       else if (s.displayState === "disconnected") entry.counts.disconnected++;
@@ -916,16 +900,16 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             <div className="home-projects-grid">
               {homeProjects.map((p) => {
                 const space = p.spaceId ? spaces.find((s) => s.id === p.spaceId) : undefined;
-                const isSelected = selectedProjectId === p.key;
+                const isSelected = selectedCwd === p.cwd;
                 return (
                   <div
-                    key={p.key}
+                    key={p.cwd}
                     className={`home-projects-strip-tile${isSelected ? " selected" : ""}`}
                   >
                     <button
                       type="button"
                       className="home-projects-strip-tile-body"
-                      onClick={() => setSelectedProjectId(isSelected ? null : p.key)}
+                      onClick={() => setSelectedCwd(isSelected ? null : p.cwd)}
                       title={`Filter sessions to ${p.label}`}
                     >
                       {p.spaceId && (
@@ -967,7 +951,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           <div className="home-section home-projects-section">
             <div className="home-projects-grid">
               {orphanCwdGroups.map((p) => {
-                const isSelected = selectedOrphanCwd === p.cwd;
+                const isSelected = selectedCwd === p.cwd;
                 // Disable every promote button while *any* promotion is in
                 // flight — the click handler also short-circuits in that
                 // case, so the disabled state is honest about it.
@@ -980,7 +964,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                     <button
                       type="button"
                       className="home-projects-strip-tile-body"
-                      onClick={() => setSelectedOrphanCwd(isSelected ? null : p.cwd)}
+                      onClick={() => setSelectedCwd(isSelected ? null : p.cwd)}
                       title={p.cwd}
                     >
                       <div className="home-projects-strip-name home-projects-strip-name--folder">
