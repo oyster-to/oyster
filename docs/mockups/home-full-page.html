@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home — end to end</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --accent: #7c6bff;
+      --accent-bright: #a597ff;
+      --green: #4ade80;
+      --teal: #14b8a6;
+      --amber: #fbbf24;
+      --red: #f87171;
+      --orange: #fb923c;
+      --text: #f0f0f5;
+      --text-dim: rgba(232, 233, 240, 0.66);
+      --text-muted: rgba(232, 233, 240, 0.42);
+      --text-very-muted: rgba(232, 233, 240, 0.2);
+      --bg: rgba(30, 31, 54, 1);
+      --surface: rgba(12, 13, 28, 0.55);
+      --surface-tile: rgba(22, 24, 47, 0.6);
+      --surface-row: rgba(20, 21, 42, 0.4);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-strong: rgba(255, 255, 255, 0.12);
+      --border-accent: rgba(124, 107, 255, 0.4);
+      --font-body: 'Space Grotesk', -apple-system, sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: var(--bg); }
+    body {
+      font-family: var(--font-body);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 0 0 160px;
+      position: relative;
+    }
+    /* Background atmospherics */
+    .bg-glow {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse 70% 45% at 50% 8%, rgba(124,107,255,0.10) 0%, transparent 65%),
+        radial-gradient(ellipse 40% 30% at 88% 12%, rgba(167, 151, 255, 0.05) 0%, transparent 70%);
+    }
+    .bg-grain {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      opacity: 0.04;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.1' /></filter><rect width='200' height='200' filter='url(%23n)'/></svg>");
+    }
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 28px 32px 0;
+    }
+
+    /* ════ TOPBAR ════ */
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 56px;
+    }
+    .pill-group {
+      display: flex;
+      gap: 4px;
+      padding: 6px 8px;
+      background: rgba(20, 21, 42, 0.55);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      backdrop-filter: blur(20px);
+    }
+    .pill {
+      font-family: var(--font-body);
+      font-size: 12px;
+      color: var(--text-dim);
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: transparent;
+      cursor: pointer;
+      letter-spacing: -0.01em;
+      transition: color 0.15s, background 0.15s;
+    }
+    .pill:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .pill.selected {
+      background: var(--accent);
+      color: #fff;
+    }
+    .pill.selected:hover { background: var(--accent); }
+    .pill-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 22px;
+      padding: 0;
+    }
+    .pill-icon svg { width: 13px; height: 13px; }
+    .pill--add {
+      color: var(--text-muted);
+    }
+    .pill--add .plus {
+      color: var(--accent-bright);
+      font-weight: 600;
+      margin-right: 4px;
+    }
+    .pill-newsession {
+      background: rgba(124, 107, 255, 0.16);
+      color: var(--accent-bright);
+      border: 1px solid rgba(124, 107, 255, 0.35);
+      padding: 5px 14px;
+    }
+    .pill-dock {
+      padding: 6px 10px;
+      font-size: 14px;
+    }
+
+    /* ════ PAGE HEADING ════ */
+    .home-title {
+      font-family: var(--font-body);
+      font-size: 56px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1;
+      margin-bottom: 48px;
+    }
+
+    /* ════ PROJECTS GRID ════ */
+    .section { margin-bottom: 56px; }
+    .section-strip {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-bottom: 6px;
+    }
+    .section-name {
+      font-family: var(--font-body);
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .filter-chip {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-dim);
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.025);
+      border: none;
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .filter-chip:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+    .filter-chip.selected {
+      background: rgba(124, 107, 255, 0.18);
+      color: var(--accent-bright);
+      border: 1px solid rgba(124, 107, 255, 0.4);
+      padding: 2px 9px;
+    }
+    .filter-chip .pip {
+      width: 6px; height: 6px;
+      border-radius: 999px;
+    }
+    .filter-divider {
+      width: 1px;
+      height: 14px;
+      background: var(--border);
+      margin: 0 2px;
+    }
+    .filter-rule {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .view-toggle {
+      display: inline-flex;
+      gap: 0;
+      padding: 2px;
+      background: rgba(20, 21, 42, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .view-toggle button {
+      width: 26px;
+      height: 22px;
+      background: transparent;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .view-toggle button.active {
+      background: rgba(124, 107, 255, 0.2);
+      color: var(--accent-bright);
+    }
+    .view-toggle svg { width: 12px; height: 12px; }
+
+    .pip { display: inline-block; flex-shrink: 0; }
+    .pip-teal { background: var(--teal); }
+    .pip-green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .pip-amber { background: var(--amber); }
+    .pip-red { background: var(--red); }
+    .pip-dim { background: var(--text-very-muted); }
+    .pip-purple { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+    /* Tile grid */
+    .pgrid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .ptile {
+      padding: 12px 14px 10px;
+      background: var(--surface-tile);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 102px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .ptile:hover {
+      border-color: var(--border-strong);
+      background: rgba(28, 30, 60, 0.65);
+    }
+    .ptile.ghost { opacity: 0.55; }
+    .ptile-name {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--accent-bright);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .ptile-name .branch-icon {
+      width: 11px; height: 11px;
+      opacity: 0.55;
+      flex-shrink: 0;
+    }
+    .ptile-counts {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+    .ptile-counts .signal {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ptile-counts .pip { width: 6px; height: 6px; border-radius: 999px; }
+    .ptile-cta {
+      margin-top: auto;
+      padding-top: 4px;
+    }
+    .ptile-cta button {
+      width: 100%;
+      font-family: var(--font-body);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--accent-bright);
+      background: rgba(124, 107, 255, 0.10);
+      border: 1px solid rgba(124, 107, 255, 0.28);
+      border-radius: 7px;
+      padding: 6px 10px;
+      cursor: pointer;
+      letter-spacing: -0.01em;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .ptile-cta button:hover {
+      background: rgba(124, 107, 255, 0.22);
+      border-color: rgba(124, 107, 255, 0.5);
+    }
+    .ptile-cta button .plus {
+      color: var(--accent-bright);
+      font-weight: 600;
+      margin-right: 4px;
+    }
+    .ptile-cta button.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      color: var(--text-muted);
+      background: transparent;
+      border-color: var(--border);
+    }
+    .ptile-cta button.disabled .plus { color: var(--text-muted); }
+    .pgrid-footer {
+      margin-top: 14px;
+      display: flex;
+      justify-content: center;
+    }
+    .show-more-btn {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent-bright);
+      background: rgba(124, 107, 255, 0.08);
+      border: 1px solid rgba(124, 107, 255, 0.28);
+      border-radius: 999px;
+      padding: 6px 18px;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: background 0.15s;
+    }
+    .show-more-btn:hover { background: rgba(124, 107, 255, 0.18); }
+
+    /* ════ SESSIONS — FULL view (default rich rows) ════ */
+    .sessions-list {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .session-row-full {
+      display: grid;
+      grid-template-columns: 78px 1fr 84px;
+      align-items: center;
+      column-gap: 16px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .session-row-full:hover { background: rgba(255,255,255,0.02); }
+    .session-row-full:last-child { border-bottom: none; }
+    .session-row-full.ghost { opacity: 0.45; }
+    .srf-time {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-very-muted);
+    }
+    .srf-main { min-width: 0; }
+    .srf-line1 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .srf-pip {
+      width: 8px; height: 8px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+    .srf-title {
+      font-family: var(--font-body);
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      min-width: 0;
+    }
+    .srf-title.untitled { color: var(--text-muted); font-style: italic; font-weight: 400; }
+    .srf-state-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-very-muted);
+      flex-shrink: 0;
+    }
+    .srf-state-badge.live { color: var(--green); }
+    .srf-state-badge.waiting { color: var(--amber); }
+    .srf-state-badge.warning { color: var(--amber); }
+    .srf-line2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      flex-wrap: wrap;
+    }
+    .srf-project {
+      color: var(--accent-bright);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .srf-project .branch-icon {
+      width: 10px; height: 10px;
+      opacity: 0.6;
+    }
+    .srf-agent {
+      color: var(--orange);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .srf-agent .pip { width: 5px; height: 5px; border-radius: 999px; background: var(--orange); }
+    .srf-sep { color: var(--text-very-muted); }
+    .srf-reason { color: var(--text-muted); font-style: italic; }
+    .srf-artifact-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      color: var(--accent-bright);
+      background: rgba(124, 107, 255, 0.08);
+      border: 1px solid rgba(124, 107, 255, 0.18);
+      border-radius: 999px;
+      padding: 1px 7px 1px 6px;
+      cursor: pointer;
+    }
+    .srf-artifact-chip:hover { background: rgba(124, 107, 255, 0.18); }
+    .srf-artifact-chip-glyph { font-size: 9px; opacity: 0.8; }
+    .srf-action {
+      font-family: var(--font-body);
+      font-size: 12px;
+      color: var(--text-dim);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 14px;
+      cursor: pointer;
+      text-align: center;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .srf-action:hover {
+      color: var(--accent-bright);
+      border-color: var(--border-accent);
+      background: rgba(124, 107, 255, 0.08);
+    }
+
+    /* ════ SESSIONS — COMPACT view (one-line table) ════ */
+    .sessions-compact-head {
+      display: grid;
+      grid-template-columns: 56px 200px 1fr 160px 200px 80px;
+      gap: 16px;
+      padding: 10px 18px;
+      background: rgba(255,255,255,0.015);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-very-muted);
+    }
+    .session-row-compact {
+      display: grid;
+      grid-template-columns: 56px 200px 1fr 160px 200px 80px;
+      gap: 16px;
+      padding: 11px 18px;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .session-row-compact:hover { background: rgba(255,255,255,0.02); }
+    .session-row-compact:last-child { border-bottom: none; }
+    .src-state { display: inline-flex; }
+    .src-state .pip {
+      width: 8px; height: 8px;
+      border-radius: 999px;
+    }
+    .src-project { font-family: var(--font-mono); font-size: 12.5px; color: var(--accent-bright); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .src-title { font-family: var(--font-body); font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .src-title.untitled { color: var(--text-muted); font-style: italic; }
+    .src-agent { font-family: var(--font-mono); font-size: 11.5px; color: var(--orange); display: inline-flex; align-items: center; gap: 6px; }
+    .src-agent .pip { width: 6px; height: 6px; border-radius: 999px; background: var(--orange); }
+    .src-reason { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); }
+    .src-time { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); text-align: right; }
+
+    /* ════ FULL/COMPACT toggle ════ */
+    .view-toggle-text {
+      display: inline-flex;
+      gap: 0;
+      padding: 2px;
+      background: rgba(20, 21, 42, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+    }
+    .view-toggle-text button {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      background: transparent;
+      border: none;
+      border-radius: 5px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .view-toggle-text button:hover { color: var(--text); }
+    .view-toggle-text button.active {
+      background: rgba(124, 107, 255, 0.2);
+      color: var(--accent-bright);
+    }
+
+    /* ════ ARTEFACTS GRID ════ */
+    .artefacts-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
+    }
+    .artefact-card {
+      aspect-ratio: 1.15 / 1;
+      padding: 14px 14px 12px;
+      background: var(--surface-tile);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, transform 0.15s;
+      position: relative;
+    }
+    .artefact-card:hover {
+      border-color: var(--border-strong);
+      transform: translateY(-1px);
+    }
+    .artefact-icon {
+      width: 38px; height: 38px;
+      border-radius: 8px;
+      background: rgba(74, 222, 128, 0.10);
+      border: 1px solid rgba(74, 222, 128, 0.25);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--green);
+    }
+    .artefact-icon.kind-app {
+      background: rgba(124, 107, 255, 0.10);
+      border-color: rgba(124, 107, 255, 0.35);
+      color: var(--accent-bright);
+    }
+    .artefact-icon svg { width: 18px; height: 18px; }
+    .artefact-kind {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      letter-spacing: 0.1em;
+      color: var(--green);
+      opacity: 0.8;
+    }
+    .artefact-kind.kind-app { color: var(--accent-bright); }
+    .artefact-name {
+      font-family: var(--font-body);
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.35;
+      flex: 1;
+    }
+    .artefact-date {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--text-very-muted);
+      letter-spacing: 0.04em;
+    }
+
+    /* ════ MEMORIES (assumed as-is) ════ */
+    .memories-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .memory-row {
+      display: grid;
+      grid-template-columns: 1fr 90px;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .memory-row:last-child { border-bottom: none; }
+    .memory-body {
+      font-family: var(--font-body);
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .memory-body .memory-type {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--accent-bright);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-right: 8px;
+    }
+    .memory-time {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    /* ════ CHAT BAR (bottom) ════ */
+    .chat-anchor {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 64px);
+      max-width: 1036px;
+      z-index: 10;
+    }
+    .chat-bar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 18px 10px 14px;
+      background: rgba(11, 12, 22, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+    }
+    .chat-action {
+      width: 38px; height: 38px;
+      background: var(--accent);
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .chat-action svg { width: 18px; height: 18px; color: #fff; }
+    .chat-input {
+      flex: 1;
+      font-family: var(--font-body);
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+    .chat-send {
+      width: 36px; height: 36px;
+      background: rgba(124, 107, 255, 0.18);
+      border: 1px solid rgba(124, 107, 255, 0.4);
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .chat-send svg { width: 14px; height: 14px; color: var(--accent-bright); }
+
+  </style>
+</head>
+<body>
+  <div class="bg-glow"></div>
+  <div class="bg-grain"></div>
+  <div class="page">
+
+    <!-- ═══ TOPBAR ═══ -->
+    <div class="topbar">
+      <div class="pill-group">
+        <span class="pill">Sign in</span>
+        <span class="pill pill-icon selected"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.03 2.59a1.5 1.5 0 0 1 1.94 0l7.5 6.363A1.5 1.5 0 0 1 21 10.097V19.5a2.5 2.5 0 0 1-2.5 2.5H15v-4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v4H5.5A2.5 2.5 0 0 1 3 19.5v-9.403a1.5 1.5 0 0 1 .53-1.137l7.5-6.37Z"/></svg></span>
+        <span class="pill pill-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/></svg></span>
+        <span class="pill pill--add"><span class="plus">+</span>Space</span>
+      </div>
+      <div class="pill-group">
+        <span class="pill pill-newsession"><span style="color: var(--accent-bright); font-weight: 600; margin-right: 4px;">+</span>New session</span>
+        <span class="pill pill-dock">🦪</span>
+      </div>
+    </div>
+
+    <!-- ═══ HOME H1 ═══ -->
+    <h1 class="home-title">Your work.</h1>
+
+    <!-- ═══ PROJECTS SECTION ═══ -->
+    <section class="section">
+      <div class="section-strip">
+        <span class="section-name">Projects</span>
+        <span class="filter-chip selected">8 of 14 shown</span>
+        <span class="filter-rule"></span>
+      </div>
+
+      <div class="pgrid">
+        <!-- Row 1 -->
+        <div class="ptile">
+          <div class="ptile-name"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</div>
+          <div class="ptile-counts">
+            <span class="signal"><span class="pip pip-green"></span>3 active</span>
+            <span class="signal"><span class="pip pip-amber"></span>1 waiting</span>
+            <span class="signal"><span class="pip pip-dim"></span>35 done</span>
+          </div>
+          <div class="ptile-cta"><button><span class="plus">+</span>New session</button></div>
+        </div>
+        <div class="ptile">
+          <div class="ptile-name"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>blunderfixer</div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>7 done</span></div>
+          <div class="ptile-cta"><button><span class="plus">+</span>New session</button></div>
+        </div>
+        <div class="ptile">
+          <div class="ptile-name"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>tokinvest-website</div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>6 done</span></div>
+          <div class="ptile-cta"><button><span class="plus">+</span>New session</button></div>
+        </div>
+        <div class="ptile">
+          <div class="ptile-name">Matthew.Slight</div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>5 done</span></div>
+          <div class="ptile-cta"><button><span class="plus">+</span>New session</button></div>
+        </div>
+
+        <!-- Row 2 -->
+        <div class="ptile">
+          <div class="ptile-name"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>tokinvest-client-portal</div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>4 done</span></div>
+          <div class="ptile-cta"><button><span class="plus">+</span>New session</button></div>
+        </div>
+        <div class="ptile ghost">
+          <div class="ptile-name">oyster <span style="font-size: 10px; color: var(--amber); margin-left: 4px;">● no folder</span></div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>2 done</span></div>
+          <div class="ptile-cta"><button class="disabled" disabled><span class="plus">+</span>New session</button></div>
+        </div>
+        <div class="ptile">
+          <div class="ptile-name">Dev</div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>2 done</span></div>
+          <div class="ptile-cta"><button><span class="plus">+</span>New session</button></div>
+        </div>
+        <div class="ptile ghost">
+          <div class="ptile-name">oyster-os <span style="font-size: 10px; color: var(--amber); margin-left: 4px;">● no folder</span></div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>2 done</span></div>
+          <div class="ptile-cta"><button class="disabled" disabled><span class="plus">+</span>New session</button></div>
+        </div>
+      </div>
+
+      <div class="pgrid-footer">
+        <button class="show-more-btn">Show all 14 projects ▾</button>
+      </div>
+    </section>
+
+    <!-- ═══ SESSIONS SECTION ═══ -->
+    <section class="section">
+      <div class="section-strip">
+        <span class="section-name">Sessions</span>
+        <span class="filter-chip"><span>2 live</span></span>
+        <span class="filter-divider"></span>
+        <span class="filter-chip"><span class="pip pip-green"></span>1 active</span>
+        <span class="filter-chip"><span class="pip pip-amber"></span>1 waiting</span>
+        <span class="filter-chip"><span class="pip pip-dim"></span>106 done</span>
+        <span class="filter-chip selected">109 all</span>
+        <span class="filter-rule"></span>
+        <div class="view-toggle-text">
+          <button class="active">Full</button>
+          <button>Compact</button>
+        </div>
+      </div>
+
+      <div class="sessions-list">
+        <div class="session-row-full">
+          <div class="srf-time">6s ago</div>
+          <div class="srf-main">
+            <div class="srf-line1">
+              <span class="srf-pip pip-green"></span>
+              <span class="srf-title">refactor-splash-styles-dedup</span>
+              <span class="srf-state-badge live">active</span>
+            </div>
+            <div class="srf-line2">
+              <span class="srf-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-agent"><span class="pip"></span>claude-code</span>
+            </div>
+          </div>
+          <button class="srf-action">Open</button>
+        </div>
+
+        <div class="session-row-full">
+          <div class="srf-time">2 min</div>
+          <div class="srf-main">
+            <div class="srf-line1">
+              <span class="srf-pip pip-amber"></span>
+              <span class="srf-title">1.0 sessions-first first run</span>
+              <span class="srf-state-badge waiting">waiting</span>
+            </div>
+            <div class="srf-line2">
+              <span class="srf-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-agent"><span class="pip"></span>claude-code</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-artifact-chip"><span class="srf-artifact-chip-glyph">¶</span>install.md</span>
+              <span class="srf-artifact-chip"><span class="srf-artifact-chip-glyph">¶</span>home-tiles.html</span>
+            </div>
+          </div>
+          <button class="srf-action">Answer</button>
+        </div>
+
+        <div class="session-row-full">
+          <div class="srf-time">50 min</div>
+          <div class="srf-main">
+            <div class="srf-line1">
+              <span class="srf-pip pip-dim"></span>
+              <span class="srf-title">polish home tile design</span>
+            </div>
+            <div class="srf-line2">
+              <span class="srf-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-agent"><span class="pip"></span>claude-code</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-artifact-chip"><span class="srf-artifact-chip-glyph">¶</span>home-mock.html</span>
+            </div>
+          </div>
+          <button class="srf-action">Open</button>
+        </div>
+
+        <div class="session-row-full">
+          <div class="srf-time">7h</div>
+          <div class="srf-main">
+            <div class="srf-line1">
+              <span class="srf-pip pip-dim"></span>
+              <span class="srf-title untitled">Untitled</span>
+            </div>
+            <div class="srf-line2">
+              <span class="srf-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>tokinvest-client-portal</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-agent"><span class="pip"></span>claude-code</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-reason">stopped by user</span>
+            </div>
+          </div>
+          <button class="srf-action">Open</button>
+        </div>
+
+        <div class="session-row-full">
+          <div class="srf-time">17h</div>
+          <div class="srf-main">
+            <div class="srf-line1">
+              <span class="srf-pip pip-dim"></span>
+              <span class="srf-title">awesome-list PRs + launch drafts</span>
+            </div>
+            <div class="srf-line2">
+              <span class="srf-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-agent"><span class="pip"></span>claude-code</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-artifact-chip"><span class="srf-artifact-chip-glyph">¶</span>launch-2026-05-30-hn.md</span>
+            </div>
+          </div>
+          <button class="srf-action">Open</button>
+        </div>
+
+        <div class="session-row-full">
+          <div class="srf-time">1d</div>
+          <div class="srf-main">
+            <div class="srf-line1">
+              <span class="srf-pip pip-dim"></span>
+              <span class="srf-title">ok oyster arcade new game on a new worktree…</span>
+            </div>
+            <div class="srf-line2">
+              <span class="srf-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-agent"><span class="pip"></span>claude-code</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-reason">ran /exit</span>
+            </div>
+          </div>
+          <button class="srf-action">Open</button>
+        </div>
+
+        <div class="session-row-full">
+          <div class="srf-time">1d</div>
+          <div class="srf-main">
+            <div class="srf-line1">
+              <span class="srf-pip pip-dim"></span>
+              <span class="srf-title">Space Jumper PR 1 + co-design handoff</span>
+            </div>
+            <div class="srf-line2">
+              <span class="srf-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-agent"><span class="pip"></span>claude-code</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-reason">ran /exit</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-artifact-chip"><span class="srf-artifact-chip-glyph">▣</span>space-jumper.html</span>
+            </div>
+          </div>
+          <button class="srf-action">Open</button>
+        </div>
+
+        <div class="session-row-full">
+          <div class="srf-time">1d</div>
+          <div class="srf-main">
+            <div class="srf-line1">
+              <span class="srf-pip pip-dim"></span>
+              <span class="srf-title">session status palette redesign</span>
+            </div>
+            <div class="srf-line2">
+              <span class="srf-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-agent"><span class="pip"></span>claude-code</span>
+              <span class="srf-sep">·</span>
+              <span class="srf-reason">ran /exit</span>
+            </div>
+          </div>
+          <button class="srf-action">Open</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ ARTEFACTS SECTION ═══ -->
+    <section class="section">
+      <div class="section-strip">
+        <span class="section-name">Artefacts</span>
+        <span class="filter-chip selected">4 all</span>
+        <span class="filter-chip">4 mine</span>
+        <span class="filter-chip"><span class="pip pip-purple"></span>0 published</span>
+        <span class="filter-chip"><span class="pip pip-amber"></span>0 pinned</span>
+        <span class="filter-rule"></span>
+        <div class="view-toggle">
+          <button class="active"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+          <button><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+        </div>
+      </div>
+
+      <div class="artefacts-grid">
+        <div class="artefact-card">
+          <div class="artefact-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <span class="artefact-kind">NOTES</span>
+          <div class="artefact-name">Connect your AI</div>
+          <div class="artefact-date">14/04/2026</div>
+        </div>
+
+        <div class="artefact-card">
+          <div class="artefact-icon kind-app"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+          <span class="artefact-kind kind-app">APP</span>
+          <div class="artefact-name">Import Memories</div>
+          <div class="artefact-date">14/04/2026</div>
+        </div>
+
+        <div class="artefact-card">
+          <div class="artefact-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <span class="artefact-kind">NOTES</span>
+          <div class="artefact-name">Quick Start</div>
+          <div class="artefact-date">14/04/2026</div>
+        </div>
+
+        <div class="artefact-card">
+          <div class="artefact-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <span class="artefact-kind">NOTES</span>
+          <div class="artefact-name">Where do my files live?</div>
+          <div class="artefact-date">4 weeks ago</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ MEMORIES SECTION (assumed as-is) ═══ -->
+    <section class="section">
+      <div class="section-strip">
+        <span class="section-name">Memories</span>
+        <span class="filter-chip selected">3 recent</span>
+        <span class="filter-rule"></span>
+      </div>
+
+      <div class="memories-wrap">
+        <div class="memory-row">
+          <div class="memory-body">
+            <span class="memory-type">Preference</span>
+            CHANGELOG.md is user-facing only — no internal file paths, MCP tool names, or implementation language.
+          </div>
+          <div class="memory-time">today</div>
+        </div>
+        <div class="memory-row">
+          <div class="memory-body">
+            <span class="memory-type">Project</span>
+            1.0 launch SKU planned for end-of-week pending oystertestone cold-install validation.
+          </div>
+          <div class="memory-time">2h ago</div>
+        </div>
+        <div class="memory-row">
+          <div class="memory-body">
+            <span class="memory-type">Reference</span>
+            Launch drafts live at <span style="font-family: var(--font-mono); color: var(--accent-bright); font-size: 12px;">~/Dev/project-notes/oyster/</span> — pattern: <span style="font-family: var(--font-mono); color: var(--accent-bright); font-size: 12px;">launch-YYYY-MM-DD-target.md</span>.
+          </div>
+          <div class="memory-time">yesterday</div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ═══ STICKY CHAT BAR ═══ -->
+  <div class="chat-anchor">
+    <div class="chat-bar">
+      <span class="chat-action"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+      <span class="chat-input">What's on your mind?</span>
+      <span class="chat-send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></span>
+    </div>
+  </div>
+</body>
+</html>

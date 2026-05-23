@@ -20,14 +20,6 @@ const placeholders = [
   "Describe what you're building...",
 ];
 
-const taglines = [
-  { dim: "Go on,", bright: "open the shell." },
-  { dim: "Your next idea", bright: "is waiting." },
-  { dim: "The pearl", bright: "won't find itself." },
-  { dim: "Still thinking?", bright: "Good. Type it." },
-  { dim: "One prompt away", bright: "from something great." },
-  { dim: "Don't be shy.", bright: "The shell listens." },
-];
 
 function ReasoningBlock({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
@@ -87,7 +79,6 @@ const SLASH_COMMANDS = [
 
 interface Props {
   onOpenTerminal: () => void;
-  isHero?: boolean;
   spaces?: Space[];
   activeSpace?: string;
   onSpaceChange?: (space: string) => void;
@@ -96,26 +87,31 @@ interface Props {
   onArtifactOpen?: (artifact: Artifact) => void;
   onArtifactPublish?: (artifact: Artifact) => void;
   onArtifactUnpublish?: (artifact: Artifact) => void;
-  isFirstRun?: boolean;
   onAiError?: (message: string | null) => void;
 }
 
-export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activeSpace, onSpaceChange, inputRef: externalInputRef, artifacts = [], onArtifactOpen, onArtifactPublish, onArtifactUnpublish, isFirstRun, onAiError }: Props) {
+export function ChatBar({ onOpenTerminal, spaces = [], activeSpace, onSpaceChange, inputRef: externalInputRef, artifacts = [], onArtifactOpen, onArtifactPublish, onArtifactUnpublish, onAiError }: Props) {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [statusText, setStatusText] = useState("");
-  const [focused, setFocused] = useState(false);
-  const [tagline, setTagline] = useState<{ dim: string; bright: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
-  const taglineIndexRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const localInputRef = useRef<HTMLInputElement>(null);
   const inputRef = externalInputRef || localInputRef;
   const [placeholder, setPlaceholder] = useState(() => placeholders[Math.floor(Math.random() * placeholders.length)]);
   const placeholderIndexRef = useRef(0);
-  const isHero = !!isHeroProp;
+  const [providerConfigured, setProviderConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/chat/provider-status")
+      .then((r) => (r.ok ? r.json() : { configured: false }))
+      .then((data) => { if (!cancelled) setProviderConfigured(Boolean(data.configured)); })
+      .catch(() => { if (!cancelled) setProviderConfigured(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const { messages, setMessages, sessionId, expanded, setExpanded, pushSessionUrl } = useChatSession();
 
@@ -284,7 +280,8 @@ export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activ
 
   // Queue for prompts dispatched before the chat session has finished
   // initialising. createSession() can take a few seconds while OpenCode
-  // boots; without this, clicking "Set up Oyster" during the boot window
+  // boots; without this, a prompt dispatched via the `oyster:send-prompt`
+  // event (or a typed-then-submitted prompt) during the boot window
   // silently no-ops because handleSend bails on `!sessionId`. Now we
   // capture the latest pending text and drain it once sessionId arrives.
   const pendingPromptRef = useRef<string | null>(null);
@@ -447,9 +444,9 @@ export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activ
     handleSend(queued);
   }, [sessionId, streaming, handleSend]);
 
-  // Cross-component prompt trigger. Other surfaces (currently the onboarding
-  // dock's "Set up Oyster" button) dispatch `oyster:send-prompt` with a text
-  // payload to fire the same handleSend path as the hero CTA. Detail.text
+  // Cross-component prompt trigger. Any component that wants to pre-fill
+  // the chat (e.g. the onboarding dock) can dispatch `oyster:send-prompt` with a text
+  // payload. Detail.text
   // must be a non-empty string; we don't auto-focus the input or change the
   // chat-expand state — handleSend manages all of that.
   useEffect(() => {
@@ -476,53 +473,7 @@ export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activ
   }
 
   return (
-    <div ref={wrapperRef} className={`chatbar-wrapper ${isHero ? "chatbar-hero" : ""}`}>
-      {/* Hero tagline — one block, three states */}
-      {/* Hidden when the input is focused OR once any chat message exists,
-          so it doesn't reappear behind streamed output if the user clicks
-          out of the input. */}
-      {isHero && (() => {
-        const taglineHidden = focused || messages.length > 0;
-        return (
-        <div
-          className={`chatbar-hero-tagline${taglineHidden ? " tagline-hidden" : ""}`}
-          aria-hidden={taglineHidden || undefined}
-        >
-          {isFirstRun ? (
-            <>
-              <span className="tagline-bright">Welcome to your surface.</span>
-              <div className="chatbar-hero-sub">
-                Ask:{" "}
-                <button
-                  type="button"
-                  className="chatbar-hero-prompt"
-                  onClick={() => handleSend("Set up Oyster")}
-                  // Only block during an active stream — when sessionId is
-                  // null (chat still booting), the click queues and fires
-                  // automatically once the session arrives.
-                  disabled={streaming}
-                  tabIndex={taglineHidden ? -1 : 0}
-                  title="Click to send, or type it yourself"
-                >
-                  Set up Oyster
-                </button>
-              </div>
-            </>
-          ) : tagline ? (
-            <>
-              <span className="tagline-dim">{tagline.dim}</span>{" "}
-              <span className="tagline-bright">{tagline.bright}</span>
-            </>
-          ) : (
-            <>
-              <span className="tagline-dim">Apps are dead.</span>{" "}
-              <span className="tagline-bright">Welcome to your surface.</span>
-            </>
-          )}
-        </div>
-        );
-      })()}
-
+    <div ref={wrapperRef} className="chatbar-wrapper">
       {/* Messages panel — expands upward */}
       {messages.length > 0 && (
         <div className={`chatbar-messages ${expanded ? "chat-expanded" : "chat-collapsed"}${slashOpen ? " slash-dimmed" : ""}`}>
@@ -644,6 +595,14 @@ export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activ
         {streaming && statusText ? (
           <div className="chatbar-status">{statusText}</div>
         ) : null}
+        {providerConfigured === false ? (
+          <div className="chatbar-add-provider">
+            <span className="chatbar-add-provider-text">
+              No chat provider yet. Run <code className="chatbar-add-provider-code">opencode auth login</code> in your terminal to set one up.
+            </span>
+          </div>
+        ) : (
+        <>
         <input
           ref={inputRef}
           type="text"
@@ -703,19 +662,15 @@ export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activ
             if (e.key === "Enter") handleSend();
           }}
           onFocus={() => {
-            setFocused(true);
             if (messages.length > 0) setExpanded(true);
           }}
           onBlur={() => {
             if (!input.trim()) {
-              setFocused(false);
-              setTagline(taglines[taglineIndexRef.current % taglines.length]);
-              taglineIndexRef.current++;
               setPlaceholder(placeholders[placeholderIndexRef.current % placeholders.length]);
               placeholderIndexRef.current++;
             }
           }}
-          placeholder={streaming ? "" : (isHero && !focused ? "" : placeholder)}
+          placeholder={streaming ? "" : placeholder}
           disabled={streaming}
           className={`chatbar-input ${streaming ? "chatbar-input-streaming" : ""}`}
         />
@@ -726,6 +681,8 @@ export function ChatBar({ onOpenTerminal, isHero: isHeroProp, spaces = [], activ
         >
           {streaming ? "..." : "↑"}
         </button>
+        </>
+        )}
       </div>
 
     </div>

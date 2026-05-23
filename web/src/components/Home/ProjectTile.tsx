@@ -15,7 +15,7 @@ export function ProjectTile({
 }: {
   project: Project;
   artefactCount: number;
-  sessionCounts?: { running: number; active: number; waiting: number; disconnected: number };
+  sessionCounts?: { running: number; active: number; waiting: number; disconnected: number; done: number };
   selected: boolean;
   onSelect: () => void;
   onChanged: () => void;
@@ -53,7 +53,8 @@ export function ProjectTile({
     setBusy(true);
     try {
       await deleteProject(project.id);
-      if (willCollapseSpace) await onSpaceDelete!(project.spaceId);
+      // project.spaceId can be null for orphan projects; onSpaceDelete is only meaningful in a space context
+      if (willCollapseSpace && project.spaceId) await onSpaceDelete!(project.spaceId);
       onChanged();
       setConfirmOpen(false);
     } catch (err) {
@@ -122,7 +123,11 @@ export function ProjectTile({
             {sessionCounts && sessionCounts.running > 0 && <span className="signal"><span className="pip pip-teal" />{sessionCounts.running} running</span>}
             {sessionCounts && sessionCounts.active > 0 && <span className="signal"><span className="pip pip-green" />{sessionCounts.active} active</span>}
             {sessionCounts && sessionCounts.waiting > 0 && <span className="signal"><span className="pip pip-amber" />{sessionCounts.waiting} waiting</span>}
-            <span className="signal"><span className="pip pip-dim" />{artefactCount} {artefactCount === 1 ? "artefact" : "artefacts"}</span>
+            {artefactCount > 0 ? (
+              <span className="signal"><span className="pip pip-dim" />{artefactCount} {artefactCount === 1 ? "artefact" : "artefacts"}</span>
+            ) : sessionCounts && sessionCounts.done > 0 ? (
+              <span className="signal"><span className="pip pip-dim" />{sessionCounts.done} done</span>
+            ) : null}
             {project.hasLivePath === false && (
               <span
                 className="signal"
@@ -134,6 +139,21 @@ export function ProjectTile({
             )}
           </div>
         </button>
+        {onLaunchClaude && (
+          <button
+            type="button"
+            className="home-project-tile-newsession"
+            onClick={(e) => { e.stopPropagation(); onLaunchClaude(project.id); }}
+            disabled={project.hasLivePath === false}
+            title={
+              project.hasLivePath === false
+                ? "This project has no folder on this machine."
+                : `Run claude in ${project.recentPath ?? project.name}`
+            }
+          >
+            <span className="plus">+</span> New session
+          </button>
+        )}
         <button
           type="button"
           className={`home-project-tile-more${menuOpen ? " open" : ""}`}
@@ -235,7 +255,7 @@ export function ProjectTile({
           ? `Delete "${project.name}" and the space?`
           : `Delete "${project.name}"?`}
         body={willCollapseSpace ? (
-          <>This is the only project in this space. Deleting it removes the space too; {sessionPhrase} fall back to Everything else.</>
+          <>This is the only project in this space. Deleting it removes the space too; {sessionPhrase} fall back to All.</>
         ) : (
           <>Sessions and artefacts attributed to this project become orphan but stay in the space. Reattach later by creating a new project and using "Claim folder".</>
         )}

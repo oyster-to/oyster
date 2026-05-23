@@ -839,6 +839,38 @@ export function initDb(userlandDir: string): Database.Database {
     `);
   }
 
+  // Allow orphan projects (project rows without a space). Pre-1.0 schema
+  // change — `projects.space_id NOT NULL` is dropped to support
+  // cwd-derived projects that haven't been claimed into a space yet.
+  // Idempotent: skips when space_id is already nullable.
+  try {
+    const info = db.prepare("PRAGMA table_info(projects)").all() as Array<{ name: string; notnull: number }>;
+    const spaceIdCol = info.find((c) => c.name === "space_id");
+    if (spaceIdCol && spaceIdCol.notnull === 1) {
+      db.exec("PRAGMA foreign_keys = OFF");
+      const tx = db.transaction(() => {
+        db.exec(`
+          CREATE TABLE projects_migrate (
+            id          TEXT PRIMARY KEY,
+            space_id    TEXT REFERENCES spaces(id) ON DELETE SET NULL,
+            name        TEXT NOT NULL,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            removed_at  TEXT
+          )
+        `);
+        db.exec("INSERT INTO projects_migrate SELECT * FROM projects");
+        db.exec("DROP TABLE projects");
+        db.exec("ALTER TABLE projects_migrate RENAME TO projects");
+        db.exec("CREATE INDEX IF NOT EXISTS projects_space_id ON projects(space_id) WHERE removed_at IS NULL");
+      });
+      tx();
+      db.exec("PRAGMA foreign_keys = ON");
+    }
+  } catch (err) {
+    console.error("[db] projects.space_id null migration failed:", err);
+    throw err;
+  }
+
   // Stale-indicator reset. PTYs live in-memory only — they don't survive a
   // server restart, so any non-null terminal_id or non-zero attached count
   // from the previous boot is meaningless.
@@ -868,27 +900,68 @@ export function runDeferredMigrations(db: Database.Database): void {
   const existing = db.prepare(
     "SELECT 1 FROM app_state WHERE key = 'protocol_artifact_backfill_v2_done'",
   ).get();
-  if (existing) return;
+  if (!existing) {
+    console.log("[db] running deferred backfill: protocol_artifact_backfill_v2");
+    const t0 = performance.now();
+    // UPDATE + flag-write commit together — otherwise an interrupt between
+    // them leaves the DB half-migrated and the gate set, so we never retry.
+    const applied = db.transaction(() => {
+      const result = db.prepare(`
+        UPDATE session_events
+           SET is_protocol_artifact = 1
+         WHERE is_protocol_artifact = 0
+           AND role = 'system'
+           AND ltrim(text, ' ' || char(9) || char(10) || char(13)) LIKE 'local_command:%'
+      `).run();
+      db.prepare(
+        `INSERT OR IGNORE INTO app_state (key, value, applied_at)
+         VALUES ('protocol_artifact_backfill_v2_done', '1', ?)`,
+      ).run(Date.now());
+      return result;
+    })();
+    console.log(`[db] protocol_artifact_backfill_v2 complete: marked ${applied.changes} rows in ${Math.round(performance.now() - t0)}ms`);
+  }
 
-  console.log("[db] running deferred backfill: protocol_artifact_backfill_v2");
-  const t0 = performance.now();
-  // UPDATE + flag-write commit together — otherwise an interrupt between
-  // them leaves the DB half-migrated and the gate set, so we never retry.
-  const applied = db.transaction(() => {
-    const result = db.prepare(`
-      UPDATE session_events
-         SET is_protocol_artifact = 1
-       WHERE is_protocol_artifact = 0
-         AND role = 'system'
-         AND ltrim(text, ' ' || char(9) || char(10) || char(13)) LIKE 'local_command:%'
-    `).run();
+  // Backfill: every orphan session (project_id IS NULL) gets a Project row
+  // keyed by its cwd. Idempotent: only inserts when no project_path row
+  // already maps that cwd.
+  const orphanBackfillFlag = db.prepare(
+    "SELECT 1 FROM app_state WHERE key = 'cwd_project_backfill_v1_done'",
+  ).get();
+  if (!orphanBackfillFlag) {
+    console.log("[db] running deferred backfill: cwd_project_backfill_v1");
+    const bfT0 = performance.now();
+    const orphanCwds = db.prepare(
+      `SELECT DISTINCT cwd FROM sessions WHERE project_id IS NULL AND cwd IS NOT NULL AND cwd != ''`,
+    ).all() as Array<{ cwd: string }>;
+    let createdProjects = 0;
+    let updatedSessions = 0;
+    for (const { cwd } of orphanCwds) {
+      const existing = db.prepare(
+        `SELECT pp.project_id FROM project_paths pp
+         JOIN projects p ON p.id = pp.project_id
+         WHERE pp.path = ? AND p.removed_at IS NULL LIMIT 1`,
+      ).get(cwd) as { project_id: string } | undefined;
+      let projectId: string;
+      if (existing) {
+        projectId = existing.project_id;
+      } else {
+        const basename = cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd;
+        projectId = crypto.randomUUID();
+        db.prepare("INSERT INTO projects (id, space_id, name) VALUES (?, NULL, ?)").run(projectId, basename);
+        db.prepare("INSERT INTO project_paths (project_id, path) VALUES (?, ?)").run(projectId, cwd);
+        createdProjects++;
+      }
+      const result = db.prepare(
+        "UPDATE sessions SET project_id = ? WHERE project_id IS NULL AND cwd = ?",
+      ).run(projectId, cwd);
+      updatedSessions += Number(result.changes);
+    }
     db.prepare(
-      `INSERT OR IGNORE INTO app_state (key, value, applied_at)
-       VALUES ('protocol_artifact_backfill_v2_done', '1', ?)`,
+      `INSERT OR IGNORE INTO app_state (key, value, applied_at) VALUES ('cwd_project_backfill_v1_done', '1', ?)`,
     ).run(Date.now());
-    return result;
-  })();
-  console.log(`[db] protocol_artifact_backfill_v2 complete: marked ${applied.changes} rows in ${Math.round(performance.now() - t0)}ms`);
+    console.log(`[db] cwd_project_backfill_v1 complete: created ${createdProjects} projects, updated ${updatedSessions} sessions in ${Math.round(performance.now() - bfT0)}ms`);
+  }
 }
 
 /**

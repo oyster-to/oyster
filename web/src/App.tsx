@@ -120,10 +120,6 @@ export default function App() {
   const [viewerHash, setViewerHash] = useState<string>(() => getUrlState().hash);
   const [connected, setConnected] = useState(true);
   const [aiError, setAiError] = useState<string | null>(null);
-  // True when the user is on a Home sub-view (Pro vault preview or Unsorted
-  // orphans) rather than the bare Home feed. Lifted from Home so the chat
-  // bar can drop out of hero mode and stop occluding sub-view content.
-  const [homeSubViewActive, setHomeSubViewActive] = useState(false);
   // Active proposal from the agent's `propose_setup` MCP tool (broadcast
   // via SSE). Standalone overlay — not coupled to the chat. Triggered by
   // the agent during first-run setup; cleared on Apply / Close.
@@ -309,18 +305,6 @@ export default function App() {
     }
   }, [handleSpaceChange]);
 
-  // Hero mode = chat bar centred + large. Reserved for the truly empty Home
-  // (no spaces, no work yet). The moment a user has real spaces, the chat
-  // bar drops to its compact bottom position even on the Home pill —
-  // otherwise the spaces / sessions / artefacts feed reads as decoration
-  // beneath an oversized prompt.
-  const isFirstRun = FORCE_ONBOARDING ||
-    spaces.filter(s => s.id !== "home" && s.id !== "__all__").length === 0;
-  // Hero only on the bare Home feed. The Pro and Unsorted pills are sub-views
-  // *inside* Home (activeSpace stays "home"), so we also gate on the lifted
-  // sub-view flag — otherwise the centered hero chat bar would occlude the
-  // vault preview / orphan tiles behind it.
-  const isHero = activeSpace === "home" && isFirstRun && !homeSubViewActive;
 
   const viewers = windows.filter((w) => w.type === "viewer");
   const terminalWindow = windows.find((w) => w.type === "terminal");
@@ -613,12 +597,10 @@ export default function App() {
       <Home
         activeSpace={activeSpace}
         spaces={spaces}
-        isHero={isHero}
         onSpaceChange={handleSpaceChange}
         onPromoteFolderToSpace={handlePromoteFolderToSpace}
         onSpaceDelete={handleSpaceDelete}
         onSpaceUpdate={handleSpaceUpdate}
-        onSubViewActiveChange={setHomeSubViewActive}
         onLaunchClaude={handleLaunchClaudeFromProject}
         onLaunchClaudeFromSession={handleLaunchClaudeFromSession}
         onOpenRemoteInOyster={handleOpenRemoteInOyster}
@@ -854,7 +836,6 @@ export default function App() {
 
       <ChatBar
         onOpenTerminal={handleOpenTerminal}
-        isHero={isHero}
         spaces={spaces}
         activeSpace={activeSpace}
         onSpaceChange={handleSpaceChange}
@@ -863,7 +844,6 @@ export default function App() {
         onArtifactOpen={handleArtifactClick}
         onArtifactPublish={handleArtifactPublish}
         onArtifactUnpublish={handleArtifactUnpublish}
-        isFirstRun={isFirstRun}
         onAiError={setAiError}
       />
 

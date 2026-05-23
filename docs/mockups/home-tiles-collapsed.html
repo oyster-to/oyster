@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home — collapse the tile grid to top 2 rows</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --accent: #7c6bff;
+      --accent-bright: #a597ff;
+      --green: #4ade80;
+      --amber: #fbbf24;
+      --red: #f87171;
+      --text: #f0f0f5;
+      --text-dim: rgba(232, 233, 240, 0.6);
+      --text-muted: rgba(232, 233, 240, 0.36);
+      --text-very-muted: rgba(232, 233, 240, 0.2);
+      --surface: rgba(12, 13, 28, 0.6);
+      --surface-tile: rgba(22, 24, 47, 0.6);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-strong: rgba(255, 255, 255, 0.12);
+      --font-body: 'Space Grotesk', -apple-system, sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-body);
+      color: var(--text);
+      background: rgba(30, 31, 54, 1);
+      min-height: 100vh;
+      padding: 48px 0 120px;
+    }
+    .glow {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background: radial-gradient(ellipse 70% 45% at 50% 10%, rgba(124,107,255,0.08) 0%, transparent 60%);
+    }
+    .page { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 32px; }
+    .page-title { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
+    .page-subtitle {
+      font-size: 14px; color: var(--text-dim);
+      margin-bottom: 36px; max-width: 760px; line-height: 1.65;
+    }
+    .page-subtitle strong { color: var(--text); font-weight: 600; }
+
+    .scene {
+      padding: 28px 32px 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      margin-bottom: 36px;
+    }
+    .scene-label {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--accent-bright);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .scene-title {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+    }
+    .scene-desc {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.6;
+      margin-bottom: 24px;
+      max-width: 720px;
+    }
+
+    .topbar-mock-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .topbar-mock {
+      display: flex;
+      gap: 6px;
+      padding: 6px 10px;
+      background: rgba(20, 21, 42, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+    }
+    .pill {
+      font-family: var(--font-body);
+      font-size: 12px;
+      color: var(--text-dim);
+      padding: 5px 11px;
+      border-radius: 999px;
+    }
+    .pill.selected { background: var(--accent); color: #fff; }
+
+    .home-title {
+      font-family: var(--font-body);
+      font-size: 48px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 8px 0 24px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .ptile {
+      padding: 14px 16px;
+      background: var(--surface-tile);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 84px;
+    }
+    .ptile:hover { border-color: var(--border-strong); }
+    .ptile.ghost { opacity: 0.6; }
+    .ptile-name {
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      color: var(--accent-bright);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .ptile-name .branch-icon {
+      width: 11px;
+      height: 11px;
+      color: var(--accent-bright);
+      opacity: 0.7;
+    }
+    .ptile-counts {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .signal {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .pip {
+      width: 6px; height: 6px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+    .pip-green { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .pip-amber { background: var(--amber); }
+    .pip-dim { background: var(--text-very-muted); }
+
+    /* Show-more affordance */
+    .grid-footer {
+      display: flex;
+      justify-content: center;
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+    .show-more {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--accent-bright);
+      background: rgba(124, 107, 255, 0.08);
+      border: 1px solid rgba(124, 107, 255, 0.28);
+      border-radius: 999px;
+      padding: 6px 16px;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .show-more:hover {
+      background: rgba(124, 107, 255, 0.18);
+      border-color: rgba(124, 107, 255, 0.5);
+    }
+    .show-more-collapse {
+      background: transparent;
+      color: var(--text-muted);
+      border-color: var(--border);
+    }
+    .show-more-collapse:hover {
+      color: var(--text);
+      border-color: var(--border-strong);
+    }
+
+    .compare-note {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.65;
+      padding: 18px 22px;
+      background: rgba(124, 107, 255, 0.06);
+      border: 1px solid rgba(124, 107, 255, 0.18);
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    .compare-note strong { color: var(--accent-bright); font-weight: 600; }
+    .compare-note code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: rgba(255,255,255,0.05);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="page">
+    <h1 class="page-title">Home — collapse the tile grid</h1>
+    <p class="page-subtitle">
+      Tile content stays as it is today. Grid shows <strong>first 2 rows (8 tiles) by default</strong>, sorted by session count desc.
+      A <code>Show more (N) ▾</code> control reveals the rest. Click it again to collapse.
+    </p>
+
+    <!-- ──────────────────────────────────────────────────────
+         SCENE 1 — COLLAPSED (default)
+         ────────────────────────────────────────────────────── -->
+    <div class="scene">
+      <div class="scene-label">Scene 1 · Collapsed (default)</div>
+      <div class="scene-title">Top 2 rows visible, sorted by session count</div>
+      <div class="scene-desc">
+        Busiest projects first — <code>oyster-dev</code> (39 sessions) leads, then blunderfixer (7), tokinvest-website (6), etc.
+        First 8 tiles render. The other 6 are one click away.
+      </div>
+
+      <div class="topbar-mock-row">
+        <div class="topbar-mock">
+          <span class="pill">Sign in</span>
+          <span class="pill selected">🏠</span>
+          <span class="pill">🛡</span>
+          <span class="pill">+ Space</span>
+        </div>
+        <div class="topbar-mock">
+          <span class="pill">+ New session</span>
+          <span class="pill">🦪</span>
+        </div>
+      </div>
+
+      <h2 class="home-title">Your work.</h2>
+
+      <div class="grid">
+        <!-- Row 1: busiest 4 -->
+        <div class="ptile">
+          <div class="ptile-name"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</div>
+          <div class="ptile-counts">
+            <span class="signal"><span class="pip pip-green"></span>3 active</span>
+            <span class="signal"><span class="pip pip-amber"></span>1 waiting</span>
+            <span class="signal"><span class="pip pip-dim"></span>35 done</span>
+          </div>
+        </div>
+
+        <div class="ptile">
+          <div class="ptile-name"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>blunderfixer</div>
+          <div class="ptile-counts">
+            <span class="signal"><span class="pip pip-dim"></span>7 done</span>
+          </div>
+        </div>
+
+        <div class="ptile">
+          <div class="ptile-name"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>tokinvest-website</div>
+          <div class="ptile-counts">
+            <span class="signal"><span class="pip pip-dim"></span>6 done</span>
+          </div>
+        </div>
+
+        <div class="ptile">
+          <div class="ptile-name">Matthew.Slight</div>
+          <div class="ptile-counts">
+            <span class="signal"><span class="pip pip-dim"></span>5 done</span>
+          </div>
+        </div>
+
+        <!-- Row 2: next 4 -->
+        <div class="ptile">
+          <div class="ptile-name"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>tokinvest-client-portal</div>
+          <div class="ptile-counts">
+            <span class="signal"><span class="pip pip-dim"></span>4 done</span>
+          </div>
+        </div>
+
+        <div class="ptile ghost">
+          <div class="ptile-name">oyster <span style="font-size: 10px; color: var(--amber); margin-left: 2px;">● no folder</span></div>
+          <div class="ptile-counts">
+            <span class="signal"><span class="pip pip-dim"></span>2 done</span>
+          </div>
+        </div>
+
+        <div class="ptile">
+          <div class="ptile-name">Dev</div>
+          <div class="ptile-counts">
+            <span class="signal"><span class="pip pip-dim"></span>2 done</span>
+          </div>
+        </div>
+
+        <div class="ptile ghost">
+          <div class="ptile-name">oyster-os <span style="font-size: 10px; color: var(--amber); margin-left: 2px;">● no folder</span></div>
+          <div class="ptile-counts">
+            <span class="signal"><span class="pip pip-dim"></span>2 done</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-footer">
+        <button class="show-more">Show more (6) ▾</button>
+      </div>
+    </div>
+
+    <!-- ──────────────────────────────────────────────────────
+         SCENE 2 — EXPANDED
+         ────────────────────────────────────────────────────── -->
+    <div class="scene">
+      <div class="scene-label">Scene 2 · Expanded</div>
+      <div class="scene-title">All 14 tiles visible — same grid, just longer</div>
+      <div class="scene-desc">
+        Clicking <code>Show more</code> reveals the remaining 6 tiles below. The button switches to <code>Show less ▴</code>.
+      </div>
+
+      <h2 class="home-title">Your work.</h2>
+
+      <div class="grid">
+        <div class="ptile">
+          <div class="ptile-name"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</div>
+          <div class="ptile-counts">
+            <span class="signal"><span class="pip pip-green"></span>3 active</span>
+            <span class="signal"><span class="pip pip-amber"></span>1 waiting</span>
+            <span class="signal"><span class="pip pip-dim"></span>35 done</span>
+          </div>
+        </div>
+        <div class="ptile">
+          <div class="ptile-name"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>blunderfixer</div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>7 done</span></div>
+        </div>
+        <div class="ptile">
+          <div class="ptile-name"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>tokinvest-website</div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>6 done</span></div>
+        </div>
+        <div class="ptile">
+          <div class="ptile-name">Matthew.Slight</div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>5 done</span></div>
+        </div>
+        <div class="ptile">
+          <div class="ptile-name"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>tokinvest-client-portal</div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>4 done</span></div>
+        </div>
+        <div class="ptile ghost">
+          <div class="ptile-name">oyster <span style="font-size: 10px; color: var(--amber); margin-left: 2px;">● no folder</span></div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>2 done</span></div>
+        </div>
+        <div class="ptile">
+          <div class="ptile-name">Dev</div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>2 done</span></div>
+        </div>
+        <div class="ptile ghost">
+          <div class="ptile-name">oyster-os <span style="font-size: 10px; color: var(--amber); margin-left: 2px;">● no folder</span></div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>2 done</span></div>
+        </div>
+
+        <!-- The newly-revealed 6 -->
+        <div class="ptile">
+          <div class="ptile-name">Oyster</div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>1 done</span></div>
+        </div>
+        <div class="ptile ghost">
+          <div class="ptile-name">oyster-dev-RENAMED <span style="font-size: 10px; color: var(--amber); margin-left: 2px;">● no folder</span></div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>1 done</span></div>
+        </div>
+        <div class="ptile">
+          <div class="ptile-name"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>sober-o-matic</div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>1 done</span></div>
+        </div>
+        <div class="ptile">
+          <div class="ptile-name"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>tokinvest-agent-broker-concept</div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>1 done</span></div>
+        </div>
+        <div class="ptile ghost">
+          <div class="ptile-name">oyster-os.worktrees <span style="font-size: 10px; color: var(--amber); margin-left: 2px;">● no folder</span></div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>1 done</span></div>
+        </div>
+        <div class="ptile ghost">
+          <div class="ptile-name">tokinvest-new-client-portal <span style="font-size: 10px; color: var(--amber); margin-left: 2px;">● no folder</span></div>
+          <div class="ptile-counts"><span class="signal"><span class="pip pip-dim"></span>1 done</span></div>
+        </div>
+      </div>
+
+      <div class="grid-footer">
+        <button class="show-more show-more-collapse">Show less ▴</button>
+      </div>
+    </div>
+
+    <div class="compare-note">
+      <strong>What's changing.</strong>
+      Just the visibility limit. <code>ProjectTileGrid</code> renders all projects today; the change is to slice to the first 8 (sorted by session count desc) and surface a <code>Show more / Show less</code> toggle at the bottom of the grid.
+      Tile content unchanged. State (collapsed/expanded) can persist in localStorage so it survives reloads, or just default to collapsed on every load — either is fine.
+    </div>
+  </div>
+</body>
+</html>

@@ -8,6 +8,11 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 
 - **INVADERS** — new arcade game. Classic fixed-shooter; 5 rows of marching aliens, destructible shields, bonus UFO, 3 lives, top-10 leaderboard.
 
+### Changed
+
+- **Oyster opens to your work, not to a setup wizard.** First launch no longer requires an AI provider, no longer demands you create a space, and shows your sessions on the home screen immediately. Set-up surfaces only appear when something is genuinely missing.
+- **Home redesign.** Project tiles now feature a `+ New session` CTA. The grid shows your busiest-by-relevance projects (live work first, then waiting, then recent activity) and collapses to the top 8 with "Show all" to expand. The sessions section defaults to a richer two-line view (project, agent, artifacts inline) with a Compact toggle. An "Organise into spaces" affordance triggers an AI-suggested grouping when you're ready to file projects.
+
 ## [0.9.8] - 2026-05-21
 
 ### Changed

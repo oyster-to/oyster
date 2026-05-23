@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mission control v2 — sessions are the unit, projects + artifacts are context</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --accent: #7c6bff;
+      --accent-bright: #a597ff;
+      --green: #4ade80;
+      --amber: #fbbf24;
+      --red: #f87171;
+      --teal: #14b8a6;
+      --text: #f0f0f5;
+      --text-dim: rgba(232, 233, 240, 0.6);
+      --text-muted: rgba(232, 233, 240, 0.36);
+      --text-very-muted: rgba(232, 233, 240, 0.2);
+      --surface: rgba(12, 13, 28, 0.6);
+      --surface-2: rgba(22, 24, 47, 0.55);
+      --surface-3: rgba(28, 30, 60, 0.4);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-strong: rgba(255, 255, 255, 0.12);
+      --border-accent: rgba(124, 107, 255, 0.4);
+      --font-body: 'Space Grotesk', -apple-system, sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-body);
+      color: var(--text);
+      background: rgba(30, 31, 54, 1);
+      min-height: 100vh;
+      padding: 48px 0 120px;
+    }
+    .glow {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background: radial-gradient(ellipse 70% 45% at 50% 10%, rgba(124,107,255,0.08) 0%, transparent 60%);
+    }
+    .page { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 32px; }
+    .page-title { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
+    .page-subtitle {
+      font-size: 14px; color: var(--text-dim);
+      margin-bottom: 36px; max-width: 760px; line-height: 1.65;
+    }
+    .page-subtitle strong { color: var(--text); font-weight: 600; }
+    .page-subtitle code {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      background: rgba(255,255,255,0.04);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--accent-bright);
+    }
+
+    .model-card {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 32px;
+    }
+    .model-block {
+      padding: 14px 14px 14px 14px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .model-block.primary {
+      border-color: var(--border-accent);
+      background: rgba(124, 107, 255, 0.06);
+    }
+    .model-block.muted {
+      opacity: 0.55;
+    }
+    .model-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .model-block.primary .model-label { color: var(--accent-bright); }
+    .model-name {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 4px;
+    }
+    .model-desc {
+      font-size: 11.5px;
+      color: var(--text-dim);
+      line-height: 1.45;
+    }
+
+    .scene {
+      padding: 28px 32px 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      margin-bottom: 36px;
+    }
+    .scene-label {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--accent-bright);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .scene-title {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+    }
+    .scene-desc {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.6;
+      margin-bottom: 24px;
+      max-width: 720px;
+    }
+
+    /* Topbar fake */
+    .topbar-mock-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .topbar-mock {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      background: rgba(20, 21, 42, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      width: fit-content;
+    }
+    .pill {
+      font-family: var(--font-body);
+      font-size: 12px;
+      color: var(--text-dim);
+      padding: 5px 11px;
+      border-radius: 999px;
+      background: transparent;
+    }
+    .pill.selected { background: var(--accent); color: #fff; }
+
+    .home-title {
+      font-family: var(--font-body);
+      font-size: 48px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 8px 0 28px;
+    }
+
+    /* Section header */
+    .section { margin-bottom: 24px; }
+    .section:last-child { margin-bottom: 0; }
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .section-label.live { color: #6ee79c; }
+    .section-label.attention { color: var(--amber); }
+    .section-label.time { color: var(--text-muted); letter-spacing: 0.14em; }
+    .section-count {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-very-muted);
+    }
+    .section-meta {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .section-meta:hover { color: var(--accent-bright); }
+
+    /* Featured (live / waiting) row */
+    .featured {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      column-gap: 16px;
+      align-items: center;
+      padding: 14px 18px;
+      background: rgba(74, 222, 128, 0.04);
+      border: 1px solid rgba(74, 222, 128, 0.18);
+      border-radius: 12px;
+    }
+    .featured.attention {
+      background: rgba(251, 191, 36, 0.04);
+      border-color: rgba(251, 191, 36, 0.22);
+    }
+    .featured + .featured { margin-top: 8px; }
+    .f-line1 {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 3px;
+    }
+    .f-pip {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 999px;
+      background: var(--green);
+      box-shadow: 0 0 10px var(--green);
+      animation: pulse 2s ease-in-out infinite;
+      flex-shrink: 0;
+      transform: translateY(-1px);
+    }
+    .featured.attention .f-pip {
+      background: var(--amber);
+      box-shadow: 0 0 10px var(--amber);
+      animation: none;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .f-title {
+      font-size: 14.5px;
+      color: var(--text);
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .f-meta {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .f-meta .f-project {
+      color: var(--accent-bright);
+    }
+    .f-recap {
+      font-size: 12.5px;
+      color: var(--text-dim);
+    }
+    .f-action {
+      font-family: var(--font-body);
+      font-size: 13.5px;
+      font-weight: 500;
+      color: #fff;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      padding: 9px 18px;
+      cursor: pointer;
+    }
+    .f-action:hover { background: var(--accent-bright); }
+
+    /* Timeline session row */
+    .session-row {
+      display: grid;
+      grid-template-columns: 84px 1fr 92px;
+      align-items: center;
+      column-gap: 14px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .session-row:hover { background: rgba(255,255,255,0.02); }
+    .session-row.ghost { opacity: 0.55; }
+    .session-row.live { background: rgba(74, 222, 128, 0.03); }
+    .session-row:last-child { border-bottom: none; }
+    .session-list {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface-3);
+      overflow: hidden;
+    }
+    .sr-time {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-very-muted);
+      text-align: left;
+    }
+    .sr-main {
+      min-width: 0;
+    }
+    .sr-line1 {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 2px;
+    }
+    .sr-title {
+      font-size: 13.5px;
+      color: var(--text);
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      min-width: 0;
+    }
+    .sr-status {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--text-very-muted);
+      letter-spacing: 0.04em;
+      flex-shrink: 0;
+    }
+    .sr-status.live { color: var(--green); }
+    .sr-status.waiting { color: var(--amber); }
+    .sr-status.warning { color: var(--amber); }
+    .sr-line2 {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+    .sr-project { color: var(--accent-bright); }
+    .sr-sep {
+      color: var(--text-very-muted);
+    }
+    .sr-artifacts {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .artifact-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--accent-bright);
+      background: rgba(124, 107, 255, 0.08);
+      border: 1px solid rgba(124, 107, 255, 0.18);
+      border-radius: 999px;
+      padding: 1px 8px 1px 7px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .artifact-chip:hover { background: rgba(124, 107, 255, 0.18); }
+    .artifact-chip-glyph {
+      font-size: 10px;
+      opacity: 0.8;
+    }
+    .sr-action {
+      font-family: var(--font-body);
+      font-size: 12px;
+      color: var(--text-dim);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .sr-action:hover {
+      color: var(--accent-bright);
+      border-color: var(--border-accent);
+      background: rgba(124, 107, 255, 0.08);
+    }
+
+    /* Start fresh */
+    .start-fresh {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 20px;
+      background: var(--surface-2);
+      border: 1px dashed rgba(124, 107, 255, 0.32);
+      border-radius: 12px;
+    }
+    .start-fresh-text { flex: 1; }
+    .start-fresh-title {
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+    .start-fresh-hint {
+      font-size: 12.5px;
+      color: var(--text-dim);
+    }
+    .start-fresh-action {
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--accent-bright);
+      background: rgba(124, 107, 255, 0.12);
+      border: 1px solid rgba(124, 107, 255, 0.4);
+      border-radius: 8px;
+      padding: 8px 16px;
+      cursor: pointer;
+    }
+
+    .compare-note {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.65;
+      padding: 18px 22px;
+      background: rgba(124, 107, 255, 0.06);
+      border: 1px solid rgba(124, 107, 255, 0.18);
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    .compare-note strong { color: var(--accent-bright); font-weight: 600; }
+    .compare-note code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: rgba(255,255,255,0.05);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="page">
+    <h1 class="page-title">Mission control v2 — sessions are the unit</h1>
+    <p class="page-subtitle">
+      <strong>The conceptual model.</strong>
+      The session is the primary unit of work — the actual moment of AI activity. A project is a container of sessions. A space is a container of projects.
+      Artifacts are siblings to sessions — durable outputs that one or more sessions produced. Memories are background.
+    </p>
+
+    <!-- Model legend -->
+    <div class="model-card">
+      <div class="model-block primary">
+        <div class="model-label">Primary unit</div>
+        <div class="model-name">Session</div>
+        <div class="model-desc">A discrete moment of AI work. Has a title, project, time, state.</div>
+      </div>
+      <div class="model-block primary">
+        <div class="model-label">Sibling unit</div>
+        <div class="model-name">Artifact</div>
+        <div class="model-desc">A durable output produced by 1+ sessions. Notes, app, deck, diagram, etc.</div>
+      </div>
+      <div class="model-block">
+        <div class="model-label">Container</div>
+        <div class="model-name">Project</div>
+        <div class="model-desc">A folder on disk. Holds the sessions + artifacts that happened there.</div>
+      </div>
+      <div class="model-block">
+        <div class="model-label">Container of containers</div>
+        <div class="model-name">Space</div>
+        <div class="model-desc">A bucket for projects. Optional — exists when the user wants grouping.</div>
+      </div>
+    </div>
+
+    <p class="page-subtitle" style="margin-top: -16px;">
+      So Home shouldn't be a grid of project tiles — that puts the <em>container</em> in front of the <em>unit</em>.
+      Home should be a <strong>session timeline</strong> with project as context and artifacts as inline products.
+      Projects and spaces become filters in the breadcrumb, not the primary nav structure.
+    </p>
+
+    <!-- ──────────────────────────────────────────────────────
+         SCENE 1 — ACTIVE STATE
+         ────────────────────────────────────────────────────── -->
+    <div class="scene">
+      <div class="scene-label">Scene 1 · A typical day</div>
+      <div class="scene-title">Sessions on a timeline, with project + artifact context</div>
+      <div class="scene-desc">
+        Live + Waiting sessions float to the top regardless of time. Below them, sessions list chronologically inside time buckets (Today / Yesterday / This week / Older).
+        Each row is one session. Project name appears as context. Artifacts produced by that session sit inline as small chips.
+      </div>
+
+      <div class="topbar-mock-row">
+        <div class="topbar-mock">
+          <span class="pill">Sign in</span>
+          <span class="pill selected">🏠</span>
+          <span class="pill">🛡</span>
+          <span class="pill">+ Space</span>
+        </div>
+        <div class="topbar-mock">
+          <span class="pill">+ New session</span>
+          <span class="pill">🦪</span>
+        </div>
+      </div>
+
+      <h2 class="home-title">Your work.</h2>
+
+      <!-- LIVE NOW -->
+      <div class="section">
+        <div class="section-head">
+          <span class="section-label live">● Live now</span>
+          <span class="section-count">1</span>
+        </div>
+        <div class="featured">
+          <div>
+            <div class="f-line1">
+              <span class="f-pip"></span>
+              <span class="f-title">OYSTER: 1.0 sessions-first first run</span>
+            </div>
+            <div class="f-meta">
+              <span class="f-project">oyster-dev</span>
+              <span class="sr-sep">·</span>
+              <span>Claude is responding</span>
+              <span class="sr-sep">·</span>
+              <span class="sr-artifacts">
+                <span class="artifact-chip"><span class="artifact-chip-glyph">¶</span>install.md</span>
+                <span class="artifact-chip"><span class="artifact-chip-glyph">¶</span>home-tiles.html</span>
+              </span>
+            </div>
+          </div>
+          <button class="f-action">Continue →</button>
+        </div>
+      </div>
+
+      <!-- WAITING -->
+      <div class="section">
+        <div class="section-head">
+          <span class="section-label attention">⏸ Waiting on you</span>
+          <span class="section-count">1</span>
+        </div>
+        <div class="featured attention">
+          <div>
+            <div class="f-line1">
+              <span class="f-pip"></span>
+              <span class="f-title">client portal &rsaquo; redesign phase 1</span>
+            </div>
+            <div class="f-meta">
+              <span class="f-project">tokinvest-client-portal</span>
+              <span class="sr-sep">·</span>
+              <span>Claude asked a question 2h ago</span>
+              <span class="sr-sep">·</span>
+              <span class="sr-artifacts">
+                <span class="artifact-chip"><span class="artifact-chip-glyph">¶</span>redesign-spec.md</span>
+              </span>
+            </div>
+            <div class="f-recap" style="margin-top: 4px; font-style: italic;">"should we use shadcn for the modal, or stay vanilla?"</div>
+          </div>
+          <button class="f-action">Answer →</button>
+        </div>
+      </div>
+
+      <!-- TODAY -->
+      <div class="section">
+        <div class="section-head">
+          <span class="section-label time">Today</span>
+          <span class="section-count">3 sessions</span>
+        </div>
+        <div class="session-list">
+          <div class="session-row">
+            <div class="sr-time">30 min ago</div>
+            <div class="sr-main">
+              <div class="sr-line1">
+                <span class="sr-title">polish home tile design</span>
+                <span class="sr-status">done</span>
+              </div>
+              <div class="sr-line2">
+                <span class="sr-project">oyster-dev</span>
+                <span class="sr-sep">·</span>
+                <span class="sr-artifacts">
+                  <span class="artifact-chip"><span class="artifact-chip-glyph">¶</span>home-mock.html</span>
+                </span>
+              </div>
+            </div>
+            <button class="sr-action">Open</button>
+          </div>
+
+          <div class="session-row">
+            <div class="sr-time">1h ago</div>
+            <div class="sr-main">
+              <div class="sr-line1">
+                <span class="sr-title">refactor-splash-styles-dedup</span>
+                <span class="sr-status">done</span>
+              </div>
+              <div class="sr-line2">
+                <span class="sr-project">oyster-dev</span>
+              </div>
+            </div>
+            <button class="sr-action">Open</button>
+          </div>
+
+          <div class="session-row">
+            <div class="sr-time">2h ago</div>
+            <div class="sr-main">
+              <div class="sr-line1">
+                <span class="sr-title">remove orphan project vacuum bug</span>
+                <span class="sr-status">done</span>
+              </div>
+              <div class="sr-line2">
+                <span class="sr-project">oyster-dev</span>
+                <span class="sr-sep">·</span>
+                <span class="sr-artifacts">
+                  <span class="artifact-chip"><span class="artifact-chip-glyph">¶</span>lookup-project.ts</span>
+                </span>
+              </div>
+            </div>
+            <button class="sr-action">Open</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- YESTERDAY -->
+      <div class="section">
+        <div class="section-head">
+          <span class="section-label time">Yesterday</span>
+          <span class="section-count">2 sessions</span>
+        </div>
+        <div class="session-list">
+          <div class="session-row">
+            <div class="sr-time">3pm</div>
+            <div class="sr-main">
+              <div class="sr-line1">
+                <span class="sr-title">client portal &rsaquo; redesign phase 1</span>
+                <span class="sr-status">done</span>
+              </div>
+              <div class="sr-line2">
+                <span class="sr-project">tokinvest-client-portal</span>
+                <span class="sr-sep">·</span>
+                <span class="sr-artifacts">
+                  <span class="artifact-chip"><span class="artifact-chip-glyph">¶</span>redesign-spec.md</span>
+                </span>
+              </div>
+            </div>
+            <button class="sr-action">Open</button>
+          </div>
+
+          <div class="session-row">
+            <div class="sr-time">11am</div>
+            <div class="sr-main">
+              <div class="sr-line1">
+                <span class="sr-title">fix dropdown menu z-index</span>
+                <span class="sr-status">done</span>
+              </div>
+              <div class="sr-line2">
+                <span class="sr-project">oyster-dev</span>
+              </div>
+            </div>
+            <button class="sr-action">Open</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- THIS WEEK -->
+      <div class="section">
+        <div class="section-head">
+          <span class="section-label time">This week</span>
+          <span class="section-count">2 sessions</span>
+          <span class="section-meta">Show older ▾</span>
+        </div>
+        <div class="session-list">
+          <div class="session-row">
+            <div class="sr-time">3d ago</div>
+            <div class="sr-main">
+              <div class="sr-line1">
+                <span class="sr-title">Chrome ext drag-drop FEN paste</span>
+                <span class="sr-status">done</span>
+              </div>
+              <div class="sr-line2">
+                <span class="sr-project">blunderfixer</span>
+                <span class="sr-sep">·</span>
+                <span class="sr-artifacts">
+                  <span class="artifact-chip"><span class="artifact-chip-glyph">▣</span>extension.zip</span>
+                </span>
+              </div>
+            </div>
+            <button class="sr-action">Open</button>
+          </div>
+
+          <div class="session-row ghost">
+            <div class="sr-time">5d ago</div>
+            <div class="sr-main">
+              <div class="sr-line1">
+                <span class="sr-title">test rename — folder no longer on disk</span>
+                <span class="sr-status warning">no folder</span>
+              </div>
+              <div class="sr-line2">
+                <span class="sr-project">oyster-dev-RENAMED</span>
+              </div>
+            </div>
+            <button class="sr-action">View</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- START FRESH -->
+      <div class="section">
+        <div class="start-fresh">
+          <div class="start-fresh-text">
+            <div class="start-fresh-title">Start a session somewhere new</div>
+            <div class="start-fresh-hint">Pick a folder on disk or run <span style="font-family: var(--font-mono); color: var(--accent-bright);">claude</span> in any project.</div>
+          </div>
+          <button class="start-fresh-action">+ Pick a folder</button>
+        </div>
+      </div>
+
+      <div class="compare-note">
+        <strong>Why this fits the model.</strong>
+        Each row is one session — the primary unit. Project name is <em>context</em> (which folder it happened in), not a navigation step.
+        Artifacts appear as inline chips on the session that produced them — visible without being a separate column.
+        Same project can appear multiple times in the timeline (because the user worked there multiple times) — natural, no deduping needed.
+        Time buckets (Today / Yesterday / This week) give visual rhythm and keep the list scannable for users with 100s of sessions.
+        Ghost projects' sessions still appear, just dimmer with a "no folder" cue — history isn't hidden, just visually de-prioritised.
+      </div>
+    </div>
+
+    <!-- ──────────────────────────────────────────────────────
+         WHAT-IF — should we surface artifacts as their own list?
+         ────────────────────────────────────────────────────── -->
+    <div class="scene">
+      <div class="scene-label">Variant · Artifacts-on-Home question</div>
+      <div class="scene-title">Should artifacts get their own list, or only inline-as-chips?</div>
+      <div class="scene-desc">
+        Inline-as-chips (above) keeps the timeline session-centric and shows the artifact as a product of its session.
+        A separate "Recent artifacts" section would foreground artifacts as a parallel work axis — useful for the user
+        who thinks "where's that doc I was working on" before "where's that conversation."
+      </div>
+      <div style="font-size: 13px; color: var(--text-dim); line-height: 1.7;">
+        <strong style="color: var(--accent-bright);">Inline-only</strong> (Scene 1) — artifacts are products visible on their producing session. No separate gallery.
+        Best when sessions are the dominant mental model and artifacts are byproducts.<br><br>
+        <strong style="color: var(--accent-bright);">Inline + separate "Recent artifacts" section</strong> — artifact chips on session rows AND a section
+        showing the N most recently created/updated artifacts. Best when users return to specific outputs (a deck, a doc, a published thing) more often than they return to the conversations.<br><br>
+        <em>Open question.</em> Pick one for 1.0 — I'd lean inline-only since memories are explicitly de-prioritised
+        and a dedicated artifacts section might be premature. Easy to add later.
+      </div>
+    </div>
+
+    <div class="compare-note">
+      <strong>What changes vs. the tile-grid Home.</strong>
+      The unit shifts from <em>project</em> to <em>session</em>. Projects become the "where" label on each row, not the page's structuring entity.
+      Same project legitimately appears multiple times — once per session — because a day's work in <code>oyster-dev</code> is multiple distinct moments.
+      Spaces (when the user creates them) become a breadcrumb filter, not a nav prerequisite.
+      Memories don't get a section because they're background.
+      Artifacts get visibility via inline chips on the session that produced them — they ride along with the unit they're descended from.
+    </div>
+  </div>
+</body>
+</html>

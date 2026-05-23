@@ -25,54 +25,9 @@
   background: rgba(124, 107, 255, 0.3);
 }
 
-/* Required step done, optionals still pending — pill body stays purple
-   to match "+ New session" so it doesn't out-shout the active space
-   pill. The gold ◐ glyph is the only state cue, signalling "halfway
-   through" without claiming completion. */
-.onboarding-dock-mid-glyph {
-  color: #fcd34d;
-  font-size: 12px;
-  line-height: 1;
-}
-
-/* All done — chrome falls away, leaving just the 🦪 oyster floating
-   in the breadcrumb. Negative margin tightens the gap to the running /
-   new-session cluster so the emoji doesn't read as orphaned. */
-.onboarding-dock--ready {
-  background: transparent;
-  border-color: transparent;
-  padding: 4px 4px;
-  gap: 0;
-  margin-left: -4px;
-}
-
-.onboarding-dock--ready .onboarding-dock-check {
-  font-size: 14px;
-}
-
-/* Pre-required-done indicator: amber dot that softly glows + winks (slower
-   and quieter than a scale-bounce) so "something still pending" carries
-   without competing with anything else in the chrome. */
-.onboarding-dock-progress {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #fbbf24;
-  animation: onboarding-glow 2.4s ease-in-out infinite;
-}
-
-@keyframes onboarding-glow {
-  0%, 100% { opacity: 0.35; box-shadow: 0 0 3px rgba(251, 191, 36, 0.25); }
-  50%      { opacity: 1;    box-shadow: 0 0 9px rgba(251, 191, 36, 0.85); }
-}
-
 .onboarding-dock-check {
   font-size: 13px;
   line-height: 1;
-}
-
-.onboarding-dock-label {
-  white-space: nowrap;
 }
 
 /* Wrapper — positioning context so the popover anchors to the chip

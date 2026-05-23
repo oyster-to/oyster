@@ -36,6 +36,7 @@ import { tryHandleMemoryRoute } from "./routes/memories.js";
 import { tryHandleAuthRoute } from "./routes/auth.js";
 import { tryHandlePublishRoute } from "./routes/publish.js";
 import { tryHandlePinRoute } from "./routes/pin.js";
+import { tryHandleProviderStatusRoute } from "./routes/provider-status.js";
 import { tryHandleDeviceRoute } from "./routes/device.js";
 import { createPublishService, PublishError } from "./publish-service.js";
 import { createSpaceSyncService } from "./space-sync-service.js";
@@ -819,10 +820,10 @@ async function handleHttpRequest(req: IncomingMessage, res: ServerResponse) {
     spaceService, projectService, broadcastUiEvent,
   })) return;
 
-  // /api/setup/apply — fans the user's confirmed SetupProposal out to
-  // createSpace + attachFolder. Triggered by the SetupProposalPanel's Apply button.
+  // /api/setup/apply + /api/setup/scan — apply a confirmed SetupProposal or
+  // trigger a deterministic server-side scan that emits setup_proposal_ready.
   if (await tryHandleSetupRoute(req, res, url, ctx, {
-    spaceService, projectService, broadcastUiEvent,
+    db, spaceService, projectService, broadcastUiEvent,
   })) return;
 
   // /api/memories
@@ -841,6 +842,7 @@ async function handleHttpRequest(req: IncomingMessage, res: ServerResponse) {
 
   // /api/artifacts/:id/pin — pin / unpin an artefact (#387).
   if (await tryHandlePinRoute(req, res, url, ctx, { artifactService, broadcastUiEvent })) return;
+  if (await tryHandleProviderStatusRoute(req, res, url, ctx)) return;
 
   // /api/device/identity — local device UUID + label for the cross-device UI chip.
   if (await tryHandleDeviceRoute(req, res, url, ctx, { db })) return;
@@ -1184,7 +1186,7 @@ httpServer.listen(port, "127.0.0.1", () => {
   const claudeCodeWatcher = new ClaudeCodeWatcher({
     sessionStore,
     artifactStore: store,
-    lookupProject: (cwd) => lookupProject(db, cwd),
+    lookupProject: (cwd) => lookupProject(db, cwd, cwd ? (c) => projectService.getOrCreateByCwd(c) : undefined),
     emitSessionChanged: (id) => {
       broadcastUiEvent({ version: 1, command: "session_changed", payload: { id } });
       // Cross-device session sync (#322): every session-row change marks the

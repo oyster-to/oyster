@@ -11,6 +11,10 @@ export async function fetchSpaces(): Promise<Space[]> {
   }
 }
 
+export async function createSpace(name: string): Promise<Space> {
+  return postJson<Space>("/api/spaces", { name });
+}
+
 export async function updateSpace(spaceId: string, fields: { displayName?: string; color?: string }): Promise<Space> {
   return patchJson<Space>(`/api/spaces/${spaceId}`, fields);
 }

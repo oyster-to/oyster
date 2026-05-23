@@ -646,102 +646,6 @@ body {
   align-items: stretch;
 }
 
-/* Hero state — centered when surface is empty */
-.chatbar-hero {
-  bottom: 50%;
-  transform: translate(-50%, 50%);
-  width: 640px;
-  transition: bottom 0.5s ease, transform 0.5s ease, width 0.5s ease;
-}
-
-.chatbar-hero .chatbar-bar {
-  padding: 12px 14px;
-  gap: 14px;
-}
-
-.chatbar-hero .chatbar-input {
-  font-size: 1.1rem;
-}
-
-.chatbar-hero .chatbar-input::placeholder {
-  font-size: 1.1rem;
-  font-weight: 500;
-}
-
-.chatbar-hero-tagline {
-  position: relative;
-  text-align: center;
-  margin-bottom: 20px;
-  font-family: 'Barlow', sans-serif;
-  font-size: 1.5rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.3;
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.chatbar-hero-tagline.tagline-hidden {
-  opacity: 0;
-  transform: translateY(-8px);
-  pointer-events: none;
-}
-
-.tagline-dim {
-  color: var(--text-dim);
-}
-
-.tagline-bright {
-  color: var(--text);
-}
-
-.chatbar-hero-sub {
-  margin-top: 14px;
-  font-size: 1rem;
-  font-weight: 400;
-  color: var(--text-dim);
-  letter-spacing: 0;
-}
-
-.chatbar-hero-prompt {
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
-  font-size: 0.95em;
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  padding: 3px 10px;
-  margin-left: 4px;
-  cursor: pointer;
-  pointer-events: auto;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
-}
-
-.chatbar-hero-prompt:hover:not(:disabled) {
-  background: rgba(124, 107, 255, 0.18);
-  border-color: rgba(124, 107, 255, 0.4);
-}
-
-.chatbar-hero-prompt:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.chatbar-hero-prompt:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.chatbar-hero .chatbar-oyster {
-  width: 40px;
-  height: 40px;
-}
-
-.chatbar-hero .chatbar-send {
-  width: 40px;
-  height: 40px;
-}
-
 /* Smooth transition back to bottom when artifacts appear */
 .chatbar-wrapper {
   transition: bottom 0.5s ease, transform 0.5s ease, width 0.5s ease;
@@ -2823,3 +2727,27 @@ body {
 /* Both Open and Minimised tiles get the same teal dot — they're both running. */
 .tile-presence-dot.tpd--attached::before,
 .tile-presence-dot.tpd--running::before { background: #a78bfa; box-shadow: 0 0 8px rgba(167,139,250,0.85); }
+
+.chatbar-add-provider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: rgba(20, 21, 42, 0.5);
+  border: 1px dashed rgba(124, 107, 255, 0.3);
+  border-radius: 12px;
+  color: rgba(232, 233, 240, 0.66);
+  font-size: 13px;
+}
+.chatbar-add-provider-text {
+  flex: 1;
+}
+.chatbar-add-provider-code {
+  font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  background: rgba(124, 107, 255, 0.12);
+  color: #c4b8ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutGroup, motion } from "framer-motion";
-import { ArrowUpRight, Folder, FolderPlus, Shield } from "lucide-react";
+import { Folder, FolderPlus, Shield } from "lucide-react";
 import type { Session, SessionState, DisplayState } from "../../data/sessions-api";
 import type { Artifact, Space } from "../../../../shared/types";
 import { useMemories } from "../../hooks/useMemories";
@@ -14,8 +14,8 @@ import { InspectorPanel, type ActivePanel } from "../InspectorPanel";
 import { SessionInspector } from "../SessionInspector";
 import { ArtefactInspector } from "../ArtefactInspector";
 import { ConfirmModal } from "../ConfirmModal";
+import { PromptModal } from "../PromptModal";
 import { SpaceContextMenu } from "../SpaceContextMenu";
-import { SessionTile } from "./SessionTile";
 import { SessionRow } from "./SessionRow";
 import { ArtefactTable } from "./ArtefactTable";
 import { ShowMore } from "./ShowMore";
@@ -26,8 +26,11 @@ import { AttachOrphanPopover } from "./AttachOrphanPopover";
 import { MemoryCard } from "./MemoryCard";
 import { VaultInfo } from "./VaultInfo";
 import { homeRelative, renderPipCounts, stateColor } from "./utils";
-import { VAULT, type ArtefactSource, type StateFilter, type ViewMode } from "./types";
-import { attachFolder } from "../../data/projects-api";
+import { VAULT, type ArtefactSource, type StateFilter } from "./types";
+import { attachFolder, fetchAllProjects } from "../../data/projects-api";
+import { ProjectTile } from "./ProjectTile";
+import { useFetched } from "../../hooks/useFetched";
+import { createSpace } from "../../data/spaces-api";
 import { deleteMemory, type Memory } from "../../data/memories-api";
 import { ApiError } from "../../data/http";
 import { useTerminalPresence } from "../../hooks/useTerminalPresence";
@@ -41,7 +44,6 @@ interface Props {
   activeSpace: string;
   spaces: Space[];
   desktopProps: Omit<Parameters<typeof Desktop>[0], "isHero">;
-  isHero?: boolean;
   onSpaceChange: (space: string) => void;
   onPromoteFolderToSpace?: (path: string) => Promise<Space | null>;
   /** Removing the last folder from a real space collapses the space —
@@ -50,11 +52,6 @@ interface Props {
   onSpaceDelete?: (spaceId: string) => Promise<void> | void;
   /** Used by the breadcrumb-pill context menu (rename). */
   onSpaceUpdate?: (id: string, fields: { displayName?: string; color?: string }) => void;
-  /** Fires when the user toggles between the bare Home feed and a Home
-   *  sub-view (Pro vault preview or Unsorted orphans). App uses this to
-   *  drop the chat bar out of hero mode so it stops occluding sub-view
-   *  content. */
-  onSubViewActiveChange?: (active: boolean) => void;
   /** Spawn an in-app Claude PTY in the given project's recent path. */
   onLaunchClaude?: (projectId: string) => void;
   /** Resume a session in an Oyster terminal (`claude --resume <id>`). */
@@ -107,20 +104,21 @@ const isLivePublication = (a: Artifact): boolean =>
 // Show more pages an extra ten in.
 const ARTEFACTS_PREVIEW = 10;
 
-// Persists a view toggle (icons / table) to localStorage so it survives
-// reloads. Returns a useState-shaped pair so callsites stay one-liner.
-function useStickyView(key: string, defaultValue: ViewMode): [ViewMode, (v: ViewMode) => void] {
-  const [value, setValue] = useState<ViewMode>(() => {
+// Persists a view toggle to localStorage so it survives reloads.
+// Generic so callers can use any string-union type they need.
+// Returns a useState-shaped pair so callsites stay one-liner.
+function useStickyView<T extends string>(key: string, defaultValue: T, valid: ReadonlyArray<T>): [T, (v: T) => void] {
+  const [value, setValue] = useState<T>(() => {
     if (typeof window === "undefined") return defaultValue;
     try {
       const stored = window.localStorage.getItem(key);
-      return stored === "icons" || stored === "table" ? stored : defaultValue;
+      return (stored !== null && valid.includes(stored as T)) ? (stored as T) : defaultValue;
     } catch {
       // Safari private browsing / storage disabled — fall through to default
       return defaultValue;
     }
   });
-  const set = (v: ViewMode) => {
+  const set = (v: T) => {
     setValue(v);
     try {
       window.localStorage.setItem(key, v);
@@ -162,7 +160,7 @@ const FILTER_LABELS: Record<StateFilter, string> = {
   all: "all",
 };
 
-export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onSubViewActiveChange, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount }: Props) {
+export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount }: Props) {
   const presence = useTerminalPresence(sessions, terminalWindows ?? []);
   const signedIn = useAuthSignedIn();
   const myDevice = useMyDeviceId();
@@ -185,13 +183,23 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
     error: spaceProjectsError,
     refresh: refreshSpaceProjects,
   } = useSpaceProjects(projectsSpaceId);
+  // All projects across all spaces — used by the Home-view tile strip.
+  // Only fetched when on Home (enabled when isMetaScope and not Elsewhere).
+  const {
+    data: allProjects,
+    refresh: refreshAllProjects,
+  } = useFetched<import("../../data/projects-api").Project[]>(
+    fetchAllProjects,
+    [],
+    { enabled: isMetaScope, ssEvent: "session_changed" },
+  );
   const [showAttachForm, setShowAttachForm] = useState(false);
   // Reset the attach form whenever scope changes so it doesn't carry
   // across spaces.
   useEffect(() => { setShowAttachForm(false); }, [projectsSpaceId]);
   const [stateFilter, setStateFilter] = useState<StateFilter>("all");
-  const [sessionsView, setSessionsView] = useStickyView("oyster.home.sessionsView", "table");
-  const [artefactsView, setArtefactsView] = useStickyView("oyster.home.artefactsView", "icons");
+  const [sessionsView, setSessionsView] = useStickyView("oyster.home.sessionsView", "full", ["full", "compact"] as const);
+  const [artefactsView, setArtefactsView] = useStickyView("oyster.home.artefactsView", "icons", ["icons", "table"] as const);
   const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
   const [pendingMemoryDelete, setPendingMemoryDelete] = useState<Memory | null>(null);
 
@@ -218,10 +226,9 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
   // so each space starts compact and at "all".
   const [artefactSource, setArtefactSource] = useState<ArtefactSource>("all");
   const [artefactsLimit, setArtefactsLimit] = useState(ARTEFACTS_PREVIEW);
-  // Elsewhere project-tile filter: orphan tiles aren't backed by a
-  // source row, so they're keyed by cwd instead of source_id. Lives
-  // alongside selectedProjectId; resets when scope changes.
-  const [selectedOrphanCwd, setSelectedOrphanCwd] = useState<string | null>(null);
+  // Cwd-based tile filter: drives session narrowing on both Home default
+  // and showElsewhere. Lives alongside selectedProjectId; resets when scope changes.
+  const [selectedCwd, setSelectedCwd] = useState<string | null>(null);
   // Cwd of the orphan tile currently mid-promotion (or mid-attach). Disables
   // every FolderPlus button so a slow server response can't kick off a
   // duplicate; also gates the picker popover. Set while either flow runs.
@@ -241,6 +248,21 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
   // native artefacts, otherwise a source_id. The tile grid is the canonical
   // surface for switching between folders; selection is exclusive.
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [addSpaceOpen, setAddSpaceOpen] = useState(false);
+
+  const triggerSetupScan = useCallback(async () => {
+    try {
+      const res = await fetch("/api/setup/scan", { method: "POST" });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        alert(`Couldn't scan for spaces: ${text || res.statusText}`);
+      }
+      // Success: the SetupProposalPanel mounts automatically via the SSE
+      // event the server emits — no further client work needed here.
+    } catch (err) {
+      alert(`Couldn't scan for spaces: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, []);
 
   const isHomeView = activeSpace === "home";
   const isAllView = activeSpace === "__all__";
@@ -256,13 +278,6 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
       setShowVault(false);
     }
   }, [isHomeView]);
-
-  // Tell App when the user is on a Home sub-view so it can drop the chat
-  // bar out of hero mode (otherwise the centered overlay occludes the
-  // vault preview / orphan tiles). Sub-views only exist while on Home.
-  useLayoutEffect(() => {
-    onSubViewActiveChange?.(isHomeView && (showVault || showElsewhere));
-  }, [isHomeView, showVault, showElsewhere, onSubViewActiveChange]);
 
   const showVaultPage = showVault && isHomeView;
 
@@ -285,7 +300,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
     } else {
       setSelectedProjectId(null);
     }
-    setSelectedOrphanCwd(null);
+    setSelectedCwd(null);
   }, [scopedSpace, showElsewhere, isHomeView]);
 
   // Auto-reset the live-terminals filter if there are no live terminals
@@ -321,15 +336,13 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
 
   // Folder-narrowed sessions: when a project tile is selected, sessions
   // filter to that source (or sessions without a source for VAULT, or
-  // by cwd when an Elsewhere orphan tile is picked).
+  // by cwd when a cwd-based tile is picked on Home or showElsewhere).
   const folderScopedSessions = useMemo(() => {
-    if (showElsewhere && isHomeView && selectedOrphanCwd) {
-      return scopedSessions.filter((s) => s.cwd === selectedOrphanCwd);
-    }
+    if (selectedCwd) return scopedSessions.filter((s) => s.cwd === selectedCwd);
     if (selectedProjectId === VAULT) return scopedSessions.filter((s) => !s.projectId);
     if (selectedProjectId) return scopedSessions.filter((s) => s.projectId === selectedProjectId);
     return scopedSessions;
-  }, [scopedSessions, selectedProjectId, selectedOrphanCwd, showElsewhere, isHomeView]);
+  }, [scopedSessions, selectedProjectId, selectedCwd]);
 
   const stateCounts = useMemo(() => {
     // Bucket by `displayState` (the wire's 5-state projection) so dormant
@@ -393,61 +406,24 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
     return { sessionCountsBySpace: bySpace, orphanCounts: orphans, totalCounts: total };
   }, [sessions, presence.byId]);
 
-  // Active projects on Home: collapse sessions by projectId, count
-  // non-done states, drop projects with no live activity. Each entry
-  // becomes a tile in the "Active projects" section so the user can
-  // jump straight to the project that's currently in flight.
-  const activeProjects = useMemo(() => {
-    if (!isHomeView || showElsewhere) return [];
-    const map = new Map<string, {
-      projectId: string;
-      spaceId: string;
-      label: string;
-      counts: { active: number; waiting: number; disconnected: number };
-      lastEventAt: number;
-    }>();
-    for (const s of sessions) {
-      // Skip done + dormant: both read as grey "no urgency" on the surface,
-      // so neither belongs in the Active-projects tile counts.
-      if (!s.projectId || !s.spaceId || s.displayState === "done" || s.displayState === "dormant") continue;
-      let entry = map.get(s.projectId);
-      if (!entry) {
-        const cwdBasename = s.cwd ? s.cwd.split(/[\\/]/).filter(Boolean).pop() ?? null : null;
-        entry = {
-          projectId: s.projectId,
-          spaceId: s.spaceId,
-          label: cwdBasename ?? s.projectId,
-          counts: { active: 0, waiting: 0, disconnected: 0 },
-          lastEventAt: 0,
-        };
-        map.set(s.projectId, entry);
-      }
-      if (s.displayState === "active") entry.counts.active++;
-      else if (s.displayState === "waiting") entry.counts.waiting++;
-      else if (s.displayState === "disconnected") entry.counts.disconnected++;
-      const t = parseTimestamp(s.lastEventAt);
-      if (Number.isFinite(t) && t > entry.lastEventAt) entry.lastEventAt = t;
-    }
-    return [...map.values()].sort((a, b) => b.lastEventAt - a.lastEventAt);
-  }, [sessions, isHomeView, showElsewhere]);
-
   // Per-project live-session counts, keyed by project_id. Used by
   // ProjectTileGrid so a project tile can show "1 active · 1 waiting"
   // when sessions are running for that project.
   const sessionCountsByProject = useMemo(() => {
-    const out: Record<string, { running: number; active: number; waiting: number; disconnected: number }> = {};
+    const out: Record<string, { running: number; active: number; waiting: number; disconnected: number; done: number }> = {};
     for (const s of sessions) {
       if (!s.projectId) continue;
       const isRunning = presence.byId[s.id] != null;
-      // Drop both done and dormant unless a terminal is still attached —
-      // dormant (>8h) is a grey "no urgency" state and shouldn't surface
-      // as a project-tile signal.
-      if ((s.displayState === "done" || s.displayState === "dormant") && !isRunning) continue;
-      const c = out[s.projectId] ?? { running: 0, active: 0, waiting: 0, disconnected: 0 };
-      if (isRunning) c.running++;
-      if (s.displayState === "active") c.active++;
-      else if (s.displayState === "waiting") c.waiting++;
-      else if (s.displayState === "disconnected") c.disconnected++;
+      const isDone = (s.displayState === "done" || s.displayState === "dormant") && !isRunning;
+      const c = out[s.projectId] ?? { running: 0, active: 0, waiting: 0, disconnected: 0, done: 0 };
+      if (isDone) {
+        c.done++;
+      } else {
+        if (isRunning) c.running++;
+        if (s.displayState === "active") c.active++;
+        else if (s.displayState === "waiting") c.waiting++;
+        else if (s.displayState === "disconnected") c.disconnected++;
+      }
       out[s.projectId] = c;
     }
     return out;
@@ -564,6 +540,58 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
     return counts;
   }, [effectiveDesktopProps.artifacts]);
 
+  const PROJECTS_DEFAULT_VISIBLE = 8;
+
+  const [projectsExpanded, setProjectsExpanded] = useState(false);
+
+  // Recency per project (max lastEventAt across its sessions).
+  const lastActivityByProject = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const s of sessions) {
+      if (!s.projectId) continue;
+      const t = parseTimestamp(s.lastEventAt);
+      if (!Number.isFinite(t)) continue;
+      if (t > (out[s.projectId] ?? 0)) out[s.projectId] = t;
+    }
+    return out;
+  }, [sessions]);
+
+  // Total per project (live + done) — only used as the final tiebreaker.
+  const sessionTotalsByProject = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const [pid, c] of Object.entries(sessionCountsByProject)) {
+      out[pid] = (c.running ?? 0) + (c.active ?? 0) + (c.waiting ?? 0) + (c.disconnected ?? 0) + (c.done ?? 0);
+    }
+    return out;
+  }, [sessionCountsByProject]);
+
+  // Sort by action-relevance: hasLive desc → hasWaiting desc → lastActivity desc → total desc.
+  const sortedProjects = useMemo(() => {
+    const score = (id: string) => {
+      const c = sessionCountsByProject[id] ?? {};
+      return {
+        hasLive: ((c.running ?? 0) + (c.active ?? 0)) > 0 ? 1 : 0,
+        hasWaiting: ((c.waiting ?? 0) + (c.disconnected ?? 0)) > 0 ? 1 : 0,
+        lastActivity: lastActivityByProject[id] ?? 0,
+        total: sessionTotalsByProject[id] ?? 0,
+      };
+    };
+    return [...allProjects].sort((a, b) => {
+      const sa = score(a.id);
+      const sb = score(b.id);
+      if (sa.hasLive !== sb.hasLive) return sb.hasLive - sa.hasLive;
+      if (sa.hasWaiting !== sb.hasWaiting) return sb.hasWaiting - sa.hasWaiting;
+      if (sa.lastActivity !== sb.lastActivity) return sb.lastActivity - sa.lastActivity;
+      return sb.total - sa.total;
+    });
+  }, [allProjects, sessionCountsByProject, lastActivityByProject, sessionTotalsByProject]);
+
+  const visibleProjects = projectsExpanded
+    ? sortedProjects
+    : sortedProjects.slice(0, PROJECTS_DEFAULT_VISIBLE);
+
+  const hiddenCount = sortedProjects.length - visibleProjects.length;
+
   // Per-project artefact counts for the tile badges. Includes the VAULT
   // bucket (artefacts with no project binding) so ProjectTileGrid can
   // render the Vault tile when there's anything in it. Returns {} only
@@ -652,16 +680,6 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
     return () => window.removeEventListener("oyster:open-session", handler);
   }, []);
 
-  useEffect(() => {
-    function handler(e: Event) {
-      const detail = (e as CustomEvent<{ id: string; spaceId: string }>).detail;
-      if (!detail) return;
-      console.log("[spotlight] open-memory", detail);
-    }
-    window.addEventListener("oyster:open-memory", handler);
-    return () => window.removeEventListener("oyster:open-memory", handler);
-  }, []);
-
   // Manual refresh: calls reconcile immediately (bypasses throttle), then
   // refreshes the memories list on success.
   const handleManualReconcile = useCallback(async () => {
@@ -728,7 +746,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
   }, []);
 
   const activeSpaceRow = scopedSpace ? spaces.find((s) => s.id === scopedSpace) : null;
-  const eyebrow = isHomeView ? (showElsewhere ? "Unsorted" : "Home")
+  const eyebrow = isHomeView ? (showElsewhere ? "Unassigned" : "Home")
     : isAllView ? "All"
     : isArchivedView ? "Archived"
     : activeSpaceRow?.displayName ?? scopedSpace ?? "";
@@ -739,7 +757,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
       <div className="home-orb" />
       <div className="home-grain" />
 
-      <div className={`home-scroll${isHero ? " home-scroll--hero" : ""}`}>
+      <div className="home-scroll">
         {/* Top space nav — stable on every screen. Pills carry numbered
             badges for non-zero active/waiting/disconnected counts so the
             at-a-glance dashboard info lives in the nav itself; no need
@@ -825,7 +843,32 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
                 </button>
               );
             })}
-            {orphanCounts.total > 0 && (
+            <button
+              type="button"
+              className="home-breadcrumb-pill home-breadcrumb-pill--add"
+              onClick={() => {
+                if (realSpaces.length === 0) {
+                  // First-time: trigger the server-side scan; the SetupProposalPanel
+                  // will render via the setup_proposal_ready SSE event.
+                  void triggerSetupScan();
+                } else {
+                  // Power-add: simple name prompt to add another.
+                  setAddSpaceOpen(true);
+                }
+              }}
+              title={realSpaces.length === 0 ? "Create your first space" : "Add a space"}
+              aria-label={realSpaces.length === 0 ? "Create your first space" : "Add a space"}
+            >
+              {realSpaces.length === 0 ? (
+                <>
+                  <span aria-hidden="true">+</span>
+                  <span className="home-breadcrumb-pill-label">Space</span>
+                </>
+              ) : (
+                <span aria-hidden="true">+</span>
+              )}
+            </button>
+            {orphanCounts.total > 0 && realSpaces.length > 0 && (
               <button
                 type="button"
                 className={`home-breadcrumb-pill home-breadcrumb-pill--elsewhere${showElsewhere && isHomeView ? " selected" : ""}`}
@@ -850,7 +893,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
                     {renderPipCounts(orphanCounts)}
                   </span>
                 )}
-                <span className="home-breadcrumb-pill-label">Unsorted</span>
+                <span className="home-breadcrumb-pill-label">Unassigned</span>
               </button>
             )}
             </div>
@@ -877,23 +920,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
           {/* Eyebrow dropped — the breadcrumb above already shows the
               active scope, so a separate "HOME" / "OYSTER" label is
               redundant. */}
-          <h1 className="home-title">{isHomeView ? (showElsewhere ? "Everything else." : "Everything active.") : eyebrow}</h1>
-          {/* First-run teaching line on Unsorted: orphan tiles look passive,
-              so point at the per-tile affordance. With zero spaces the action
-              is *creating* one (the popover says "promote this folder"), not
-              attaching — so frame as "set up". Drops once any real space
-              exists; by then the user has met the model. Inlines the actual
-              FolderPlus glyph (size + stroke matches the tile button) so the
-              instruction visually points at exactly the icon to click. */}
-          {isHomeView && showElsewhere && realSpaces.length === 0 && (
-            <div className="home-subtitle">
-              Click the
-              {" "}
-              <FolderPlus size={14} strokeWidth={2} role="img" aria-label="folder plus" className="home-subtitle-glyph" />
-              {" "}
-              on a tile to set up your first space.
-            </div>
-          )}
+          <h1 className="home-title">{isHomeView ? (showElsewhere ? "Unassigned sessions." : "Your work.") : eyebrow}</h1>
           {error && <div className="home-error">Couldn't load sessions: {error.message}</div>}
         </header>
 
@@ -903,55 +930,70 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
             home-space-card / home-spaces-section CSS is kept around in
             case the cards return as a settings or dashboard surface. */}
 
-        {isHomeView && !showElsewhere && activeProjects.length > 0 && (
-          <div className="home-section home-active-projects-section">
-            <div className="home-active-projects-grid">
-              {activeProjects.map((p) => {
-                const space = spaces.find((s) => s.id === p.spaceId);
-                const isSelected = selectedProjectId === p.projectId;
-                return (
-                  <div
-                    key={p.projectId}
-                    className={`home-active-project-tile${isSelected ? " selected" : ""}`}
-                  >
-                    <button
-                      type="button"
-                      className="home-active-project-tile-body"
-                      onClick={() => setSelectedProjectId(isSelected ? null : p.projectId)}
-                      title={`Filter sessions to ${p.label}`}
-                    >
-                      <div className="home-active-project-meta">{space?.displayName ?? p.spaceId}</div>
-                      <div className="home-active-project-name">{p.label}</div>
-                      <div className="home-active-project-counts">
-                        {p.counts.active > 0 && <span className="signal"><span className="pip pip-green" />{p.counts.active} active</span>}
-                        {p.counts.waiting > 0 && <span className="signal"><span className="pip pip-amber" />{p.counts.waiting} waiting</span>}
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      className="home-active-project-tile-jump"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        pendingFolderSelection.current = p.projectId;
-                        onSpaceChange(p.spaceId);
-                      }}
-                      aria-label={`Open ${space?.displayName ?? p.spaceId}`}
-                      title={`Open ${space?.displayName ?? p.spaceId}`}
-                    >
-                      <ArrowUpRight size={14} strokeWidth={2} aria-hidden="true" />
-                    </button>
-                  </div>
-                );
-              })}
+        {isHomeView && !showElsewhere && allProjects.length > 0 && (
+          <div className="home-section home-projects-section">
+            <div className="home-section-head">
+              <span className="home-section-label">Projects</span>
+              <button
+                type="button"
+                className="home-organise-btn"
+                onClick={triggerSetupScan}
+                title="Suggest space groupings from your projects"
+              >
+                Organise into spaces ✨
+              </button>
+              <span className="home-section-rule" />
             </div>
+            <div className="home-projects-grid">
+              {visibleProjects.map((p) => (
+                // onSpaceDelete intentionally omitted — Home strip can't collapse spaces.
+                // isLastProject/spaceTotalSessions are inert here (willCollapseSpace = false).
+                <ProjectTile
+                  key={p.id}
+                  project={p}
+                  artefactCount={projectArtefactCounts[p.id] ?? 0}
+                  sessionCounts={sessionCountsByProject[p.id]}
+                  selected={selectedProjectId === p.id}
+                  onSelect={() => setSelectedProjectId(selectedProjectId === p.id ? null : p.id)}
+                  onChanged={refreshAllProjects}
+                  isLastProject={false}
+                  spaceTotalSessions={0}
+                  // otherProjects intentionally empty — Home strip can't merge across spaces
+                  otherProjects={[]}
+                  onLaunchClaude={onLaunchClaude}
+                />
+              ))}
+            </div>
+            {hiddenCount > 0 && !projectsExpanded && (
+              <div className="home-projects-footer">
+                <button
+                  type="button"
+                  className="home-projects-show-more"
+                  onClick={() => setProjectsExpanded(true)}
+                >
+                  Show all {sortedProjects.length} projects ▾
+                </button>
+              </div>
+            )}
+            {projectsExpanded && sortedProjects.length > PROJECTS_DEFAULT_VISIBLE && (
+              <div className="home-projects-footer">
+                <button
+                  type="button"
+                  className="home-projects-show-more home-projects-show-more--collapse"
+                  onClick={() => setProjectsExpanded(false)}
+                >
+                  Show less ▴
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {isHomeView && showElsewhere && orphanCwdGroups.length > 0 && (
-          <div className="home-section home-active-projects-section">
-            <div className="home-active-projects-grid">
+          <div className="home-section home-projects-section">
+            <div className="home-projects-grid">
               {orphanCwdGroups.map((p) => {
-                const isSelected = selectedOrphanCwd === p.cwd;
+                const isSelected = selectedCwd === p.cwd;
                 // Disable every promote button while *any* promotion is in
                 // flight — the click handler also short-circuits in that
                 // case, so the disabled state is honest about it.
@@ -959,19 +1001,19 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
                 return (
                   <div
                     key={p.cwd}
-                    className={`home-active-project-tile home-active-project-tile--orphan${isSelected ? " selected" : ""}`}
+                    className={`home-projects-strip-tile home-projects-strip-tile--orphan${isSelected ? " selected" : ""}`}
                   >
                     <button
                       type="button"
-                      className="home-active-project-tile-body"
-                      onClick={() => setSelectedOrphanCwd(isSelected ? null : p.cwd)}
+                      className="home-projects-strip-tile-body"
+                      onClick={() => setSelectedCwd(isSelected ? null : p.cwd)}
                       title={p.cwd}
                     >
-                      <div className="home-active-project-name home-active-project-name--folder">
+                      <div className="home-projects-strip-name home-projects-strip-name--folder">
                         <Folder size={14} strokeWidth={1.75} aria-hidden="true" />
                         <span>{homeRelative(p.cwd)}</span>
                       </div>
-                      <div className="home-active-project-counts">
+                      <div className="home-projects-strip-counts">
                         {p.counts.active > 0 && <span className="signal"><span className="pip pip-green" />{p.counts.active} active</span>}
                         {p.counts.waiting > 0 && <span className="signal"><span className="pip pip-amber" />{p.counts.waiting} waiting</span>}
                         {p.counts.disconnected > 0 && <span className="signal"><span className="pip pip-red" />{p.counts.disconnected} disconnected</span>}
@@ -981,7 +1023,7 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
                     {onPromoteFolderToSpace && (
                       <button
                         type="button"
-                        className="home-active-project-tile-jump"
+                        className="home-projects-strip-tile-jump"
                         disabled={isPromoting && attachPicker?.cwd !== p.cwd}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1100,82 +1142,56 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
               })}
             </span>
             <span className="home-section-rule" />
-            <div className="home-view-toggle">
+            <div className="view-toggle-text">
               <button
-                className={`view-btn${sessionsView === "icons" ? " active" : ""}`}
-                onClick={() => setSessionsView("icons")}
-                title="Icon view"
-                aria-label="Icon view"
+                type="button"
+                className={sessionsView === "full" ? "active" : ""}
+                onClick={() => setSessionsView("full")}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="7" height="7" rx="1.5" />
-                  <rect x="14" y="3" width="7" height="7" rx="1.5" />
-                  <rect x="3" y="14" width="7" height="7" rx="1.5" />
-                  <rect x="14" y="14" width="7" height="7" rx="1.5" />
-                </svg>
+                Full
               </button>
               <button
-                className={`view-btn${sessionsView === "table" ? " active" : ""}`}
-                onClick={() => setSessionsView("table")}
-                title="Table view"
-                aria-label="Table view"
+                type="button"
+                className={sessionsView === "compact" ? "active" : ""}
+                onClick={() => setSessionsView("compact")}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="18" x2="21" y2="18" />
-                </svg>
+                Compact
               </button>
             </div>
           </div>
 
           {loading && sessions.length === 0 ? (
             <div className="home-empty">Loading sessions…</div>
-          ) : visibleSessions.length === 0 ? (
+          ) : visibleSessions.length === 0 && !(stateCounts.all === 0 && isHomeView && !showElsewhere) ? (
             <div className="home-empty">No sessions match this filter yet.</div>
           ) : (
             <>
-              {sessionsView === "icons" ? (
-                <div className="home-surface">
+              <div className="home-table-wrap">
+                <div className="home-table">
+                  <div className="home-row home-row--header" role="row">
+                    <span aria-hidden="true" />
+                    <span role="columnheader">Project</span>
+                    <span role="columnheader">Title</span>
+                    <span role="columnheader">Agent</span>
+                    <span role="columnheader">Reason</span>
+                    <span role="columnheader">Last active</span>
+                  </div>
                   {visibleSessions.slice(0, sessionsLimit).map((session) => (
-                    <SessionTile
+                    <SessionRow
                       key={session.id}
                       session={session}
+                      view={sessionsView}
                       spaces={spaces}
-                      showSpaceChip={isMetaView}
                       myDeviceId={myDeviceId}
                       livePresence={presence.byId[session.id]}
                       onOpen={(id) => setActivePanel({ kind: "session", id })}
+                      onTerminalFocus={onTerminalFocus}
+                      onTerminalRestore={onTerminalRestore}
+                      onResume={onLaunchClaudeFromSession}
                     />
                   ))}
                 </div>
-              ) : (
-                <div className="home-table-wrap">
-                  <div className="home-table">
-                    <div className="home-row home-row--header" role="row">
-                      <span aria-hidden="true" />
-                      <span role="columnheader">Project</span>
-                      <span role="columnheader">Title</span>
-                      <span role="columnheader">Agent</span>
-                      <span role="columnheader">Reason</span>
-                      <span role="columnheader">Last active</span>
-                    </div>
-                    {visibleSessions.slice(0, sessionsLimit).map((session) => (
-                      <SessionRow
-                        key={session.id}
-                        session={session}
-                        spaces={spaces}
-                        myDeviceId={myDeviceId}
-                        livePresence={presence.byId[session.id]}
-                        onOpen={(id) => setActivePanel({ kind: "session", id })}
-                        onTerminalFocus={onTerminalFocus}
-                        onTerminalRestore={onTerminalRestore}
-                        onResume={onLaunchClaudeFromSession}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+              </div>
               {sessionsLimit < visibleSessions.length && (
                 <ShowMore
                   onClick={() => setSessionsLimit((n) => n + SESSIONS_PREVIEW)}
@@ -1185,6 +1201,14 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
                 />
               )}
             </>
+          )}
+          {stateCounts.all === 0 && isHomeView && !showElsewhere && !loading && (
+            <div className="home-empty-state">
+              <div className="home-empty-state-title">No sessions found yet.</div>
+              <div className="home-empty-state-body">
+                Start a Claude Code session in a project. Oyster will pick it up automatically.
+              </div>
+            </div>
           )}
         </section>
 
@@ -1541,6 +1565,25 @@ export function Home({ activeSpace, spaces, desktopProps, isHero, onSpaceChange,
           />
         );
       })()}
+      <PromptModal
+        open={addSpaceOpen}
+        title="Name your space"
+        initialValue=""
+        placeholder="e.g. work, personal, tokinvest"
+        confirmLabel="Create"
+        onSubmit={async (name) => {
+          const trimmed = name.trim();
+          if (!trimmed) { setAddSpaceOpen(false); return; }
+          try {
+            const created = await createSpace(trimmed);
+            setAddSpaceOpen(false);
+            if (created?.id) onSpaceChange(created.id);
+          } catch (err) {
+            alert(`Couldn't create space: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }}
+        onCancel={() => setAddSpaceOpen(false)}
+      />
       {pendingMemoryDelete && (
         <ConfirmModal
           open={true}

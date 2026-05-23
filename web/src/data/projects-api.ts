@@ -4,7 +4,7 @@ import { getJson, postJson, patchJson, del } from "./http";
 // avoid a server-side type import that would pull in better-sqlite3 types.
 export interface Project {
   id: string;
-  spaceId: string;
+  spaceId: string | null;
   name: string;
   createdAt: string;
   /** Most-recent cached path on this machine. Null when none cached. */
@@ -26,6 +26,10 @@ export async function fetchProjectsForSpace(spaceId: string, signal?: AbortSigna
   // "projects failed to load". `useFetched` already ignores aborts, and
   // SessionRow's inline caller has its own `.catch` for menu-open races.
   return getJson<Project[]>(`/api/projects?space_id=${encodeURIComponent(spaceId)}`, signal);
+}
+
+export async function fetchAllProjects(signal?: AbortSignal): Promise<Project[]> {
+  return getJson<Project[]>("/api/projects", signal);
 }
 
 export async function createProject(spaceId: string, name: string): Promise<Project> {
@@ -56,13 +60,6 @@ export async function absorbProject(
   fromId: string,
 ): Promise<{ sessionsMoved: number; artefactsMoved: number; pathsMoved: number }> {
   return postJson(`/api/projects/${encodeURIComponent(intoId)}/absorb`, { from: fromId });
-}
-
-// Bulk-tag every session whose `cwd === args.cwd` and is not yet bound
-// to a project. Used by the orphan-recovery flow: pick an existing project
-// or create one, then sweep orphans into it. Returns the number claimed.
-export async function claimOrphan(projectId: string, cwd: string): Promise<{ claimed: number }> {
-  return postJson<{ claimed: number }>(`/api/projects/${encodeURIComponent(projectId)}/claim`, { cwd });
 }
 
 export async function renameProject(projectId: string, name: string): Promise<Project> {

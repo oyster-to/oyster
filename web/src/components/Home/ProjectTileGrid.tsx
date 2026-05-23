@@ -20,7 +20,7 @@ export function ProjectTileGrid({
   // entry. Callsites use `?? 0` and pass the lookup into ProjectTile's
   // optional `sessionCounts?` prop.
   projectArtefactCounts: Partial<Record<string, number>>;
-  sessionCountsByProject: Partial<Record<string, { running: number; active: number; waiting: number; disconnected: number }>>;
+  sessionCountsByProject: Partial<Record<string, { running: number; active: number; waiting: number; disconnected: number; done: number }>>;
   selectedProjectId: string | null;
   setSelectedProjectId: (next: string | null) => void;
   totalCounts: Record<StateFilter, number>;
