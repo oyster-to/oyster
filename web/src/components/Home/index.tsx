@@ -942,6 +942,18 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
 
         {isHomeView && !showElsewhere && allProjects.length > 0 && (
           <div className="home-section home-projects-section">
+            <div className="home-section-head">
+              <span className="home-section-label">Projects</span>
+              <button
+                type="button"
+                className="home-organise-btn"
+                onClick={triggerSetupScan}
+                title="Suggest space groupings from your projects"
+              >
+                Organise into spaces ✨
+              </button>
+              <span className="home-section-rule" />
+            </div>
             <div className="home-projects-grid">
               {visibleProjects.map((p) => (
                 <ProjectTile
