@@ -15,6 +15,9 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { resolve } from "node:path";
 import type Database from "better-sqlite3";
 import type { SpaceService } from "../space-service.js";
 import type { ProjectService } from "../project-service.js";
@@ -38,11 +41,25 @@ export interface SetupRouteDeps {
  *  Groups with ≥2 members become proposed spaces; singletons go to
  *  everythingElse. Returns a SetupProposal ready for broadcast. */
 export function computeSetupProposal(db: Database.Database): SetupProposal {
-  const rows = db.prepare(
+  const HOME = homedir();
+  const OYSTER_HOME = process.env.OYSTER_USERLAND
+    ? resolve(process.env.OYSTER_USERLAND)
+    : resolve(HOME, "Oyster");
+
+  const allRows = db.prepare(
     `SELECT pp.path, p.name FROM project_paths pp
      JOIN projects p ON p.id = pp.project_id
      WHERE p.removed_at IS NULL`,
   ).all() as Array<{ path: string; name: string }>;
+
+  const rows = allRows.filter((row) => {
+    if (!row.path) return false;
+    const resolved = resolve(row.path);
+    if (!existsSync(resolved)) return false;       // ghost folder
+    if (resolved === resolve(HOME)) return false;  // $HOME itself
+    if (resolved === OYSTER_HOME) return false;    // Oyster's workspace
+    return true;
+  });
 
   const tokenize = (path: string): { basename: string; firstToken: string } => {
     const parts = path.split(/[\\/]/).filter(Boolean);
