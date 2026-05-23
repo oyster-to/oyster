@@ -59,12 +59,9 @@ export function paintPixels(ctx, px, py, pixels, scale, color) {
   }
 }
 
-// Player ship — a body + narrow turret base + white turret tip. Drawn
-// at scale=1 (raw playfield units) so it sits inside the SHIP_W ×
-// SHIP_H footprint the engine uses for collisions.
-//
-//   SHIP_W = 16, ship.y = SHIP_Y, ship height = 8 total (4 body +
-//   2 turret base + 2 turret tip stacked upward).
+// Player ship — body sits at shipY (the engine's collision top edge);
+// turret base + white tip stack upward above it, matching the SP
+// cabinet silhouette where the antenna pokes out above the hit box.
 export function paintShip(ctx, x, shipY, shipW, color) {
   ctx.fillStyle = color;
   ctx.fillRect(x,            shipY,            shipW,         4); // body
