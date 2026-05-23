@@ -574,7 +574,7 @@ const ROW_POINTS  = [30,        20,        20,        10,        10];
 const CLAUDE_ROW = 3;   // 0-based: 4th row from top
 const CLAUDE_COLOUR = '#d97757';
 
-let grid = null;        // { offsetX, offsetY, dir, cells: 2D array, aliveCount, frame }
+let grid = null;        // { offsetX, offsetY, targetOffsetY, dir, cells, aliveCount, frame, claudeCol }
 let marchAccumulator = 0;
 
 // ============================================
@@ -1961,7 +1961,7 @@ function drawCrab(px, py, colour, f) {
 // its formation slot.
 function drawClaude(px, py, colour, f) {
   const ox = -1, s = SPRITE_SCALE;
-  // Body without the legs (6 rows of the 9-wide sprite — one shorter).
+  // Body rows only (legs are drawn separately below): 6 rows tall, 9 cols wide.
   const body = ['..XXXXX..', '.XXXXXXX.', '.X.XXX.X.', '.XXXXXXX.', 'XXXXXXXXX', '.XXXXXXX.'];
   paintPixels(px + ox, py, body, colour);
   // Four legs as two tight pairs (half-unit gap within each pair) pulled in from
