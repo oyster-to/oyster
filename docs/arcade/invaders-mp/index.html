@@ -37,11 +37,11 @@
   }
 
   /* Prescreen — covers the tube while the game is in any non-running
-     state (waiting / ready / countdown / gameover) so the lobby/lobby-
-     restart UI is the front-of-house and the cabinet's canvas only
-     reads when you're actually playing. Tied to .tube.is-ready so a
-     single class swap (set in refreshLobby) controls both canvas
-     visibility AND prescreen visibility. */
+     state (waiting / ready / countdown / gameover). Tied to
+     .tube.is-ready so a single class swap (set in refreshLobby)
+     controls both canvas visibility AND prescreen visibility.
+     overflow-y: auto so a small portrait viewport can scroll if the
+     big-START + QR push past the fold. */
   #prescreen {
     position: absolute;
     inset: 0;
@@ -50,11 +50,12 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 14px;
-    padding: 24px;
+    gap: 12px;
+    padding: 20px;
     text-align: center;
     background:
       radial-gradient(ellipse at center, rgba(10,10,40,0.78), rgba(0,0,0,0.92));
+    overflow-y: auto;
     transition: opacity 0.3s ease;
   }
   .tube.is-ready #prescreen {
@@ -62,13 +63,153 @@
     pointer-events: none;
   }
 
-  #prescreen .title {
-    font-size: 14px; letter-spacing: 0.18em; color: #2dd4ff;
-    text-transform: uppercase;
+  /* Debug-only items — netcode/ping/transport diagnostic line and the
+     Retry P2P button. Hidden by default; the URL ?debug query enables
+     them by adding .is-debug on <body>. Keeps the kid view clean while
+     leaving the tools one URL tweak away. */
+  body:not(.is-debug) #prescreen .meta,
+  body:not(.is-debug) #prescreen #retryBtn {
+    display: none;
   }
+
+  #prescreen .title {
+    font-size: 18px; letter-spacing: 0.3em; color: #2dd4ff;
+    margin: 0;
+  }
+
+  #prescreen .room-line {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  #prescreen .room-label {
+    font-size: 9px; letter-spacing: 0.25em;
+    color: rgba(255, 255, 255, 0.5);
+  }
+  #prescreen .room-code {
+    font-size: 44px; letter-spacing: 0.22em;
+    color: #ffd84a;
+    text-shadow: 4px 4px 0 #ff3aa1;
+    line-height: 1;
+  }
+
+  /* QR card — large + centred so it's the obvious "show this to your
+     friend" target. Subtle Copy-link sits underneath for the cases
+     where scanning isn't possible (parent texting a URL, etc.). */
+  #prescreen .qr-wrap {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  #prescreen .qr {
+    background: #fff;
+    padding: 10px;
+    border-radius: 6px;
+    line-height: 0;                 /* kill stray inline-img descender gap */
+  }
+  #prescreen .qr img {
+    display: block;
+    width: 180px; height: 180px;
+    image-rendering: pixelated;
+  }
+  #prescreen .qr-share {
+    background: transparent; color: rgba(255,255,255,0.55);
+    border: 1px solid rgba(255,255,255,0.2); border-radius: 3px;
+    padding: 5px 12px; font: inherit; font-size: 9px;
+    letter-spacing: 0.12em; cursor: pointer;
+  }
+  #prescreen .qr-share:hover {
+    color: #fff; border-color: rgba(255,255,255,0.45);
+  }
+
+  /* Player slots — bigger cards for chunky touch targets + kid-readable
+     name text. Per-seat colour matches in-game SHIP_COLORS. */
+  #prescreen .players {
+    display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;
+  }
+  #prescreen .player-slot {
+    border: 2px solid currentColor;
+    border-radius: 6px;
+    padding: 10px 14px;
+    min-width: 84px;
+    opacity: 0.28;
+    text-align: center;
+    transition: opacity 0.2s ease;
+  }
+  #prescreen .player-slot.is-active { opacity: 1; }
+  #prescreen .player-slot .ps-label {
+    font-size: 9px; letter-spacing: 0.22em;
+  }
+  #prescreen .player-slot .ps-name {
+    margin-top: 8px;
+    font-size: 11px; color: #fff;
+    min-height: 1em; letter-spacing: 0.06em;
+    word-break: break-word;
+  }
+  #prescreen .player-slot.is-empty .ps-name {
+    color: rgba(255,255,255,0.4);
+    font-style: italic;
+  }
+  #prescreen .player-slot .ps-you {
+    display: block;
+    margin-top: 5px;
+    font-size: 7px; letter-spacing: 0.28em;
+    color: rgba(255,255,255,0.65);
+  }
+  #prescreen .player-slot[data-seat="p1"] { color: #2dd4ff; }
+  #prescreen .player-slot[data-seat="p2"] { color: #ff3aa1; }
+  #prescreen .player-slot[data-seat="p3"] { color: #6bff8c; }
+  #prescreen .player-slot[data-seat="p4"] { color: #ffd84a; }
+
+  /* Name input — bigger + centred so it doesn't look like a tiny
+     dev field. */
+  #prescreen .name-input {
+    background: #0a0a28; color: #fff;
+    border: 2px solid #2dd4ff; border-radius: 4px;
+    padding: 10px 14px; font: inherit; font-size: 13px;
+    letter-spacing: 0.1em; width: 220px; max-width: 80vw;
+    text-align: center;
+  }
+  #prescreen .name-input::placeholder { color: rgba(255,255,255,0.35); }
+
+  /* Big-start — the obvious primary action. Drop shadow + idle pulse
+     pulls the eye to "tap me". Disabled state is muted grey so it
+     doesn't compete for attention while we're still connecting. */
+  #prescreen .big-start {
+    background: #ff3aa1; color: #fff;
+    border: 0; border-radius: 6px;
+    padding: 18px 56px; font: inherit; font-size: 22px;
+    letter-spacing: 0.22em; cursor: pointer;
+    box-shadow: 0 4px 0 #b32271, 0 6px 14px rgba(255,58,161,0.4);
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+  #prescreen .big-start:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 0 #b32271, 0 8px 18px rgba(255,58,161,0.5);
+  }
+  #prescreen .big-start:not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #b32271, 0 3px 6px rgba(255,58,161,0.3);
+  }
+  #prescreen .big-start:disabled {
+    background: #2a2a3a; color: rgba(255,255,255,0.4);
+    cursor: not-allowed; box-shadow: none;
+  }
+  @keyframes start-pulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.04); }
+  }
+  #prescreen .big-start:not(:disabled) {
+    animation: start-pulse 1.8s ease-in-out infinite;
+  }
+
+  #prescreen #status {
+    font-size: 11px; color: #ffd84a; min-height: 1.2em;
+    letter-spacing: 0.08em;
+  }
+
+  /* Debug-mode bottom row: meta + Retry P2P. Only shown when
+     body.is-debug (set when URL has ?debug). */
   #prescreen .meta {
-    font-size: 9px; letter-spacing: 0.1em;
-    color: rgba(255, 255, 255, 0.45);
+    margin-top: 6px;
+    font-size: 8px; letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.4);
     display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
   }
   #prescreen .netcode.mismatch { color: #ff6666; }
@@ -82,106 +223,12 @@
   }
   #prescreen .transport.p2p        { color: #1a3a1a; background: #6bff8c; font-weight: bold; }
   #prescreen .transport.connecting { color: #ffd84a; background: rgba(255, 216, 74, 0.15); }
-
-  #prescreen .room-line {
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  #prescreen #retryBtn {
+    background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.55);
+    border: 1px solid rgba(255,255,255,0.2); border-radius: 3px;
+    padding: 4px 10px; font: inherit; font-size: 9px;
+    letter-spacing: 0.1em; cursor: pointer;
   }
-  #prescreen .room-label {
-    font-size: 9px; letter-spacing: 0.2em;
-    color: rgba(255, 255, 255, 0.5);
-  }
-  #prescreen .room-code {
-    font-size: 28px; letter-spacing: 0.3em;
-    color: #ffd84a;
-    text-shadow: 3px 3px 0 #ff3aa1;
-  }
-  #prescreen .share {
-    display: flex; align-items: center; gap: 14px;
-    flex-wrap: wrap; justify-content: center;
-  }
-  #prescreen .qr {
-    background: #fff;
-    padding: 8px;
-    border-radius: 4px;
-    line-height: 0;                 /* kill stray inline-img descender gap */
-  }
-  /* qrcode-generator emits an <img> via createImgTag(); pin it crisp so
-     the QR squares are sharp pixels at our display size. */
-  #prescreen .qr img {
-    display: block;
-    width: 140px; height: 140px;
-    image-rendering: pixelated;
-  }
-  #prescreen .url {
-    font-size: 9px; opacity: 0.65;
-    background: #0a0a28; padding: 5px 9px; border-radius: 3px;
-    max-width: min(420px, 90vw);
-    overflow-wrap: anywhere;        /* break long URLs at any point if needed */
-  }
-
-  /* Player slots — one card per seat, dimmed when empty, lit when
-     occupied. Per-seat colour matches SHIP_COLORS so the lobby reads
-     consistently with the in-game ships. */
-  #prescreen .players {
-    display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
-  }
-  #prescreen .player-slot {
-    border: 1px solid currentColor;
-    border-radius: 4px;
-    padding: 8px 12px;
-    min-width: 78px;
-    opacity: 0.3;
-    text-align: center;
-    transition: opacity 0.2s ease;
-  }
-  #prescreen .player-slot.is-active { opacity: 1; }
-  #prescreen .player-slot .ps-label {
-    font-size: 8px; letter-spacing: 0.22em;
-  }
-  #prescreen .player-slot .ps-name {
-    margin-top: 6px;
-    font-size: 9px; color: #fff;
-    min-height: 1em; letter-spacing: 0.06em;
-    word-break: break-word;
-  }
-  #prescreen .player-slot.is-empty .ps-name {
-    color: rgba(255,255,255,0.45);
-    font-style: italic;
-  }
-  #prescreen .player-slot .ps-you {
-    display: block;
-    margin-top: 4px;
-    font-size: 6px; letter-spacing: 0.25em;
-    color: rgba(255,255,255,0.55);
-  }
-  #prescreen .player-slot[data-seat="p1"] { color: #2dd4ff; }
-  #prescreen .player-slot[data-seat="p2"] { color: #ff3aa1; }
-  #prescreen .player-slot[data-seat="p3"] { color: #6bff8c; }
-  #prescreen .player-slot[data-seat="p4"] { color: #ffd84a; }
-  #prescreen .row {
-    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-    justify-content: center;
-  }
-  #prescreen button {
-    background: #1a1a3a; color: #fff; border: 1px solid #2dd4ff;
-    padding: 6px 14px; font: inherit; font-size: 11px; cursor: pointer;
-    letter-spacing: 0.1em;
-  }
-  #prescreen button.primary {
-    background: #ff3aa1; border-color: #ff3aa1;
-  }
-  #prescreen button:disabled { opacity: 0.4; cursor: not-allowed; }
-  #prescreen .name-input {
-    background: #0a0a28; color: #fff;
-    border: 1px solid #2dd4ff; border-radius: 3px;
-    padding: 6px 10px; font: inherit; font-size: 11px;
-    letter-spacing: 0.08em; width: 130px; text-align: center;
-  }
-  #prescreen .name-input::placeholder { color: rgba(255,255,255,0.35); }
-  #status {
-    font-size: 11px; color: #ffd84a; min-height: 1.1em; letter-spacing: 0.06em;
-  }
-  #seat { font-size: 10px; color: #2dd4ff; letter-spacing: 0.1em; }
 
   /* Pink fire button — same colour recipe as SP's invaders/. */
   .touch-controls .tc-fire-btn {
@@ -218,24 +265,22 @@
       </div>
     </div>
     <div id="prescreen">
-      <div class="title">Invaders MP · spike</div>
+      <div class="title">INVADERS</div>
 
       <div class="room-line">
         <span class="room-label">ROOM</span>
         <span class="room-code" id="roomCode">····</span>
       </div>
 
-      <!-- QR + URL share targets. QR is the headline (friends scan to
-           join); URL stays as a copy/paste fallback. -->
-      <div class="share">
+      <!-- QR is the headline share target — friends scan to join.
+           Copy-link sits underneath as the parent-helps-out fallback. -->
+      <div class="qr-wrap">
         <div class="qr" id="qr"></div>
-        <div class="url" id="url">…</div>
+        <button id="copyBtn" class="qr-share" type="button">Copy link</button>
       </div>
 
-      <!-- One slot per seat, colour-coded. Slots are dimmed when empty,
-           lit when the seat is occupied, with a YOU badge on the local
-           seat. Names come from the snapshot so every viewer sees the
-           same lobby. -->
+      <!-- One slot per seat, colour-coded. Dimmed when empty, lit when
+           occupied, with a YOU badge on the local seat. -->
       <div class="players">
         <div class="player-slot" data-seat="p1"><div class="ps-label">P1</div><div class="ps-name">—</div></div>
         <div class="player-slot" data-seat="p2"><div class="ps-label">P2</div><div class="ps-name">—</div></div>
@@ -243,20 +288,20 @@
         <div class="player-slot" data-seat="p4"><div class="ps-label">P4</div><div class="ps-name">—</div></div>
       </div>
 
-      <div class="row">
-        <input id="nameInput" class="name-input" maxlength="12" placeholder="Your name" autocomplete="off" autocapitalize="off" spellcheck="false">
-        <button id="copyBtn">Copy link</button>
-        <button id="startBtn" class="primary" disabled>Start</button>
-        <button id="retryBtn" title="Force a fresh WebRTC handshake (use if the badge is stuck on relay after a late join)">Retry P2P</button>
-      </div>
+      <input id="nameInput" class="name-input" maxlength="12" placeholder="Your name" autocomplete="off" autocapitalize="off" spellcheck="false">
+
+      <button id="startBtn" class="big-start" disabled>START</button>
 
       <div id="status">Connecting…</div>
 
+      <!-- Diagnostic line + dev controls; only visible when the URL
+           has ?debug (CSS hides .meta + #retryBtn unless body.is-debug). -->
       <div class="meta">
         <span id="netcode" class="netcode">netcode v?</span>
         <span id="ping" class="ping"></span>
         <span id="transport" class="transport">relay</span>
       </div>
+      <button id="retryBtn" title="Force a fresh WebRTC handshake (use if the badge is stuck on relay after a late join)">Retry P2P</button>
     </div>
   </div>
 </div>
@@ -371,9 +416,15 @@
     : 'ws://' + location.hostname + ':8787/api/mp/invaders/ws';
   const wsUrl = wsBase + '?code=' + roomCode;
 
-  document.getElementById('url').textContent = location.href;
   document.getElementById('roomCode').textContent = roomCode;
   renderQR(location.href);
+
+  // ?debug on the URL reveals the diagnostic meta line (netcode /
+  // ping / transport) and the Retry P2P button. Kept off by default
+  // so the kid view stays clean.
+  if (new URLSearchParams(location.search).has('debug')) {
+    document.body.classList.add('is-debug');
+  }
 
   // QR code for the join URL. Type 0 = auto-fit the smallest matrix
   // that fits the URL; 'M' = medium error-correction (handles a 7-bit
@@ -1029,23 +1080,26 @@
     tube.classList.toggle('is-ready', s === 'countdown' || s === 'running');
     refreshPlayerSlots();
     if (s === 'waiting') {
-      setStatus('Waiting…');
+      setStatus('Connecting…');
       startBtn.disabled = true;
     } else if (s === 'ready') {
+      // Solo → invite-friends nudge; multi → READY!.
       setStatus(occupied >= 2
-        ? `${occupied} of ${MAX_SEATS} players in. Press START — more can join later.`
-        : `Press START — up to ${MAX_SEATS - 1} friends can join anytime.`);
+        ? `${occupied} players ready — tap START!`
+        : 'Tap START — friends can join anytime');
       startBtn.disabled = false;
     } else if (s === 'countdown') {
-      setStatus('Get ready…');
+      setStatus('GET READY!');
       startBtn.disabled = true;
     } else if (s === 'running') {
-      setStatus(`Score: ${lastState.score} · ${occupied}/${MAX_SEATS} active`);
+      // Prescreen is hidden during running so this text is invisible,
+      // but keep it set in case we surface a HUD later.
+      setStatus('');
       startBtn.disabled = true;
     } else if (s === 'gameover') {
       setStatus(lastState.won
-        ? ('You won! Final score ' + lastState.score)
-        : ('Game over. Final score ' + lastState.score));
+        ? `Earth is safe! Score: ${lastState.score}`
+        : `Game over • Score: ${lastState.score}`);
       startBtn.disabled = false;
     }
   }
