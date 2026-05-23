@@ -186,6 +186,12 @@
     INV_W, INV_H,
     SEATS, MAX_SEATS,
   } from './engine.js';
+  import { ROW_COLORS, spriteForRow, paintPixels, paintShip } from './sprites.js';
+  // INV_COLS isn't exported by engine.js (it's a private constant)
+  // but the grid stride is fixed by the wire snapshot, so we mirror
+  // it here for the renderer's row math. If engine.js ever changes
+  // the grid width this has to move in lockstep.
+  const SPRITE_COLS = 8;
 
   // Per-seat colours for the canvas. Indexed by seat position so the
   // same player reads as the same colour on every viewer's screen.
@@ -1053,11 +1059,11 @@
       const x = isMine && localShip.x !== null
         ? localShip.x
         : lerp(pa.x, pb.x);
-      ctx.fillStyle = SHIP_COLORS[i];
-      ctx.fillRect(x, SHIP_Y, SHIP_W, SHIP_H);
+      paintShip(ctx, x, SHIP_Y, SHIP_W, SHIP_COLORS[i]);
       if (live.name && nameAlpha > 0) {
         ctx.globalAlpha = nameAlpha;
-        ctx.fillText(live.name, x + SHIP_W / 2, SHIP_Y - 3);
+        ctx.fillStyle = SHIP_COLORS[i];
+        ctx.fillText(live.name, x + SHIP_W / 2, SHIP_Y - 7);
         ctx.globalAlpha = 1;
       }
     }
@@ -1065,12 +1071,21 @@
     // Invaders — lerp by array index (engine emits the grid in a stable
     // order; dead invaders stay in the array with a:false). The classic
     // chunky shuffle becomes a smooth slide between marches.
-    ctx.fillStyle = '#ffffff';
+    // Sprite + colour come from the grid row (squid / crab / crab /
+    // octopus / octopus, top → bottom). Two-frame animation toggles
+    // every 300 ms — same cadence as the SP original.
     const n = Math.min(a.invaders.length, b.invaders.length);
+    const frame = Math.floor(renderNowEarly / 300) % 2;
     for (let i = 0; i < n; i++) {
       const ia = a.invaders[i], ib = b.invaders[i];
       if (!ib.a || !ia.a) continue;            // dead either side → hide
-      ctx.fillRect(lerp(ia.x, ib.x), lerp(ia.y, ib.y), INV_W, INV_H);
+      const row = Math.floor(i / SPRITE_COLS);
+      const { frames, w } = spriteForRow(row);
+      // Centre the sprite in the engine's INV_W cell so collisions
+      // (which use INV_W) stay aligned with what the eye sees.
+      const cellX = lerp(ia.x, ib.x) + (INV_W - w) / 2;
+      const cellY = lerp(ia.y, ib.y);
+      paintPixels(ctx, cellX, cellY, frames[frame], 1, ROW_COLORS[row] || '#ffffff');
     }
 
     // Bullets — drawn from the latest snapshot (server-authoritative
