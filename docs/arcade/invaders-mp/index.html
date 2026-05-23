@@ -1009,8 +1009,21 @@
     // seats lerp between snapshots. Colour is by seat index so every
     // viewer sees the same player as the same colour. Skip drawing
     // once the latest snapshot reports dead (covers unoccupied-mask
-    // + actual death). Name (if any) renders just above the ship.
+    // + actual death). Name (if any) renders just above the ship —
+    // fully visible through the countdown, fades to invisible over
+    // NAME_FADE_MS once ATTACK fires, comes back once the round ends.
     const latestSnap = snapBuffer[snapBuffer.length - 1];
+    const renderNowEarly = performance.now();
+    let nameAlpha = 1;
+    if (latestSnap.status === 'running') {
+      if (nameFadeStartAt > 0) {
+        nameAlpha = Math.max(0, 1 - (renderNowEarly - nameFadeStartAt) / NAME_FADE_MS);
+      } else {
+        // Late join — we never saw the transition. Match what
+        // everyone else has been seeing (names already gone).
+        nameAlpha = 0;
+      }
+    }
     ctx.font = '6px "Press Start 2P", monospace';
     ctx.textAlign = 'center';
     for (let i = 0; i < MAX_SEATS; i++) {
@@ -1023,7 +1036,11 @@
         : lerp(pa.x, pb.x);
       ctx.fillStyle = SHIP_COLORS[i];
       ctx.fillRect(x, SHIP_Y, SHIP_W, SHIP_H);
-      if (live.name) ctx.fillText(live.name, x + SHIP_W / 2, SHIP_Y - 3);
+      if (live.name && nameAlpha > 0) {
+        ctx.globalAlpha = nameAlpha;
+        ctx.fillText(live.name, x + SHIP_W / 2, SHIP_Y - 3);
+        ctx.globalAlpha = 1;
+      }
     }
 
     // Invaders — lerp by array index (engine emits the grid in a stable
@@ -1054,6 +1071,11 @@
     if (latestSnap.status !== lastSeenStatus) {
       if (lastSeenStatus === 'countdown' && latestSnap.status === 'running') {
         attackOverlayUntil = renderNow + 600;
+        nameFadeStartAt   = renderNow;
+      } else if (latestSnap.status !== 'running') {
+        // Pre-game / between-rounds: names should be visible again,
+        // so reset the fade clock for the next countdown→running flip.
+        nameFadeStartAt = 0;
       }
       lastSeenStatus = latestSnap.status;
     }
@@ -1074,6 +1096,8 @@
 
   let lastSeenStatus = null;
   let attackOverlayUntil = 0;
+  let nameFadeStartAt = 0;
+  const NAME_FADE_MS = 800;
   function drawCenteredOverlay(text, color, sizePx) {
     ctx.save();
     ctx.font = sizePx + 'px "Press Start 2P", monospace';
