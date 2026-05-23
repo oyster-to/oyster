@@ -1469,13 +1469,14 @@
 }
 
 
-/* Active projects on Home — sub-projects inside spaces with at least
-   one non-done session. Sorted by recency. Click jumps to the parent
-   space (until #266 lands per-source filtering on a real-space view). */
-.home-active-projects-section {
+/* Projects strip on Home — all projects with at least one session,
+   sorted by recency. Live-ness is shown via pips on each tile, not
+   used as the visibility criterion. Click filters the session list;
+   jump button navigates to the parent space. */
+.home-projects-section {
   margin-top: 32px;
 }
-.home-active-projects-grid {
+.home-projects-grid {
   position: relative;
   z-index: 1;
   max-width: 1100px;
@@ -1490,7 +1491,7 @@
    top-right jump button; inner <button> covers the body and is the
    filter click target. Same pattern as ProjectTile inside a real
    space — keeps nested click targets valid HTML. */
-.home-active-project-tile {
+.home-projects-strip-tile {
   position: relative;
   background: var(--home-surface);
   border: 1px solid var(--home-border);
@@ -1499,16 +1500,16 @@
   -webkit-backdrop-filter: blur(20px);
   transition: background 0.15s ease, border-color 0.15s ease;
 }
-.home-active-project-tile:hover {
+.home-projects-strip-tile:hover {
   background: rgba(255, 255, 255, 0.02);
   border-color: rgba(255, 255, 255, 0.12);
 }
-.home-active-project-tile.selected {
+.home-projects-strip-tile.selected {
   background: rgba(124, 107, 255, 0.14);
   border-color: var(--home-border-accent);
   box-shadow: 0 0 0 1px var(--home-border-accent) inset;
 }
-.home-active-project-tile-body {
+.home-projects-strip-tile-body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1522,7 +1523,7 @@
   font: inherit;
   color: inherit;
 }
-.home-active-project-tile-jump {
+.home-projects-strip-tile-jump {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -1543,16 +1544,16 @@
   pointer-events: none;
   transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
-.home-active-project-tile:hover .home-active-project-tile-jump,
-.home-active-project-tile-jump:focus-visible {
+.home-projects-strip-tile:hover .home-projects-strip-tile-jump,
+.home-projects-strip-tile-jump:focus-visible {
   opacity: 1;
   pointer-events: auto;
 }
-.home-active-project-tile-jump:hover {
+.home-projects-strip-tile-jump:hover {
   background: rgba(124, 107, 255, 0.18);
   color: var(--home-accent-bright);
 }
-.home-active-project-meta {
+.home-projects-strip-meta {
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.08em;
@@ -1560,13 +1561,13 @@
   color: rgba(232, 233, 240, 0.55);
   margin-bottom: 4px;
 }
-.home-active-project-name {
+.home-projects-strip-name {
   font-family: var(--font-mono);
   font-size: 13px;
   color: var(--home-accent-bright);
   margin-bottom: 8px;
 }
-.home-active-project-counts {
+.home-projects-strip-counts {
   display: flex;
   flex-wrap: wrap;
   gap: 3px 12px;
@@ -1575,7 +1576,7 @@
   line-height: 1.4;
   color: var(--text-dim);
 }
-.home-active-project-counts .signal {
+.home-projects-strip-counts .signal {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -1589,13 +1590,13 @@
    so the tile reads as "a folder you ran in but isn't attached"
    rather than a project. The home-relative path (~/Dev) is what we
    display, full absolute path is on the tile's title attr. */
-.home-active-project-name--folder {
+.home-projects-strip-name--folder {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   color: var(--home-text-muted);
 }
-.home-active-project-name--folder svg {
+.home-projects-strip-name--folder svg {
   flex-shrink: 0;
 }
 

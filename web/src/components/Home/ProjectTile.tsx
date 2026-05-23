@@ -235,7 +235,7 @@ export function ProjectTile({
           ? `Delete "${project.name}" and the space?`
           : `Delete "${project.name}"?`}
         body={willCollapseSpace ? (
-          <>This is the only project in this space. Deleting it removes the space too; {sessionPhrase} fall back to Everything else.</>
+          <>This is the only project in this space. Deleting it removes the space too; {sessionPhrase} fall back to All.</>
         ) : (
           <>Sessions and artefacts attributed to this project become orphan but stay in the space. Reattach later by creating a new project and using "Claim folder".</>
         )}

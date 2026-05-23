@@ -392,23 +392,22 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     return { sessionCountsBySpace: bySpace, orphanCounts: orphans, totalCounts: total };
   }, [sessions, presence.byId]);
 
-  // Active projects on Home: collapse sessions by projectId, count
-  // non-done states, drop projects with no live activity. Each entry
-  // becomes a tile in the "Active projects" section so the user can
-  // jump straight to the project that's currently in flight.
-  const activeProjects = useMemo(() => {
+  // All projects with at least one session, sorted by most recent activity.
+  // Done + dormant sessions count toward the totals — live-ness is a visual
+  // cue on the tile (the green/amber/red pips), not the criterion for
+  // visibility. A project with 100 done sessions and zero live ones still
+  // shows up; the user can click into it.
+  const homeProjects = useMemo(() => {
     if (!isHomeView || showElsewhere) return [];
     const map = new Map<string, {
       projectId: string;
       spaceId: string;
       label: string;
-      counts: { active: number; waiting: number; disconnected: number };
+      counts: { active: number; waiting: number; disconnected: number; done: number };
       lastEventAt: number;
     }>();
     for (const s of sessions) {
-      // Skip done + dormant: both read as grey "no urgency" on the surface,
-      // so neither belongs in the Active-projects tile counts.
-      if (!s.projectId || !s.spaceId || s.displayState === "done" || s.displayState === "dormant") continue;
+      if (!s.projectId || !s.spaceId) continue;
       let entry = map.get(s.projectId);
       if (!entry) {
         const cwdBasename = s.cwd ? s.cwd.split(/[\\/]/).filter(Boolean).pop() ?? null : null;
@@ -416,7 +415,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           projectId: s.projectId,
           spaceId: s.spaceId,
           label: cwdBasename ?? s.projectId,
-          counts: { active: 0, waiting: 0, disconnected: 0 },
+          counts: { active: 0, waiting: 0, disconnected: 0, done: 0 },
           lastEventAt: 0,
         };
         map.set(s.projectId, entry);
@@ -424,6 +423,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
       if (s.displayState === "active") entry.counts.active++;
       else if (s.displayState === "waiting") entry.counts.waiting++;
       else if (s.displayState === "disconnected") entry.counts.disconnected++;
+      else if (s.displayState === "done" || s.displayState === "dormant") entry.counts.done++;
       const t = parseTimestamp(s.lastEventAt);
       if (Number.isFinite(t) && t > entry.lastEventAt) entry.lastEventAt = t;
     }
@@ -886,33 +886,37 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             home-space-card / home-spaces-section CSS is kept around in
             case the cards return as a settings or dashboard surface. */}
 
-        {isHomeView && !showElsewhere && activeProjects.length > 0 && (
-          <div className="home-section home-active-projects-section">
-            <div className="home-active-projects-grid">
-              {activeProjects.map((p) => {
+        {isHomeView && !showElsewhere && homeProjects.length > 0 && (
+          <div className="home-section home-projects-section">
+            <div className="home-projects-grid">
+              {homeProjects.map((p) => {
                 const space = spaces.find((s) => s.id === p.spaceId);
                 const isSelected = selectedProjectId === p.projectId;
                 return (
                   <div
                     key={p.projectId}
-                    className={`home-active-project-tile${isSelected ? " selected" : ""}`}
+                    className={`home-projects-strip-tile${isSelected ? " selected" : ""}`}
                   >
                     <button
                       type="button"
-                      className="home-active-project-tile-body"
+                      className="home-projects-strip-tile-body"
                       onClick={() => setSelectedProjectId(isSelected ? null : p.projectId)}
                       title={`Filter sessions to ${p.label}`}
                     >
-                      <div className="home-active-project-meta">{space?.displayName ?? p.spaceId}</div>
-                      <div className="home-active-project-name">{p.label}</div>
-                      <div className="home-active-project-counts">
+                      <div className="home-projects-strip-meta">{space?.displayName ?? p.spaceId}</div>
+                      <div className="home-projects-strip-name">{p.label}</div>
+                      <div className="home-projects-strip-counts">
                         {p.counts.active > 0 && <span className="signal"><span className="pip pip-green" />{p.counts.active} active</span>}
                         {p.counts.waiting > 0 && <span className="signal"><span className="pip pip-amber" />{p.counts.waiting} waiting</span>}
+                        {p.counts.disconnected > 0 && <span className="signal"><span className="pip pip-red" />{p.counts.disconnected} disconnected</span>}
+                        {p.counts.active + p.counts.waiting + p.counts.disconnected === 0 && p.counts.done > 0 && (
+                          <span className="signal"><span className="pip pip-dim" />{p.counts.done} done</span>
+                        )}
                       </div>
                     </button>
                     <button
                       type="button"
-                      className="home-active-project-tile-jump"
+                      className="home-projects-strip-tile-jump"
                       onClick={(e) => {
                         e.stopPropagation();
                         pendingFolderSelection.current = p.projectId;
@@ -931,8 +935,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         )}
 
         {isHomeView && showElsewhere && orphanCwdGroups.length > 0 && (
-          <div className="home-section home-active-projects-section">
-            <div className="home-active-projects-grid">
+          <div className="home-section home-projects-section">
+            <div className="home-projects-grid">
               {orphanCwdGroups.map((p) => {
                 const isSelected = selectedOrphanCwd === p.cwd;
                 // Disable every promote button while *any* promotion is in
@@ -942,19 +946,19 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 return (
                   <div
                     key={p.cwd}
-                    className={`home-active-project-tile home-active-project-tile--orphan${isSelected ? " selected" : ""}`}
+                    className={`home-projects-strip-tile home-projects-strip-tile--orphan${isSelected ? " selected" : ""}`}
                   >
                     <button
                       type="button"
-                      className="home-active-project-tile-body"
+                      className="home-projects-strip-tile-body"
                       onClick={() => setSelectedOrphanCwd(isSelected ? null : p.cwd)}
                       title={p.cwd}
                     >
-                      <div className="home-active-project-name home-active-project-name--folder">
+                      <div className="home-projects-strip-name home-projects-strip-name--folder">
                         <Folder size={14} strokeWidth={1.75} aria-hidden="true" />
                         <span>{homeRelative(p.cwd)}</span>
                       </div>
-                      <div className="home-active-project-counts">
+                      <div className="home-projects-strip-counts">
                         {p.counts.active > 0 && <span className="signal"><span className="pip pip-green" />{p.counts.active} active</span>}
                         {p.counts.waiting > 0 && <span className="signal"><span className="pip pip-amber" />{p.counts.waiting} waiting</span>}
                         {p.counts.disconnected > 0 && <span className="signal"><span className="pip pip-red" />{p.counts.disconnected} disconnected</span>}
@@ -964,7 +968,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                     {onPromoteFolderToSpace && (
                       <button
                         type="button"
-                        className="home-active-project-tile-jump"
+                        className="home-projects-strip-tile-jump"
                         disabled={isPromoting && attachPicker?.cwd !== p.cwd}
                         onClick={(e) => {
                           e.stopPropagation();

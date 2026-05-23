@@ -274,7 +274,7 @@ export function SetupProposalPanel({ proposal, onClose, onApplied }: Props) {
             <h2 className="setup-title">{headline}</h2>
             <p className="setup-sub">
               Untick spaces you don't want, click <strong>×</strong> on a folder
-              to push it back to <em>Everything else</em>, or drag chips to
+              to push it back to <em>All</em>, or drag chips to
               rearrange.
             </p>
             <button
@@ -386,8 +386,8 @@ function SpaceRowView({
         type="button"
         className="setup-check setup-check--on"
         onClick={() => onToggle(space.key)}
-        aria-label="Untick — drop chips into Everything else and remove this space"
-        title="Untick to drop chips into Everything else"
+        aria-label="Untick — drop chips into All and remove this space"
+        title="Untick to drop chips into All"
       >
         <span aria-hidden="true">✓</span>
       </button>
@@ -462,7 +462,7 @@ function ElsewhereView({ folders }: { folders: SetupProposalFolder[] }) {
       <span className="setup-row-spacer" />
       <div className="setup-row-body">
         <div className="setup-row-name">
-          <span className="setup-name-static">Everything else</span>
+          <span className="setup-name-static">All</span>
           <span className="setup-count">
             {folders.length === 0
               ? "0 folders"
@@ -521,7 +521,7 @@ function ChipView({ folder, fromContainer, hideX, onDemote }: ChipProps) {
             e.stopPropagation();
             onDemote();
           }}
-          title="Move to Everything else"
+          title="Move to All"
         >
           ×
         </button>
