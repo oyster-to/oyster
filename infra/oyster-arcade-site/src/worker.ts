@@ -22,6 +22,18 @@ export default {
       return fetch(new Request('https://oyster.to' + url.pathname + url.search, req));
     }
 
+    // Path-based room codes for the 2P spike — /invaders-2p/FROG (and
+    // /invaders-2p/FROG/ with trailing slash) should serve the
+    // canonical index.html so the client can read the room code from
+    // location.pathname. We rewrite any /invaders-2p/<segment> that
+    // doesn't look like a file (no dot) and isn't the bare directory
+    // path. Actual files (simple-peer.min.js, etc.) flow through to
+    // the ASSETS binding unchanged.
+    if (/^\/invaders-2p\/[^./]+\/?$/.test(url.pathname)) {
+      const rewritten = new URL('/invaders-2p/', req.url);
+      return env.ASSETS.fetch(new Request(rewritten, req));
+    }
+
     return env.ASSETS.fetch(req);
   },
 };
