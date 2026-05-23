@@ -13,7 +13,6 @@
 // The game engine itself lives in docs/arcade/invaders-mp/engine.js
 // and is shared verbatim with the host-mode client.
 
-import { DurableObject } from 'cloudflare:workers';
 import {
   initState,
   snapshotForClient,
@@ -87,7 +86,8 @@ type ClientMessage =
   | { type: 'input';  left?: boolean; right?: boolean; fire?: boolean }
   | { type: 'pos';    x: number }
   | { type: 'start' }
-  | { type: 'signal'; to: Seat; payload: unknown };
+  // `to` is untrusted wire data — narrowed by isSeat() in relaySignal.
+  | { type: 'signal'; to: unknown; payload: unknown };
 
 type Occupancy = Record<Seat, boolean>;
 
@@ -95,7 +95,14 @@ function freshInputs(): Record<Seat, Input> {
   return Object.fromEntries(SEATS.map((s) => [s, zeroInput()])) as Record<Seat, Input>;
 }
 
-export class InvadersRoom extends DurableObject<Env> {
+// Narrowing predicate for untrusted wire values — used at the
+// boundary (`signal` relay payload, etc.) instead of trusting that a
+// declared `Seat`-typed field actually contains one.
+function isSeat(x: unknown): x is Seat {
+  return typeof x === 'string' && (SEATS as readonly string[]).includes(x);
+}
+
+export class InvadersRoom {
   private sockets = new Map<Seat, WebSocket>();
   private inputs: Record<Seat, Input> = freshInputs();
   private game: GameState = initState();
@@ -106,7 +113,13 @@ export class InvadersRoom extends DurableObject<Env> {
   // client badge can show `worker → DO` routing.
   private doColo: string | null = null;
 
-  override async fetch(req: Request): Promise<Response> {
+  // The runtime instantiates the class with (state, env); we don't
+  // currently use either (no storage, env access goes via Env type
+  // on the worker entry). Underscore prefix silences unused-var
+  // warnings on strict TS.
+  constructor(_state: DurableObjectState, _env: Env) {}
+
+  async fetch(req: Request): Promise<Response> {
     if (req.headers.get('Upgrade') !== 'websocket') {
       return new Response('expected websocket upgrade', { status: 426 });
     }
@@ -263,12 +276,13 @@ export class InvadersRoom extends DurableObject<Env> {
     ship.x = Math.max(0, Math.min(PF_W - SHIP_W, msg.x));
   }
 
-  private relaySignal(sender: Seat, msg: { to: Seat; payload: unknown }): void {
+  private relaySignal(sender: Seat, msg: { to: unknown; payload: unknown }): void {
     // Opaque relay for WebRTC handshake (SDP offer/answer, ICE
     // candidates). DO doesn't interpret the payload — it just
     // forwards from one seat to the other so neither client needs
-    // a direct route until the DataChannel is up.
-    if (!(SEATS as readonly string[]).includes(msg.to)) return;
+    // a direct route until the DataChannel is up. `msg.to` is wire
+    // data so we narrow it with the isSeat type-guard before use.
+    if (!isSeat(msg.to)) return;
     if (msg.to === sender) return; // no self-signalling
     const targetWs = this.sockets.get(msg.to);
     if (!targetWs) return;

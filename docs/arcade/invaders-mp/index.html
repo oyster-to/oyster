@@ -188,7 +188,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 18;
+  const NETCODE_VERSION = 19;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -267,11 +267,21 @@
     pingEl.classList.remove('low', 'mid', 'high');
   }
   function sendPing() {
-    // Prefer DC when up so the badge reflects the actual LAN RTT
-    // instead of the cloud round-trip.
+    // Prefer DC when up so the badge reflects actual LAN RTT instead
+    // of the cloud round-trip. Pings are pairwise — host (P1) pings
+    // each connected peer; clients ping P1. Either side echoes pong.
     const m = { type: 'ping', t: performance.now() };
-    if (p2pUp())                       sendOverDC(m);
-    else if (ws && ws.readyState === 1) ws.send(JSON.stringify(m));
+    if (anyPeerConnected()) {
+      if (mySeat === 'p1') {
+        for (const p of peers.values()) {
+          if (p.connected) try { p.send(JSON.stringify(m)); } catch {}
+        }
+      } else {
+        sendToHost(m);
+      }
+      return;
+    }
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify(m));
   }
 
   // Client-authoritative position publish. While the WS is open and
@@ -363,15 +373,21 @@
   const HOST_TICK_MS = 1000 / HOST_TICK_HZ;
   let hostEngaged = false;            // true after Start in P2P mode this session
   let hostState   = null;
-  let hostInputs  = { p1: zeroInput(), p2: zeroInput() };
+  let hostInputs  = freshHostInputs();
   let hostLoop    = null;
   let hostLastMs  = 0;
+
+  function freshHostInputs() {
+    const out = {};
+    for (const s of SEATS) out[s] = zeroInput();
+    return out;
+  }
 
   function startHost() {
     if (mySeat !== 'p1') return;
     hostState = initState();
     hostState.status = 'running';
-    hostInputs = { p1: zeroInput(), p2: zeroInput() };
+    hostInputs = freshHostInputs();
     hostLastMs = Date.now();
     if (hostLoop) clearInterval(hostLoop);
     hostLoop = setInterval(hostTick, HOST_TICK_MS);
@@ -386,15 +402,19 @@
     const now = Date.now();
     const dt = Math.min(0.1, (now - hostLastMs) / 1000);
     hostLastMs = now;
-    // Occupancy follows the DataChannel: if P2 drops mid-match the
-    // host keeps playing solo. The empty seat takes no damage and
-    // doesn't contribute to the wipe check (engine handles that).
-    const occupied = { p1: true, p2: p2pUp() };
+    // Occupancy follows the DataChannel: any seat whose peer has
+    // dropped is masked out so it takes no damage and doesn't
+    // contribute to the wipe check (engine handles that). p1 is
+    // always occupied — that's us, the host.
+    const occupied = {};
+    for (const s of SEATS) occupied[s] = (s === 'p1') ? true : peerConnectedTo(s);
     step(hostState, hostInputs, dt, occupied);
     const snap = { type: 'state', t: now, ...snapshotForClient(hostState) };
-    if (!occupied.p2) snap.players[1].alive = false; // mask for own render
+    for (let i = 0; i < SEATS.length; i++) {
+      if (!occupied[SEATS[i]]) snap.players[i].alive = false; // mask for render
+    }
     handle(snap);                 // P1's own render path
-    sendOverDC(snap);             // ship to P2 (no-op if DC closed)
+    broadcastOverDC(snap);        // → all connected peers
     if (hostState.status === 'gameover') {
       if (hostLoop) clearInterval(hostLoop);
       hostLoop = null;
@@ -412,154 +432,224 @@
     }
   }
 
-  function p2pUp() { return !!(peer && peer.connected); }
+  // WebRTC star topology: P1 is always the host, with one peer per
+  // other player. Non-P1 clients each have a single peer to P1.
+  //   - peers: Map<otherSeat, SimplePeer>
+  //   - P1: 0..3 peers (one per joined non-P1)
+  //   - non-P1: 0..1 peers (just the one to P1)
+  // Signal routing is "signal from X → peers.get(X).signal(payload)"
+  // — symmetric, so the same code handles either role.
+  function peerConnectedTo(seat) {
+    const p = peers.get(seat);
+    return !!(p && p.connected);
+  }
+  function anyPeerConnected() {
+    for (const p of peers.values()) if (p.connected) return true;
+    return false;
+  }
+  function allOccupiedPeersConnected() {
+    // Host (P1): every occupied non-P1 seat must have a connected peer.
+    // Client (non-P1): we just need a connected peer to P1.
+    if (!mySeat || !lastState) return false;
+    if (mySeat === 'p1') {
+      let anyOther = false;
+      for (let i = 1; i < SEATS.length; i++) {
+        if (!lastState.players[i]?.alive) continue;
+        anyOther = true;
+        if (!peerConnectedTo(SEATS[i])) return false;
+      }
+      return anyOther;
+    }
+    return peerConnectedTo('p1');
+  }
+  function p2pUp() { return anyPeerConnected(); }
 
-  function sendOverDC(msg) {
-    if (!p2pUp()) return;
-    try { peer.send(JSON.stringify(msg)); }
+  function broadcastOverDC(msg) {
+    // Host pushes the same payload (e.g. a snapshot) to every open DC.
+    if (mySeat !== 'p1') return;
+    const json = JSON.stringify(msg);
+    for (const p of peers.values()) {
+      if (!p.connected) continue;
+      try { p.send(json); } catch { /* peer dying, close handler cleans up */ }
+    }
+  }
+  function sendToHost(msg) {
+    // Non-P1 clients route gameplay messages to P1 via their single
+    // peer. No-op on P1 (we don't call it from there).
+    const p = peers.get('p1');
+    if (!p || !p.connected) return;
+    try { p.send(JSON.stringify(msg)); }
     catch (e) { console.warn('[P2P] send err:', e && e.message); }
   }
 
   // Transport router for client→server gameplay messages. Three modes:
   //   - host engaged + P1: we ARE the server, apply locally
-  //   - host engaged + P2: send via DC to P1
-  //   - not engaged:       relay via WS to DO (cloud mode)
+  //   - host engaged + non-P1: send to P1 via DC
+  //   - not engaged: relay via WS to DO (cloud mode)
   function sendToServer(msg) {
     if (hostEngaged) {
       if (mySeat === 'p1') hostReceive('p1', msg);
-      else                 sendOverDC(msg);
+      else                 sendToHost(msg);
       return;
     }
     if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
   }
 
   // --------------------------------------------------------------------
-  // WebRTC peer (simple-peer over signalling-via-DO)
+  // WebRTC peer pool — star topology
   //
-  // The handshake fires as soon as both seats are present (each side
-  // creates a peer with itself as initiator if mySeat === 'p1'). SDP
-  // offer/answer + ICE candidates are relayed through the DO via
-  // `signal` messages. Once the DataChannel opens, the transport
-  // badge turns green and host mode is available to engage on Start.
-  let peer = null;
-  let peerCreated = false;
-  const pendingSignals = []; // queued signals if peer doesn't exist yet
+  // peers: Map<otherSeat, SimplePeer>. On P1 we hold one entry per
+  // other joined player; on non-P1 we hold a single entry for P1.
+  //
+  // Signalling is symmetric: each side's `on('signal')` emits an SDP/ICE
+  // payload tagged with the *other* seat as the target; the DO relays
+  // it to that seat's socket; the receiver routes it to peers.get(from).
+  // Signals arriving before the local peer exists are queued per seat.
+  const peers = new Map();              // otherSeat → SimplePeer
+  const pendingByPeer = new Map();      // otherSeat → array of queued signals
 
   const transportEl = document.getElementById('transport');
   function setTransport(state) {
     transportEl.classList.remove('p2p', 'connecting');
-    if (state === 'p2p')        { transportEl.textContent = 'P2P';  transportEl.classList.add('p2p'); }
+    if (state === 'p2p')             { transportEl.textContent = 'P2P';  transportEl.classList.add('p2p'); }
     else if (state === 'connecting') { transportEl.textContent = 'P2P…'; transportEl.classList.add('connecting'); }
-    else                         { transportEl.textContent = 'relay'; }
+    else                              { transportEl.textContent = 'relay'; }
+  }
+  function refreshTransport() {
+    if (allOccupiedPeersConnected()) setTransport('p2p');
+    else if (peers.size > 0)         setTransport('connecting');
+    else                             setTransport('relay');
   }
 
-  function maybeCreatePeer() {
-    if (peerCreated) return;
-    if (typeof SimplePeer === 'undefined') return;     // library not loaded
-    if (!mySeat) return;
-    if (!lastState) return;
-    const otherIdx = mySeat === 'p1' ? 1 : 0;
-    const other = lastState.players[otherIdx];
-    if (!other || !other.alive) return;                 // other seat empty
-    peerCreated = true;
-    setTransport('connecting');
-    console.log('[P2P] init (initiator=' + (mySeat === 'p1') + ')');
+  // Create a peer to `otherSeat` if one doesn't exist yet. Host (P1)
+  // initiates; clients are passive (they wait for P1's offer). Idempotent.
+  function makePeerTo(otherSeat) {
+    if (typeof SimplePeer === 'undefined') return; // library not loaded
+    if (peers.has(otherSeat)) return;
+    const initiator = (mySeat === 'p1');
+    let p;
     try {
-      peer = new SimplePeer({
-        initiator: (mySeat === 'p1'),
-        trickle: true,
-      });
+      p = new SimplePeer({ initiator, trickle: true });
     } catch (e) {
-      console.warn('[P2P] new SimplePeer failed:', e);
-      setTransport('relay');
+      console.warn('[P2P] new SimplePeer failed for', otherSeat, e && e.message);
       return;
     }
-    peer.on('signal', (data) => {
-      const target = mySeat === 'p1' ? 'p2' : 'p1';
+    peers.set(otherSeat, p);
+    console.log('[P2P] peer to', otherSeat, '(initiator=' + initiator + ')');
+
+    p.on('signal', (data) => {
       if (ws && ws.readyState === 1) {
-        ws.send(JSON.stringify({ type: 'signal', to: target, payload: data }));
+        ws.send(JSON.stringify({ type: 'signal', to: otherSeat, payload: data }));
       }
     });
-    peer.on('connect', () => {
-      console.log('[P2P] DataChannel open');
-      setTransport('p2p');
+    p.on('connect', () => {
+      console.log('[P2P] DataChannel open ↔', otherSeat);
+      refreshTransport();
     });
-    peer.on('data', (raw) => {
-      let dmsg;
-      try { dmsg = JSON.parse(raw.toString()); } catch { return; }
-      // Ping/pong is symmetric — either side echoes, either side
-      // measures.
-      if (dmsg.type === 'ping') { sendOverDC({ type: 'pong', t: dmsg.t }); return; }
-      if (dmsg.type === 'pong') { applyPong(dmsg.t); return; }
-      if (mySeat === 'p1') {
-        // We're the host. P2's 'start' kicks us into host mode if we
-        // haven't engaged yet (P2 pressed Start first); all other
-        // gameplay messages route to our local hostState.
-        if (dmsg.type === 'start') {
-          if (!hostEngaged) { hostEngaged = true; startHost(); }
-          return;
-        }
-        if (hostEngaged) hostReceive('p2', dmsg);
-      } else {
-        // We're the thin client. The first snapshot over DC means the
-        // host kicked off — engage on this side so future inputs route
-        // through DC instead of WS.
-        if (!hostEngaged && dmsg.type === 'state') hostEngaged = true;
-        handle(dmsg);
+    p.on('data', (raw) => onPeerData(otherSeat, raw));
+    p.on('error', (err) => {
+      console.warn('[P2P] error on', otherSeat, ':', err && err.message);
+      cleanupPeer(otherSeat);
+    });
+    p.on('close', () => {
+      console.log('[P2P] closed ↔', otherSeat);
+      cleanupPeer(otherSeat);
+    });
+
+    // Drain any signals queued before this peer existed.
+    const queued = pendingByPeer.get(otherSeat);
+    if (queued) {
+      for (const sig of queued) {
+        try { p.signal(sig); } catch (e) { console.warn('[P2P] queued signal:', e); }
       }
-    });
-    peer.on('error', (err) => {
-      console.warn('[P2P] error:', err && err.message);
-      setTransport('relay');
-      resetPeer();
-    });
-    peer.on('close', () => {
-      console.log('[P2P] closed');
-      setTransport('relay');
-      resetPeer();
-    });
-    // Drain any signals that arrived before the peer existed.
-    while (pendingSignals.length) {
-      try { peer.signal(pendingSignals.shift()); }
-      catch (e) { console.warn('[P2P] queued signal:', e); }
+      pendingByPeer.delete(otherSeat);
     }
+    refreshTransport();
   }
 
-  function onIncomingSignal(payload) {
-    if (peer) {
-      try { peer.signal(payload); }
-      catch (e) { console.warn('[P2P] signal err:', e); }
+  function onPeerData(otherSeat, raw) {
+    let dmsg;
+    try { dmsg = JSON.parse(raw.toString()); } catch { return; }
+    // Ping/pong is symmetric — either side echoes, either side measures.
+    if (dmsg.type === 'ping') {
+      const p = peers.get(otherSeat);
+      if (p && p.connected) {
+        try { p.send(JSON.stringify({ type: 'pong', t: dmsg.t })); } catch {}
+      }
+      return;
+    }
+    if (dmsg.type === 'pong') { applyPong(dmsg.t); return; }
+    if (mySeat === 'p1') {
+      // Host: a client's `start` engages host mode for us; all other
+      // gameplay messages route into the local hostState.
+      if (dmsg.type === 'start') {
+        if (!hostEngaged) { hostEngaged = true; startHost(); }
+        return;
+      }
+      if (hostEngaged) hostReceive(otherSeat, dmsg);
     } else {
-      pendingSignals.push(payload);
+      // Thin client: snapshots from the host. First DC snapshot
+      // engages host mode locally so subsequent inputs go via DC.
+      if (!hostEngaged && dmsg.type === 'state') hostEngaged = true;
+      handle(dmsg);
     }
   }
 
-  // Reset peer state so the next snapshot with both seats present
-  // can trigger a fresh handshake. Fixes late-join: if the first
-  // attempt failed (offer dropped because target socket wasn't there
-  // yet, ICE gathering failed, etc.), we'd previously stay stuck on
-  // relay.
-  //
-  // If a host-mode match was in flight when the peer dropped: on P1
-  // (the host) we KEEP hostLoop running so the match demotes to solo
-  // — hostTick reads occupancy from p2pUp() each frame and masks P2
-  // out automatically. On P2 (the thin client) we stop hostEngaged
-  // and clear local input state; their view freezes on the last
-  // snapshot they got over DC (they can refresh to rejoin).
-  function resetPeer() {
-    if (peer) { try { peer.destroy(); } catch {} }
-    peer = null;
-    peerCreated = false;
-    pendingSignals.length = 0;
-    if (hostEngaged) {
-      if (mySeat === 'p1') {
-        // Keep hosting solo. Clear P2's latched inputs so a held
-        // FIRE/LEFT/RIGHT doesn't keep firing after they vanish.
-        hostInputs.p2 = zeroInput();
-      } else {
-        hostEngaged = false;
+  // Idempotent — call from state handler / on demand. Host (P1)
+  // creates one peer per other occupied seat; clients create exactly
+  // one peer to P1 once P1 shows alive in the snapshot.
+  function maybeCreatePeers() {
+    if (typeof SimplePeer === 'undefined') return;
+    if (!mySeat || !lastState) return;
+    if (mySeat === 'p1') {
+      for (let i = 1; i < SEATS.length; i++) {
+        const other = SEATS[i];
+        if (peers.has(other)) continue;
+        if (lastState.players[i]?.alive) makePeerTo(other);
       }
+    } else {
+      if (peers.has('p1')) return;
+      if (lastState.players[0]?.alive) makePeerTo('p1');
     }
+  }
+
+  function onIncomingSignal(from, payload) {
+    // The other end of a peer is the seat the signal came from. If
+    // we don't have a peer to them yet (we created ours slightly
+    // later than they did), queue the signal until makePeerTo
+    // installs one.
+    const p = peers.get(from);
+    if (p) {
+      try { p.signal(payload); } catch (e) { console.warn('[P2P] signal err:', e); }
+      return;
+    }
+    if (!pendingByPeer.has(from)) pendingByPeer.set(from, []);
+    pendingByPeer.get(from).push(payload);
+  }
+
+  // Tear down a single peer (its DC closed or errored). Host: the
+  // departed player's seat goes vacant and the loop keeps running
+  // with their inputs cleared. Non-host: lost connection to host —
+  // disengage host mode so future input/pos falls back to WS.
+  function cleanupPeer(otherSeat) {
+    const p = peers.get(otherSeat);
+    if (p) { try { p.destroy(); } catch {} }
+    peers.delete(otherSeat);
+    pendingByPeer.delete(otherSeat);
+    if (mySeat === 'p1') {
+      // Clear the gone player's latched inputs so a held FIRE doesn't
+      // keep auto-firing in the empty seat.
+      if (hostInputs[otherSeat]) hostInputs[otherSeat] = zeroInput();
+    } else if (otherSeat === 'p1' && hostEngaged) {
+      hostEngaged = false;
+    }
+    refreshTransport();
+  }
+
+  // Tear down every peer (manual retry button etc.). Same shape as a
+  // cascade of cleanupPeer calls.
+  function resetPeers() {
+    for (const seat of Array.from(peers.keys())) cleanupPeer(seat);
   }
 
   function connect() {
@@ -634,11 +724,12 @@
       }
       reconcileLocalShip(msg);
       refreshLobby();
-      maybeCreatePeer();
+      maybeCreatePeers();
       return;
     }
     if (msg.type === 'signal') {
-      onIncomingSignal(msg.payload);
+      const from = msg.from;
+      if (from && SEATS.includes(from)) onIncomingSignal(from, msg.payload);
       return;
     }
   }
@@ -646,21 +737,21 @@
   function refreshLobby() {
     if (!lastState) return;
     const s = lastState.status;
-    // Count occupied seats (the server masks unoccupied players as
-    // alive:false on the wire, which is good enough to detect "are we
-    // solo or duo right now?" while the room is between matches.)
+    // The server masks unoccupied seats as alive:false on the wire,
+    // so a non-running game's player.alive count is a clean occupancy
+    // proxy. During a running game players may legitimately be dead
+    // — the count still reads as "currently active".
     const occupied = lastState.players.filter(p => p && p.alive).length;
     if (s === 'waiting') {
       setStatus('Waiting…');
       startBtn.disabled = true;
     } else if (s === 'ready') {
       setStatus(occupied >= 2
-        ? 'Both players in. Press START.'
-        : 'Press START — P2 can join anytime.');
+        ? `${occupied} of ${MAX_SEATS} players in. Press START — more can join later.`
+        : `Press START — up to ${MAX_SEATS - 1} friends can join anytime.`);
       startBtn.disabled = false;
     } else if (s === 'running') {
-      setStatus('Score: ' + lastState.score
-        + (occupied < 2 ? ' · solo (P2 can join)' : ''));
+      setStatus(`Score: ${lastState.score} · ${occupied}/${MAX_SEATS} active`);
       startBtn.disabled = true;
     } else if (s === 'gameover') {
       setStatus(lastState.won
@@ -671,21 +762,26 @@
   }
 
   startBtn.addEventListener('click', () => {
-    // Engage host mode on Start if P2P is up. Otherwise fall back to
-    // cloud relay (existing behaviour).
-    if (p2pUp()) {
+    // Engage host mode on Start if at least one peer is up (host can
+    // serve them; later joiners get added to the peer pool as their
+    // WebRTC handshakes complete). Otherwise fall back to cloud relay.
+    if (mySeat === 'p1' && anyPeerConnected()) {
       hostEngaged = true;
-      if (mySeat === 'p1') startHost();
-      else                 sendOverDC({ type: 'start' });
+      startHost();
+      return;
+    }
+    if (mySeat !== 'p1' && peerConnectedTo('p1')) {
+      hostEngaged = true;
+      sendToHost({ type: 'start' });
       return;
     }
     if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'start' }));
   });
   document.getElementById('retryBtn').addEventListener('click', () => {
     console.log('[P2P] manual retry');
-    resetPeer();
+    resetPeers();
     setTransport('relay');
-    maybeCreatePeer();
+    maybeCreatePeers();
   });
 
   // --------------------------------------------------------------------
@@ -759,9 +855,7 @@
   // No rollback / no replay queue — the local sim is identical to the
   // server's, so divergence in normal play stays sub-pixel.
   function mySeatIndex() {
-    if (mySeat === 'p1') return 0;
-    if (mySeat === 'p2') return 1;
-    return -1;
+    return mySeat ? SEATS.indexOf(mySeat) : -1;
   }
 
   function reconcileLocalShip(snap) {
@@ -857,18 +951,18 @@
     const lerp    = (pa, pb) => pa + (pb - pa) * alpha;
 
     // Ships — local seat uses predicted x (zero-latency feel), other
-    // seat lerps between snapshots. Skip drawing once the latest
+    // seats lerp between snapshots. Skip drawing once the latest
     // snapshot reports dead (covers unoccupied-mask + actual death).
     const latestSnap = snapBuffer[snapBuffer.length - 1];
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < MAX_SEATS; i++) {
       const pa = a.players[i], pb = b.players[i];
       if (!pa || !pb) continue;
-      const isMine = ((i === 0 ? 'p1' : 'p2') === mySeat);
       if (!latestSnap.players[i]?.alive) continue;
+      const isMine = (SEATS[i] === mySeat);
       const x = isMine && localShip.x !== null
         ? localShip.x
         : lerp(pa.x, pb.x);
-      ctx.fillStyle = isMine ? '#2dd4ff' : '#ff3aa1';
+      ctx.fillStyle = isMine ? LOCAL_COLOR : SHIP_COLORS[i];
       ctx.fillRect(x, SHIP_Y, SHIP_W, SHIP_H);
     }
 
