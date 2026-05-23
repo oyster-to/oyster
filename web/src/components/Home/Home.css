@@ -1231,6 +1231,7 @@
  */
 .home-projects-section {
   margin-top: 0;
+  z-index: 2;
 }
 .home-project-tile {
   position: relative;
