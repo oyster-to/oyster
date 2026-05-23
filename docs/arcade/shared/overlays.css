@@ -1,0 +1,133 @@
+/* Shared GAME-OVER / WIN / LEVEL-COMPLETE overlay styles.
+ *
+ * Lifts the ~80-line .gameover + .go-* block that lived inline in every
+ * arcade game. Layout/font/animation are constants; the colour palette is
+ * exposed as CSS variables so games can override only what they care about
+ * (the per-game personality) instead of re-stating the whole stack.
+ *
+ * Defaults below use Invaders' palette. Other games set --go-* vars in
+ * their own <style> block to retint without duplicating geometry.
+ *
+ * Dependencies: the @keyframes splash-poweron and arcade-blink used below
+ * live in ../shared/cabinet.css — each consuming game must <link> that
+ * stylesheet too (every game already does for the cabinet shell).
+ *
+ * Usage (each game):
+ *   <link rel="stylesheet" href="../shared/cabinet.css">
+ *   <link rel="stylesheet" href="../shared/overlays.css">
+ *
+ *   <style>
+ *     :root {
+ *       --go-title-color-win: #ffd84a;          (example override)
+ *     }
+ *   </style>
+ *
+ * Variables (with defaults):
+ *   --go-title-color        default-state title colour      #ff3aa1
+ *   --go-title-shadow-1     first shadow layer              3px 3px 0 #2dd4ff
+ *   --go-title-shadow-2     second shadow layer             6px 6px 0 #ffd84a
+ *   --go-title-glow         glow shadow                     0 0 16px rgba(255,58,161,0.45)
+ *   --go-title-color-win    .is-win title colour            #4ade80
+ *   --go-title-shadow-1-win first shadow when .is-win       3px 3px 0 #ffd84a
+ *   --go-title-shadow-2-win second shadow when .is-win      6px 6px 0 #2dd4ff
+ *   --go-title-glow-win     .is-win glow                    0 0 22px rgba(74,222,128,0.55)
+ *   --go-title-color-loss   .is-loss title colour           #ff3aa1
+ *   --go-score-color        SCORE value colour              #ffd84a
+ *   --go-hiscore-color      HIGH-line colour                #2dd4ff
+ *   --go-initials-label-color  "NEW HIGH SCORE…" colour     #ff3aa1
+ *   --go-slot-color         initials slot character colour  #ffd84a
+ *   --go-slot-shadow        initials slot shadow stack      2px 2px 0 #ff3aa1, 4px 4px 0 #2dd4ff
+ *   --go-slot-border        underline border colour         rgba(255,216,74,0.3)
+ *   --go-slot-active-border underline when slot is active   #2dd4ff
+ */
+
+.gameover {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: rgba(0, 0, 0, 0.88);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: 'Press Start 2P', ui-monospace, monospace;
+  color: #fff;
+  gap: clamp(16px, 2.6vw, 26px);
+  padding: 40px 24px;
+  animation: splash-poweron 0.3s ease-out;
+}
+.gameover.is-visible { display: flex; }
+
+.gameover .go-title {
+  font-size: clamp(28px, 6.5vw, 60px);
+  color: var(--go-title-color, #ff3aa1);
+  text-shadow:
+    var(--go-title-shadow-1, 3px 3px 0 #2dd4ff),
+    var(--go-title-shadow-2, 6px 6px 0 #ffd84a),
+    var(--go-title-glow, 0 0 16px rgba(255, 58, 161, 0.45));
+}
+.gameover .go-title.is-win {
+  color: var(--go-title-color-win, #4ade80);
+  text-shadow:
+    var(--go-title-shadow-1-win, 3px 3px 0 #ffd84a),
+    var(--go-title-shadow-2-win, 6px 6px 0 #2dd4ff),
+    var(--go-title-glow-win,     0 0 22px rgba(74, 222, 128, 0.55));
+}
+.gameover .go-title.is-loss {
+  color: var(--go-title-color-loss, #ff3aa1);
+}
+
+.gameover .go-score {
+  font-size: clamp(14px, 2.2vw, 18px);
+  color: var(--go-score-color, #ffd84a);
+  letter-spacing: 0.18em;
+}
+.gameover .go-hiscore {
+  font-size: clamp(9px, 1.3vw, 12px);
+  color: var(--go-hiscore-color, #2dd4ff);
+  letter-spacing: 0.18em;
+  min-height: 14px;
+}
+.gameover .go-prompt {
+  font-size: clamp(10px, 1.6vw, 14px);
+  letter-spacing: 0.18em;
+  color: #fff;
+  animation: arcade-blink 1s steps(1) infinite;
+}
+
+.gameover .go-initials {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+.gameover .go-initials-label {
+  font-size: clamp(10px, 1.5vw, 13px);
+  letter-spacing: 0.2em;
+  color: var(--go-initials-label-color, #ff3aa1);
+}
+.gameover .go-initials-slots {
+  display: inline-flex;
+  gap: 18px;
+  font-size: clamp(28px, 5vw, 44px);
+  color: var(--go-slot-color, #ffd84a);
+  text-shadow: var(--go-slot-shadow, 2px 2px 0 #ff3aa1, 4px 4px 0 #2dd4ff);
+  letter-spacing: 0.1em;
+}
+.gameover .go-slot {
+  display: inline-block;
+  min-width: 1ch;
+  padding: 0 4px;
+  border-bottom: 4px solid var(--go-slot-border, rgba(255, 216, 74, 0.3));
+}
+.gameover .go-slot.is-active {
+  border-bottom-color: var(--go-slot-active-border, #2dd4ff);
+  animation: arcade-blink 0.6s steps(1) infinite;
+}
+.gameover .go-initials-hint {
+  font-size: clamp(8px, 1.1vw, 10px);
+  letter-spacing: 0.16em;
+  color: rgba(255, 255, 255, 0.6);
+}

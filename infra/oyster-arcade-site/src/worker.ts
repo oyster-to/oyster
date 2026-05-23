@@ -22,6 +22,29 @@ export default {
       return fetch(new Request('https://oyster.to' + url.pathname + url.search, req));
     }
 
+    // Path-based room codes for the MP spike — /invaders-mp/FROG (and
+    // /invaders-mp/FROG/) should serve the canonical index.html so
+    // the client can read the room code from location.pathname. We
+    // rewrite any /invaders-mp/<segment> that doesn't look like a
+    // file (no dot) and isn't the bare directory path. Real files
+    // (simple-peer.min.js, engine.js, etc.) flow through to ASSETS.
+    if (/^\/invaders-mp\/[^./]+\/?$/.test(url.pathname)) {
+      const rewritten = new URL('/invaders-mp/', req.url);
+      return env.ASSETS.fetch(new Request(rewritten, req));
+    }
+
+    // Back-compat for v18 (2P-only) shared links: 301 anything under
+    // /invaders-2p/ to the same path under /invaders-mp/. Preserves
+    // the room code so old QR codes / Messages links still work.
+    // The bare path `/invaders-2p` (no trailing slash) maps to
+    // `/invaders-mp/` so the ASSETS binding can serve the directory
+    // index; without the trailing slash it would 404.
+    if (url.pathname === '/invaders-2p' || url.pathname.startsWith('/invaders-2p/')) {
+      const tail = url.pathname.slice('/invaders-2p'.length); // '' or '/...'
+      const dest = '/invaders-mp' + (tail || '/');
+      return Response.redirect(new URL(dest + url.search, req.url).toString(), 301);
+    }
+
     return env.ASSETS.fetch(req);
   },
 };

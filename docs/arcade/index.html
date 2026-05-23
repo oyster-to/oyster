@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Oyster Arcade</title>
 <meta name="description" content="A small arcade of games made by Oyster.">
 <link rel="stylesheet" href="shared/pixel-font.css">
@@ -309,12 +309,12 @@
 
   .arcade-credit {
     position: absolute;
-    bottom: clamp(8px, 1.4vw, 14px);
+    bottom: clamp(10px, 1.6vw, 18px);
     left: 0; right: 0;
     text-align: center;
-    font-size: clamp(7px, 1vw, 9px);
+    font-size: clamp(10px, 1.5vw, 14px);
     letter-spacing: 0.22em;
-    color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.55);
     font-family: 'Press Start 2P', ui-monospace, monospace;
     z-index: 1;
     pointer-events: none;
@@ -415,32 +415,32 @@
     .game-splash.is-fading            { animation-duration: 0.01s; }
   }
 
-  /* Coming-soon ADVERT — retro arcade marketing flyer that pops up
+  /* Coming-soon FLYER — retro arcade marketing flyer that pops up
      when a coming-soon game with a tagline is clicked. Title, tagline,
      numbered features, slanted COMING SOON stamp. CRT scanlines from
      .crt-global still render on top so it reads as a poster in the
      cabinet's TV. */
-  .game-advert {
+  .game-flyer {
     position: absolute;
     inset: 0;
     z-index: 7;
     display: none;
     background:
       radial-gradient(ellipse at 50% 30%, rgba(125, 80, 255, 0.30) 0%, transparent 60%),
-      linear-gradient(180deg, var(--ad-bg1, #1a0d3a) 0%, var(--ad-bg2, #050a25) 100%);
+      linear-gradient(180deg, var(--flyer-bg1, #1a0d3a) 0%, var(--flyer-bg2, #050a25) 100%);
     font-family: 'Press Start 2P', ui-monospace, monospace;
     pointer-events: none;
     overflow: hidden;
   }
-  .game-advert.is-visible {
+  .game-flyer.is-visible {
     display: block;
     pointer-events: auto;
     animation: splash-poweron 0.4s ease-out;
   }
-  .game-advert.is-fading { animation: game-splash-fade 0.35s ease-out forwards; }
+  .game-flyer.is-fading { animation: game-splash-fade 0.35s ease-out forwards; }
 
   /* Faint pixel-star backdrop (decorative). */
-  .game-advert::before {
+  .game-flyer::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -454,20 +454,20 @@
     opacity: 0.55;
   }
 
-  .game-advert .ad-stamp {
+  .game-flyer .flyer-stamp {
     position: absolute;
     top: clamp(14px, 3vw, 28px);
     left: clamp(14px, 3vw, 28px);
     transform: rotate(-8deg);
     padding: 6px 10px;
-    border: 3px solid var(--ad-neon, #ff3aa1);
-    color: var(--ad-neon, #ff3aa1);
+    border: 3px solid var(--flyer-neon, #ff3aa1);
+    color: var(--flyer-neon, #ff3aa1);
     font-size: clamp(9px, 1.4vw, 12px);
     letter-spacing: 0.22em;
     box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.55);
     background: rgba(0, 0, 0, 0.4);
   }
-  .game-advert .ad-close {
+  .game-flyer .flyer-close {
     position: absolute;
     top: clamp(10px, 1.6vw, 18px);
     right: clamp(10px, 1.6vw, 18px);
@@ -485,14 +485,14 @@
     display: flex; align-items: center; justify-content: center;
     padding: 0;
   }
-  .game-advert .ad-close:hover,
-  .game-advert .ad-close:focus-visible {
+  .game-flyer .flyer-close:hover,
+  .game-flyer .flyer-close:focus-visible {
     color: #fff;
     border-color: rgba(255, 255, 255, 0.7);
     outline: none;
   }
 
-  .game-advert .ad-content {
+  .game-flyer .flyer-content {
     position: absolute;
     inset: 0;
     display: flex;
@@ -503,24 +503,24 @@
     text-align: center;
     gap: clamp(12px, 2vw, 20px);
   }
-  .game-advert .ad-title {
+  .game-flyer .flyer-title {
     font-size: clamp(26px, 6vw, 64px);
     letter-spacing: 0.10em;
-    color: var(--ad-accent, #ffd84a);
+    color: var(--flyer-accent, #ffd84a);
     text-shadow:
-      4px 4px 0 var(--ad-neon, #ff3aa1),
+      4px 4px 0 var(--flyer-neon, #ff3aa1),
       8px 8px 0 #2dd4ff,
       0 0 28px rgba(255, 216, 74, 0.45);
     line-height: 1;
   }
-  .game-advert .ad-tagline {
+  .game-flyer .flyer-tagline {
     font-size: clamp(11px, 1.9vw, 18px);
     letter-spacing: 0.10em;
     color: #e9d8ff;
     line-height: 1.45;
     max-width: 80%;
   }
-  .game-advert .ad-features {
+  .game-flyer .flyer-features {
     list-style: none;
     padding: 0;
     margin: clamp(10px, 1.6vw, 18px) 0 0;
@@ -532,17 +532,17 @@
     color: #fff;
     text-align: left;
   }
-  .game-advert .ad-features li {
+  .game-flyer .flyer-features li {
     position: relative;
     padding-left: 1.6em;
   }
-  .game-advert .ad-features li::before {
+  .game-flyer .flyer-features li::before {
     content: '▸';
     position: absolute;
     left: 0; top: 0;
     color: #2dd4ff;
   }
-  .game-advert .ad-footer {
+  .game-flyer .flyer-footer {
     margin-top: clamp(14px, 2.4vw, 22px);
     font-size: clamp(9px, 1.4vw, 12px);
     letter-spacing: 0.24em;
@@ -706,16 +706,16 @@
       </div>
     </div>
 
-    <!-- Coming-soon advert overlay — populated from GAMES entries that
+    <!-- Coming-soon flyer overlay — populated from GAMES entries that
          have a `tagline` and `features` array. -->
-    <div class="game-advert" id="game-advert" aria-hidden="true">
-      <button class="ad-close" id="ad-close" type="button" aria-label="Back to selector">×</button>
-      <div class="ad-stamp">COMING SOON</div>
-      <div class="ad-content">
-        <div class="ad-title" id="ad-title">—</div>
-        <div class="ad-tagline" id="ad-tagline">—</div>
-        <ul class="ad-features" id="ad-features"></ul>
-        <div class="ad-footer">PRESS ANY KEY · TAP TO RETURN</div>
+    <div class="game-flyer" id="game-flyer" aria-hidden="true">
+      <button class="flyer-close" id="flyer-close" type="button" aria-label="Back to selector">×</button>
+      <div class="flyer-stamp">COMING SOON</div>
+      <div class="flyer-content">
+        <div class="flyer-title" id="flyer-title">—</div>
+        <div class="flyer-tagline" id="flyer-tagline">—</div>
+        <ul class="flyer-features" id="flyer-features"></ul>
+        <div class="flyer-footer">PRESS ANY KEY · TAP TO RETURN</div>
       </div>
     </div>
 
@@ -843,6 +843,40 @@
     <polygon points="29,15 32,16.5 29,18" fill="#2dd4ff"/>
   </svg>
 </template>
+<template id="preview-invaders">
+  <svg viewBox="0 0 32 32" aria-hidden="true">
+    <rect width="32" height="32" fill="#04050f"/>
+    <!-- Starfield -->
+    <rect x="4"  y="3" width="1" height="1" fill="#fff"/>
+    <rect x="22" y="2" width="1" height="1" fill="#fff"/>
+    <rect x="27" y="7" width="1" height="1" fill="#fff"/>
+    <!-- UFO band — single purple saucer with cyan glint -->
+    <rect x="13" y="5" width="6" height="2" fill="#a855f7"/>
+    <rect x="15" y="4" width="2" height="1" fill="#a855f7"/>
+    <rect x="14" y="6" width="1" height="1" fill="#2dd4ff"/>
+    <rect x="17" y="6" width="1" height="1" fill="#2dd4ff"/>
+    <!-- Invader row 1 (cyan squids) -->
+    <rect x="6"  y="11" width="3" height="2" fill="#2dd4ff"/>
+    <rect x="14" y="11" width="3" height="2" fill="#2dd4ff"/>
+    <rect x="22" y="11" width="3" height="2" fill="#2dd4ff"/>
+    <!-- Invader row 2 (pink crabs) -->
+    <rect x="6"  y="15" width="3" height="2" fill="#ff3aa1"/>
+    <rect x="14" y="15" width="3" height="2" fill="#ff3aa1"/>
+    <rect x="22" y="15" width="3" height="2" fill="#ff3aa1"/>
+    <!-- Invader row 3 (green octopi) -->
+    <rect x="6"  y="19" width="3" height="2" fill="#4ade80"/>
+    <rect x="14" y="19" width="3" height="2" fill="#4ade80"/>
+    <rect x="22" y="19" width="3" height="2" fill="#4ade80"/>
+    <!-- Shields (purple) -->
+    <rect x="5"  y="24" width="4" height="2" fill="#a855f7"/>
+    <rect x="14" y="24" width="4" height="2" fill="#a855f7"/>
+    <rect x="23" y="24" width="4" height="2" fill="#a855f7"/>
+    <!-- Player ship (cyan) -->
+    <rect x="15" y="28" width="2" height="2" fill="#2dd4ff"/>
+    <rect x="14" y="29" width="4" height="1" fill="#2dd4ff"/>
+    <rect x="15" y="27" width="2" height="1" fill="#2dd4ff"/>
+  </svg>
+</template>
 
 <script src="shared/touch.js"></script>
 <script src="shared/leaderboard.js"></script>
@@ -854,6 +888,7 @@
 const GAMES = [
   { id: 'rocket-ship', name: 'ROCKET SHIP', url: 'https://oyster.to/rocket-ship.html', preview: 'preview-rocket-ship' },
   { id: 'space-jumper', name: 'SPACE JUMPER', url: 'space-jumper/',                      preview: 'preview-space-jumper' },
+  { id: 'invaders', name: 'INVADERS', url: 'invaders/', preview: 'preview-invaders' },
   {
     id: 'black-hole-fishing', name: 'BLACK HOLE FISHING',
     preview: 'preview-coming-soon', comingSoon: true,
@@ -1157,22 +1192,22 @@ function resetSplash() {
 }
 
 // ============================================
-// COMING-SOON ADVERT — populated per-game from GAMES entries that have
+// COMING-SOON FLYER — populated per-game from GAMES entries that have
 // `tagline` and optional `features` / `palette` fields. Dismisses on
 // the × button, ESC, or any tap/keypress while visible.
 // ============================================
-const advertEl = document.getElementById('game-advert');
-// Hoisted above showAdvert / hideAdvert so the closure refs are safely
-// in scope no matter when the advert is invoked.
-let advertCleanup = null;
+const flyerEl = document.getElementById('game-flyer');
+// Hoisted above showFlyer / hideFlyer so the closure refs are safely
+// in scope no matter when the flyer is invoked.
+let flyerCleanup = null;
 // Tracks the post-fade hide timer so a quick close→reopen (< fade
-// duration) can cancel the old timeout before it hides the new advert.
-let advertHideTimer = 0;
-function showAdvert(g) {
-  if (!advertEl) return;
-  advertEl.querySelector('#ad-title').textContent   = g.name;
-  advertEl.querySelector('#ad-tagline').textContent = g.tagline || '';
-  const list = advertEl.querySelector('#ad-features');
+// duration) can cancel the old timeout before it hides the new flyer.
+let flyerHideTimer = 0;
+function showFlyer(g) {
+  if (!flyerEl) return;
+  flyerEl.querySelector('#flyer-title').textContent   = g.name;
+  flyerEl.querySelector('#flyer-tagline').textContent = g.tagline || '';
+  const list = flyerEl.querySelector('#flyer-features');
   list.innerHTML = '';
   (g.features || []).forEach(f => {
     const li = document.createElement('li');
@@ -1181,57 +1216,57 @@ function showAdvert(g) {
   });
   // Per-game palette via CSS custom properties (with sensible defaults).
   const p = g.palette || {};
-  advertEl.style.setProperty('--ad-bg1',    p.bg1    || '#1a0d3a');
-  advertEl.style.setProperty('--ad-bg2',    p.bg2    || '#050a25');
-  advertEl.style.setProperty('--ad-accent', p.accent || '#ffd84a');
-  advertEl.style.setProperty('--ad-neon',   p.neon   || '#ff3aa1');
-  // Track listeners so hideAdvert() always tears them down — whether
-  // dismissed via × button, ESC, tap outside, or a re-opened advert.
-  // Previously the × routed through hideAdvert() directly, bypassing
+  flyerEl.style.setProperty('--flyer-bg1',    p.bg1    || '#1a0d3a');
+  flyerEl.style.setProperty('--flyer-bg2',    p.bg2    || '#050a25');
+  flyerEl.style.setProperty('--flyer-accent', p.accent || '#ffd84a');
+  flyerEl.style.setProperty('--flyer-neon',   p.neon   || '#ff3aa1');
+  // Track listeners so hideFlyer() always tears them down — whether
+  // dismissed via × button, ESC, tap outside, or a re-opened flyer.
+  // Previously the × routed through hideFlyer() directly, bypassing
   // the keydown/pointerdown cleanup and leaving stale handlers
   // attached that would fire on the next keypress.
-  if (advertCleanup) advertCleanup();
-  if (advertHideTimer) { clearTimeout(advertHideTimer); advertHideTimer = 0; }
-  advertEl.classList.remove('is-fading');
-  void advertEl.offsetWidth;
-  advertEl.classList.add('is-visible');
-  advertEl.setAttribute('aria-hidden', 'false');
-  function onKey()   { hideAdvert(); }
+  if (flyerCleanup) flyerCleanup();
+  if (flyerHideTimer) { clearTimeout(flyerHideTimer); flyerHideTimer = 0; }
+  flyerEl.classList.remove('is-fading');
+  void flyerEl.offsetWidth;
+  flyerEl.classList.add('is-visible');
+  flyerEl.setAttribute('aria-hidden', 'false');
+  function onKey()   { hideFlyer(); }
   function onTap(e) {
-    if (e.target.closest('#ad-close')) return;   // × has its own click handler
-    hideAdvert();
+    if (e.target.closest('#flyer-close')) return;   // × has its own click handler
+    hideFlyer();
   }
   window.addEventListener('keydown', onKey, { once: true });
-  advertEl.addEventListener('pointerdown', onTap);
-  advertCleanup = () => {
+  flyerEl.addEventListener('pointerdown', onTap);
+  flyerCleanup = () => {
     window.removeEventListener('keydown', onKey);
-    advertEl.removeEventListener('pointerdown', onTap);
-    advertCleanup = null;
+    flyerEl.removeEventListener('pointerdown', onTap);
+    flyerCleanup = null;
   };
 }
-function hideAdvert() {
-  if (!advertEl) return;
-  if (advertCleanup) advertCleanup();
-  if (advertHideTimer) clearTimeout(advertHideTimer);
-  advertEl.classList.add('is-fading');
-  advertHideTimer = setTimeout(() => {
-    advertHideTimer = 0;
-    advertEl.classList.remove('is-visible', 'is-fading');
-    advertEl.setAttribute('aria-hidden', 'true');
+function hideFlyer() {
+  if (!flyerEl) return;
+  if (flyerCleanup) flyerCleanup();
+  if (flyerHideTimer) clearTimeout(flyerHideTimer);
+  flyerEl.classList.add('is-fading');
+  flyerHideTimer = setTimeout(() => {
+    flyerHideTimer = 0;
+    flyerEl.classList.remove('is-visible', 'is-fading');
+    flyerEl.setAttribute('aria-hidden', 'true');
   }, 350);
 }
-document.getElementById('ad-close').addEventListener('click', e => {
+document.getElementById('flyer-close').addEventListener('click', e => {
   e.stopPropagation();
-  hideAdvert();
+  hideFlyer();
 });
 
 function launch() {
   if (launched) return;
   const g = GAMES[sel];
   if (g.comingSoon) {
-    // Coming-soon games with marketing copy open an advert instead of
+    // Coming-soon games with marketing copy open a flyer instead of
     // launching. Plain "COMING SOON" cards (no tagline) just no-op.
-    if (g.tagline) showAdvert(g);
+    if (g.tagline) showFlyer(g);
     return;
   }
   launched = true;

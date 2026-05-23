@@ -13,18 +13,35 @@
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  /* Lock the page in place — these are full-screen canvas games, never
+     scrolled or zoomed. touch-action:none kills pinch-zoom AND double-tap
+     zoom; overscroll-behavior:none stops iOS rubber-band / pull-to-refresh. */
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
 body {
   background: #0a0a0a;
   margin: 0;
   overflow: hidden;
+  position: fixed;   /* pin to the viewport so iOS can't scroll the body at all */
+  inset: 0;
   height: 100vh;     /* fallback */
   height: 100svh;    /* iOS Safari/Chrome: clip to visible viewport */
   width: 100vw;
-  /* Suppress iOS text selection / Copy popup when a tap drifts slightly
-     during gameplay or on the splash. Everything in the game is visual —
-     nothing should be selectable. */
+  /* Suppress text selection + the Copy / Google Lens long-press popup. Nothing
+     in the game is text the player should select. (touch.js also cancels the
+     contextmenu event, which is what actually opens that menu on Android.) */
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
+}
+/* The playfield itself — same gesture/selection lock, belt-and-suspenders. */
+canvas {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }

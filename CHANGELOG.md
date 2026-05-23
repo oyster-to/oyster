@@ -4,6 +4,10 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **INVADERS** — new arcade game. Classic fixed-shooter; 5 rows of marching aliens, destructible shields, bonus UFO, 3 lives, top-10 leaderboard.
+
 ### Changed
 
 - **Oyster opens to your work, not to a setup wizard.** First launch no longer requires an AI provider, no longer demands you create a space, and shows your sessions on the home screen immediately. Set-up surfaces only appear when something is genuinely missing.

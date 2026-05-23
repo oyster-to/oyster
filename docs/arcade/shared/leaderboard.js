@@ -108,6 +108,77 @@
     } catch (_) { return { ok: false, error: 'network' }; }
   }
 
+  // -------------------------------------------------------------------------
+  // Splash painters — fold the duplicated DOM build code from each game's
+  // paintSplashHiScore + paintLeaderboard into the shared module.
+  // -------------------------------------------------------------------------
+
+  // Paints the splash's "HIGH SCORE 0000 ABC" row from the current top entry.
+  // When hideWhenEmpty is true, the row element (if a rowSelector was given)
+  // gets its `hidden` attribute set to true on an empty board — otherwise the
+  // row stays visible and paints "0" / "---" placeholders.
+  function paintHiScoreRow(opts) {
+    opts = opts || {};
+    const pad = opts.pad || 4;
+    const val = opts.valueSelector    && document.querySelector(opts.valueSelector);
+    const ini = opts.initialsSelector && document.querySelector(opts.initialsSelector);
+    const row = opts.rowSelector      && document.querySelector(opts.rowSelector);
+    if (!val || !ini) return;
+    const top = getHighScore();
+    if (!top && opts.hideWhenEmpty) {
+      if (row) row.hidden = true;
+      return;
+    }
+    if (row) row.hidden = false;
+    val.textContent = String(top ? top.score : 0).padStart(pad, '0');
+    ini.textContent = (top && top.initials) || '---';
+  }
+
+  // Paints the top-N list into the splash's <ol id="lb-list">. Builds each
+  // entry via document.createElement so user-supplied initials can't be
+  // interpreted as HTML. Optional lb-since column for games that want a
+  // humanised timestamp (Rocket Ship uses this — passes its own
+  // sinceFormatter).
+  function paintList(opts) {
+    opts = opts || {};
+    const ol = opts.listSelector && document.querySelector(opts.listSelector);
+    if (!ol) return;
+    const pad       = opts.pad || 4;
+    const emptyText = opts.emptyText || 'NO SCORES YET — BE THE FIRST';
+    const showSince = !!opts.showSince;
+    const fmtSince  = opts.sinceFormatter || (() => '');
+    const list = read();
+    ol.textContent = '';
+    if (!list.length) {
+      const li = document.createElement('li');
+      const span = document.createElement('span');
+      span.className = 'lb-empty';
+      span.textContent = emptyText;
+      li.appendChild(span);
+      ol.appendChild(li);
+      return;
+    }
+    list.forEach((e, i) => {
+      const li = document.createElement('li');
+      const cols = [
+        ['lb-rank',     String(i + 1).padStart(2, '0') + '.'],
+        ['lb-initials', e.initials || '---'],
+        ['lb-score',    String(e.score).padStart(pad, '0')],
+      ];
+      if (showSince) cols.push(['lb-since', fmtSince(e.created_at)]);
+      for (const [cls, text] of cols) {
+        const span = document.createElement('span');
+        span.className = cls;
+        span.textContent = text;
+        li.appendChild(span);
+      }
+      ol.appendChild(li);
+    });
+  }
+
   window.Arcade = window.Arcade || {};
-  window.Arcade.Leaderboard = { init, read, refresh, qualifies, getHighScore, submit };
+  window.Arcade.Leaderboard = {
+    init, read, refresh, qualifies, getHighScore, submit,
+    paintHiScoreRow, paintList,
+  };
 })();

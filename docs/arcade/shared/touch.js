@@ -13,14 +13,43 @@
 
   function bind(btn, onDown, onUp) {
     if (!btn) return;
-    const down = e => { e.preventDefault(); btn.classList.add('is-pressed'); onDown(); };
+    const down = e => {
+      // Release the implicit pointer capture a touch grabs on touchstart —
+      // without this the first button keeps receiving events for the whole
+      // gesture, so sliding a thumb from ◀ onto ▶ never fires ▶'s events
+      // (you'd have to lift and re-tap). Releasing it lets pointerenter/leave
+      // fire on the other buttons as the finger slides across them.
+      if (e && e.pointerId != null && btn.hasPointerCapture && btn.hasPointerCapture(e.pointerId)) {
+        try { btn.releasePointerCapture(e.pointerId); } catch (_) {}
+      }
+      if (e) e.preventDefault();
+      btn.classList.add('is-pressed');
+      onDown();
+    };
     const up   = e => { if (e) e.preventDefault(); btn.classList.remove('is-pressed'); onUp(); };
     btn.addEventListener('pointerdown', down);
     btn.addEventListener('pointerup', up);
     btn.addEventListener('pointercancel', up);
     btn.addEventListener('pointerleave', up);
+    // Slide support: entering a button while a pointer is held down presses it.
+    // `e.buttons` is non-zero only while a touch/click is active, so a passive
+    // mouse hover won't trigger it.
+    btn.addEventListener('pointerenter', e => { if (e.buttons) down(e); });
     ['pointerdown', 'mousedown', 'touchstart'].forEach(ev => {
       btn.addEventListener(ev, e => e.stopPropagation(), { passive: false });
+    });
+  }
+
+  // Page-level guard for all arcade games (every game loads this file): on TOUCH
+  // devices only, kill the long-press menu — Android's "Copy / Web search /
+  // Google Lens" popup — so a held thumb on the game (incl. its text) can't
+  // trigger it. Gated to coarse pointers so desktop keeps its right-click menu.
+  // Real links (e.g. the launcher's credit link) are exempted so their
+  // long-press "open in new tab / copy link" still works. CSS (pixel-font.css)
+  // handles selection/zoom/scroll.
+  if (isCoarse()) {
+    document.addEventListener('contextmenu', e => {
+      if (!e.target.closest('a')) e.preventDefault();
     });
   }
 
