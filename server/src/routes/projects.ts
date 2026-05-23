@@ -9,7 +9,6 @@
 //                                          name? } — writes .oyster/id, claims
 //                                          orphans, undeletes a soft-deleted
 //                                          project whose UUID is on disk
-//   POST /api/projects/:id/claim          bulk-tag orphan sessions { cwd }
 //   PATCH /api/projects/:id               rename
 //   DELETE /api/projects/:id              soft-delete
 
@@ -127,28 +126,6 @@ export async function tryHandleProjectsRoute(
         broadcastUiEvent({ version: 1, command: "session_changed", payload: { id: "" } });
         sendJson(updated);
       }
-    } catch (err) { sendError(err); }
-    return true;
-  }
-
-  const claimMatch = pathname.match(/^\/api\/projects\/([^/]+)\/claim$/);
-  if (claimMatch && req.method === "POST") {
-    if (rejectIfNonLocalOrigin()) return true;
-    try {
-      const projectId = safeDecode(claimMatch[1]!);
-      if (projectId === null) {
-        sendJson({ error: "Invalid URL encoding" }, 400);
-        return true;
-      }
-      const body = await readJsonBody();
-      const cwd = typeof body.cwd === "string" ? body.cwd : null;
-      if (!cwd) {
-        sendJson({ error: "cwd is required" }, 400);
-        return true;
-      }
-      const result = projectService.claimOrphan({ cwd, projectId });
-      broadcastUiEvent({ version: 1, command: "session_changed", payload: { id: "" } });
-      sendJson(result);
     } catch (err) { sendError(err); }
     return true;
   }
