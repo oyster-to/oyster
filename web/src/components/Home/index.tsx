@@ -410,19 +410,20 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // ProjectTileGrid so a project tile can show "1 active · 1 waiting"
   // when sessions are running for that project.
   const sessionCountsByProject = useMemo(() => {
-    const out: Record<string, { running: number; active: number; waiting: number; disconnected: number }> = {};
+    const out: Record<string, { running: number; active: number; waiting: number; disconnected: number; done: number }> = {};
     for (const s of sessions) {
       if (!s.projectId) continue;
       const isRunning = presence.byId[s.id] != null;
-      // Drop both done and dormant unless a terminal is still attached —
-      // dormant (>8h) is a grey "no urgency" state and shouldn't surface
-      // as a project-tile signal.
-      if ((s.displayState === "done" || s.displayState === "dormant") && !isRunning) continue;
-      const c = out[s.projectId] ?? { running: 0, active: 0, waiting: 0, disconnected: 0 };
-      if (isRunning) c.running++;
-      if (s.displayState === "active") c.active++;
-      else if (s.displayState === "waiting") c.waiting++;
-      else if (s.displayState === "disconnected") c.disconnected++;
+      const isDone = (s.displayState === "done" || s.displayState === "dormant") && !isRunning;
+      const c = out[s.projectId] ?? { running: 0, active: 0, waiting: 0, disconnected: 0, done: 0 };
+      if (isDone) {
+        c.done++;
+      } else {
+        if (isRunning) c.running++;
+        if (s.displayState === "active") c.active++;
+        else if (s.displayState === "waiting") c.waiting++;
+        else if (s.displayState === "disconnected") c.disconnected++;
+      }
       out[s.projectId] = c;
     }
     return out;

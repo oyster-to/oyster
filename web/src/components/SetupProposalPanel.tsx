@@ -510,6 +510,9 @@ function ChipView({ folder, fromContainer, hideX, onDemote }: ChipProps) {
       {...attributes}
     >
       <span className="setup-chip-label">{folder.label}</span>
+      {folder.hasLivePath === false && (
+        <span className="setup-chip-ghost" title="Folder not found on this machine">no folder</span>
+      )}
       {!hideX && onDemote && (
         <button
           type="button"

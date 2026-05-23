@@ -52,14 +52,18 @@ export function computeSetupProposal(db: Database.Database): SetupProposal {
      WHERE p.removed_at IS NULL`,
   ).all() as Array<{ path: string; name: string }>;
 
-  const rows = allRows.filter((row) => {
-    if (!row.path) return false;
-    const resolved = resolve(row.path);
-    if (!existsSync(resolved)) return false;       // ghost folder
-    if (resolved === resolve(HOME)) return false;  // $HOME itself
-    if (resolved === OYSTER_HOME) return false;    // Oyster's workspace
-    return true;
-  });
+  const rows = allRows
+    .filter((row) => {
+      if (!row.path) return false;
+      const resolved = resolve(row.path);
+      if (resolved === resolve(HOME)) return false;  // $HOME itself
+      if (resolved === OYSTER_HOME) return false;    // Oyster's workspace
+      return true;
+    })
+    .map((row) => ({
+      ...row,
+      hasLivePath: existsSync(resolve(row.path)),
+    }));
 
   const tokenize = (path: string): { basename: string; firstToken: string } => {
     const parts = path.split(/[\\/]/).filter(Boolean);
@@ -68,11 +72,11 @@ export function computeSetupProposal(db: Database.Database): SetupProposal {
     return { basename: base, firstToken };
   };
 
-  const groups = new Map<string, Array<{ path: string; label: string }>>();
+  const groups = new Map<string, Array<{ path: string; label: string; hasLivePath: boolean }>>();
   for (const row of rows) {
     const { basename, firstToken } = tokenize(row.path);
     if (!groups.has(firstToken)) groups.set(firstToken, []);
-    groups.get(firstToken)!.push({ path: row.path, label: basename });
+    groups.get(firstToken)!.push({ path: row.path, label: basename, hasLivePath: row.hasLivePath });
   }
 
   const spaces: SetupProposal["spaces"] = [];
@@ -86,10 +90,10 @@ export function computeSetupProposal(db: Database.Database): SetupProposal {
         key: `s${now}-${spaceIdx++}`,
         name: token,
         reason: `Folders sharing the '${token}' prefix`,
-        folders,
+        folders: folders.map((f) => ({ path: f.path, label: f.label, hasLivePath: f.hasLivePath })),
       });
     } else {
-      everythingElse.push(...folders);
+      everythingElse.push(...folders.map((f) => ({ path: f.path, label: f.label, hasLivePath: f.hasLivePath })));
     }
   }
 

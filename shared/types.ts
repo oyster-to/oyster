@@ -240,10 +240,13 @@ export interface UiCommand {
 }
 
 /** A folder candidate in a setup proposal. Path is absolute (server-side);
- *  label is the leaf basename for display. */
+ *  label is the leaf basename for display. `hasLivePath` is false when the
+ *  folder no longer exists on disk (ghost) — the panel shows it with a
+ *  visual indicator so the user can decide whether to include it. */
 export interface SetupProposalFolder {
   path: string;
   label: string;
+  hasLivePath?: boolean;
 }
 
 /** A proposed space grouping in a setup proposal. The agent picks the name

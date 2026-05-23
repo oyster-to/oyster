@@ -263,6 +263,16 @@
   color: rgba(255, 255, 255, 0.95);
 }
 
+.setup-chip-ghost {
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  color: rgba(251, 191, 36, 0.75); /* amber */
+  margin-left: 4px;
+  padding-right: 2px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 /* Empty space / Add space ----------------------------------------- */
 
 .setup-empty-msg {
