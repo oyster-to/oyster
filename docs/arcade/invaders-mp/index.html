@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Invaders 2P — spike</title>
+<title>Invaders MP — spike</title>
 <link rel="stylesheet" href="../shared/pixel-font.css">
 <style>
   html, body {
@@ -142,7 +142,7 @@
 <body>
 <div id="root">
   <div id="lobby">
-    <div class="title">Invaders 2P · spike <span id="netcode" class="netcode">netcode v?</span><span id="ping" class="ping"></span><span id="transport" class="transport">relay</span></div>
+    <div class="title">Invaders MP · spike <span id="netcode" class="netcode">netcode v?</span><span id="ping" class="ping"></span><span id="transport" class="transport">relay</span></div>
     <div class="room-line">
       <span class="room-label">ROOM</span>
       <span class="room-code" id="roomCode">····</span>
@@ -185,9 +185,9 @@
   const NETCODE_VERSION = 18;
 
   // --------------------------------------------------------------------
-  // Room code — 4 letters that identifies this pair's DO instance.
-  // URL shape: /invaders-2p/FROG. The arcade-site worker rewrites any
-  // /invaders-2p/<segment> to serve this same index.html, so we can
+  // Room code — 4 letters that identifies this room's DO instance.
+  // URL shape: /invaders-mp/FROG. The arcade-site worker rewrites any
+  // /invaders-mp/<segment> to serve this same index.html, so we can
   // read the code straight off location.pathname. Falls back to the
   // older ?code= query for any bookmarks. Charset omits O / I / L to
   // avoid ambiguity when typing.
@@ -203,7 +203,7 @@
     return (raw || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
   }
   function extractCode() {
-    const m = location.pathname.match(/^\/invaders-2p\/([^/]+)\/?$/);
+    const m = location.pathname.match(/^\/invaders-mp\/([^/]+)\/?$/);
     if (m) {
       const c = normaliseCode(m[1]);
       if (c.length === 4) return c;
@@ -218,7 +218,7 @@
   // Normalise the address bar to the clean path form regardless of how
   // we arrived — query-string bookmarks rewrite themselves on first
   // load and stay shareable in the new form.
-  const cleanPath = '/invaders-2p/' + roomCode;
+  const cleanPath = '/invaders-mp/' + roomCode;
   if (location.pathname !== cleanPath || location.search) {
     history.replaceState(null, '', cleanPath);
   }

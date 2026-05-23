@@ -1,5 +1,5 @@
 // InvadersRoom — a Durable Object that owns one Invaders match for
-// one room code (e.g. /invaders-2p/FROG). First socket gets seat p1,
+// one room code (e.g. /invaders-mp/FROG). First socket gets seat p1,
 // second gets p2, third receives `room_full` and is closed.
 //
 // When at least one socket is present and someone sends `start`, an
@@ -10,7 +10,7 @@
 // In v17+ the DO also relays opaque WebRTC signalling between seats
 // and acts as a cloud-relay fallback when host-mode P2P can't
 // establish (e.g. captive-portal Wi-Fi, late joiner before retry).
-// The game engine itself lives in docs/arcade/invaders-2p/engine.js
+// The game engine itself lives in docs/arcade/invaders-mp/engine.js
 // and is shared verbatim with the host-mode client.
 
 import { DurableObject } from 'cloudflare:workers';
@@ -21,12 +21,12 @@ import {
   zeroInput,
   PF_W,
   SHIP_W,
-} from '../../../docs/arcade/invaders-2p/engine.js';
+} from '../../../docs/arcade/invaders-mp/engine.js';
 import type {
   GameState,
   Input,
   Seat,
-} from '../../../docs/arcade/invaders-2p/engine.js';
+} from '../../../docs/arcade/invaders-mp/engine.js';
 import type { Env } from './worker';
 
 const TICK_HZ = 60;
@@ -67,7 +67,8 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //   v15  reverted to original singleton → MRS/CDG, BGP-bounded floor
 //   v16  per-pair rooms via ?code=FROG; DO relays opaque signal messages
 //   v17  WebRTC handshake via simple-peer using v16's signal relay;
-//        URL path scheme moved to /invaders-2p/FROG; Press Start 2P font
+//        URL path scheme moved to /invaders-2p/FROG (renamed to
+//        /invaders-mp/FROG in v19); Press Start 2P font.
 //   v18  Host-mode gameplay over DataChannel: P1 runs the engine
 //        locally, broadcasts snapshots via DC, P2 sends inputs over
 //        DC. DO stays as signalling broker + cloud-relay fallback.
