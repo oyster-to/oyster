@@ -1189,12 +1189,21 @@
     // padding; the tube is the actual visible playfield area. Subtract
     // a small slack so the canvas doesn't touch the rounded-glass
     // corners.
+    //
+    // Use the largest scale that preserves the 240:280 aspect. We
+    // *don't* floor to integers: on a laptop the available scale is
+    // ~3.6× and on an iPhone portrait it's ~1.6×, both of which round
+    // down to 3 and 1 — wasting ~25% of the playfield area in either
+    // direction. Fractional scales are crisp because the canvas has
+    // image-rendering: pixelated (nearest-neighbour upscale, so each
+    // sprite pixel maps to a whole number of screen pixels even if
+    // the multiplier is fractional).
     const tube = canvas.parentElement;          // .tube
     const sw = tube.clientWidth  - 16;
     const sh = tube.clientHeight - 16;
-    const scale = Math.max(1, Math.floor(Math.min(sw / PF_W, sh / PF_H)));
-    canvas.style.width  = (PF_W * scale) + 'px';
-    canvas.style.height = (PF_H * scale) + 'px';
+    const scale = Math.max(1, Math.min(sw / PF_W, sh / PF_H));
+    canvas.style.width  = Math.round(PF_W * scale) + 'px';
+    canvas.style.height = Math.round(PF_H * scale) + 'px';
   }
   window.addEventListener('resize', fitCanvas);
   window.addEventListener('orientationchange', fitCanvas);
