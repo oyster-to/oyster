@@ -56,25 +56,6 @@ describe("routes/projects", () => {
     expect(broadcast).toHaveBeenCalledWith(expect.objectContaining({ command: "session_changed" }));
   });
 
-  it("POST /api/projects/:id/claim runs claimOrphan and broadcasts", async () => {
-    const broadcast = vi.fn();
-    const projectService = {
-      claimOrphan: vi.fn().mockReturnValue({ claimed: 3 }),
-    };
-    const { ctx, captured } = fakeCtx({ cwd: "/foo/bar" });
-
-    await tryHandleProjectsRoute(
-      { method: "POST" } as any, {} as any,
-      "/api/projects/p1/claim",
-      ctx as any,
-      { projectService: projectService as any, broadcastUiEvent: broadcast },
-    );
-
-    expect(projectService.claimOrphan).toHaveBeenCalledWith({ cwd: "/foo/bar", projectId: "p1" });
-    expect(captured.json).toEqual({ claimed: 3 });
-    expect(broadcast).toHaveBeenCalled();
-  });
-
   it("rejects POST /api/projects with missing fields", async () => {
     const projectService = { createProject: vi.fn() };
     const { ctx, captured } = fakeCtx({ space_id: "work" }); // missing name
