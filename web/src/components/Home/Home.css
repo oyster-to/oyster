@@ -2041,3 +2041,37 @@
 .home-empty-state-body {
   font-size: 13.5px;
 }
+
+.home-projects-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--home-border);
+}
+.home-projects-show-more {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--home-accent-bright);
+  background: rgba(124, 107, 255, 0.08);
+  border: 1px solid rgba(124, 107, 255, 0.28);
+  border-radius: 999px;
+  padding: 6px 18px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.home-projects-show-more:hover {
+  background: rgba(124, 107, 255, 0.18);
+  border-color: rgba(124, 107, 255, 0.5);
+}
+.home-projects-show-more--collapse {
+  background: transparent;
+  color: var(--text-dim);
+  border-color: var(--home-border);
+}
+.home-projects-show-more--collapse:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255,255,255,0.02);
+}

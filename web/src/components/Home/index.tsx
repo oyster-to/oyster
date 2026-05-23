@@ -540,6 +540,58 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     return counts;
   }, [effectiveDesktopProps.artifacts]);
 
+  const PROJECTS_DEFAULT_VISIBLE = 8;
+
+  const [projectsExpanded, setProjectsExpanded] = useState(false);
+
+  // Recency per project (max lastEventAt across its sessions).
+  const lastActivityByProject = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const s of sessions) {
+      if (!s.projectId) continue;
+      const t = parseTimestamp(s.lastEventAt);
+      if (!Number.isFinite(t)) continue;
+      if (t > (out[s.projectId] ?? 0)) out[s.projectId] = t;
+    }
+    return out;
+  }, [sessions]);
+
+  // Total per project (live + done) — only used as the final tiebreaker.
+  const sessionTotalsByProject = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const [pid, c] of Object.entries(sessionCountsByProject)) {
+      out[pid] = (c.running ?? 0) + (c.active ?? 0) + (c.waiting ?? 0) + (c.disconnected ?? 0) + (c.done ?? 0);
+    }
+    return out;
+  }, [sessionCountsByProject]);
+
+  // Sort by action-relevance: hasLive desc → hasWaiting desc → lastActivity desc → total desc.
+  const sortedProjects = useMemo(() => {
+    const score = (id: string) => {
+      const c = sessionCountsByProject[id] ?? {};
+      return {
+        hasLive: ((c.running ?? 0) + (c.active ?? 0)) > 0 ? 1 : 0,
+        hasWaiting: ((c.waiting ?? 0) + (c.disconnected ?? 0)) > 0 ? 1 : 0,
+        lastActivity: lastActivityByProject[id] ?? 0,
+        total: sessionTotalsByProject[id] ?? 0,
+      };
+    };
+    return [...allProjects].sort((a, b) => {
+      const sa = score(a.id);
+      const sb = score(b.id);
+      if (sa.hasLive !== sb.hasLive) return sb.hasLive - sa.hasLive;
+      if (sa.hasWaiting !== sb.hasWaiting) return sb.hasWaiting - sa.hasWaiting;
+      if (sa.lastActivity !== sb.lastActivity) return sb.lastActivity - sa.lastActivity;
+      return sb.total - sa.total;
+    });
+  }, [allProjects, sessionCountsByProject, lastActivityByProject, sessionTotalsByProject]);
+
+  const visibleProjects = projectsExpanded
+    ? sortedProjects
+    : sortedProjects.slice(0, PROJECTS_DEFAULT_VISIBLE);
+
+  const hiddenCount = sortedProjects.length - visibleProjects.length;
+
   // Per-project artefact counts for the tile badges. Includes the VAULT
   // bucket (artefacts with no project binding) so ProjectTileGrid can
   // render the Vault tile when there's anything in it. Returns {} only
@@ -891,7 +943,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         {isHomeView && !showElsewhere && allProjects.length > 0 && (
           <div className="home-section home-projects-section">
             <div className="home-projects-grid">
-              {allProjects.map((p) => (
+              {visibleProjects.map((p) => (
                 <ProjectTile
                   key={p.id}
                   project={p}
@@ -907,6 +959,28 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 />
               ))}
             </div>
+            {hiddenCount > 0 && !projectsExpanded && (
+              <div className="home-projects-footer">
+                <button
+                  type="button"
+                  className="home-projects-show-more"
+                  onClick={() => setProjectsExpanded(true)}
+                >
+                  Show all {sortedProjects.length} projects ▾
+                </button>
+              </div>
+            )}
+            {projectsExpanded && sortedProjects.length > PROJECTS_DEFAULT_VISIBLE && (
+              <div className="home-projects-footer">
+                <button
+                  type="button"
+                  className="home-projects-show-more home-projects-show-more--collapse"
+                  onClick={() => setProjectsExpanded(false)}
+                >
+                  Show less ▴
+                </button>
+              </div>
+            )}
           </div>
         )}
 
