@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Invaders 2P — spike</title>
+<link rel="stylesheet" href="../shared/pixel-font.css">
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #000; color: #fff;
+    /* Press Start 2P drives the arcade look; system mono is the
+       fallback while the .ttf is loading. */
+    font-family: 'Press Start 2P', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    line-height: 1.4;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  #root { display: flex; flex-direction: column; height: 100%; }
+
+  /* Lobby */
+  #lobby {
+    padding: 10px 14px max(10px, env(safe-area-inset-top, 0)) 14px;
+    background: #06061a;
+    border-bottom: 1px solid rgba(45, 212, 255, 0.3);
+    flex: 0 0 auto;
+  }
+  #lobby .title {
+    font-size: 12px; letter-spacing: 0.15em; color: #2dd4ff;
+    text-transform: uppercase; margin: 0 0 6px;
+  }
+  #lobby .netcode {
+    margin-left: 6px;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 10px; letter-spacing: 0.1em;
+  }
+  #lobby .netcode.mismatch {
+    color: #ff6666;
+  }
+  #lobby .ping {
+    margin-left: 8px;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 10px; letter-spacing: 0.1em;
+  }
+  #lobby .ping.low  { color: #6bff8c; }
+  #lobby .ping.mid  { color: #ffd84a; }
+  #lobby .ping.high { color: #ff6666; }
+  #lobby .transport {
+    margin-left: 8px; padding: 1px 6px; border-radius: 3px;
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  #lobby .transport.p2p {
+    color: #1a3a1a;
+    background: #6bff8c;
+    font-weight: bold;
+  }
+  #lobby .transport.connecting {
+    color: #ffd84a;
+    background: rgba(255, 216, 74, 0.15);
+  }
+  #lobby .url {
+    font-size: 11px; opacity: 0.7; word-break: break-all;
+    background: #0a0a28; padding: 4px 6px; border-radius: 3px;
+  }
+  #lobby .room-line {
+    display: flex; align-items: baseline; gap: 8px;
+    margin: 4px 0 6px;
+  }
+  #lobby .room-label {
+    font-size: 10px; letter-spacing: 0.18em;
+    color: rgba(255, 255, 255, 0.5);
+  }
+  #lobby .room-code {
+    font-size: 20px; letter-spacing: 0.25em;
+    color: #ffd84a;
+    font-family: 'Press Start 2P', ui-monospace, monospace;
+    text-shadow: 2px 2px 0 #ff3aa1;
+  }
+  #lobby .row {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    margin-top: 6px;
+  }
+  #lobby button {
+    background: #1a1a3a; color: #fff; border: 1px solid #2dd4ff;
+    padding: 5px 12px; font: inherit; font-size: 11px; cursor: pointer;
+    letter-spacing: 0.08em;
+  }
+  #lobby button.primary {
+    background: #ff3aa1; border-color: #ff3aa1;
+  }
+  #lobby button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #status {
+    font-size: 11px; color: #ffd84a; margin-top: 6px;
+    min-height: 1.1em; letter-spacing: 0.05em;
+  }
+  #seat { font-size: 11px; color: #2dd4ff; }
+
+  /* Stage */
+  #stage {
+    flex: 1 1 auto;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 0; position: relative;
+    padding: max(8px, env(safe-area-inset-bottom, 0)) 8px;
+  }
+  canvas {
+    background: #000;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    display: block;
+    box-shadow: 0 0 0 1px rgba(45, 212, 255, 0.2);
+  }
+
+  /* Touch overlay — only on coarse pointers */
+  #touch { display: none; }
+  @media (pointer: coarse) {
+    #touch {
+      display: flex; position: absolute;
+      left: 0; right: 0; bottom: 0;
+      height: 28%;
+      pointer-events: none;
+    }
+    #touch .btn {
+      flex: 1; pointer-events: auto;
+      background: rgba(45, 212, 255, 0.06);
+      border-top: 1px solid rgba(45, 212, 255, 0.25);
+      color: rgba(255, 255, 255, 0.65);
+      font-size: 22px;
+      display: flex; align-items: center; justify-content: center;
+      user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+      touch-action: none;
+    }
+    #touch .btn + .btn { border-left: 1px solid rgba(45, 212, 255, 0.18); }
+    #touch .btn.active { background: rgba(45, 212, 255, 0.25); color: #fff; }
+    #tc-fire { background: rgba(255, 58, 161, 0.08) !important; color: rgba(255, 58, 161, 0.8); }
+    #tc-fire.active { background: rgba(255, 58, 161, 0.35) !important; color: #fff; }
+  }
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="lobby">
+    <div class="title">Invaders 2P · spike <span id="netcode" class="netcode">netcode v?</span><span id="ping" class="ping"></span><span id="transport" class="transport">relay</span></div>
+    <div class="room-line">
+      <span class="room-label">ROOM</span>
+      <span class="room-code" id="roomCode">····</span>
+    </div>
+    <div class="url" id="url">…</div>
+    <div class="row">
+      <button id="copyBtn">Copy link</button>
+      <button id="startBtn" class="primary" disabled>Start</button>
+      <button id="retryBtn" title="Force a fresh WebRTC handshake (use if the badge is stuck on relay after a late join)">Retry P2P</button>
+      <span id="seat"></span>
+    </div>
+    <div id="status">Connecting…</div>
+  </div>
+
+  <div id="stage">
+    <canvas id="cv" width="240" height="280"></canvas>
+    <div id="touch">
+      <div class="btn" id="tc-left">◀</div>
+      <div class="btn" id="tc-right">▶</div>
+      <div class="btn" id="tc-fire">FIRE</div>
+    </div>
+  </div>
+</div>
+
+<script src="./simple-peer.min.js"></script>
+<script type="module">
+  // Single source of truth for game logic, shared with the server
+  // (which bundles this same file via wrangler import).
+  import {
+    initState, step, snapshotForClient, zeroInput,
+    PF_W, PF_H, SHIP_W, SHIP_H, SHIP_Y, SHIP_SPEED, FIRE_COOLDOWN,
+    BULLET_W, BULLET_H, BULLET_SPEED,
+    INV_W, INV_H,
+  } from './engine.js';
+
+  // Netcode version — bump on any wire/protocol or behaviour change.
+  // Welcome from the server includes its own value so we can flag a
+  // mismatch (usually means one side is still on a stale deploy or the
+  // browser is showing a cached HTML). See server room.ts for history.
+  const NETCODE_VERSION = 18;
+
+  // --------------------------------------------------------------------
+  // Room code — 4 letters that identifies this pair's DO instance.
+  // URL shape: /invaders-2p/FROG. The arcade-site worker rewrites any
+  // /invaders-2p/<segment> to serve this same index.html, so we can
+  // read the code straight off location.pathname. Falls back to the
+  // older ?code= query for any bookmarks. Charset omits O / I / L to
+  // avoid ambiguity when typing.
+  function randomCode() {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+    const arr = new Uint8Array(4);
+    crypto.getRandomValues(arr);
+    let s = '';
+    for (let i = 0; i < 4; i++) s += chars[arr[i] % chars.length];
+    return s;
+  }
+  function normaliseCode(raw) {
+    return (raw || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+  }
+  function extractCode() {
+    const m = location.pathname.match(/^\/invaders-2p\/([^/]+)\/?$/);
+    if (m) {
+      const c = normaliseCode(m[1]);
+      if (c.length === 4) return c;
+    }
+    const q = new URL(location.href).searchParams.get('code');
+    const c2 = normaliseCode(q);
+    if (c2.length === 4) return c2;
+    return null;
+  }
+  let roomCode = extractCode();
+  if (!roomCode) roomCode = randomCode();
+  // Normalise the address bar to the clean path form regardless of how
+  // we arrived — query-string bookmarks rewrite themselves on first
+  // load and stay shareable in the new form.
+  const cleanPath = '/invaders-2p/' + roomCode;
+  if (location.pathname !== cleanPath || location.search) {
+    history.replaceState(null, '', cleanPath);
+  }
+
+  // --------------------------------------------------------------------
+  // WS URL: prod → wss://arcade.oyster.to. Anything else → ws://<host>:8787
+  // (the wrangler dev default). The arcade-site is on a different port
+  // in local dev, so just hit wrangler dev directly.
+  const isProd = location.hostname === 'arcade.oyster.to';
+  const wsBase = isProd
+    ? 'wss://arcade.oyster.to/api/mp/invaders/ws'
+    : 'ws://' + location.hostname + ':8787/api/mp/invaders/ws';
+  const wsUrl = wsBase + '?code=' + roomCode;
+
+  document.getElementById('url').textContent = location.href;
+  document.getElementById('roomCode').textContent = roomCode;
+
+  const netcodeEl = document.getElementById('netcode');
+  const pingEl    = document.getElementById('ping');
+  // Show client version immediately on load; server version overwrites
+  // this once the welcome arrives.
+  netcodeEl.textContent = 'netcode v' + NETCODE_VERSION;
+
+  // Ping/pong RTT measurement — every PING_INTERVAL_MS the client
+  // stamps performance.now() into a ping, the server echoes the same
+  // stamp straight back, and we diff on receive to get the round-trip.
+  // CS-style colour bands: green/yellow/red at 80/180 ms.
+  const PING_INTERVAL_MS = 2000;
+  let pingTimer = null;
+
+  function startPings() {
+    if (pingTimer) return;
+    sendPing();
+    pingTimer = setInterval(sendPing, PING_INTERVAL_MS);
+  }
+  function stopPings() {
+    if (pingTimer) clearInterval(pingTimer);
+    pingTimer = null;
+    pingEl.textContent = '';
+    pingEl.classList.remove('low', 'mid', 'high');
+  }
+  function sendPing() {
+    // Prefer DC when up so the badge reflects the actual LAN RTT
+    // instead of the cloud round-trip.
+    const m = { type: 'ping', t: performance.now() };
+    if (p2pUp())                       sendOverDC(m);
+    else if (ws && ws.readyState === 1) ws.send(JSON.stringify(m));
+  }
+
+  // Client-authoritative position publish. While the WS is open and
+  // we have a local position, send it to the server every
+  // POS_PUBLISH_MS — server overwrites ship.x straight from this,
+  // which then feeds the next snapshot the other player sees.
+  function startPosPublish() {
+    if (posTimer) return;
+    posTimer = setInterval(() => {
+      if (localShip.x === null) return;
+      sendToServer({ type: 'pos', x: localShip.x });
+    }, POS_PUBLISH_MS);
+  }
+  function stopPosPublish() {
+    if (posTimer) clearInterval(posTimer);
+    posTimer = null;
+  }
+  function applyPong(serverT) {
+    const rtt = Math.round(performance.now() - serverT);
+    pingEl.textContent = rtt + ' ms';
+    pingEl.classList.remove('low', 'mid', 'high');
+    if      (rtt < 80)  pingEl.classList.add('low');
+    else if (rtt < 180) pingEl.classList.add('mid');
+    else                pingEl.classList.add('high');
+  }
+
+  // --------------------------------------------------------------------
+  // Lobby
+  const statusEl = document.getElementById('status');
+  const seatEl   = document.getElementById('seat');
+  const startBtn = document.getElementById('startBtn');
+  const copyBtn  = document.getElementById('copyBtn');
+
+  function setStatus(t) { statusEl.textContent = t; }
+
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(location.href);
+      const orig = copyBtn.textContent;
+      copyBtn.textContent = 'Copied';
+      setTimeout(() => { copyBtn.textContent = orig; }, 1200);
+    } catch (e) { /* no clipboard permission; ignore */ }
+  });
+
+  // --------------------------------------------------------------------
+  // WebSocket + snapshot buffer
+  //
+  // The server stamps each snapshot with `t` (Date.now() at broadcast).
+  // We keep the last ~2 s of snapshots and render 100 ms behind the
+  // latest one, lerping ship + invader positions between the two
+  // snapshots that bracket renderTime. This is the Valve "interp"
+  // buffer — it absorbs server-tick cadence + network jitter without
+  // changing the protocol. Bullets are drawn straight from the latest
+  // snapshot (no per-bullet id on the wire).
+  const INTERP_DELAY_MS = 100;
+  const BUFFER_KEEP_MS  = 2000;
+  // Position publish rate. Server ticks at 60 Hz; matching that keeps
+  // the other player's view of us at most one publish interval stale.
+  const POS_PUBLISH_MS = 16;
+  // Ghost bullets spawn locally on FIRE so the shot feels instant,
+  // then fade after this window — by which time the server's
+  // authoritative bullet has appeared in a snapshot. The brief
+  // overlap during handoff reads cleaner than the ~150 ms gap of
+  // pure server-snapshot bullets.
+  const GHOST_TTL_MS = 150;
+
+  let mySeat = null;
+  let lastState = null;     // latest snapshot, used by lobby UI
+  let ws = null;
+
+  const snapBuffer = [];    // [{ t, status, won, score, players, bullets, invaderBullets, invaders }, ...]
+  let latestServerT     = 0;
+  let latestLocalRecvMs = 0;
+
+  // Local prediction state — only the seat we own. Integrated from
+  // input each rAF frame using server-identical physics, snapped to the
+  // server when we diverge (network drops, death/respawn).
+  const localShip = { x: null, cooldown: 0 };
+  const ghostBullets = []; // [{ x, y, born }] — locally-predicted, fade after GHOST_TTL_MS
+  let prevFrameT = 0;
+  let posTimer = null;
+
+  // --------------------------------------------------------------------
+  // Host runtime — active on P1 when hostEngaged. Owns hostState +
+  // hostInputs, runs a setInterval loop at HOST_TICK_HZ, broadcasts
+  // each snapshot over the DataChannel and also feeds it into the
+  // local snapBuffer via handle() so P1's existing render path works.
+  const HOST_TICK_HZ = 60;
+  const HOST_TICK_MS = 1000 / HOST_TICK_HZ;
+  let hostEngaged = false;            // true after Start in P2P mode this session
+  let hostState   = null;
+  let hostInputs  = { p1: zeroInput(), p2: zeroInput() };
+  let hostLoop    = null;
+  let hostLastMs  = 0;
+
+  function startHost() {
+    if (mySeat !== 'p1') return;
+    hostState = initState();
+    hostState.status = 'running';
+    hostInputs = { p1: zeroInput(), p2: zeroInput() };
+    hostLastMs = Date.now();
+    if (hostLoop) clearInterval(hostLoop);
+    hostLoop = setInterval(hostTick, HOST_TICK_MS);
+  }
+  function stopHost() {
+    if (hostLoop) clearInterval(hostLoop);
+    hostLoop = null;
+    hostState = null;
+  }
+  function hostTick() {
+    if (!hostState) return;
+    const now = Date.now();
+    const dt = Math.min(0.1, (now - hostLastMs) / 1000);
+    hostLastMs = now;
+    step(hostState, hostInputs, dt, { p1: true, p2: true });
+    const snap = { type: 'state', t: now, ...snapshotForClient(hostState) };
+    handle(snap);                 // P1's own render path
+    sendOverDC(snap);             // ship to P2
+    if (hostState.status === 'gameover') {
+      if (hostLoop) clearInterval(hostLoop);
+      hostLoop = null;
+    }
+  }
+  function hostReceive(seat, msg) {
+    if (!hostState) return;
+    if (msg.type === 'input') {
+      hostInputs[seat] = { left: !!msg.left, right: !!msg.right, fire: !!msg.fire };
+    } else if (msg.type === 'pos') {
+      if (typeof msg.x !== 'number' || !Number.isFinite(msg.x)) return;
+      const ship = hostState.ships[seat];
+      if (!ship || !ship.alive) return;
+      ship.x = Math.max(0, Math.min(PF_W - SHIP_W, msg.x));
+    }
+  }
+
+  function p2pUp() { return !!(peer && peer.connected); }
+
+  function sendOverDC(msg) {
+    if (!p2pUp()) return;
+    try { peer.send(JSON.stringify(msg)); }
+    catch (e) { console.warn('[P2P] send err:', e && e.message); }
+  }
+
+  // Transport router for client→server gameplay messages. Three modes:
+  //   - host engaged + P1: we ARE the server, apply locally
+  //   - host engaged + P2: send via DC to P1
+  //   - not engaged:       relay via WS to DO (cloud mode)
+  function sendToServer(msg) {
+    if (hostEngaged) {
+      if (mySeat === 'p1') hostReceive('p1', msg);
+      else                 sendOverDC(msg);
+      return;
+    }
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
+  }
+
+  // --------------------------------------------------------------------
+  // WebRTC peer (simple-peer over signalling-via-DO)
+  //
+  // The handshake fires as soon as both seats are present (each side
+  // creates a peer with itself as initiator if mySeat === 'p1'). SDP
+  // offer/answer + ICE candidates are relayed through the DO via
+  // `signal` messages. Once the DataChannel opens, the transport
+  // badge turns green and host mode is available to engage on Start.
+  let peer = null;
+  let peerCreated = false;
+  const pendingSignals = []; // queued signals if peer doesn't exist yet
+
+  const transportEl = document.getElementById('transport');
+  function setTransport(state) {
+    transportEl.classList.remove('p2p', 'connecting');
+    if (state === 'p2p')        { transportEl.textContent = 'P2P';  transportEl.classList.add('p2p'); }
+    else if (state === 'connecting') { transportEl.textContent = 'P2P…'; transportEl.classList.add('connecting'); }
+    else                         { transportEl.textContent = 'relay'; }
+  }
+
+  function maybeCreatePeer() {
+    if (peerCreated) return;
+    if (typeof SimplePeer === 'undefined') return;     // library not loaded
+    if (!mySeat) return;
+    if (!lastState) return;
+    const otherIdx = mySeat === 'p1' ? 1 : 0;
+    const other = lastState.players[otherIdx];
+    if (!other || !other.alive) return;                 // other seat empty
+    peerCreated = true;
+    setTransport('connecting');
+    console.log('[P2P] init (initiator=' + (mySeat === 'p1') + ')');
+    try {
+      peer = new SimplePeer({
+        initiator: (mySeat === 'p1'),
+        trickle: true,
+      });
+    } catch (e) {
+      console.warn('[P2P] new SimplePeer failed:', e);
+      setTransport('relay');
+      return;
+    }
+    peer.on('signal', (data) => {
+      const target = mySeat === 'p1' ? 'p2' : 'p1';
+      if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'signal', to: target, payload: data }));
+      }
+    });
+    peer.on('connect', () => {
+      console.log('[P2P] DataChannel open');
+      setTransport('p2p');
+    });
+    peer.on('data', (raw) => {
+      let dmsg;
+      try { dmsg = JSON.parse(raw.toString()); } catch { return; }
+      // Ping/pong is symmetric — either side echoes, either side
+      // measures.
+      if (dmsg.type === 'ping') { sendOverDC({ type: 'pong', t: dmsg.t }); return; }
+      if (dmsg.type === 'pong') { applyPong(dmsg.t); return; }
+      if (mySeat === 'p1') {
+        // We're the host. P2's 'start' kicks us into host mode if we
+        // haven't engaged yet (P2 pressed Start first); all other
+        // gameplay messages route to our local hostState.
+        if (dmsg.type === 'start') {
+          if (!hostEngaged) { hostEngaged = true; startHost(); }
+          return;
+        }
+        if (hostEngaged) hostReceive('p2', dmsg);
+      } else {
+        // We're the thin client. The first snapshot over DC means the
+        // host kicked off — engage on this side so future inputs route
+        // through DC instead of WS.
+        if (!hostEngaged && dmsg.type === 'state') hostEngaged = true;
+        handle(dmsg);
+      }
+    });
+    peer.on('error', (err) => {
+      console.warn('[P2P] error:', err && err.message);
+      setTransport('relay');
+      resetPeer();
+    });
+    peer.on('close', () => {
+      console.log('[P2P] closed');
+      setTransport('relay');
+      resetPeer();
+    });
+    // Drain any signals that arrived before the peer existed.
+    while (pendingSignals.length) {
+      try { peer.signal(pendingSignals.shift()); }
+      catch (e) { console.warn('[P2P] queued signal:', e); }
+    }
+  }
+
+  function onIncomingSignal(payload) {
+    if (peer) {
+      try { peer.signal(payload); }
+      catch (e) { console.warn('[P2P] signal err:', e); }
+    } else {
+      pendingSignals.push(payload);
+    }
+  }
+
+  // Reset peer state so the next snapshot with both seats present can
+  // trigger a fresh handshake. Fixes late-join: if the first attempt
+  // failed (offer dropped because target socket wasn't there yet, ICE
+  // gathering failed, etc.), we'd previously stay stuck on relay.
+  function resetPeer() {
+    if (peer) { try { peer.destroy(); } catch {} }
+    peer = null;
+    peerCreated = false;
+    pendingSignals.length = 0;
+    if (hostEngaged) {
+      hostEngaged = false;
+      stopHost();
+    }
+  }
+
+  function connect() {
+    ws = new WebSocket(wsUrl);
+    ws.addEventListener('open',  () => {
+      setStatus('Connected. Waiting for room…');
+      startPings();
+      startPosPublish();
+    });
+    ws.addEventListener('error', () => setStatus('Connection error'));
+    ws.addEventListener('close', () => {
+      setStatus('Disconnected');
+      startBtn.disabled = true;
+      stopPings();
+      stopPosPublish();
+    });
+    ws.addEventListener('message', (e) => {
+      let msg;
+      try { msg = JSON.parse(e.data); } catch { return; }
+      // Once host mode is engaged, the server keeps ticking (and still
+      // broadcasts snapshots) but it isn't receiving our inputs/pos,
+      // so its state is stale. Pushing those into the interp buffer
+      // would fight the DC snapshots from P1 and produce visible jitter.
+      // Drop them; everything we need flows over the DataChannel now.
+      if (hostEngaged && msg && msg.type === 'state') return;
+      handle(msg);
+    });
+  }
+
+  function handle(msg) {
+    if (msg.type === 'welcome') {
+      mySeat = msg.seat;
+      seatEl.textContent = 'You are ' + mySeat.toUpperCase();
+      const serverV = msg.netcode;
+      // Colo trace: edge that handled the upgrade → data center the
+      // DO actually lives in. Tells us whether locationHint took and
+      // where the round-trip really goes.
+      const colos = (msg.workerColo && msg.doColo)
+        ? ' · ' + msg.workerColo + '→' + msg.doColo
+        : '';
+      if (serverV != null && serverV !== NETCODE_VERSION) {
+        netcodeEl.textContent =
+          'netcode client v' + NETCODE_VERSION + ' ⚠ server v' + serverV + colos;
+        netcodeEl.classList.add('mismatch');
+      } else if (serverV != null) {
+        netcodeEl.textContent = 'netcode v' + NETCODE_VERSION + colos;
+        netcodeEl.classList.remove('mismatch');
+      }
+      return;
+    }
+    if (msg.type === 'pong') {
+      if (typeof msg.t === 'number') applyPong(msg.t);
+      return;
+    }
+    if (msg.type === 'room_full') {
+      setStatus('Room is full — try again later');
+      startBtn.disabled = true;
+      return;
+    }
+    if (msg.type === 'state') {
+      lastState = msg;
+      snapBuffer.push(msg);
+      latestServerT     = msg.t;
+      latestLocalRecvMs = performance.now();
+      // Trim anything older than BUFFER_KEEP_MS, but always keep at
+      // least two snapshots so we have a pair to lerp between.
+      while (snapBuffer.length > 2 && (msg.t - snapBuffer[0].t) > BUFFER_KEEP_MS) {
+        snapBuffer.shift();
+      }
+      reconcileLocalShip(msg);
+      refreshLobby();
+      maybeCreatePeer();
+      return;
+    }
+    if (msg.type === 'signal') {
+      onIncomingSignal(msg.payload);
+      return;
+    }
+  }
+
+  function refreshLobby() {
+    if (!lastState) return;
+    const s = lastState.status;
+    // Count occupied seats (the server masks unoccupied players as
+    // alive:false on the wire, which is good enough to detect "are we
+    // solo or duo right now?" while the room is between matches.)
+    const occupied = lastState.players.filter(p => p && p.alive).length;
+    if (s === 'waiting') {
+      setStatus('Waiting…');
+      startBtn.disabled = true;
+    } else if (s === 'ready') {
+      setStatus(occupied >= 2
+        ? 'Both players in. Press START.'
+        : 'Press START — P2 can join anytime.');
+      startBtn.disabled = false;
+    } else if (s === 'running') {
+      setStatus('Score: ' + lastState.score
+        + (occupied < 2 ? ' · solo (P2 can join)' : ''));
+      startBtn.disabled = true;
+    } else if (s === 'gameover') {
+      setStatus(lastState.won
+        ? ('You won! Final score ' + lastState.score)
+        : ('Game over. Final score ' + lastState.score));
+      startBtn.disabled = false;
+    }
+  }
+
+  startBtn.addEventListener('click', () => {
+    // Engage host mode on Start if P2P is up. Otherwise fall back to
+    // cloud relay (existing behaviour).
+    if (p2pUp()) {
+      hostEngaged = true;
+      if (mySeat === 'p1') startHost();
+      else                 sendOverDC({ type: 'start' });
+      return;
+    }
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'start' }));
+  });
+  document.getElementById('retryBtn').addEventListener('click', () => {
+    console.log('[P2P] manual retry');
+    resetPeer();
+    setTransport('relay');
+    maybeCreatePeer();
+  });
+
+  // --------------------------------------------------------------------
+  // Input — send on change only
+  const input = { left: false, right: false, fire: false };
+  let lastSig = '';
+
+  function setInput(field, value) {
+    if (input[field] === value) return;
+    input[field] = value;
+    const sig = input.left + '|' + input.right + '|' + input.fire;
+    if (sig === lastSig) return;
+    lastSig = sig;
+    sendToServer({ type: 'input', ...input });
+  }
+
+  // Keyboard
+  window.addEventListener('keydown', (e) => {
+    if (e.repeat) return;
+    if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') setInput('left',  true);
+    else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') setInput('right', true);
+    else if (e.key === ' ' || e.key === 'Spacebar') { setInput('fire', true); e.preventDefault(); }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') setInput('left',  false);
+    else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') setInput('right', false);
+    else if (e.key === ' ' || e.key === 'Spacebar') setInput('fire', false);
+  });
+
+  // Touch — hold to engage. Track per-button so simultaneous left+fire works.
+  function bindTouch(elId, field) {
+    const el = document.getElementById(elId);
+    const down = (e) => { e.preventDefault(); el.classList.add('active');    setInput(field, true);  };
+    const up   = (e) => { e.preventDefault(); el.classList.remove('active'); setInput(field, false); };
+    el.addEventListener('touchstart',  down, { passive: false });
+    el.addEventListener('touchend',    up,   { passive: false });
+    el.addEventListener('touchcancel', up,   { passive: false });
+  }
+  bindTouch('tc-left',  'left');
+  bindTouch('tc-right', 'right');
+  bindTouch('tc-fire',  'fire');
+
+  // --------------------------------------------------------------------
+  // Render — playfield is engine units (PF_W × PF_H). CSS scales the
+  // canvas via integer-pixel fitCanvas; image-rendering keeps the
+  // pixels crisp. The render function draws the interpolated snapshot
+  // pair (other ship + invaders + bullets) plus locally-predicted own
+  // ship + ghost bullets layered on top.
+  const canvas = document.getElementById('cv');
+  const ctx = canvas.getContext('2d');
+
+  function fitCanvas() {
+    const stage = document.getElementById('stage');
+    const sw = stage.clientWidth  - 16;
+    const sh = stage.clientHeight - 16;
+    const scale = Math.max(1, Math.floor(Math.min(sw / PF_W, sh / PF_H)));
+    canvas.style.width  = (PF_W * scale) + 'px';
+    canvas.style.height = (PF_H * scale) + 'px';
+  }
+  window.addEventListener('resize', fitCanvas);
+  window.addEventListener('orientationchange', fitCanvas);
+  fitCanvas();
+
+  // --------------------------------------------------------------------
+  // Local prediction (own ship only)
+  //
+  // Server is still authoritative. We just *also* integrate our own
+  // ship from current input each frame so it tracks the controls with
+  // zero visible latency. Snapshots reconcile if we drift by more than
+  // SNAP_THRESHOLD (handles disconnects, ship death, dropped inputs).
+  // No rollback / no replay queue — the local sim is identical to the
+  // server's, so divergence in normal play stays sub-pixel.
+  function mySeatIndex() {
+    if (mySeat === 'p1') return 0;
+    if (mySeat === 'p2') return 1;
+    return -1;
+  }
+
+  function reconcileLocalShip(snap) {
+    const idx = mySeatIndex();
+    if (idx < 0) return;
+    const sp = snap.players[idx];
+    if (!sp) return;
+    // Local position is authoritative in v7. The only times we let the
+    // server overwrite it: first-ever snapshot (initial spawn), and
+    // any time the wire says we're not alive (dead, or unoccupied
+    // before a fresh start). Otherwise we never touch localShip.x
+    // from incoming snapshots — the user's input is the truth.
+    if (localShip.x === null || !sp.alive) {
+      localShip.x = sp.x;
+      localShip.cooldown = 0;
+    }
+  }
+
+  function localAlive() {
+    const idx = mySeatIndex();
+    if (idx < 0 || snapBuffer.length === 0) return false;
+    const sp = snapBuffer[snapBuffer.length - 1].players[idx];
+    return !!sp && !!sp.alive;
+  }
+
+  function stepLocal(now) {
+    if (localShip.x === null) { prevFrameT = now; return; }
+    if (prevFrameT === 0)     { prevFrameT = now; return; }
+    const dt = Math.min(0.1, (now - prevFrameT) / 1000);
+    prevFrameT = now;
+
+    const dx = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    localShip.x += dx * SHIP_SPEED * dt;
+    if (localShip.x < 0)              localShip.x = 0;
+    if (localShip.x > PF_W - SHIP_W)  localShip.x = PF_W - SHIP_W;
+
+    // Ghost-bullet lifecycle (v7-style):
+    //  - Spawn when input.fire is held AND local cooldown is clear
+    //    AND ship is currently alive. Cooldown mirrors server so a
+    //    burst of held-FIRE produces one ghost per real bullet.
+    //  - Advance each frame at BULLET_SPEED.
+    //  - Prune when off-screen or older than GHOST_TTL_MS — by which
+    //    time the server's authoritative bullet has appeared in a
+    //    snapshot and taken over the visual.
+    localShip.cooldown = Math.max(0, localShip.cooldown - dt);
+    if (input.fire && localShip.cooldown <= 0 && localAlive()) {
+      ghostBullets.push({
+        x: localShip.x + SHIP_W / 2 - BULLET_W / 2,
+        y: SHIP_Y - BULLET_H,
+        born: now,
+      });
+      localShip.cooldown = FIRE_COOLDOWN;
+    }
+    for (const gb of ghostBullets) gb.y -= BULLET_SPEED * dt;
+    for (let i = ghostBullets.length - 1; i >= 0; i--) {
+      if (now - ghostBullets[i].born > GHOST_TTL_MS || ghostBullets[i].y < -BULLET_H) {
+        ghostBullets.splice(i, 1);
+      }
+    }
+  }
+
+  // Render at the display's refresh rate. Renders the world at
+  // (latestServerT - INTERP_DELAY_MS) projected forward by wall-clock
+  // time since the latest snapshot, so the render time advances
+  // smoothly at exactly 1 ms per ms. Each new snapshot resets the
+  // reference, washing out any clock drift.
+  function findBracket(renderT) {
+    // Linear scan — buffer holds ~120 entries max at 60 Hz × 2 s.
+    for (let i = 0; i < snapBuffer.length - 1; i++) {
+      if (snapBuffer[i].t <= renderT && snapBuffer[i + 1].t >= renderT) {
+        return [snapBuffer[i], snapBuffer[i + 1]];
+      }
+    }
+    // renderT is past the newest snapshot (snapshot gap) or before the
+    // oldest (first frames after connect). Fall back to the nearest
+    // single snapshot — alpha will collapse to 0.
+    const newest = snapBuffer[snapBuffer.length - 1];
+    if (newest && newest.t <= renderT) return [newest, newest];
+    return [snapBuffer[0], snapBuffer[0]];
+  }
+
+  function renderInterpolated() {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, PF_W, PF_H);
+
+    if (snapBuffer.length === 0) return;
+
+    const elapsed = performance.now() - latestLocalRecvMs;
+    const renderT = latestServerT + elapsed - INTERP_DELAY_MS;
+    const [a, b]  = findBracket(renderT);
+    const span    = b.t - a.t;
+    const alpha   = span > 0 ? Math.min(1, Math.max(0, (renderT - a.t) / span)) : 0;
+    const lerp    = (pa, pb) => pa + (pb - pa) * alpha;
+
+    // Ships — local seat uses predicted x (zero-latency feel), other
+    // seat lerps between snapshots. Skip drawing once the latest
+    // snapshot reports dead (covers unoccupied-mask + actual death).
+    const latestSnap = snapBuffer[snapBuffer.length - 1];
+    for (let i = 0; i < 2; i++) {
+      const pa = a.players[i], pb = b.players[i];
+      if (!pa || !pb) continue;
+      const isMine = ((i === 0 ? 'p1' : 'p2') === mySeat);
+      if (!latestSnap.players[i]?.alive) continue;
+      const x = isMine && localShip.x !== null
+        ? localShip.x
+        : lerp(pa.x, pb.x);
+      ctx.fillStyle = isMine ? '#2dd4ff' : '#ff3aa1';
+      ctx.fillRect(x, SHIP_Y, SHIP_W, SHIP_H);
+    }
+
+    // Invaders — lerp by array index (engine emits the grid in a stable
+    // order; dead invaders stay in the array with a:false). The classic
+    // chunky shuffle becomes a smooth slide between marches.
+    ctx.fillStyle = '#ffffff';
+    const n = Math.min(a.invaders.length, b.invaders.length);
+    for (let i = 0; i < n; i++) {
+      const ia = a.invaders[i], ib = b.invaders[i];
+      if (!ib.a || !ia.a) continue;            // dead either side → hide
+      ctx.fillRect(lerp(ia.x, ib.x), lerp(ia.y, ib.y), INV_W, INV_H);
+    }
+
+    // Bullets — drawn from the latest snapshot (server-authoritative
+    // for spawn time + trajectory). Ghost bullets layered on top.
+    ctx.fillStyle = '#ffd84a';
+    for (const bl of latestSnap.bullets)        ctx.fillRect(bl.x, bl.y, BULLET_W, BULLET_H);
+    ctx.fillStyle = '#ff6666';
+    for (const bl of latestSnap.invaderBullets) ctx.fillRect(bl.x, bl.y, BULLET_W, BULLET_H);
+    ctx.fillStyle = 'rgba(255, 216, 74, 0.7)';
+    for (const gb of ghostBullets)              ctx.fillRect(gb.x, gb.y, BULLET_W, BULLET_H);
+  }
+
+  function rafLoop(now) {
+    stepLocal(now || performance.now());
+    renderInterpolated();
+    requestAnimationFrame(rafLoop);
+  }
+  requestAnimationFrame(rafLoop);
+
+  // Boot
+  connect();
+</script>
+</body>
+</html>

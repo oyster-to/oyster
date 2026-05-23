@@ -1,0 +1,32 @@
+name = "oyster-arcade-mp"
+main = "src/worker.ts"
+compatibility_date = "2026-04-01"
+
+# Path-specific route on the arcade subdomain. The arcade-site worker
+# owns arcade.oyster.to as a custom domain (serves docs/arcade/ via the
+# ASSETS binding); path-specific Worker routes win over custom domains
+# on the same hostname, so /api/mp/* lands here instead. Same trick the
+# leaderboard worker uses for /api/leaderboard*.
+#
+# VERIFY THIS IS THE CASE in production after the first deploy by
+# hitting /api/mp/health — if it doesn't 200, the route precedence is
+# wrong and the spike stops here.
+[[routes]]
+pattern = "arcade.oyster.to/api/mp/*"
+zone_name = "oyster.to"
+
+# The Durable Object that owns the singleton invaders-2p room.
+# Server-authoritative game state lives in memory inside this class.
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "InvadersRoom"
+
+# SQLite-backed DO migration. Required on current Cloudflare billing
+# tiers for new DO classes. We don't actually use the SQLite storage in
+# v0 — state is in-memory only and is lost when the isolate evicts.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["InvadersRoom"]
+
+[observability]
+enabled = true
