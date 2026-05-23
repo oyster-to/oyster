@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home tiles — what each project should communicate</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --accent: #7c6bff;
+      --accent-bright: #a597ff;
+      --green: #4ade80;
+      --amber: #fbbf24;
+      --red: #f87171;
+      --teal: #14b8a6;
+      --text: #f0f0f5;
+      --text-dim: rgba(232, 233, 240, 0.55);
+      --text-muted: rgba(232, 233, 240, 0.32);
+      --text-very-muted: rgba(232, 233, 240, 0.18);
+      --surface: rgba(12, 13, 28, 0.6);
+      --surface-tile: rgba(22, 24, 47, 0.55);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-strong: rgba(255, 255, 255, 0.12);
+      --border-accent: rgba(124, 107, 255, 0.4);
+      --font-body: 'Space Grotesk', -apple-system, sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-body);
+      color: var(--text);
+      background: rgba(30, 31, 54, 1);
+      min-height: 100vh;
+      padding: 60px 0 120px;
+    }
+    .glow {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background: radial-gradient(ellipse 70% 45% at 50% 10%, rgba(124,107,255,0.08) 0%, transparent 60%);
+    }
+    .page { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 32px; }
+    .page-title { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
+    .page-subtitle {
+      font-size: 14px; color: var(--text-dim);
+      margin-bottom: 36px; max-width: 760px; line-height: 1.55;
+    }
+    .panel {
+      padding: 28px 32px 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      margin-bottom: 32px;
+    }
+    .panel-label {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--accent-bright);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .panel-title {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+    }
+    .panel-desc {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.55;
+      margin-bottom: 24px;
+      max-width: 720px;
+    }
+
+    /* The big "Your work." H1 above the tile grids */
+    .home-title {
+      font-family: var(--font-body);
+      font-size: 56px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 24px 0 28px;
+    }
+
+    /* shared tile grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       VARIANT A — Recap card (recommended)
+       ───────────────────────────────────────────────────────── */
+    .va-tile {
+      position: relative;
+      padding: 14px 16px;
+      background: var(--surface-tile);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 116px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .va-tile:hover {
+      border-color: var(--border-strong);
+      background: rgba(28, 30, 60, 0.65);
+    }
+    .va-tile.live {
+      border-color: var(--border-accent);
+      box-shadow: 0 0 0 1px var(--border-accent) inset;
+    }
+    .va-tile.ghost {
+      opacity: 0.66;
+    }
+    .va-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .va-name {
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      color: var(--accent-bright);
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .va-recency {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+    .va-last-title {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.4;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+    .va-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: auto;
+      padding-top: 6px;
+    }
+    .va-pip-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .va-pip {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 999px;
+    }
+    .va-pip-green { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .va-pip-amber { background: var(--amber); }
+    .va-pip-red { background: var(--red); }
+    .va-pip-dim { background: var(--text-very-muted); }
+    .va-action {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent-bright);
+      background: rgba(124, 107, 255, 0.12);
+      border: 1px solid rgba(124, 107, 255, 0.28);
+      border-radius: 999px;
+      padding: 3px 10px;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .va-action:hover {
+      background: rgba(124, 107, 255, 0.22);
+      border-color: rgba(124, 107, 255, 0.5);
+    }
+    .va-action.muted {
+      color: var(--text-muted);
+      background: transparent;
+      border-color: var(--border);
+    }
+    .va-warning {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--amber);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       VARIANT B — Two-line minimalist
+       ───────────────────────────────────────────────────────── */
+    .vb-tile {
+      position: relative;
+      padding: 14px 18px;
+      background: var(--surface-tile);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .vb-tile:hover {
+      border-color: var(--border-strong);
+      background: rgba(28, 30, 60, 0.65);
+    }
+    .vb-tile.live { border-color: var(--border-accent); }
+    .vb-tile.ghost { opacity: 0.66; }
+    .vb-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .vb-name {
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      color: var(--accent-bright);
+      font-weight: 500;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .vb-recency {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .vb-sub {
+      font-size: 12.5px;
+      color: var(--text-dim);
+      line-height: 1.4;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .vb-sub .vb-pip {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 999px;
+      vertical-align: 1px;
+      margin-right: 5px;
+    }
+
+    /* ─────────────────────────────────────────────────────────
+       VARIANT C — Linear-style
+       ───────────────────────────────────────────────────────── */
+    .vc-tile {
+      position: relative;
+      padding: 12px 14px 12px 12px;
+      background: var(--surface-tile);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: grid;
+      grid-template-columns: 4px 1fr auto;
+      grid-template-rows: auto auto;
+      column-gap: 12px;
+      row-gap: 4px;
+      align-items: baseline;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .vc-tile:hover {
+      border-color: var(--border-strong);
+      background: rgba(28, 30, 60, 0.65);
+    }
+    .vc-tile.ghost { opacity: 0.55; }
+    .vc-bar {
+      grid-row: 1 / 3;
+      width: 4px;
+      align-self: stretch;
+      border-radius: 999px;
+      background: var(--text-very-muted);
+    }
+    .vc-tile.live .vc-bar {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+    }
+    .vc-tile.ghost .vc-bar {
+      background: var(--amber);
+    }
+    .vc-name {
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      color: var(--accent-bright);
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .vc-recency {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+    .vc-sub {
+      grid-column: 2 / 4;
+      font-size: 12.5px;
+      color: var(--text-dim);
+      line-height: 1.4;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .vc-state {
+      color: var(--text-muted);
+    }
+    .vc-state.live { color: var(--green); }
+    .vc-state.ghost { color: var(--amber); }
+
+    .legend {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      padding: 14px 18px;
+      background: rgba(12, 13, 28, 0.35);
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      margin-bottom: 24px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend-swatch {
+      width: 10px; height: 10px;
+      border-radius: 2px;
+    }
+    .legend .swatch-live { background: var(--green); }
+    .legend .swatch-ghost { background: var(--amber); }
+    .legend .swatch-quiet { background: var(--text-very-muted); }
+
+    .compare-note {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.6;
+      padding: 16px 20px;
+      background: rgba(124, 107, 255, 0.06);
+      border: 1px solid rgba(124, 107, 255, 0.18);
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    .compare-note strong { color: var(--accent-bright); font-weight: 600; }
+    .compare-note code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: rgba(255,255,255,0.04);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--text);
+    }
+    .pick-hint {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent-bright);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="page">
+    <h1 class="page-title">Home tiles — what each project should communicate</h1>
+    <p class="page-subtitle">
+      Today every tile says &ldquo;7 done&rdquo; — a database stat that answers none of the questions a user actually has on landing.
+      The three variants below populate the tile with the things the user came back to find:
+      <strong style="color: var(--text);">what was I doing here</strong>,
+      <strong style="color: var(--text);">when did I touch it last</strong>, and
+      <strong style="color: var(--text);">what can I do next</strong>.
+      Same data, three visual treatments. Live status, quiet history, and ghost folders all coexist without one dominating.
+    </p>
+
+    <div class="legend">
+      <span class="legend-item"><span class="legend-swatch swatch-live"></span> live work happening</span>
+      <span class="legend-item"><span class="legend-swatch swatch-quiet"></span> quiet history (no live)</span>
+      <span class="legend-item"><span class="legend-swatch swatch-ghost"></span> ghost — folder gone from disk</span>
+    </div>
+
+    <!-- ──────────────────────────────────────────────────────
+         VARIANT A — RECAP CARD
+         ────────────────────────────────────────────────────── -->
+    <div class="panel">
+      <div class="pick-hint">Variant A · Recommended</div>
+      <div class="panel-title">Recap card</div>
+      <div class="panel-desc">
+        Each tile is a small recap. Name + recency on one line; the last session's title on a second line so the user sees
+        <em>what they were doing</em>; a primary action chip on the right. Live tiles get a purple accent border.
+        Ghost tiles dim to 66%. No tile is bigger than another — visual emphasis only via colour.
+      </div>
+
+      <h2 class="home-title" style="margin-top: 8px;">Your work.</h2>
+
+      <div class="grid">
+        <!-- Live -->
+        <div class="va-tile live">
+          <div class="va-row">
+            <span class="va-name">oyster-dev</span>
+            <span class="va-recency">2h ago</span>
+          </div>
+          <div class="va-last-title">OYSTER: 1.0 sessions-first first run</div>
+          <div class="va-meta">
+            <span class="va-pip-row"><span class="va-pip va-pip-green"></span>3 active</span>
+            <button class="va-action">Continue →</button>
+          </div>
+        </div>
+
+        <!-- Recent, no live -->
+        <div class="va-tile">
+          <div class="va-row">
+            <span class="va-name">tokinvest-client-portal</span>
+            <span class="va-recency">yesterday</span>
+          </div>
+          <div class="va-last-title">client portal &rsaquo; redesign phase 1</div>
+          <div class="va-meta">
+            <span class="va-pip-row"><span class="va-pip va-pip-dim"></span>4 sessions</span>
+            <button class="va-action">Resume →</button>
+          </div>
+        </div>
+
+        <div class="va-tile">
+          <div class="va-row">
+            <span class="va-name">blunderfixer</span>
+            <span class="va-recency">3d ago</span>
+          </div>
+          <div class="va-last-title">add Chrome extension drag-drop FEN paste</div>
+          <div class="va-meta">
+            <span class="va-pip-row"><span class="va-pip va-pip-dim"></span>7 sessions</span>
+            <button class="va-action">Resume →</button>
+          </div>
+        </div>
+
+        <div class="va-tile">
+          <div class="va-row">
+            <span class="va-name">tokinvest-website</span>
+            <span class="va-recency">1w ago</span>
+          </div>
+          <div class="va-last-title">marketing copy + hero refresh</div>
+          <div class="va-meta">
+            <span class="va-pip-row"><span class="va-pip va-pip-dim"></span>6 sessions</span>
+            <button class="va-action">Resume →</button>
+          </div>
+        </div>
+
+        <!-- Older -->
+        <div class="va-tile">
+          <div class="va-row">
+            <span class="va-name">tokinvest-agent-broker-concept</span>
+            <span class="va-recency">2w ago</span>
+          </div>
+          <div class="va-last-title">initial spike: agent &harr; broker handoff</div>
+          <div class="va-meta">
+            <span class="va-pip-row"><span class="va-pip va-pip-dim"></span>1 session</span>
+            <button class="va-action">Open →</button>
+          </div>
+        </div>
+
+        <div class="va-tile">
+          <div class="va-row">
+            <span class="va-name">sober-o-matic</span>
+            <span class="va-recency">3w ago</span>
+          </div>
+          <div class="va-last-title">streak tracking + daily check-in flow</div>
+          <div class="va-meta">
+            <span class="va-pip-row"><span class="va-pip va-pip-dim"></span>1 session</span>
+            <button class="va-action">Open →</button>
+          </div>
+        </div>
+
+        <!-- Ghost (folder gone) -->
+        <div class="va-tile ghost">
+          <div class="va-row">
+            <span class="va-name">oyster-dev-RENAMED</span>
+            <span class="va-recency">3w ago</span>
+          </div>
+          <div class="va-last-title">test rename — folder no longer on disk</div>
+          <div class="va-meta">
+            <span class="va-warning"><span class="va-pip va-pip-amber"></span>no folder</span>
+            <button class="va-action muted">Browse</button>
+          </div>
+        </div>
+
+        <div class="va-tile ghost">
+          <div class="va-row">
+            <span class="va-name">oyster-os.worktrees</span>
+            <span class="va-recency">4w ago</span>
+          </div>
+          <div class="va-last-title">worktree experiment — never finished</div>
+          <div class="va-meta">
+            <span class="va-warning"><span class="va-pip va-pip-amber"></span>no folder</span>
+            <button class="va-action muted">Browse</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-note">
+        <strong>Why this works:</strong> the tile <em>recaps</em> rather than reports. <code>oyster-dev — 2h ago — "1.0 sessions-first first run"</code> tells the user <em>"this is where I was, this is what I was doing, click to keep going"</em>. The action chip is the same in spirit on every tile but reads its current verb (<code>Continue</code> / <code>Resume</code> / <code>Open</code> / <code>Browse</code>) from the project's state. Ghost tiles still appear — they're history — but at 66% opacity and with the muted action chip so the eye floats past them on first scan.
+      </div>
+    </div>
+
+    <!-- ──────────────────────────────────────────────────────
+         VARIANT B — TWO-LINE MINIMALIST
+         ────────────────────────────────────────────────────── -->
+    <div class="panel">
+      <div class="pick-hint">Variant B</div>
+      <div class="panel-title">Two-line minimalist</div>
+      <div class="panel-desc">
+        No explicit action chip — the whole tile is clickable. Same data as A, just visually tighter:
+        name + recency on line 1, last-session title with a state-pip prefix on line 2.
+        Trades a discoverable action button for density. Better if the user is scanning many projects fast.
+      </div>
+
+      <div class="grid">
+        <div class="vb-tile live">
+          <div class="vb-head">
+            <span class="vb-name">oyster-dev</span>
+            <span class="vb-recency">2h ago</span>
+          </div>
+          <div class="vb-sub"><span class="vb-pip va-pip-green"></span>OYSTER: 1.0 sessions-first first run · 3 active</div>
+        </div>
+
+        <div class="vb-tile">
+          <div class="vb-head">
+            <span class="vb-name">tokinvest-client-portal</span>
+            <span class="vb-recency">yesterday</span>
+          </div>
+          <div class="vb-sub"><span class="vb-pip va-pip-dim"></span>client portal &rsaquo; redesign phase 1</div>
+        </div>
+
+        <div class="vb-tile">
+          <div class="vb-head">
+            <span class="vb-name">blunderfixer</span>
+            <span class="vb-recency">3d ago</span>
+          </div>
+          <div class="vb-sub"><span class="vb-pip va-pip-dim"></span>add Chrome extension drag-drop FEN paste</div>
+        </div>
+
+        <div class="vb-tile">
+          <div class="vb-head">
+            <span class="vb-name">tokinvest-website</span>
+            <span class="vb-recency">1w ago</span>
+          </div>
+          <div class="vb-sub"><span class="vb-pip va-pip-dim"></span>marketing copy + hero refresh</div>
+        </div>
+
+        <div class="vb-tile">
+          <div class="vb-head">
+            <span class="vb-name">tokinvest-agent-broker-concept</span>
+            <span class="vb-recency">2w ago</span>
+          </div>
+          <div class="vb-sub"><span class="vb-pip va-pip-dim"></span>initial spike: agent &harr; broker handoff</div>
+        </div>
+
+        <div class="vb-tile">
+          <div class="vb-head">
+            <span class="vb-name">sober-o-matic</span>
+            <span class="vb-recency">3w ago</span>
+          </div>
+          <div class="vb-sub"><span class="vb-pip va-pip-dim"></span>streak tracking + daily check-in flow</div>
+        </div>
+
+        <div class="vb-tile ghost">
+          <div class="vb-head">
+            <span class="vb-name">oyster-dev-RENAMED</span>
+            <span class="vb-recency">3w ago</span>
+          </div>
+          <div class="vb-sub"><span class="vb-pip va-pip-amber"></span>folder gone · 1 session</div>
+        </div>
+
+        <div class="vb-tile ghost">
+          <div class="vb-head">
+            <span class="vb-name">oyster-os.worktrees</span>
+            <span class="vb-recency">4w ago</span>
+          </div>
+          <div class="vb-sub"><span class="vb-pip va-pip-amber"></span>folder gone · 1 session</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ──────────────────────────────────────────────────────
+         VARIANT C — LINEAR-STYLE
+         ────────────────────────────────────────────────────── -->
+    <div class="panel">
+      <div class="pick-hint">Variant C</div>
+      <div class="panel-title">Linear-style — accent stripe on the left</div>
+      <div class="panel-desc">
+        Every tile carries a left-edge stripe that encodes its state at a glance:
+        green for live, amber for ghost, dim grey for quiet history.
+        Name and recency sit on the top row; last-session title sits below across both columns.
+        Even at the edge of vision you can scan a wall of tiles and find what's hot.
+      </div>
+
+      <div class="grid">
+        <div class="vc-tile live">
+          <div class="vc-bar"></div>
+          <span class="vc-name">oyster-dev</span>
+          <span class="vc-recency">2h ago</span>
+          <div class="vc-sub"><span class="vc-state live">3 active</span> · OYSTER: 1.0 sessions-first first run</div>
+        </div>
+
+        <div class="vc-tile">
+          <div class="vc-bar"></div>
+          <span class="vc-name">tokinvest-client-portal</span>
+          <span class="vc-recency">yesterday</span>
+          <div class="vc-sub"><span class="vc-state">4 sessions</span> · client portal &rsaquo; redesign phase 1</div>
+        </div>
+
+        <div class="vc-tile">
+          <div class="vc-bar"></div>
+          <span class="vc-name">blunderfixer</span>
+          <span class="vc-recency">3d ago</span>
+          <div class="vc-sub"><span class="vc-state">7 sessions</span> · add Chrome extension drag-drop FEN paste</div>
+        </div>
+
+        <div class="vc-tile">
+          <div class="vc-bar"></div>
+          <span class="vc-name">tokinvest-website</span>
+          <span class="vc-recency">1w ago</span>
+          <div class="vc-sub"><span class="vc-state">6 sessions</span> · marketing copy + hero refresh</div>
+        </div>
+
+        <div class="vc-tile">
+          <div class="vc-bar"></div>
+          <span class="vc-name">tokinvest-agent-broker-concept</span>
+          <span class="vc-recency">2w ago</span>
+          <div class="vc-sub"><span class="vc-state">1 session</span> · initial spike: agent &harr; broker handoff</div>
+        </div>
+
+        <div class="vc-tile">
+          <div class="vc-bar"></div>
+          <span class="vc-name">sober-o-matic</span>
+          <span class="vc-recency">3w ago</span>
+          <div class="vc-sub"><span class="vc-state">1 session</span> · streak tracking + daily check-in flow</div>
+        </div>
+
+        <div class="vc-tile ghost">
+          <div class="vc-bar"></div>
+          <span class="vc-name">oyster-dev-RENAMED</span>
+          <span class="vc-recency">3w ago</span>
+          <div class="vc-sub"><span class="vc-state ghost">no folder</span> · test rename — folder no longer on disk</div>
+        </div>
+
+        <div class="vc-tile ghost">
+          <div class="vc-bar"></div>
+          <span class="vc-name">oyster-os.worktrees</span>
+          <span class="vc-recency">4w ago</span>
+          <div class="vc-sub"><span class="vc-state ghost">no folder</span> · worktree experiment</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="compare-note">
+      <strong>Quick comparison.</strong>
+      <code>A</code> is most discoverable (visible action chip) — best for a user who comes back after a long break and wants the next step pointed at.
+      <code>B</code> is densest — best if you have many projects and want to scan fast.
+      <code>C</code> reads fastest at a glance — the stripe colour tells you state before you've parsed any text.
+      All three replace <code>"7 done"</code> with information that actually helps the user decide what to do.
+    </div>
+  </div>
+</body>
+</html>

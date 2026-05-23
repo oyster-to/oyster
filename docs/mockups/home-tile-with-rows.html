@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mission control v3 — project tiles with session rows inside</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --accent: #7c6bff;
+      --accent-bright: #a597ff;
+      --green: #4ade80;
+      --green-bright: #6ee79c;
+      --amber: #fbbf24;
+      --red: #f87171;
+      --text: #f0f0f5;
+      --text-dim: rgba(232, 233, 240, 0.6);
+      --text-muted: rgba(232, 233, 240, 0.36);
+      --text-very-muted: rgba(232, 233, 240, 0.2);
+      --surface: rgba(12, 13, 28, 0.6);
+      --surface-2: rgba(22, 24, 47, 0.55);
+      --surface-tile: rgba(22, 24, 47, 0.6);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-strong: rgba(255, 255, 255, 0.12);
+      --border-accent: rgba(124, 107, 255, 0.4);
+      --font-body: 'Space Grotesk', -apple-system, sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-body);
+      color: var(--text);
+      background: rgba(30, 31, 54, 1);
+      min-height: 100vh;
+      padding: 48px 0 120px;
+    }
+    .glow {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background: radial-gradient(ellipse 70% 45% at 50% 10%, rgba(124,107,255,0.08) 0%, transparent 60%);
+    }
+    .page { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 32px; }
+    .page-title { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
+    .page-subtitle {
+      font-size: 14px; color: var(--text-dim);
+      margin-bottom: 36px; max-width: 760px; line-height: 1.65;
+    }
+    .page-subtitle strong { color: var(--text); font-weight: 600; }
+    .page-subtitle code {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      background: rgba(255,255,255,0.04);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--accent-bright);
+    }
+
+    .scene {
+      padding: 28px 32px 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      margin-bottom: 36px;
+    }
+    .scene-label {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--accent-bright);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .scene-title {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+    }
+    .scene-desc {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.6;
+      margin-bottom: 24px;
+      max-width: 720px;
+    }
+
+    /* Topbar fake */
+    .topbar-mock-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .topbar-mock {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      background: rgba(20, 21, 42, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      width: fit-content;
+    }
+    .pill {
+      font-family: var(--font-body);
+      font-size: 12px;
+      color: var(--text-dim);
+      padding: 5px 11px;
+      border-radius: 999px;
+      background: transparent;
+    }
+    .pill.selected { background: var(--accent); color: #fff; }
+
+    .home-title {
+      font-family: var(--font-body);
+      font-size: 48px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 8px 0 28px;
+    }
+
+    /* Tile grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 14px;
+    }
+
+    /* Project tile */
+    .ptile {
+      position: relative;
+      padding: 14px 16px 12px;
+      background: var(--surface-tile);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      transition: border-color 0.15s, background 0.15s;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .ptile:hover { border-color: var(--border-strong); }
+    .ptile.live {
+      border-color: rgba(74, 222, 128, 0.32);
+      background: linear-gradient(180deg, rgba(74, 222, 128, 0.05) 0%, var(--surface-tile) 60%);
+    }
+    .ptile.waiting {
+      border-color: rgba(251, 191, 36, 0.32);
+      background: linear-gradient(180deg, rgba(251, 191, 36, 0.05) 0%, var(--surface-tile) 60%);
+    }
+    .ptile.ghost { opacity: 0.6; }
+
+    .ptile-head {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .ptile-name {
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      color: var(--accent-bright);
+      font-weight: 500;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .ptile-state {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+    .ptile-state.live {
+      color: var(--green-bright);
+      background: rgba(74, 222, 128, 0.1);
+      border: 1px solid rgba(74, 222, 128, 0.28);
+    }
+    .ptile-state.waiting {
+      color: var(--amber);
+      background: rgba(251, 191, 36, 0.1);
+      border: 1px solid rgba(251, 191, 36, 0.28);
+    }
+    .ptile-state.ghost {
+      color: var(--amber);
+      background: transparent;
+      border: 1px dashed rgba(251, 191, 36, 0.4);
+    }
+    .ptile-state.quiet {
+      color: var(--text-very-muted);
+      letter-spacing: 0;
+      text-transform: none;
+      font-size: 11px;
+      padding: 1px 0;
+      border: none;
+      background: transparent;
+    }
+
+    /* Session row inside a tile */
+    .srow {
+      display: grid;
+      grid-template-columns: 9px 1fr auto;
+      column-gap: 9px;
+      align-items: baseline;
+      padding: 5px 0;
+    }
+    .srow + .srow { border-top: 1px solid rgba(255,255,255,0.025); }
+    .srow-pip {
+      width: 6px; height: 6px;
+      border-radius: 999px;
+      align-self: center;
+      transform: translateY(0);
+    }
+    .srow-pip.live {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .srow-pip.active { background: var(--green); }
+    .srow-pip.waiting { background: var(--amber); }
+    .srow-pip.disconnected { background: var(--red); }
+    .srow-pip.done { background: var(--text-very-muted); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    .srow-title {
+      font-size: 12.5px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      line-height: 1.35;
+    }
+    .srow-title.live { color: #fff; }
+    .srow-time {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--text-very-muted);
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Expand affordance */
+    .ptile-foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 4px;
+      margin-top: 2px;
+    }
+    .ptile-more {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 2px 0;
+      letter-spacing: 0.04em;
+      transition: color 0.15s;
+    }
+    .ptile-more:hover { color: var(--accent-bright); }
+    .ptile-action {
+      font-family: var(--font-body);
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #fff;
+      background: var(--accent);
+      border: none;
+      border-radius: 6px;
+      padding: 4px 12px;
+      cursor: pointer;
+    }
+    .ptile-action.muted {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    /* Empty footer space */
+    .ptile-empty {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--text-very-muted);
+      letter-spacing: 0.04em;
+    }
+
+    .compare-note {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.65;
+      padding: 18px 22px;
+      background: rgba(124, 107, 255, 0.06);
+      border: 1px solid rgba(124, 107, 255, 0.18);
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    .compare-note strong { color: var(--accent-bright); font-weight: 600; }
+    .compare-note code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: rgba(255,255,255,0.05);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="page">
+    <h1 class="page-title">Mission control v3 — tiles, but each one's useful</h1>
+    <p class="page-subtitle">
+      Project tile grid stays (familiar scan pattern), but each tile shows its <strong>top 1–2 sessions</strong> as compact rows
+      — title, state pip, recency. The tile is now actually informative.
+      Live tiles get a green-tinted background and a <code>LIVE</code> badge; waiting gets amber.
+      Click <em>Show N more</em> to expand a tile inline. Sessions are still the unit; projects are the visual grouping.
+    </p>
+
+    <!-- ──────────────────────────────────────────────────────
+         SCENE 1 — DEFAULT (collapsed tiles)
+         ────────────────────────────────────────────────────── -->
+    <div class="scene">
+      <div class="scene-label">Scene 1 · Default state</div>
+      <div class="scene-title">Each tile shows its top session — collapsed</div>
+      <div class="scene-desc">
+        Tile shows project name + top session row + an action (or expand). Live/waiting tiles float to the top with an accent background. Ghost tiles dim, with a small <code>NO FOLDER</code> pill.
+      </div>
+
+      <div class="topbar-mock-row">
+        <div class="topbar-mock">
+          <span class="pill">Sign in</span>
+          <span class="pill selected">🏠</span>
+          <span class="pill">🛡</span>
+          <span class="pill">+ Space</span>
+        </div>
+        <div class="topbar-mock">
+          <span class="pill">+ New session</span>
+          <span class="pill">🦪</span>
+        </div>
+      </div>
+
+      <h2 class="home-title">Your work.</h2>
+
+      <div class="grid">
+        <!-- Live tile — sorted first -->
+        <div class="ptile live">
+          <div class="ptile-head">
+            <span class="ptile-name">oyster-dev</span>
+            <span class="ptile-state live">● Live</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip live"></span>
+            <span class="srow-title live">refactor-splash-styles-dedup</span>
+            <span class="srow-time">now</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip waiting"></span>
+            <span class="srow-title">1.0 sessions-first first run</span>
+            <span class="srow-time">2m</span>
+          </div>
+          <div class="ptile-foot">
+            <button class="ptile-more">Show 37 more ▾</button>
+            <button class="ptile-action">Continue →</button>
+          </div>
+        </div>
+
+        <!-- Waiting tile -->
+        <div class="ptile waiting">
+          <div class="ptile-head">
+            <span class="ptile-name">tokinvest-client-portal</span>
+            <span class="ptile-state waiting">⏸ Waiting</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip waiting"></span>
+            <span class="srow-title">client portal &rsaquo; redesign phase 1</span>
+            <span class="srow-time">2h</span>
+          </div>
+          <div class="ptile-foot">
+            <button class="ptile-more">Show 3 more ▾</button>
+            <button class="ptile-action">Answer →</button>
+          </div>
+        </div>
+
+        <!-- Quiet tile — multiple sessions -->
+        <div class="ptile">
+          <div class="ptile-head">
+            <span class="ptile-name">blunderfixer</span>
+            <span class="ptile-state quiet">3d ago</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip done"></span>
+            <span class="srow-title">Chrome ext drag-drop FEN paste</span>
+            <span class="srow-time">3d</span>
+          </div>
+          <div class="ptile-foot">
+            <button class="ptile-more">Show 6 more ▾</button>
+            <span class="ptile-empty">7 sessions</span>
+          </div>
+        </div>
+
+        <!-- Quiet tile -->
+        <div class="ptile">
+          <div class="ptile-head">
+            <span class="ptile-name">tokinvest-website</span>
+            <span class="ptile-state quiet">1w ago</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip done"></span>
+            <span class="srow-title">marketing copy + hero refresh</span>
+            <span class="srow-time">1w</span>
+          </div>
+          <div class="ptile-foot">
+            <button class="ptile-more">Show 5 more ▾</button>
+            <span class="ptile-empty">6 sessions</span>
+          </div>
+        </div>
+
+        <!-- Single-session quiet -->
+        <div class="ptile">
+          <div class="ptile-head">
+            <span class="ptile-name">tokinvest-agent-broker-concept</span>
+            <span class="ptile-state quiet">2w ago</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip done"></span>
+            <span class="srow-title">initial spike: agent ↔ broker handoff</span>
+            <span class="srow-time">2w</span>
+          </div>
+        </div>
+
+        <div class="ptile">
+          <div class="ptile-head">
+            <span class="ptile-name">sober-o-matic</span>
+            <span class="ptile-state quiet">3w ago</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip done"></span>
+            <span class="srow-title">streak tracking + daily check-in flow</span>
+            <span class="srow-time">3w</span>
+          </div>
+        </div>
+
+        <!-- Ghost tile -->
+        <div class="ptile ghost">
+          <div class="ptile-head">
+            <span class="ptile-name">oyster-dev-RENAMED</span>
+            <span class="ptile-state ghost">no folder</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip done"></span>
+            <span class="srow-title">test rename — folder no longer on disk</span>
+            <span class="srow-time">3w</span>
+          </div>
+        </div>
+
+        <div class="ptile ghost">
+          <div class="ptile-head">
+            <span class="ptile-name">oyster-os.worktrees</span>
+            <span class="ptile-state ghost">no folder</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip done"></span>
+            <span class="srow-title">worktree experiment</span>
+            <span class="srow-time">4w</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ──────────────────────────────────────────────────────
+         SCENE 2 — ONE TILE EXPANDED
+         ────────────────────────────────────────────────────── -->
+    <div class="scene">
+      <div class="scene-label">Scene 2 · One tile expanded</div>
+      <div class="scene-title">Click "Show N more" to see the full session list inline</div>
+      <div class="scene-desc">
+        The tile grows in place, listing more sessions. The grid re-flows around it.
+        No drill-in needed — the user stays on Home and can scan many projects without losing context.
+      </div>
+
+      <div class="grid">
+        <!-- Expanded live tile -->
+        <div class="ptile live" style="grid-column: span 2;">
+          <div class="ptile-head">
+            <span class="ptile-name">oyster-dev</span>
+            <span class="ptile-state live">● Live</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip live"></span>
+            <span class="srow-title live">refactor-splash-styles-dedup</span>
+            <span class="srow-time">now</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip waiting"></span>
+            <span class="srow-title">1.0 sessions-first first run</span>
+            <span class="srow-time">2m</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip done"></span>
+            <span class="srow-title">polish home tile design</span>
+            <span class="srow-time">30m</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip done"></span>
+            <span class="srow-title">remove orphan project vacuum bug</span>
+            <span class="srow-time">2h</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip done"></span>
+            <span class="srow-title">fix dropdown menu z-index</span>
+            <span class="srow-time">yesterday</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip done"></span>
+            <span class="srow-title">OYSTER: awesome-list PRs + launch drafts</span>
+            <span class="srow-time">2d</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip done"></span>
+            <span class="srow-title">OYSTER: Space Jumper PR 1 + co-design</span>
+            <span class="srow-time">3d</span>
+          </div>
+          <div class="ptile-foot">
+            <button class="ptile-more">Show 32 more ▾</button>
+            <button class="ptile-action">Continue →</button>
+          </div>
+        </div>
+
+        <div class="ptile waiting">
+          <div class="ptile-head">
+            <span class="ptile-name">tokinvest-client-portal</span>
+            <span class="ptile-state waiting">⏸ Waiting</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip waiting"></span>
+            <span class="srow-title">client portal &rsaquo; redesign phase 1</span>
+            <span class="srow-time">2h</span>
+          </div>
+          <div class="ptile-foot">
+            <button class="ptile-more">Show 3 more ▾</button>
+            <button class="ptile-action">Answer →</button>
+          </div>
+        </div>
+
+        <div class="ptile">
+          <div class="ptile-head">
+            <span class="ptile-name">blunderfixer</span>
+            <span class="ptile-state quiet">3d ago</span>
+          </div>
+          <div class="srow">
+            <span class="srow-pip done"></span>
+            <span class="srow-title">Chrome ext drag-drop FEN paste</span>
+            <span class="srow-time">3d</span>
+          </div>
+          <div class="ptile-foot">
+            <button class="ptile-more">Show 6 more ▾</button>
+            <span class="ptile-empty">7 sessions</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-note">
+        <strong>Why this might be the right balance.</strong>
+        Project tiles preserve the familiar visual scan — you take in everything at once.
+        But each tile now <em>says something</em>: not "7 done" but <em>"Chrome ext drag-drop FEN paste · 3d"</em> — the actual recent moment.
+        Live + waiting tiles surface to the top with accent borders.
+        Click <code>Show N more</code> inside a tile to dig in without leaving Home.
+        Same project tile UI as before, vastly more useful.
+      </div>
+    </div>
+
+    <div class="compare-note">
+      <strong>Open implementation question.</strong>
+      A single tile expanding inline (Scene 2) breaks the grid alignment for the row it's in.
+      Two ways to handle: (a) the expanded tile spans 2 grid columns and the row reflows around it — uses more horizontal space; (b) the tile keeps its column and just grows taller, accepting an uneven row height. (a) reads better; (b) is mechanically simpler. Either way the grid auto-reflows.
+    </div>
+  </div>
+</body>
+</html>
