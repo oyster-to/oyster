@@ -5,13 +5,12 @@
 //     - an optional indented .sr-extra line below the row showing inline
 //       artifact chips, rendered only when the session has artifacts attributed.
 //
-// Artifact chips ride on the session that produced them. Because
-// Artifact.sessionId doesn't exist on the current wire type, the caller
-// passes an empty array today — FULL rows currently render identically to
-// COMPACT (graceful degradation). Plumbing only until attribution is wired.
+// Artifact chips ride on the session that produced them, sourced from
+// session.recentArtifacts (populated server-side from session_artifacts —
+// create/modify only, top 3, whenAt DESC). Absent on remote sessions, in
+// which case the row degrades to the COMPACT layout (no extra line).
 import type { Session } from "../../data/sessions-api";
 import type { Space } from "../../../../shared/types";
-import type { Artifact } from "../../../../shared/types";
 import {
   AGENT_PIP_CLASS, activeWriterChipFor, formatRelative,
   originDeviceChipFor,
@@ -24,8 +23,6 @@ interface SessionRowProps {
   session: Session;
   view: SessionRowView;
   spaces: Space[];
-  /** Artifacts attached to this session (empty when attribution unavailable). */
-  artifacts?: Artifact[];
   /** Local device id; drives the cross-device chip. See SessionTile. */
   myDeviceId: string | null;
   /** Presence info from useTerminalPresence; undefined when no live terminal. */
@@ -43,7 +40,6 @@ export function SessionRow({
   session,
   view,
   spaces,
-  artifacts,
   myDeviceId,
   livePresence,
   onOpen,
@@ -89,7 +85,7 @@ export function SessionRow({
   };
 
   const fullModifier = view === "full" ? " home-row--full" : "";
-  const hasExtra = view === "full" && !!artifacts && artifacts.length > 0;
+  const hasExtra = view === "full" && !!session.recentArtifacts && session.recentArtifacts.length > 0;
 
   return (
     <>
@@ -153,9 +149,9 @@ export function SessionRow({
       </div>
       {hasExtra && (
         <div className="sr-extra">
-          {artifacts!.slice(0, 3).map((a) => (
+          {session.recentArtifacts!.map((a) => (
             <span
-              key={a.id}
+              key={a.artifactId}
               className="sr-artifact-chip"
               onClick={(e) => e.stopPropagation()}
             >

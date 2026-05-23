@@ -152,6 +152,15 @@ export interface Session {
   terminalId: string | null;
   /** Count of currently-attached WS clients on the linked terminal. */
   terminalAttachedClients: number;
+  /** Spike: recent create/modify artifact touches for this session, capped to 3,
+   *  ordered by whenAt DESC. Populated by /api/sessions for local sessions; absent
+   *  for remote sessions (cross-device attribution not modeled yet). */
+  recentArtifacts?: Array<{
+    artifactId: string;
+    label: string;
+    role: "create" | "modify";
+    whenAt: string;
+  }>;
 }
 
 /** POST /api/sessions/:id/resume response shapes. */

@@ -166,6 +166,14 @@ export interface MergedSessionPayload {
   terminalId: string | null;
   /** Count of currently-attached WS clients on the linked terminal. */
   terminalAttachedClients: number;
+  /** Spike (#551): recent create/modify artifact touches, capped to 3,
+   *  ordered by whenAt DESC. Populated for local sessions only. */
+  recentArtifacts?: Array<{
+    artifactId: string;
+    label: string;
+    role: "create" | "modify";
+    whenAt: string;
+  }>;
 }
 
 /** Map a local sessions row to the wire payload shape.
@@ -245,6 +253,54 @@ export async function tryHandleSessionRoute(
     const localPayload: MergedSessionPayload[] = rows.map((row) =>
       mapSessionRow(row),
     );
+
+    // Spike (#551): attach recent create/modify artifact touches to each
+    // local session. Single batched query keyed on the local session ids
+    // — no N+1. Remote sessions are skipped (cross-device attribution
+    // isn't modeled yet; their session_artifacts rows live on the origin
+    // device). Capped to 3 chips per session, no dedup by artifact_id —
+    // if a session both created and modified the same file you'll see
+    // two chips; accurate but raw, easy to polish later.
+    if (rows.length > 0) {
+      const placeholders = rows.map(() => "?").join(",");
+      const touchRows = db.prepare(
+        `SELECT sa.session_id    AS sessionId,
+                sa.role          AS role,
+                sa.when_at       AS whenAt,
+                a.id             AS artifactId,
+                a.label          AS label
+           FROM session_artifacts sa
+           JOIN artifacts a ON a.id = sa.artifact_id
+          WHERE sa.role IN ('create', 'modify')
+            AND sa.session_id IN (${placeholders})
+          ORDER BY sa.when_at DESC`,
+      ).all(...rows.map((r) => r.id)) as Array<{
+        sessionId: string;
+        role: "create" | "modify";
+        whenAt: string;
+        artifactId: string;
+        label: string;
+      }>;
+      const bySession = new Map<string, Array<{
+        artifactId: string; label: string; role: "create" | "modify"; whenAt: string;
+      }>>();
+      for (const t of touchRows) {
+        const list = bySession.get(t.sessionId) ?? [];
+        if (list.length < 3) {
+          list.push({
+            artifactId: t.artifactId,
+            label: t.label,
+            role: t.role,
+            whenAt: t.whenAt,
+          });
+          bySession.set(t.sessionId, list);
+        }
+      }
+      for (const entry of localPayload) {
+        const list = bySession.get(entry.id);
+        if (list && list.length > 0) entry.recentArtifacts = list;
+      }
+    }
 
     // Merge cross-device sessions from remote_sessions. Pulled by
     // SessionSyncService from the cloud's GET /api/sessions/metadata.
