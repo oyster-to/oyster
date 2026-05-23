@@ -63,12 +63,14 @@ export function lookupProject(
   }
 
   // 2. Cache fallback — walk parent dirs looking for ANY ancestor whose
-  // path is in project_paths. A session at `<root>/web/src` with no
-  // marker anywhere should still resolve to the project attached at
-  // `<root>`. Stops at the first ancestor with exactly one live cache
-  // hit (ambiguous hits = abstain). Self-heals by writing the marker
-  // at the original cwd (not the ancestor) so future ingests are
-  // direct, and re-caches the exact cwd so this walk is one-shot.
+  // path is in project_paths AND belongs to a real space. A session at
+  // `<root>/web/src` with no marker anywhere should still resolve to the
+  // project attached at `<root>` — but only when `<root>` was explicitly
+  // claimed into a space. Orphan projects (auto-created per cwd) MUST
+  // NOT vacuum descendants; otherwise a session in $HOME creates a
+  // marker at `~/.oyster/id` that pulls in every subsequent session
+  // anywhere under home. Filter step 2 to `space_id IS NOT NULL` to
+  // confine descendant binding to user-intent space claims.
   let cacheDir = cwd;
   for (let i = 0; i < MAX_WALK_DEPTH; i++) {
     const cached = db
@@ -76,7 +78,7 @@ export function lookupProject(
         `SELECT p.id, p.space_id
            FROM project_paths pp
            JOIN projects p ON p.id = pp.project_id
-          WHERE pp.path = ? AND p.removed_at IS NULL
+          WHERE pp.path = ? AND p.removed_at IS NULL AND p.space_id IS NOT NULL
           LIMIT 2`,
       )
       .all(cacheDir) as Array<{ id: string; space_id: string | null }>;
