@@ -382,6 +382,9 @@ let score = 0;
 let lives = 3;
 let wave = 1;
 let respawnAt = 0;
+// Set true if the B debug cheat is used this run — disqualifies the score
+// from the leaderboard so a test run can't post a hi-score.
+let cheated = false;
 // (End-overlay grace + pendingInitials gate now live in Arcade.EndOverlay.)
 
 // Player.
@@ -564,7 +567,14 @@ const INV_SPACING_Y = 15;        // 3px row gap; smaller drop per bounce too
 const ROW_COLOURS = ['#7adfb1', '#f088bc', '#f0d070', '#f0a070', '#7088dc'];
 const ROW_POINTS  = [30,        20,        20,        10,        10];
 
-let grid = null;        // { offsetX, offsetY, dir, cells: 2D array, aliveCount, frame }
+// Easter egg: exactly ONE invader in row index 3 — the 4th row from the top,
+// the orange-octopus row — is swapped for the Claude creature, rendered in
+// Claude's terracotta. Its column is randomised per grid so it's a "spot the
+// odd one out". Purely cosmetic — it scores/behaves like its row.
+const CLAUDE_ROW = 3;   // 0-based: 4th row from top
+const CLAUDE_COLOUR = '#d97757';
+
+let grid = null;        // { offsetX, offsetY, targetOffsetY, dir, cells, aliveCount, frame, claudeCol }
 let marchAccumulator = 0;
 
 // ============================================
@@ -674,6 +684,7 @@ function newGrid(waveNum) {
     cells,
     aliveCount: ROWS * COLS,
     frame: 0,
+    claudeCol: Math.floor(Math.random() * COLS),   // which row-3 cell is the Claude
   };
 }
 
@@ -681,6 +692,7 @@ function startRun() {
   score = 0;
   lives = 3;
   wave = 1;
+  cheated = false;
   player = { x: PF_W / 2 - PLAYER_W / 2, alive: true };
   playerBullet = null;
   invaderBullets = [];
@@ -788,11 +800,15 @@ window.addEventListener('keydown', e => {
   if (Arcade.Initials.isActive()) return;
   const t = e.target;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  // Only flag the run as cheated when the cheat actually fires (grid/boss) —
+  // pressing B during the win cutscene must NOT disqualify a legitimate win.
   if (phase === 'grid') {
+    cheated = true; // test run — no hi-score will be recorded
     stageNum = STAGES_PER_SET;
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) grid.cells[r][c].alive = false;
     grid.aliveCount = 0;
   } else if (phase === 'boss' && boss) {
+    cheated = true; // test run — no hi-score will be recorded
     // Kill the current boss (bonus + repair + new-set grid spawn run), then
     // immediately clear that grid and snap stageNum to last so advanceStage
     // spawns the next set's boss next frame.
@@ -884,7 +900,7 @@ function endRun(winFlag) {
     titleClass: winFlag ? 'is-win' : '',
     hiscore:    Arcade.Leaderboard.getHighScore(),
     graceMs:    GAME_OVER_GRACE_MS,
-    qualifies:  Arcade.Leaderboard.qualifies(score),
+    qualifies:  !cheated && Arcade.Leaderboard.qualifies(score),
   });
 }
 
@@ -1899,10 +1915,14 @@ function drawGrid() {
     // markedSwoopX/Y, pulse white. Others render at their grid slot.
     const px = isMarked ? markedSwoopX : grid.offsetX + c * INV_SPACING_X;
     const py = isMarked ? markedSwoopY : grid.offsetY + r * INV_SPACING_Y;
-    const colour = (isMarked && Math.floor(now / 80) % 2 === 0)
-      ? '#ffffff'
-      : ROW_COLOURS[r];
-    drawInvader(px, py, r, grid.frame, colour);
+    // The single Claude cell (row 3, randomised column) draws the Claude
+    // creature in terracotta; everything else is its normal row sprite/colour.
+    // Marked-pulse white still overrides either.
+    const isClaude = r === CLAUDE_ROW && c === grid.claudeCol;
+    const base = isClaude ? CLAUDE_COLOUR : ROW_COLOURS[r];
+    const colour = (isMarked && Math.floor(now / 80) % 2 === 0) ? '#ffffff' : base;
+    if (isClaude) drawClaude(px, py, colour, grid.frame);
+    else drawInvader(px, py, r, grid.frame, colour);
   }
 }
 
@@ -1933,6 +1953,23 @@ function drawCrab(px, py, colour, f) {
     ? ['..X..X..', '...XX...', '..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'X.XXXX.X', 'X.X..X.X', '.X....X.']
     : ['X..X..X.', '.X.XX.X.', 'XXXXXXXX', 'XXX..XXX', 'XXXXXXXX', '.XXXXXX.', 'X......X', '.X....X.'];
   paintPixels(px, py, pixels, colour);
+}
+// Easter egg: the Claude creature, matching the Claude Code logo — a narrow
+// head with two eye-slits, full-width side "arms" beam, inset body, and four
+// legs that shuffle between frames. 9 cols wide (vs the 8-wide tiers) so the
+// arms and four distinct legs read; ox shifts it left ~1px to stay centred in
+// its formation slot.
+function drawClaude(px, py, colour, f) {
+  const ox = -1, s = SPRITE_SCALE;
+  // Body rows only (legs are drawn separately below): 6 rows tall, 9 cols wide.
+  const body = ['..XXXXX..', '.XXXXXXX.', '.X.XXX.X.', '.XXXXXXX.', 'XXXXXXXXX', '.XXXXXXX.'];
+  paintPixels(px + ox, py, body, colour);
+  // Four legs as two tight pairs (half-unit gap within each pair) pulled in from
+  // the body edges with a clear centre gap — matching the logo's ▘▘ ▝▝ feet.
+  // Left edges in source units; legs lengthen a touch on frame 1 to march.
+  const legY = py + body.length * s;
+  const legH = (f === 0 ? 1 : 1.5) * s;
+  for (const u of [1, 2.5, 5.5, 7]) drawRect(px + ox + u * s, legY, s, legH, colour);
 }
 function drawOctopus(px, py, colour, f) {
   const pixels = f === 0
