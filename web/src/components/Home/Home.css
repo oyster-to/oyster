@@ -1490,11 +1490,9 @@
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 10px;
 }
-/* Two-piece tile: outer div carries the chrome (border, background,
-   selected state, blur) and is the positioning anchor for the
-   top-right jump button; inner <button> covers the body and is the
-   filter click target. Same pattern as ProjectTile inside a real
-   space — keeps nested click targets valid HTML. */
+/* Orphan-cwd tiles (Elsewhere / Unassigned view). Same two-piece pattern
+   as ProjectTile: outer div is the chrome + jump-button anchor; inner
+   <button> covers the body click target. */
 .home-projects-strip-tile {
   position: relative;
   background: var(--home-surface);
@@ -1543,8 +1541,6 @@
   color: var(--home-text-muted);
   cursor: pointer;
   opacity: 0;
-  /* Disable hit-testing while invisible so touch users (no hover) don't
-     hit a phantom click target in the top-right of every tile. */
   pointer-events: none;
   transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
@@ -1556,20 +1552,6 @@
 .home-projects-strip-tile-jump:hover {
   background: rgba(124, 107, 255, 0.18);
   color: var(--home-accent-bright);
-}
-.home-projects-strip-meta {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(232, 233, 240, 0.55);
-  margin-bottom: 4px;
-}
-.home-projects-strip-name {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--home-accent-bright);
-  margin-bottom: 8px;
 }
 .home-projects-strip-counts {
   display: flex;
@@ -1586,14 +1568,13 @@
   gap: 5px;
   color: rgba(232, 233, 240, 0.78);
 }
-/* Orphan-cwd tiles on Elsewhere — clickable: filters the session list
-   below to that cwd, mirroring how project tiles inside a real space
-   filter by source_id. No "jump" affordance: orphans have no parent
-   space to navigate to. */
-/* Folder treatment for orphan tile names: muted text + folder glyph
-   so the tile reads as "a folder you ran in but isn't attached"
-   rather than a project. The home-relative path (~/Dev) is what we
-   display, full absolute path is on the tile's title attr. */
+/* Folder treatment for orphan tile names: muted text + folder glyph. */
+.home-projects-strip-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--home-accent-bright);
+  margin-bottom: 8px;
+}
 .home-projects-strip-name--folder {
   display: inline-flex;
   align-items: center;

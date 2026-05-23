@@ -28,6 +28,10 @@ export async function fetchProjectsForSpace(spaceId: string, signal?: AbortSigna
   return getJson<Project[]>(`/api/projects?space_id=${encodeURIComponent(spaceId)}`, signal);
 }
 
+export async function fetchAllProjects(signal?: AbortSignal): Promise<Project[]> {
+  return getJson<Project[]>("/api/projects", signal);
+}
+
 export async function createProject(spaceId: string, name: string): Promise<Project> {
   return postJson<Project>("/api/projects", { space_id: spaceId, name });
 }

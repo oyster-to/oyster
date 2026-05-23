@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutGroup, motion } from "framer-motion";
-import { ArrowUpRight, Folder, FolderPlus, Shield } from "lucide-react";
+import { Folder, FolderPlus, Shield } from "lucide-react";
 import type { Session, SessionState, DisplayState } from "../../data/sessions-api";
 import type { Artifact, Space } from "../../../../shared/types";
 import { useMemories } from "../../hooks/useMemories";
@@ -28,7 +28,9 @@ import { MemoryCard } from "./MemoryCard";
 import { VaultInfo } from "./VaultInfo";
 import { homeRelative, renderPipCounts, stateColor } from "./utils";
 import { VAULT, type ArtefactSource, type StateFilter, type ViewMode } from "./types";
-import { attachFolder } from "../../data/projects-api";
+import { attachFolder, fetchAllProjects } from "../../data/projects-api";
+import { ProjectTile } from "./ProjectTile";
+import { useFetched } from "../../hooks/useFetched";
 import { createSpace } from "../../data/spaces-api";
 import { deleteMemory, type Memory } from "../../data/memories-api";
 import { ApiError } from "../../data/http";
@@ -181,6 +183,16 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     error: spaceProjectsError,
     refresh: refreshSpaceProjects,
   } = useSpaceProjects(projectsSpaceId);
+  // All projects across all spaces — used by the Home-view tile strip.
+  // Only fetched when on Home (enabled when isMetaScope and not Elsewhere).
+  const {
+    data: allProjects,
+    refresh: refreshAllProjects,
+  } = useFetched<import("../../data/projects-api").Project[]>(
+    fetchAllProjects,
+    [],
+    { enabled: isMetaScope, ssEvent: "session_changed" },
+  );
   const [showAttachForm, setShowAttachForm] = useState(false);
   // Reset the attach form whenever scope changes so it doesn't carry
   // across spaces.
@@ -393,49 +405,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     }
     return { sessionCountsBySpace: bySpace, orphanCounts: orphans, totalCounts: total };
   }, [sessions, presence.byId]);
-
-  // All projects with at least one session in the current scope, grouped by
-  // cwd (the natural project identity on disk). A folder with a mix of
-  // claimed + orphan sessions still produces a single tile. projectId and
-  // spaceId become metadata — used for the "jump to space" button when at
-  // least one session has them, ignored otherwise.
-  const homeProjects = useMemo(() => {
-    if (!isHomeView || showElsewhere) return [];
-    const map = new Map<string, {
-      cwd: string;
-      label: string;
-      projectId: string | null;
-      spaceId: string | null;
-      counts: { active: number; waiting: number; disconnected: number; done: number };
-      lastEventAt: number;
-    }>();
-    for (const s of sessions) {
-      if (!s.cwd) continue;
-      let entry = map.get(s.cwd);
-      if (!entry) {
-        const cwdBasename = s.cwd.split(/[\\/]/).filter(Boolean).pop() ?? s.cwd;
-        entry = {
-          cwd: s.cwd,
-          label: cwdBasename,
-          projectId: s.projectId ?? null,
-          spaceId: s.spaceId ?? null,
-          counts: { active: 0, waiting: 0, disconnected: 0, done: 0 },
-          lastEventAt: 0,
-        };
-        map.set(s.cwd, entry);
-      }
-      // First non-null projectId/spaceId we see for this cwd wins as metadata.
-      if (!entry.projectId && s.projectId) entry.projectId = s.projectId;
-      if (!entry.spaceId && s.spaceId) entry.spaceId = s.spaceId;
-      if (s.displayState === "active") entry.counts.active++;
-      else if (s.displayState === "waiting") entry.counts.waiting++;
-      else if (s.displayState === "disconnected") entry.counts.disconnected++;
-      else if (s.displayState === "done" || s.displayState === "dormant") entry.counts.done++;
-      const t = parseTimestamp(s.lastEventAt);
-      if (Number.isFinite(t) && t > entry.lastEventAt) entry.lastEventAt = t;
-    }
-    return [...map.values()].sort((a, b) => b.lastEventAt - a.lastEventAt);
-  }, [sessions, isHomeView, showElsewhere]);
 
   // Per-project live-session counts, keyed by project_id. Used by
   // ProjectTileGrid so a project tile can show "1 active · 1 waiting"
@@ -918,54 +887,24 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             home-space-card / home-spaces-section CSS is kept around in
             case the cards return as a settings or dashboard surface. */}
 
-        {isHomeView && !showElsewhere && homeProjects.length > 0 && (
+        {isHomeView && !showElsewhere && allProjects.length > 0 && (
           <div className="home-section home-projects-section">
             <div className="home-projects-grid">
-              {homeProjects.map((p) => {
-                const space = p.spaceId ? spaces.find((s) => s.id === p.spaceId) : undefined;
-                const isSelected = selectedCwd === p.cwd;
-                return (
-                  <div
-                    key={p.cwd}
-                    className={`home-projects-strip-tile${isSelected ? " selected" : ""}`}
-                  >
-                    <button
-                      type="button"
-                      className="home-projects-strip-tile-body"
-                      onClick={() => setSelectedCwd(isSelected ? null : p.cwd)}
-                      title={`Filter sessions to ${p.label}`}
-                    >
-                      {p.spaceId && (
-                        <div className="home-projects-strip-meta">{space?.displayName ?? p.spaceId}</div>
-                      )}
-                      <div className="home-projects-strip-name">{p.label}</div>
-                      <div className="home-projects-strip-counts">
-                        {p.counts.active > 0 && <span className="signal"><span className="pip pip-green" />{p.counts.active} active</span>}
-                        {p.counts.waiting > 0 && <span className="signal"><span className="pip pip-amber" />{p.counts.waiting} waiting</span>}
-                        {p.counts.disconnected > 0 && <span className="signal"><span className="pip pip-red" />{p.counts.disconnected} disconnected</span>}
-                        {p.counts.active + p.counts.waiting + p.counts.disconnected === 0 && p.counts.done > 0 && (
-                          <span className="signal"><span className="pip pip-dim" />{p.counts.done} done</span>
-                        )}
-                      </div>
-                    </button>
-                    {p.spaceId && (
-                      <button
-                        type="button"
-                        className="home-projects-strip-tile-jump"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          pendingFolderSelection.current = p.projectId;
-                          onSpaceChange(p.spaceId!);
-                        }}
-                        aria-label={`Open ${space?.displayName ?? p.spaceId}`}
-                        title={`Open ${space?.displayName ?? p.spaceId}`}
-                      >
-                        <ArrowUpRight size={14} strokeWidth={2} aria-hidden="true" />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
+              {allProjects.map((p) => (
+                <ProjectTile
+                  key={p.id}
+                  project={p}
+                  artefactCount={projectArtefactCounts[p.id] ?? 0}
+                  sessionCounts={sessionCountsByProject[p.id]}
+                  selected={selectedProjectId === p.id}
+                  onSelect={() => setSelectedProjectId(selectedProjectId === p.id ? null : p.id)}
+                  onChanged={refreshAllProjects}
+                  isLastProject={false}
+                  spaceTotalSessions={0}
+                  otherProjects={allProjects.filter((other) => other.id !== p.id)}
+                  onLaunchClaude={onLaunchClaude}
+                />
+              ))}
             </div>
           </div>
         )}
