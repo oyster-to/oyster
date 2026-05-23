@@ -329,7 +329,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
       return scopedSessions.filter((s) => s.cwd === selectedOrphanCwd);
     }
     if (selectedProjectId === VAULT) return scopedSessions.filter((s) => !s.projectId);
-    if (selectedProjectId) return scopedSessions.filter((s) => s.projectId === selectedProjectId);
+    if (selectedProjectId) return scopedSessions.filter((s) => s.projectId === selectedProjectId || s.cwd === selectedProjectId);
     return scopedSessions;
   }, [scopedSessions, selectedProjectId, selectedOrphanCwd, showElsewhere, isHomeView]);
 
@@ -403,25 +403,31 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   const homeProjects = useMemo(() => {
     if (!isHomeView || showElsewhere) return [];
     const map = new Map<string, {
-      projectId: string;
+      key: string;
+      projectId: string | null;
       spaceId: string | null;
       label: string;
       counts: { active: number; waiting: number; disconnected: number; done: number };
       lastEventAt: number;
     }>();
     for (const s of sessions) {
-      if (!s.projectId) continue;
-      let entry = map.get(s.projectId);
+      // Orphan sessions have neither projectId nor spaceId — group by cwd so
+      // they still appear as tiles. Sessions with no cwd at all are skipped
+      // (no way to label them).
+      const key = s.projectId ?? s.cwd ?? null;
+      if (!key) continue;
+      let entry = map.get(key);
       if (!entry) {
         const cwdBasename = s.cwd ? s.cwd.split(/[\\/]/).filter(Boolean).pop() ?? null : null;
         entry = {
-          projectId: s.projectId,
+          key,
+          projectId: s.projectId ?? null,
           spaceId: s.spaceId ?? null,
-          label: cwdBasename ?? s.projectId,
+          label: cwdBasename ?? s.projectId ?? key,
           counts: { active: 0, waiting: 0, disconnected: 0, done: 0 },
           lastEventAt: 0,
         };
-        map.set(s.projectId, entry);
+        map.set(key, entry);
       }
       if (s.displayState === "active") entry.counts.active++;
       else if (s.displayState === "waiting") entry.counts.waiting++;
@@ -910,16 +916,16 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             <div className="home-projects-grid">
               {homeProjects.map((p) => {
                 const space = p.spaceId ? spaces.find((s) => s.id === p.spaceId) : undefined;
-                const isSelected = selectedProjectId === p.projectId;
+                const isSelected = selectedProjectId === p.key;
                 return (
                   <div
-                    key={p.projectId}
+                    key={p.key}
                     className={`home-projects-strip-tile${isSelected ? " selected" : ""}`}
                   >
                     <button
                       type="button"
                       className="home-projects-strip-tile-body"
-                      onClick={() => setSelectedProjectId(isSelected ? null : p.projectId)}
+                      onClick={() => setSelectedProjectId(isSelected ? null : p.key)}
                       title={`Filter sessions to ${p.label}`}
                     >
                       {p.spaceId && (
