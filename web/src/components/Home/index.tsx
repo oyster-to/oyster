@@ -16,7 +16,6 @@ import { ArtefactInspector } from "../ArtefactInspector";
 import { ConfirmModal } from "../ConfirmModal";
 import { PromptModal } from "../PromptModal";
 import { SpaceContextMenu } from "../SpaceContextMenu";
-import { SessionTile } from "./SessionTile";
 import { SessionRow } from "./SessionRow";
 import { ArtefactTable } from "./ArtefactTable";
 import { ShowMore } from "./ShowMore";
@@ -27,7 +26,7 @@ import { AttachOrphanPopover } from "./AttachOrphanPopover";
 import { MemoryCard } from "./MemoryCard";
 import { VaultInfo } from "./VaultInfo";
 import { homeRelative, renderPipCounts, stateColor } from "./utils";
-import { VAULT, type ArtefactSource, type StateFilter, type ViewMode } from "./types";
+import { VAULT, type ArtefactSource, type StateFilter } from "./types";
 import { attachFolder, fetchAllProjects } from "../../data/projects-api";
 import { ProjectTile } from "./ProjectTile";
 import { useFetched } from "../../hooks/useFetched";
@@ -105,20 +104,21 @@ const isLivePublication = (a: Artifact): boolean =>
 // Show more pages an extra ten in.
 const ARTEFACTS_PREVIEW = 10;
 
-// Persists a view toggle (icons / table) to localStorage so it survives
-// reloads. Returns a useState-shaped pair so callsites stay one-liner.
-function useStickyView(key: string, defaultValue: ViewMode): [ViewMode, (v: ViewMode) => void] {
-  const [value, setValue] = useState<ViewMode>(() => {
+// Persists a view toggle to localStorage so it survives reloads.
+// Generic so callers can use any string-union type they need.
+// Returns a useState-shaped pair so callsites stay one-liner.
+function useStickyView<T extends string>(key: string, defaultValue: T, valid: ReadonlyArray<T>): [T, (v: T) => void] {
+  const [value, setValue] = useState<T>(() => {
     if (typeof window === "undefined") return defaultValue;
     try {
       const stored = window.localStorage.getItem(key);
-      return stored === "icons" || stored === "table" ? stored : defaultValue;
+      return (stored !== null && valid.includes(stored as T)) ? (stored as T) : defaultValue;
     } catch {
       // Safari private browsing / storage disabled — fall through to default
       return defaultValue;
     }
   });
-  const set = (v: ViewMode) => {
+  const set = (v: T) => {
     setValue(v);
     try {
       window.localStorage.setItem(key, v);
@@ -198,8 +198,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // across spaces.
   useEffect(() => { setShowAttachForm(false); }, [projectsSpaceId]);
   const [stateFilter, setStateFilter] = useState<StateFilter>("all");
-  const [sessionsView, setSessionsView] = useStickyView("oyster.home.sessionsView", "table");
-  const [artefactsView, setArtefactsView] = useStickyView("oyster.home.artefactsView", "icons");
+  const [sessionsView, setSessionsView] = useStickyView("oyster.home.sessionsView", "full", ["full", "compact"] as const);
+  const [artefactsView, setArtefactsView] = useStickyView("oyster.home.artefactsView", "icons", ["icons", "table"] as const);
   const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
   const [pendingMemoryDelete, setPendingMemoryDelete] = useState<Memory | null>(null);
 
@@ -1137,31 +1137,20 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               })}
             </span>
             <span className="home-section-rule" />
-            <div className="home-view-toggle">
+            <div className="view-toggle-text">
               <button
-                className={`view-btn${sessionsView === "icons" ? " active" : ""}`}
-                onClick={() => setSessionsView("icons")}
-                title="Icon view"
-                aria-label="Icon view"
+                type="button"
+                className={sessionsView === "full" ? "active" : ""}
+                onClick={() => setSessionsView("full")}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="7" height="7" rx="1.5" />
-                  <rect x="14" y="3" width="7" height="7" rx="1.5" />
-                  <rect x="3" y="14" width="7" height="7" rx="1.5" />
-                  <rect x="14" y="14" width="7" height="7" rx="1.5" />
-                </svg>
+                Full
               </button>
               <button
-                className={`view-btn${sessionsView === "table" ? " active" : ""}`}
-                onClick={() => setSessionsView("table")}
-                title="Table view"
-                aria-label="Table view"
+                type="button"
+                className={sessionsView === "compact" ? "active" : ""}
+                onClick={() => setSessionsView("compact")}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="18" x2="21" y2="18" />
-                </svg>
+                Compact
               </button>
             </div>
           </div>
@@ -1172,22 +1161,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             <div className="home-empty">No sessions match this filter yet.</div>
           ) : (
             <>
-              {sessionsView === "icons" ? (
-                <div className="home-surface">
-                  {visibleSessions.slice(0, sessionsLimit).map((session) => (
-                    <SessionTile
-                      key={session.id}
-                      session={session}
-                      spaces={spaces}
-                      showSpaceChip={isMetaView}
-                      myDeviceId={myDeviceId}
-                      livePresence={presence.byId[session.id]}
-                      onOpen={(id) => setActivePanel({ kind: "session", id })}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="home-table-wrap">
+              <div className={sessionsView === "full" ? "home-sessions-full-list" : "home-table-wrap"}>
+                {sessionsView === "compact" && (
                   <div className="home-table">
                     <div className="home-row home-row--header" role="row">
                       <span aria-hidden="true" />
@@ -1201,6 +1176,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                       <SessionRow
                         key={session.id}
                         session={session}
+                        view="compact"
                         spaces={spaces}
                         myDeviceId={myDeviceId}
                         livePresence={presence.byId[session.id]}
@@ -1211,8 +1187,26 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                       />
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+                {sessionsView === "full" && (
+                  <div className="home-sessions-full">
+                    {visibleSessions.slice(0, sessionsLimit).map((session) => (
+                      <SessionRow
+                        key={session.id}
+                        session={session}
+                        view="full"
+                        spaces={spaces}
+                        myDeviceId={myDeviceId}
+                        livePresence={presence.byId[session.id]}
+                        onOpen={(id) => setActivePanel({ kind: "session", id })}
+                        onTerminalFocus={onTerminalFocus}
+                        onTerminalRestore={onTerminalRestore}
+                        onResume={onLaunchClaudeFromSession}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
               {sessionsLimit < visibleSessions.length && (
                 <ShowMore
                   onClick={() => setSessionsLimit((n) => n + SESSIONS_PREVIEW)}
