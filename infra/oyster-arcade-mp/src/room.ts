@@ -79,15 +79,30 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //        of four. Path renamed /invaders-2p/ → /invaders-mp/ with a
 //        301 from the old path. Engine exports SEATS + MAX_SEATS so
 //        server + client share the constant.
-const NETCODE_VERSION = 19;
+//   v20  Polish for live couch co-op: (1) per-seat colours are now
+//        consistent across all viewers (was: every viewer rendered
+//        themselves cyan, which collided with p1's cyan from the
+//        other-player palette). (2) Player `name` wire message; the
+//        room stores names per seat and ships them in every snapshot
+//        so all viewers see the same labels above each ship.
+//        (3) handleStart now runs a 3 s countdown — game state goes
+//        ready/waiting/gameover → 'countdown' → 'running', with the
+//        end time on the wire so the client can render 3/2/1/ATTACK.
+const NETCODE_VERSION = 20;
 
 type ClientMessage =
   | { type: 'ping';   t: number }
   | { type: 'input';  left?: boolean; right?: boolean; fire?: boolean }
   | { type: 'pos';    x: number }
   | { type: 'start' }
+  | { type: 'name';   name: unknown }
   // `to` is untrusted wire data — narrowed by isSeat() in relaySignal.
   | { type: 'signal'; to: unknown; payload: unknown };
+
+// 3-2-1-ATTACK countdown duration. status flips to 'running' when the
+// server clock catches up to game.countdownEndMs.
+const COUNTDOWN_MS = 3000;
+const MAX_NAME_CHARS = 12;
 
 type Occupancy = Record<Seat, boolean>;
 
@@ -247,6 +262,9 @@ export class InvadersRoom {
       case 'pos':
         this.handlePos(seat, msg);
         return;
+      case 'name':
+        this.handleName(seat, msg);
+        return;
       case 'signal':
         this.relaySignal(seat, msg);
         return;
@@ -254,6 +272,14 @@ export class InvadersRoom {
         this.handleStart();
         return;
     }
+  }
+
+  private handleName(seat: Seat, msg: { name: unknown }): void {
+    // Trim + cap so a misbehaving client can't push huge labels into
+    // every snapshot. Empty string is allowed (clears the name).
+    if (typeof msg.name !== 'string') return;
+    this.game.names[seat] = msg.name.trim().slice(0, MAX_NAME_CHARS);
+    this.broadcastSnapshot();
   }
 
   private handlePing(seat: Seat, msg: { t: number }): void {
@@ -297,13 +323,18 @@ export class InvadersRoom {
 
   private handleStart(): void {
     // Solo start allowed: any pre-game state with at least one player.
-    // The other seat can join mid-game; its ship is masked as
-    // not-alive on the wire and doesn't take damage until occupied.
+    // Other seats can join mid-countdown / mid-game; their ship is
+    // masked as not-alive on the wire and doesn't take damage until
+    // occupied. We preserve current names across the reset so a
+    // restart doesn't blank the labels.
     const s = this.game.status;
     if (s !== 'ready' && s !== 'waiting' && s !== 'gameover') return;
     if (this.sockets.size < 1) return;
+    const keepNames = this.game.names;
     this.game = initState();
-    this.game.status = 'running';
+    this.game.names = keepNames;
+    this.game.status = 'countdown';
+    this.game.countdownEndMs = Date.now() + COUNTDOWN_MS;
     this.startLoop();
     this.broadcastSnapshot();
   }
@@ -342,6 +373,15 @@ export class InvadersRoom {
     // collisions sane after a long stall.
     const dt = Math.min(0.1, (now - this.lastTickMs) / 1000);
     this.lastTickMs = now;
+
+    if (this.game.status === 'countdown') {
+      // Engine.step is a no-op while non-running, so nothing actually
+      // simulates during countdown — we just count time and broadcast
+      // so the client can render the 3/2/1 overlay.
+      if (now >= this.game.countdownEndMs) this.game.status = 'running';
+      this.broadcastSnapshot();
+      return;
+    }
 
     step(this.game, this.inputs, dt, this.occupancy());
     this.broadcastSnapshot();

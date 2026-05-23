@@ -92,6 +92,14 @@ export function initState() {
     invaderDir: 1,
     invaderDropRemaining: 0,
     invaderFireAccum: 0,
+    // Per-seat display name, broadcast in snapshots so every viewer
+    // sees the same labels. Set via the `name` wire message. Empty
+    // string = no label rendered.
+    names: SEATS.reduce((acc, s) => (acc[s] = '', acc), /** @type {Record<string,string>} */({})),
+    // Server clock (ms) at which the countdown overlay should end and
+    // the game transitions from 'countdown' → 'running'. Only meaningful
+    // while status === 'countdown'.
+    countdownEndMs: 0,
   };
 }
 
@@ -268,13 +276,19 @@ export function snapshotForClient(state) {
     status: state.status,
     won: state.won,
     score: state.score,
+    // Server clock the countdown should end at (only meaningful while
+    // status === 'countdown'). Client computes seconds-remaining from
+    // (countdownEndMs - serverNow) and renders the big overlay.
+    countdownEndMs: state.countdownEndMs,
     // `players` is always MAX_SEATS long, indexed by seat position
     // (p1 → 0, p2 → 1, …). The room masks unoccupied seats as
     // alive:false before sending so the client can use this array
-    // directly to decide which ships to draw.
+    // directly to decide which ships to draw. `name` is the per-seat
+    // display name (empty = no label).
     players: SEATS.map((s) => ({
       x: round(state.ships[s].x),
       alive: state.ships[s].alive,
+      name: state.names?.[s] ?? '',
     })),
     // `o` (owner) is the firing seat — lets the client filter "my
     // bullets" if it ever wants per-bullet prediction. Invader

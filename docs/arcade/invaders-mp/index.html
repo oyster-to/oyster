@@ -92,6 +92,13 @@
     background: #ff3aa1; border-color: #ff3aa1;
   }
   #lobby button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #lobby .name-input {
+    background: #0a0a28; color: #fff;
+    border: 1px solid #2dd4ff; border-radius: 3px;
+    padding: 5px 8px; font: inherit; font-size: 11px;
+    letter-spacing: 0.08em; width: 110px;
+  }
+  #lobby .name-input::placeholder { color: rgba(255,255,255,0.35); }
   #status {
     font-size: 11px; color: #ffd84a; margin-top: 6px;
     min-height: 1.1em; letter-spacing: 0.05em;
@@ -149,6 +156,7 @@
     </div>
     <div class="url" id="url">…</div>
     <div class="row">
+      <input id="nameInput" class="name-input" maxlength="12" placeholder="Your name" autocomplete="off" autocapitalize="off" spellcheck="false">
       <button id="copyBtn">Copy link</button>
       <button id="startBtn" class="primary" disabled>Start</button>
       <button id="retryBtn" title="Force a fresh WebRTC handshake (use if the badge is stuck on relay after a late join)">Retry P2P</button>
@@ -179,16 +187,21 @@
     SEATS, MAX_SEATS,
   } from './engine.js';
 
-  // Per-seat colours for the canvas. SHIP_COLORS[seatIndex] picks the
-  // colour of "other" players' ships; the local player is always cyan.
+  // Per-seat colours for the canvas. Indexed by seat position so the
+  // same player reads as the same colour on every viewer's screen.
+  // Previously every viewer drew themselves in cyan, which collided
+  // with p1's palette entry and made p1 + the local player look
+  // identical on p2's iPad.
   const SHIP_COLORS = ['#2dd4ff', '#ff3aa1', '#6bff8c', '#ffd84a'];
-  const LOCAL_COLOR = '#2dd4ff';
+
+  const NAME_STORAGE_KEY = 'invaders-mp.name';
+  const NAME_MAX_CHARS = 12;
 
   // Netcode version — bump on any wire/protocol or behaviour change.
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 19;
+  const NETCODE_VERSION = 20;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -326,6 +339,23 @@
     } catch (e) { /* no clipboard permission; ignore */ }
   });
 
+  // Name input: persisted to localStorage so it survives reloads.
+  // Sent to the server (or host, in P2P mode) via sendToServer, which
+  // routes to whichever transport is active. We send on each change
+  // (no debounce — name updates are rare and tiny).
+  const nameInput = document.getElementById('nameInput');
+  let myName = '';
+  try { myName = (localStorage.getItem(NAME_STORAGE_KEY) || '').slice(0, NAME_MAX_CHARS); } catch {}
+  nameInput.value = myName;
+  function publishName() {
+    try { localStorage.setItem(NAME_STORAGE_KEY, myName); } catch {}
+    sendToServer({ type: 'name', name: myName });
+  }
+  nameInput.addEventListener('input', () => {
+    myName = nameInput.value.slice(0, NAME_MAX_CHARS);
+    publishName();
+  });
+
   // --------------------------------------------------------------------
   // WebSocket + snapshot buffer
   //
@@ -385,8 +415,13 @@
 
   function startHost() {
     if (mySeat !== 'p1') return;
+    // Preserve names across restarts so a re-start doesn't blank
+    // labels (mirrors server-side handleStart).
+    const keepNames = hostState ? hostState.names : null;
     hostState = initState();
-    hostState.status = 'running';
+    if (keepNames) hostState.names = keepNames;
+    hostState.status = 'countdown';
+    hostState.countdownEndMs = Date.now() + 3000;
     hostInputs = freshHostInputs();
     hostLastMs = Date.now();
     if (hostLoop) clearInterval(hostLoop);
@@ -402,16 +437,27 @@
     const now = Date.now();
     const dt = Math.min(0.1, (now - hostLastMs) / 1000);
     hostLastMs = now;
-    // Occupancy follows the DataChannel: any seat whose peer has
-    // dropped is masked out so it takes no damage and doesn't
-    // contribute to the wipe check (engine handles that). p1 is
-    // always occupied — that's us, the host.
-    const occupied = {};
-    for (const s of SEATS) occupied[s] = (s === 'p1') ? true : peerConnectedTo(s);
-    step(hostState, hostInputs, dt, occupied);
+    // Countdown phase: engine.step is a no-op while non-running, so
+    // we just count time and broadcast snapshots so the client can
+    // render the 3/2/1 overlay. Mirrors server-side tick.
+    if (hostState.status === 'countdown') {
+      if (now >= hostState.countdownEndMs) hostState.status = 'running';
+    } else {
+      // Occupancy follows the DataChannel: any seat whose peer has
+      // dropped is masked out so it takes no damage and doesn't
+      // contribute to the wipe check. p1 is always occupied (us).
+      const occupied = {};
+      for (const s of SEATS) occupied[s] = (s === 'p1') ? true : peerConnectedTo(s);
+      step(hostState, hostInputs, dt, occupied);
+      // Mask the snapshot before render/broadcast so vacant seats
+      // don't paint a sitting-duck ship on anyone's screen.
+      var maskOccupied = occupied;
+    }
     const snap = { type: 'state', t: now, ...snapshotForClient(hostState) };
-    for (let i = 0; i < SEATS.length; i++) {
-      if (!occupied[SEATS[i]]) snap.players[i].alive = false; // mask for render
+    if (typeof maskOccupied !== 'undefined') {
+      for (let i = 0; i < SEATS.length; i++) {
+        if (!maskOccupied[SEATS[i]]) snap.players[i].alive = false;
+      }
     }
     handle(snap);                 // P1's own render path
     broadcastOverDC(snap);        // → all connected peers
@@ -429,6 +475,9 @@
       const ship = hostState.ships[seat];
       if (!ship || !ship.alive) return;
       ship.x = Math.max(0, Math.min(PF_W - SHIP_W, msg.x));
+    } else if (msg.type === 'name') {
+      if (typeof msg.name !== 'string') return;
+      hostState.names[seat] = msg.name.trim().slice(0, NAME_MAX_CHARS);
     }
   }
 
@@ -686,6 +735,9 @@
     if (msg.type === 'welcome') {
       mySeat = msg.seat;
       seatEl.textContent = 'You are ' + mySeat.toUpperCase();
+      // Tell the server our display name as soon as we have a seat
+      // so the very first snapshot it broadcasts already includes it.
+      if (myName) publishName();
       const serverV = msg.netcode;
       // Colo trace: edge that handled the upgrade → data center the
       // DO actually lives in. Tells us whether locationHint took and
@@ -750,6 +802,9 @@
         ? `${occupied} of ${MAX_SEATS} players in. Press START — more can join later.`
         : `Press START — up to ${MAX_SEATS - 1} friends can join anytime.`);
       startBtn.disabled = false;
+    } else if (s === 'countdown') {
+      setStatus('Get ready…');
+      startBtn.disabled = true;
     } else if (s === 'running') {
       setStatus(`Score: ${lastState.score} · ${occupied}/${MAX_SEATS} active`);
       startBtn.disabled = true;
@@ -951,19 +1006,24 @@
     const lerp    = (pa, pb) => pa + (pb - pa) * alpha;
 
     // Ships — local seat uses predicted x (zero-latency feel), other
-    // seats lerp between snapshots. Skip drawing once the latest
-    // snapshot reports dead (covers unoccupied-mask + actual death).
+    // seats lerp between snapshots. Colour is by seat index so every
+    // viewer sees the same player as the same colour. Skip drawing
+    // once the latest snapshot reports dead (covers unoccupied-mask
+    // + actual death). Name (if any) renders just above the ship.
     const latestSnap = snapBuffer[snapBuffer.length - 1];
+    ctx.font = '6px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
     for (let i = 0; i < MAX_SEATS; i++) {
       const pa = a.players[i], pb = b.players[i];
-      if (!pa || !pb) continue;
-      if (!latestSnap.players[i]?.alive) continue;
+      const live = latestSnap.players[i];
+      if (!pa || !pb || !live?.alive) continue;
       const isMine = (SEATS[i] === mySeat);
       const x = isMine && localShip.x !== null
         ? localShip.x
         : lerp(pa.x, pb.x);
-      ctx.fillStyle = isMine ? LOCAL_COLOR : SHIP_COLORS[i];
+      ctx.fillStyle = SHIP_COLORS[i];
       ctx.fillRect(x, SHIP_Y, SHIP_W, SHIP_H);
+      if (live.name) ctx.fillText(live.name, x + SHIP_W / 2, SHIP_Y - 3);
     }
 
     // Invaders — lerp by array index (engine emits the grid in a stable
@@ -985,6 +1045,43 @@
     for (const bl of latestSnap.invaderBullets) ctx.fillRect(bl.x, bl.y, BULLET_W, BULLET_H);
     ctx.fillStyle = 'rgba(255, 216, 74, 0.7)';
     for (const gb of ghostBullets)              ctx.fillRect(gb.x, gb.y, BULLET_W, BULLET_H);
+
+    // Countdown overlay (3/2/1) + a brief ATTACK! flash on the
+    // countdown → running transition. Server publishes
+    // countdownEndMs; we estimate the server clock from the latest
+    // snapshot's t plus wall-clock elapsed since receipt.
+    const renderNow = performance.now();
+    if (latestSnap.status !== lastSeenStatus) {
+      if (lastSeenStatus === 'countdown' && latestSnap.status === 'running') {
+        attackOverlayUntil = renderNow + 600;
+      }
+      lastSeenStatus = latestSnap.status;
+    }
+    if (latestSnap.status === 'countdown') {
+      const serverNow = latestServerT + (renderNow - latestLocalRecvMs);
+      const remaining = (latestSnap.countdownEndMs - serverNow) / 1000;
+      let label = '';
+      if      (remaining > 2) label = '3';
+      else if (remaining > 1) label = '2';
+      else if (remaining > 0) label = '1';
+      if (label) drawCenteredOverlay(label, '#ffd84a', 32);
+    }
+    if (renderNow < attackOverlayUntil) {
+      const alpha = (attackOverlayUntil - renderNow) / 600;
+      drawCenteredOverlay('ATTACK!', `rgba(255, 58, 161, ${alpha.toFixed(2)})`, 22);
+    }
+  }
+
+  let lastSeenStatus = null;
+  let attackOverlayUntil = 0;
+  function drawCenteredOverlay(text, color, sizePx) {
+    ctx.save();
+    ctx.font = sizePx + 'px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = color;
+    ctx.fillText(text, PF_W / 2, PF_H / 2);
+    ctx.restore();
   }
 
   function rafLoop(now) {

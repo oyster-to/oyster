@@ -3,7 +3,7 @@
 // alongside engine.js. Keep these signatures in sync with the JS.
 
 export type Seat = 'p1' | 'p2' | 'p3' | 'p4';
-export type Status = 'waiting' | 'ready' | 'running' | 'gameover';
+export type Status = 'waiting' | 'ready' | 'countdown' | 'running' | 'gameover';
 
 export interface Input {
   left: boolean;
@@ -40,14 +40,19 @@ export interface GameState {
   invaderDir: 1 | -1;
   invaderDropRemaining: number;
   invaderFireAccum: number;
+  /** Per-seat display name; empty string = no label. */
+  names: Record<Seat, string>;
+  /** Server-clock ms; only meaningful while status === 'countdown'. */
+  countdownEndMs: number;
 }
 
 export interface WireSnapshot {
   status: Status;
   won: boolean;
   score: number;
+  countdownEndMs: number;
   /** Always MAX_SEATS entries, indexed by seat position (p1 → 0, …). */
-  players: Array<{ x: number; alive: boolean }>;
+  players: Array<{ x: number; alive: boolean; name: string }>;
   bullets: Array<{ x: number; y: number; o: Seat | null }>;
   invaderBullets: Array<{ x: number; y: number }>;
   invaders: Array<{ x: number; y: number; a: boolean }>;
