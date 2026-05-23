@@ -1072,10 +1072,12 @@
     // order; dead invaders stay in the array with a:false). The classic
     // chunky shuffle becomes a smooth slide between marches.
     // Sprite + colour come from the grid row (squid / crab / crab /
-    // octopus / octopus, top → bottom). Two-frame animation toggles
-    // every 300 ms — same cadence as the SP original.
+    // octopus / octopus, top → bottom). Frame index is authoritative
+    // (server-driven, distance-based) — same flip cadence as SP, where
+    // the pose changes with each march step. Falls back to 0 if an
+    // older snapshot somehow lacks the field.
     const n = Math.min(a.invaders.length, b.invaders.length);
-    const frame = Math.floor(renderNowEarly / 300) % 2;
+    const frame = (b.iFrame ?? 0) & 1;
     for (let i = 0; i < n; i++) {
       const ia = a.invaders[i], ib = b.invaders[i];
       if (!ib.a || !ia.a) continue;            // dead either side → hide

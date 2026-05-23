@@ -40,6 +40,9 @@ export interface GameState {
   invaderDir: 1 | -1;
   invaderDropRemaining: number;
   invaderFireAccum: number;
+  /** Current 0/1 sprite frame; advanced by horizontal distance travelled. */
+  invaderFrame: 0 | 1;
+  invaderFrameAccum: number;
   /** Per-seat display name; empty string = no label. */
   names: Record<Seat, string>;
   /** Server-clock ms; only meaningful while status === 'countdown'. */
@@ -56,6 +59,8 @@ export interface WireSnapshot {
   bullets: Array<{ x: number; y: number; o: Seat | null }>;
   invaderBullets: Array<{ x: number; y: number }>;
   invaders: Array<{ x: number; y: number; a: boolean }>;
+  /** Authoritative swarm animation frame (0 or 1). */
+  iFrame: 0 | 1;
 }
 
 export const PF_W: number;
