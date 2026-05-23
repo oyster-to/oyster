@@ -48,25 +48,9 @@
       5px 5px 0 #0a0a0a,                /* black slab behind it for weight */
       0 0 22px rgba(255, 48, 48, 0.45); /* soft warm glow */
   }
-  /* Two splash views (title-card + leaderboard) auto-cycle every ~5.5 s.
-     Pattern lifted from rocket-ship.html so the arcade feels consistent. */
-  .splash-main .splash-view {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: clamp(14px, 2.4vw, 28px);
-    padding: 40px 24px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.5s ease;
-  }
-  .splash-main .splash-view.is-active {
-    opacity: 1;
-    pointer-events: auto;
-  }
+  /* Splash-view cycling (.splash-view + .is-active) lives in
+     ../shared/splash.css. The cycler itself (Arcade.Splash.startCycle)
+     lives in ../shared/splash.js. */
   .leaderboard {
     color: #fff;
     font-family: 'Press Start 2P', ui-monospace, monospace;
@@ -132,6 +116,7 @@
 <script src="../shared/leaderboard.js"></script>
 <script src="../shared/initials.js"></script>
 <script src="../shared/end-overlay.js"></script>
+<script src="../shared/splash.js"></script>
 <audio id="sfx-explosion" src="../shared/sfx-explosion.mp3" preload="auto"></audio>
 <audio id="sfx-lose"      src="../shared/sfx-lose.mp3"      preload="auto"></audio>
 <audio id="sfx-shoot"     src="sfx-shoot.mp3"               preload="auto"></audio>
@@ -302,25 +287,17 @@ function paintLeaderboard() {
   Arcade.Leaderboard.paintList({ listSelector: '#lb-list', pad: 4 });
 }
 
-let splashCycleTimer = null;
-function startSplashCycle() {
-  stopSplashCycle();
-  const views = document.querySelectorAll('#splash .splash-view');
-  if (!views.length) return;
-  let idx = 0;
-  splashCycleTimer = setInterval(() => {
-    idx = (idx + 1) % views.length;
-    views.forEach((v, i) => v.classList.toggle('is-active', i === idx));
-    if (views[idx].classList.contains('leaderboard')) paintLeaderboard();
-  }, 5500);
-}
-function stopSplashCycle() {
-  if (splashCycleTimer) { clearInterval(splashCycleTimer); splashCycleTimer = null; }
-}
-
+// Title ↔ leaderboard auto-cycle on the splash. Cycler implementation
+// lives in shared/splash.js; we just say "repaint the leaderboard when
+// it's the active view" so the list shows fresh remote scores after
+// each refresh.
 paintSplashHiScore();
 paintLeaderboard();
-startSplashCycle();
+Arcade.Splash.startCycle({
+  onShow(view) {
+    if (view.classList.contains('leaderboard')) paintLeaderboard();
+  },
+});
 Arcade.Leaderboard.refresh().then(() => {
   paintSplashHiScore();
   paintLeaderboard();
@@ -741,7 +718,7 @@ function startRun() {
 
 // Unified restart handler — covers splash dismiss AND post-game-over keypress.
 function dismissSplashAndStart() {
-  stopSplashCycle();
+  Arcade.Splash.stopCycle();
   splashEl.classList.add('is-hidden');
   document.querySelector('.tube').classList.add('is-ready');
   Arcade.Audio.ensureCtx();
