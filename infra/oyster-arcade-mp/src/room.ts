@@ -1,6 +1,7 @@
 // InvadersRoom — a Durable Object that owns one Invaders match for
-// one room code (e.g. /invaders-mp/FROG). First socket gets seat p1,
-// second gets p2, third receives `room_full` and is closed.
+// one room code (e.g. /invaders-mp/FROG). Each connection is
+// assigned the first free seat (p1 → p4); the MAX_SEATS+1-th
+// connection receives `room_full` and is closed.
 //
 // When at least one socket is present and someone sends `start`, an
 // in-memory setInterval drives the simulation at TICK_HZ until

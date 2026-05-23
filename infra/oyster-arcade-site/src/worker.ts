@@ -36,8 +36,12 @@ export default {
     // Back-compat for v18 (2P-only) shared links: 301 anything under
     // /invaders-2p/ to the same path under /invaders-mp/. Preserves
     // the room code so old QR codes / Messages links still work.
+    // The bare path `/invaders-2p` (no trailing slash) maps to
+    // `/invaders-mp/` so the ASSETS binding can serve the directory
+    // index; without the trailing slash it would 404.
     if (url.pathname === '/invaders-2p' || url.pathname.startsWith('/invaders-2p/')) {
-      const dest = '/invaders-mp' + url.pathname.slice('/invaders-2p'.length);
+      const tail = url.pathname.slice('/invaders-2p'.length); // '' or '/...'
+      const dest = '/invaders-mp' + (tail || '/');
       return Response.redirect(new URL(dest + url.search, req.url).toString(), 301);
     }
 
