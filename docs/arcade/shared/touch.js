@@ -13,16 +13,39 @@
 
   function bind(btn, onDown, onUp) {
     if (!btn) return;
-    const down = e => { e.preventDefault(); btn.classList.add('is-pressed'); onDown(); };
+    const down = e => {
+      // Release the implicit pointer capture a touch grabs on touchstart —
+      // without this the first button keeps receiving events for the whole
+      // gesture, so sliding a thumb from ◀ onto ▶ never fires ▶'s events
+      // (you'd have to lift and re-tap). Releasing it lets pointerenter/leave
+      // fire on the other buttons as the finger slides across them.
+      if (e && e.pointerId != null && btn.hasPointerCapture && btn.hasPointerCapture(e.pointerId)) {
+        try { btn.releasePointerCapture(e.pointerId); } catch (_) {}
+      }
+      if (e) e.preventDefault();
+      btn.classList.add('is-pressed');
+      onDown();
+    };
     const up   = e => { if (e) e.preventDefault(); btn.classList.remove('is-pressed'); onUp(); };
     btn.addEventListener('pointerdown', down);
     btn.addEventListener('pointerup', up);
     btn.addEventListener('pointercancel', up);
     btn.addEventListener('pointerleave', up);
+    // Slide support: entering a button while a pointer is held down presses it.
+    // `e.buttons` is non-zero only while a touch/click is active, so a passive
+    // mouse hover won't trigger it.
+    btn.addEventListener('pointerenter', e => { if (e.buttons) down(e); });
     ['pointerdown', 'mousedown', 'touchstart'].forEach(ev => {
       btn.addEventListener(ev, e => e.stopPropagation(), { passive: false });
     });
   }
+
+  // Page-level guard for all arcade games (every game loads this file): kill the
+  // mobile long-press menu — Android's "Copy / Web search / Google Lens" popup
+  // and the iOS callout — so a held thumb during play can't trigger it. CSS
+  // (pixel-font.css) handles selection/zoom/scroll; this covers the menu CSS
+  // can't suppress.
+  document.addEventListener('contextmenu', e => e.preventDefault());
 
   window.Arcade = window.Arcade || {};
   window.Arcade.Touch = { isCoarse, bind };
