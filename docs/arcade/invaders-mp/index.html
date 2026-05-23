@@ -400,9 +400,11 @@
   if (!roomCode) roomCode = randomCode();
   // Normalise the address bar to the clean path form regardless of how
   // we arrived — query-string bookmarks rewrite themselves on first
-  // load and stay shareable in the new form.
-  const cleanPath = '/invaders-mp/' + roomCode;
-  if (location.pathname !== cleanPath || location.search) {
+  // load and stay shareable in the new form. We preserve ?debug across
+  // the rewrite so the debug toggle survives bookmarks/reloads.
+  const isDebug = new URLSearchParams(location.search).has('debug');
+  const cleanPath = '/invaders-mp/' + roomCode + (isDebug ? '?debug' : '');
+  if ((location.pathname + location.search) !== cleanPath) {
     history.replaceState(null, '', cleanPath);
   }
 
@@ -421,10 +423,10 @@
 
   // ?debug on the URL reveals the diagnostic meta line (netcode /
   // ping / transport) and the Retry P2P button. Kept off by default
-  // so the kid view stays clean.
-  if (new URLSearchParams(location.search).has('debug')) {
-    document.body.classList.add('is-debug');
-  }
+  // so the kid view stays clean. The flag is captured before the
+  // history.replaceState above so the original ?debug isn't lost in
+  // the path normalisation; reuse it here.
+  if (isDebug) document.body.classList.add('is-debug');
 
   // QR code for the join URL. Type 0 = auto-fit the smallest matrix
   // that fits the URL; 'M' = medium error-correction (handles a 7-bit
