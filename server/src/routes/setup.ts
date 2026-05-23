@@ -14,19 +14,72 @@
 // per-space so the UI can show what landed and what didn't.
 
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
+import type Database from "better-sqlite3";
 import type { SpaceService } from "../space-service.js";
 import type { ProjectService } from "../project-service.js";
-import type { UiCommand, SetupApplyResult } from "../../../shared/types.js";
+import type { UiCommand, SetupApplyResult, SetupProposal } from "../../../shared/types.js";
 import type { RouteCtx } from "../http-utils.js";
 import { slugify } from "../utils.js";
 
 export interface SetupRouteDeps {
+  db: Database.Database;
   spaceService: SpaceService;
   projectService: ProjectService;
   /** Broadcasts SSE so connected clients refetch the spaces / artefacts
    *  surface after batch-create. The panel itself also closes locally
    *  when apply succeeds; the broadcast is for any other open tabs. */
   broadcastUiEvent: (event: UiCommand) => void;
+}
+
+// ── Deterministic scan ────────────────────────────────────────────────────────
+
+/** Groups project_paths by first token of their basename (split on - / _).
+ *  Groups with ≥2 members become proposed spaces; singletons go to
+ *  everythingElse. Returns a SetupProposal ready for broadcast. */
+export function computeSetupProposal(db: Database.Database): SetupProposal {
+  const rows = db.prepare(
+    `SELECT pp.path, p.name FROM project_paths pp
+     JOIN projects p ON p.id = pp.project_id
+     WHERE p.removed_at IS NULL`,
+  ).all() as Array<{ path: string; name: string }>;
+
+  const tokenize = (path: string): { basename: string; firstToken: string } => {
+    const parts = path.split(/[\\/]/).filter(Boolean);
+    const base = parts.pop() ?? path;
+    const firstToken = base.split(/[-_]/)[0].toLowerCase();
+    return { basename: base, firstToken };
+  };
+
+  const groups = new Map<string, Array<{ path: string; label: string }>>();
+  for (const row of rows) {
+    const { basename, firstToken } = tokenize(row.path);
+    if (!groups.has(firstToken)) groups.set(firstToken, []);
+    groups.get(firstToken)!.push({ path: row.path, label: basename });
+  }
+
+  const spaces: SetupProposal["spaces"] = [];
+  const everythingElse: SetupProposal["everythingElse"] = [];
+  const now = Date.now();
+
+  let spaceIdx = 0;
+  for (const [token, folders] of groups) {
+    if (folders.length >= 2) {
+      spaces.push({
+        key: `s${now}-${spaceIdx++}`,
+        name: token,
+        reason: `Folders sharing the '${token}' prefix`,
+        folders,
+      });
+    } else {
+      everythingElse.push(...folders);
+    }
+  }
+
+  // Biggest groups first
+  spaces.sort((a, b) => b.folders.length - a.folders.length);
+
+  return { proposalId: randomUUID(), spaces, everythingElse };
 }
 
 interface ApplyBodySpace {
@@ -73,7 +126,26 @@ export async function tryHandleSetupRoute(
   deps: SetupRouteDeps,
 ): Promise<boolean> {
   const { sendJson, readJsonBody, rejectIfNonLocalOrigin } = ctx;
-  const { spaceService, projectService, broadcastUiEvent } = deps;
+  const { db, spaceService, projectService, broadcastUiEvent } = deps;
+
+  // /api/setup/scan — deterministic server-side scan that groups project_paths
+  // by first-token prefix and emits setup_proposal_ready, same event that the
+  // MCP propose_setup tool emits. No body expected.
+  if (url === "/api/setup/scan" && req.method === "POST") {
+    if (rejectIfNonLocalOrigin()) return true;
+    const proposal = computeSetupProposal(db);
+    broadcastUiEvent({
+      version: 1,
+      command: "setup_proposal_ready",
+      payload: proposal,
+    });
+    sendJson({
+      proposal_id: proposal.proposalId,
+      space_count: proposal.spaces.length,
+      everything_else_count: proposal.everythingElse.length,
+    });
+    return true;
+  }
 
   if (url !== "/api/setup/apply" || req.method !== "POST") return false;
   if (rejectIfNonLocalOrigin()) return true;

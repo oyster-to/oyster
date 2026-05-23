@@ -820,10 +820,10 @@ async function handleHttpRequest(req: IncomingMessage, res: ServerResponse) {
     spaceService, projectService, broadcastUiEvent,
   })) return;
 
-  // /api/setup/apply — fans the user's confirmed SetupProposal out to
-  // createSpace + attachFolder. Triggered by the SetupProposalPanel's Apply button.
+  // /api/setup/apply + /api/setup/scan — apply a confirmed SetupProposal or
+  // trigger a deterministic server-side scan that emits setup_proposal_ready.
   if (await tryHandleSetupRoute(req, res, url, ctx, {
-    spaceService, projectService, broadcastUiEvent,
+    db, spaceService, projectService, broadcastUiEvent,
   })) return;
 
   // /api/memories

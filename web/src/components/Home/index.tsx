@@ -238,6 +238,20 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [addSpaceOpen, setAddSpaceOpen] = useState(false);
 
+  const triggerSetupScan = useCallback(async () => {
+    try {
+      const res = await fetch("/api/setup/scan", { method: "POST" });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        alert(`Couldn't scan for spaces: ${text || res.statusText}`);
+      }
+      // Success: the SetupProposalPanel mounts automatically via the SSE
+      // event the server emits — no further client work needed here.
+    } catch (err) {
+      alert(`Couldn't scan for spaces: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, []);
+
   const isHomeView = activeSpace === "home";
   const isAllView = activeSpace === "__all__";
   const isArchivedView = activeSpace === "__archived__";
@@ -820,7 +834,16 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             <button
               type="button"
               className="home-breadcrumb-pill home-breadcrumb-pill--add"
-              onClick={() => setAddSpaceOpen(true)}
+              onClick={() => {
+                if (realSpaces.length === 0) {
+                  // First-time: trigger the server-side scan; the SetupProposalPanel
+                  // will render via the setup_proposal_ready SSE event.
+                  void triggerSetupScan();
+                } else {
+                  // Power-add: simple name prompt to add another.
+                  setAddSpaceOpen(true);
+                }
+              }}
               title={realSpaces.length === 0 ? "Create your first space" : "Add a space"}
               aria-label={realSpaces.length === 0 ? "Create your first space" : "Add a space"}
             >
