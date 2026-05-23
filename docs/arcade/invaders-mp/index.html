@@ -415,11 +415,17 @@
 
   function startHost() {
     if (mySeat !== 'p1') return;
-    // Preserve names across restarts so a re-start doesn't blank
-    // labels (mirrors server-side handleStart).
-    const keepNames = hostState ? hostState.names : null;
     hostState = initState();
-    if (keepNames) hostState.names = keepNames;
+    // Carry over names from the latest snapshot we've seen so other
+    // players' labels don't blank when host mode first engages — the
+    // names lived on the cloud-relay server until this moment. Also
+    // covers restarts (gameover → Start again).
+    const latest = snapBuffer[snapBuffer.length - 1];
+    if (latest && latest.players) {
+      for (let i = 0; i < MAX_SEATS; i++) {
+        hostState.names[SEATS[i]] = latest.players[i]?.name || '';
+      }
+    }
     hostState.status = 'countdown';
     hostState.countdownEndMs = Date.now() + 3000;
     hostInputs = freshHostInputs();
@@ -437,27 +443,26 @@
     const now = Date.now();
     const dt = Math.min(0.1, (now - hostLastMs) / 1000);
     hostLastMs = now;
-    // Countdown phase: engine.step is a no-op while non-running, so
-    // we just count time and broadcast snapshots so the client can
-    // render the 3/2/1 overlay. Mirrors server-side tick.
+    // Compute occupancy every tick — p1 is always us; others follow
+    // their DataChannel. We mask the snapshot below regardless of
+    // game status so vacant seats never paint a ship on anyone's
+    // screen (including during countdown).
+    const occupied = {};
+    for (const s of SEATS) occupied[s] = (s === 'p1') ? true : peerConnectedTo(s);
+
     if (hostState.status === 'countdown') {
+      // engine.step is a no-op while non-running, so we just count
+      // time. Ship positions are still being updated by incoming
+      // `pos` messages via hostReceive — players can move freely
+      // during the countdown.
       if (now >= hostState.countdownEndMs) hostState.status = 'running';
     } else {
-      // Occupancy follows the DataChannel: any seat whose peer has
-      // dropped is masked out so it takes no damage and doesn't
-      // contribute to the wipe check. p1 is always occupied (us).
-      const occupied = {};
-      for (const s of SEATS) occupied[s] = (s === 'p1') ? true : peerConnectedTo(s);
       step(hostState, hostInputs, dt, occupied);
-      // Mask the snapshot before render/broadcast so vacant seats
-      // don't paint a sitting-duck ship on anyone's screen.
-      var maskOccupied = occupied;
     }
+
     const snap = { type: 'state', t: now, ...snapshotForClient(hostState) };
-    if (typeof maskOccupied !== 'undefined') {
-      for (let i = 0; i < SEATS.length; i++) {
-        if (!maskOccupied[SEATS[i]]) snap.players[i].alive = false;
-      }
+    for (let i = 0; i < SEATS.length; i++) {
+      if (!occupied[SEATS[i]]) snap.players[i].alive = false;
     }
     handle(snap);                 // P1's own render path
     broadcastOverDC(snap);        // → all connected peers
@@ -594,6 +599,13 @@
     p.on('connect', () => {
       console.log('[P2P] DataChannel open ↔', otherSeat);
       refreshTransport();
+      // Non-host: the host doesn't see WS state messages once host
+      // mode is engaged (we drop them client-side), so any name we
+      // sent over WS pre-engagement won't reach them. Re-send via
+      // DC now that we have a direct channel.
+      if (mySeat !== 'p1' && otherSeat === 'p1' && myName) {
+        try { p.send(JSON.stringify({ type: 'name', name: myName })); } catch {}
+      }
     });
     p.on('data', (raw) => onPeerData(otherSeat, raw));
     p.on('error', (err) => {
@@ -633,6 +645,13 @@
       // gameplay messages route into the local hostState.
       if (dmsg.type === 'start') {
         if (!hostEngaged) { hostEngaged = true; startHost(); }
+        return;
+      }
+      // Name updates land in hostState whenever it exists, even
+      // before host mode engages — that way names persist across the
+      // first Start press instead of being lost.
+      if (dmsg.type === 'name' && hostState) {
+        hostReceive(otherSeat, dmsg);
         return;
       }
       if (hostEngaged) hostReceive(otherSeat, dmsg);
