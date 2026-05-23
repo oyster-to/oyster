@@ -1,12 +1,13 @@
 // Oyster arcade multiplayer worker.
 //
 // GET  /api/mp/health             → "ok" (route precedence sanity check)
-// GET  /api/mp/invaders/ws        → WebSocket upgrade, forwarded to the
-//                                   singleton InvadersRoom Durable Object
+// GET  /api/mp/invaders/ws?code=X → WebSocket upgrade, forwarded to the
+//                                   InvadersRoom Durable Object whose
+//                                   id is derived from the 4-letter
+//                                   room code (one DO per code)
 //
-// Anything else 404s. v0 is one game (invaders), one room (singleton),
-// no matchmaking, no auth — just the smallest possible proof that two
-// devices can play the same session.
+// Anything else 404s. v0 is one game (invaders), per-pair rooms keyed
+// by code, no matchmaking, no auth.
 
 export interface Env {
   ROOM: DurableObjectNamespace;

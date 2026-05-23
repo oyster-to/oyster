@@ -35,12 +35,15 @@ const TICK_MS = 1000 / TICK_HZ;
 // Defensive cap on incoming WebSocket messages. The endpoint is
 // unauthenticated and JSON.parse is unbounded — without this an
 // attacker (or a buggy client) could spike CPU/memory by sending a
-// huge string. Real messages are tens of bytes (input/pos/ping) or
-// a few KB at most (an SDP offer with trickled candidates), so 8 KB
-// is generous. Over-limit sockets are closed with 1009 "message too
-// big" so a sane client will know to back off rather than reconnect
-// and try again.
-const MAX_WS_MESSAGE_BYTES = 8192;
+// huge string. Real messages are tens of chars (input/pos/ping) or
+// a couple of KB at most (an SDP offer with trickled candidates), so
+// 4096 UTF-16 code units (worst case ~16 KB on the wire) is generous.
+// Note: .length on a string is *characters*, not bytes. Calling
+// TextEncoder.encode just for sizing would be wasteful; we cap chars
+// and rely on the 4× UTF-8 worst case to bound bytes. Over-limit
+// sockets close with 1009 "message too big". Binary frames aren't
+// part of the protocol and close with 1003 "unsupported data".
+const MAX_WS_MESSAGE_CHARS = 4096;
 
 // Bumped on any wire/protocol or netcode-behaviour change. The client
 // reads the welcome message's `netcode` field and flags a mismatch if
@@ -97,6 +100,11 @@ export class InvadersRoom extends DurableObject<Env> {
 
     const { 0: client, 1: server } = new WebSocketPair();
 
+    // Reserve the seat synchronously — no `await` between assignSeat
+    // and sockets.set. Otherwise two concurrent fetches can both see
+    // the seat as free during the colo probe and race-claim it
+    // (second write wins). accept() + sockets.set form the atomic
+    // reservation; listener wiring and welcome happen post-await.
     const seat = this.assignSeat();
     if (!seat) {
       server.accept();
@@ -104,6 +112,9 @@ export class InvadersRoom extends DurableObject<Env> {
       server.close(1000, 'room_full');
       return new Response(null, { status: 101, webSocket: client });
     }
+    server.accept();
+    this.sockets.set(seat, server);
+    this.inputs[seat] = zeroInput();
 
     const doColo = await this.getDoColo();
     const workerColo = (req.cf as { colo?: string } | undefined)?.colo ?? '?';
@@ -141,10 +152,9 @@ export class InvadersRoom extends DurableObject<Env> {
   }
 
   private handleSession(ws: WebSocket, seat: Seat, workerColo: string, doColo: string): void {
-    ws.accept();
-    this.sockets.set(seat, ws);
-    this.inputs[seat] = zeroInput();
-
+    // Socket is already accepted + registered by fetch() before any
+    // await, so the seat reservation is race-free. This function only
+    // wires listeners and emits the initial welcome + snapshot.
     ws.send(JSON.stringify({
       type: 'welcome',
       seat,
@@ -156,8 +166,13 @@ export class InvadersRoom extends DurableObject<Env> {
     this.broadcastSnapshot();
 
     ws.addEventListener('message', (event) => {
-      if (typeof event.data !== 'string') return;
-      if (event.data.length > MAX_WS_MESSAGE_BYTES) {
+      if (typeof event.data !== 'string') {
+        // Binary frames aren't part of the protocol; close cleanly
+        // so a buggy client knows.
+        try { ws.close(1003, 'unsupported data'); } catch { /* ignore */ }
+        return;
+      }
+      if (event.data.length > MAX_WS_MESSAGE_CHARS) {
         try { ws.close(1009, 'message too big'); } catch { /* ignore */ }
         return;
       }

@@ -380,10 +380,15 @@
     const now = Date.now();
     const dt = Math.min(0.1, (now - hostLastMs) / 1000);
     hostLastMs = now;
-    step(hostState, hostInputs, dt, { p1: true, p2: true });
+    // Occupancy follows the DataChannel: if P2 drops mid-match the
+    // host keeps playing solo. The empty seat takes no damage and
+    // doesn't contribute to the wipe check (engine handles that).
+    const occupied = { p1: true, p2: p2pUp() };
+    step(hostState, hostInputs, dt, occupied);
     const snap = { type: 'state', t: now, ...snapshotForClient(hostState) };
+    if (!occupied.p2) snap.players[1].alive = false; // mask for own render
     handle(snap);                 // P1's own render path
-    sendOverDC(snap);             // ship to P2
+    sendOverDC(snap);             // ship to P2 (no-op if DC closed)
     if (hostState.status === 'gameover') {
       if (hostLoop) clearInterval(hostLoop);
       hostLoop = null;
@@ -523,18 +528,31 @@
     }
   }
 
-  // Reset peer state so the next snapshot with both seats present can
-  // trigger a fresh handshake. Fixes late-join: if the first attempt
-  // failed (offer dropped because target socket wasn't there yet, ICE
-  // gathering failed, etc.), we'd previously stay stuck on relay.
+  // Reset peer state so the next snapshot with both seats present
+  // can trigger a fresh handshake. Fixes late-join: if the first
+  // attempt failed (offer dropped because target socket wasn't there
+  // yet, ICE gathering failed, etc.), we'd previously stay stuck on
+  // relay.
+  //
+  // If a host-mode match was in flight when the peer dropped: on P1
+  // (the host) we KEEP hostLoop running so the match demotes to solo
+  // — hostTick reads occupancy from p2pUp() each frame and masks P2
+  // out automatically. On P2 (the thin client) we stop hostEngaged
+  // and clear local input state; their view freezes on the last
+  // snapshot they got over DC (they can refresh to rejoin).
   function resetPeer() {
     if (peer) { try { peer.destroy(); } catch {} }
     peer = null;
     peerCreated = false;
     pendingSignals.length = 0;
     if (hostEngaged) {
-      hostEngaged = false;
-      stopHost();
+      if (mySeat === 'p1') {
+        // Keep hosting solo. Clear P2's latched inputs so a held
+        // FIRE/LEFT/RIGHT doesn't keep firing after they vanish.
+        hostInputs.p2 = zeroInput();
+      } else {
+        hostEngaged = false;
+      }
     }
   }
 
