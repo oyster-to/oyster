@@ -826,7 +826,12 @@
         if (seatIdx >= 0
             && prev.players[seatIdx]?.alive
             && !msg.players[seatIdx]?.alive
-            && msg.status === 'running') {
+            && prev.status === 'running') {
+          // Gate on prev.status, not msg.status — the engine can flip
+          // status to 'gameover' on the same tick the last ship dies
+          // (resolveCollisions then checkEnd in step()), so checking
+          // msg.status would swallow the explosion on round-ending
+          // deaths. The lose jingle still fires separately below.
           Arcade.Audio.play('sfx-explosion', 0.6);
         }
         if (msg.status === 'gameover' && prev.status !== 'gameover' && !msg.won) {
