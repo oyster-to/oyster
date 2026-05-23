@@ -15,16 +15,16 @@
     "better-sqlite3": "^12.10.0",
     "chokidar": "^4.0.3",
     "ignore": "^7.0.5",
-    "marked": "^18.0.3",
-    "opencode-ai": "^1.15.3",
-    "ws": "^8.20.1"
+    "marked": "^18.0.4",
+    "opencode-ai": "^1.15.10",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^25.8.0",
+    "@types/node": "^25.9.1",
     "@types/ws": "^8.18.0",
-    "tsx": "^4.22.0",
+    "tsx": "^4.22.3",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.7"
   }
 }
