@@ -24,7 +24,7 @@ function expandTilde(path: string): string {
 
 export interface Project {
   id: string;
-  spaceId: string;
+  spaceId: string | null;
   name: string;
   createdAt: string;
   /** Most-recent cached path on this machine — used for tile labels +
@@ -45,7 +45,7 @@ export interface Project {
 
 interface ProjectRow {
   id: string;
-  space_id: string;
+  space_id: string | null;
   name: string;
   created_at: string;
 }
@@ -130,7 +130,7 @@ export class ProjectService {
   claimOrphan(args: { cwd: string; projectId: string }): { claimed: number } {
     const project = this.db
       .prepare("SELECT space_id FROM projects WHERE id = ? AND removed_at IS NULL")
-      .get(args.projectId) as { space_id: string } | undefined;
+      .get(args.projectId) as { space_id: string | null } | undefined;
     if (!project) throw new Error(`Project "${args.projectId}" not found`);
     // Strip trailing path separators. If the cwd is just separators
     // ("/" / "\\" / "//"), root becomes empty — fall back to exact-match
@@ -276,6 +276,42 @@ export class ProjectService {
       .prepare("SELECT id, space_id, name, created_at FROM projects WHERE id = ?")
       .get(id) as ProjectRow;
     return rowToProject(row);
+  }
+
+  /**
+   * Get-or-create a Project row keyed by cwd. If a Project already exists
+   * for this cwd (via project_paths), return it. Otherwise create an orphan
+   * Project (space_id=NULL) named after the cwd basename. Idempotent and
+   * safe to call from the watcher on every new session.
+   */
+  getOrCreateByCwd(cwd: string): { id: string; spaceId: string | null; name: string } {
+    if (!cwd || cwd.trim() === "") {
+      throw new Error("getOrCreateByCwd requires a non-empty cwd");
+    }
+    // First check project_paths for an existing project that owns this cwd.
+    const existing = this.db
+      .prepare(`SELECT p.id AS id, p.space_id AS spaceId, p.name AS name
+                FROM project_paths pp
+                JOIN projects p ON p.id = pp.project_id
+                WHERE pp.path = ? AND p.removed_at IS NULL
+                LIMIT 1`)
+      .get(cwd) as { id: string; spaceId: string | null; name: string } | undefined;
+    if (existing) return existing;
+
+    // No existing project owns this cwd. Create an orphan Project.
+    const basename = cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd;
+    const tx = this.db.transaction(() => {
+      const projectId = crypto.randomUUID();
+      this.db.prepare(
+        "INSERT INTO projects (id, space_id, name) VALUES (?, NULL, ?)",
+      ).run(projectId, basename);
+      this.db.prepare(
+        "INSERT INTO project_paths (project_id, path) VALUES (?, ?)",
+      ).run(projectId, cwd);
+      return projectId;
+    });
+    const id = tx();
+    return { id, spaceId: null, name: basename };
   }
 
   // Merge `from` into `into`: migrate sessions/artefacts/project_paths,

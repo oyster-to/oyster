@@ -4,7 +4,7 @@ import { getJson, postJson, patchJson, del } from "./http";
 // avoid a server-side type import that would pull in better-sqlite3 types.
 export interface Project {
   id: string;
-  spaceId: string;
+  spaceId: string | null;
   name: string;
   createdAt: string;
   /** Most-recent cached path on this machine. Null when none cached. */

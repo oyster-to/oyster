@@ -12,6 +12,9 @@
 //      when exactly one live project has previously been seen at this
 //      exact cwd, adopt it and self-heal the marker. Ambiguous matches
 //      and soft-deleted-only matches return NONE.
+//   3. If `createOrphan` is provided and steps 1–2 both fail, call it
+//      with the exact cwd to auto-create an orphan Project (space_id=NULL).
+//      This ensures every discovered session has a non-null project_id.
 
 import type Database from "better-sqlite3";
 import { dirname } from "node:path";
@@ -29,7 +32,11 @@ const NONE: ProjectLookup = { projectId: null, spaceId: null };
 // generous — real project layouts rarely exceed 8 levels.
 const MAX_WALK_DEPTH = 32;
 
-export function lookupProject(db: Database.Database, cwd: string | null): ProjectLookup {
+export function lookupProject(
+  db: Database.Database,
+  cwd: string | null,
+  createOrphan?: (cwd: string) => { id: string; spaceId: string | null },
+): ProjectLookup {
   if (!cwd) return NONE;
 
   // 1. Walk up looking for a valid marker that resolves to a live project.
@@ -39,7 +46,7 @@ export function lookupProject(db: Database.Database, cwd: string | null): Projec
     if (result.status === "valid") {
       const row = db
         .prepare("SELECT id, space_id FROM projects WHERE id = ? AND removed_at IS NULL")
-        .get(result.id) as { id: string; space_id: string } | undefined;
+        .get(result.id) as { id: string; space_id: string | null } | undefined;
       if (row) {
         cachePath(db, row.id, cwd);
         return { projectId: row.id, spaceId: row.space_id };
@@ -72,7 +79,7 @@ export function lookupProject(db: Database.Database, cwd: string | null): Projec
           WHERE pp.path = ? AND p.removed_at IS NULL
           LIMIT 2`,
       )
-      .all(cacheDir) as Array<{ id: string; space_id: string }>;
+      .all(cacheDir) as Array<{ id: string; space_id: string | null }>;
     if (cached.length === 1) {
       const row = cached[0];
       // Self-heal at the MATCHED ANCESTOR, not at `cwd` — otherwise a
@@ -88,6 +95,15 @@ export function lookupProject(db: Database.Database, cwd: string | null): Projec
     if (parent === cacheDir) break;
     cacheDir = parent;
   }
+
+  // 3. Auto-create an orphan project for this cwd when the caller provides
+  //    a factory. Every discovered session gets a non-null project_id;
+  //    attaching the folder to a space later just updates space_id.
+  if (createOrphan) {
+    const orphan = createOrphan(cwd);
+    return { projectId: orphan.id, spaceId: orphan.spaceId };
+  }
+
   return NONE;
 }
 

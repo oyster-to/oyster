@@ -1186,7 +1186,7 @@ httpServer.listen(port, "127.0.0.1", () => {
   const claudeCodeWatcher = new ClaudeCodeWatcher({
     sessionStore,
     artifactStore: store,
-    lookupProject: (cwd) => lookupProject(db, cwd),
+    lookupProject: (cwd) => lookupProject(db, cwd, cwd ? (c) => projectService.getOrCreateByCwd(c) : undefined),
     emitSessionChanged: (id) => {
       broadcastUiEvent({ version: 1, command: "session_changed", payload: { id } });
       // Cross-device session sync (#322): every session-row change marks the
