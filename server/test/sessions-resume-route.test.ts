@@ -22,7 +22,9 @@ function fakeCtx(body: unknown = {}) {
 }
 
 // Build the minimum schema the route reads from. remote_sessions is the
-// star; device_identity is read for the active-device chip.
+// star; device_identity is read for the active-device chip. session_artifacts
+// + artifacts are joined by the recentArtifacts query in GET /api/sessions —
+// kept empty here; tests don't depend on chip output.
 function makeDb(): Database.Database {
   const db = new Database(":memory:");
   db.exec(`
@@ -42,6 +44,13 @@ function makeDb(): Database.Database {
       id INTEGER PRIMARY KEY CHECK (id = 1),
       device_id TEXT NOT NULL,
       label TEXT NOT NULL
+    );
+    CREATE TABLE artifacts (
+      id TEXT PRIMARY KEY, label TEXT NOT NULL
+    );
+    CREATE TABLE session_artifacts (
+      session_id TEXT NOT NULL, artifact_id TEXT NOT NULL,
+      role TEXT NOT NULL, when_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
   return db;
