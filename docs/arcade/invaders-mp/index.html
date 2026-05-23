@@ -95,11 +95,69 @@
     color: #ffd84a;
     text-shadow: 3px 3px 0 #ff3aa1;
   }
-  #prescreen .url {
-    font-size: 10px; opacity: 0.7; word-break: break-all;
-    background: #0a0a28; padding: 5px 8px; border-radius: 3px;
-    max-width: min(420px, 90%);
+  #prescreen .share {
+    display: flex; align-items: center; gap: 14px;
+    flex-wrap: wrap; justify-content: center;
   }
+  #prescreen .qr {
+    background: #fff;
+    padding: 8px;
+    border-radius: 4px;
+    line-height: 0;                 /* kill stray inline-img descender gap */
+  }
+  /* qrcode-generator emits an <img> via createImgTag(); pin it crisp so
+     the QR squares are sharp pixels at our display size. */
+  #prescreen .qr img {
+    display: block;
+    width: 140px; height: 140px;
+    image-rendering: pixelated;
+  }
+  #prescreen .url {
+    font-size: 9px; opacity: 0.65;
+    background: #0a0a28; padding: 5px 9px; border-radius: 3px;
+    max-width: min(420px, 90vw);
+    overflow-wrap: anywhere;        /* break long URLs at any point if needed */
+  }
+
+  /* Player slots — one card per seat, dimmed when empty, lit when
+     occupied. Per-seat colour matches SHIP_COLORS so the lobby reads
+     consistently with the in-game ships. */
+  #prescreen .players {
+    display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+  }
+  #prescreen .player-slot {
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    padding: 8px 12px;
+    min-width: 78px;
+    opacity: 0.3;
+    text-align: center;
+    transition: opacity 0.2s ease;
+  }
+  #prescreen .player-slot.is-active { opacity: 1; }
+  #prescreen .player-slot .ps-label {
+    font-size: 8px; letter-spacing: 0.22em;
+  }
+  #prescreen .player-slot .ps-name {
+    margin-top: 6px;
+    font-size: 9px; color: #fff;
+    min-height: 1em; letter-spacing: 0.06em;
+    word-break: break-word;
+  }
+  #prescreen .player-slot.is-empty .ps-name {
+    color: rgba(255,255,255,0.45);
+    font-style: italic;
+  }
+  #prescreen .player-slot .ps-you {
+    display: block;
+    margin-top: 4px;
+    font-size: 6px; letter-spacing: 0.25em;
+    color: rgba(255,255,255,0.55);
+  }
+  #prescreen .player-slot[data-seat="p1"] { color: #2dd4ff; }
+  #prescreen .player-slot[data-seat="p2"] { color: #ff3aa1; }
+  #prescreen .player-slot[data-seat="p3"] { color: #6bff8c; }
+  #prescreen .player-slot[data-seat="p4"] { color: #ffd84a; }
   #prescreen .row {
     display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
     justify-content: center;
@@ -161,24 +219,44 @@
     </div>
     <div id="prescreen">
       <div class="title">Invaders MP · spike</div>
-      <div class="meta">
-        <span id="netcode" class="netcode">netcode v?</span>
-        <span id="ping" class="ping"></span>
-        <span id="transport" class="transport">relay</span>
-        <span id="seat"></span>
-      </div>
+
       <div class="room-line">
         <span class="room-label">ROOM</span>
         <span class="room-code" id="roomCode">····</span>
       </div>
-      <div class="url" id="url">…</div>
+
+      <!-- QR + URL share targets. QR is the headline (friends scan to
+           join); URL stays as a copy/paste fallback. -->
+      <div class="share">
+        <div class="qr" id="qr"></div>
+        <div class="url" id="url">…</div>
+      </div>
+
+      <!-- One slot per seat, colour-coded. Slots are dimmed when empty,
+           lit when the seat is occupied, with a YOU badge on the local
+           seat. Names come from the snapshot so every viewer sees the
+           same lobby. -->
+      <div class="players">
+        <div class="player-slot" data-seat="p1"><div class="ps-label">P1</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p2"><div class="ps-label">P2</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p3"><div class="ps-label">P3</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p4"><div class="ps-label">P4</div><div class="ps-name">—</div></div>
+      </div>
+
       <div class="row">
         <input id="nameInput" class="name-input" maxlength="12" placeholder="Your name" autocomplete="off" autocapitalize="off" spellcheck="false">
         <button id="copyBtn">Copy link</button>
         <button id="startBtn" class="primary" disabled>Start</button>
         <button id="retryBtn" title="Force a fresh WebRTC handshake (use if the badge is stuck on relay after a late join)">Retry P2P</button>
       </div>
+
       <div id="status">Connecting…</div>
+
+      <div class="meta">
+        <span id="netcode" class="netcode">netcode v?</span>
+        <span id="ping" class="ping"></span>
+        <span id="transport" class="transport">relay</span>
+      </div>
     </div>
   </div>
 </div>
@@ -193,6 +271,10 @@
 
 <script src="../shared/audio.js"></script>
 <script src="./simple-peer.min.js"></script>
+<!-- Kazuhiko Arase's qrcode-generator (MIT) — used to draw the
+     join-link QR in the prescreen lobby. Vendored locally so the
+     arcade site stays self-contained (no third-party CDN runtime). -->
+<script src="./qrcode.min.js"></script>
 <script type="module">
   // Single source of truth for game logic, shared with the server
   // (which bundles this same file via wrangler import).
@@ -291,6 +373,21 @@
 
   document.getElementById('url').textContent = location.href;
   document.getElementById('roomCode').textContent = roomCode;
+  renderQR(location.href);
+
+  // QR code for the join URL. Type 0 = auto-fit the smallest matrix
+  // that fits the URL; 'M' = medium error-correction (handles a 7-bit
+  // ASCII URL of this length comfortably and tolerates the small bit
+  // of camera blur on a phone). createImgTag emits a data-URL <img>;
+  // we size it via CSS in .qr img.
+  function renderQR(url) {
+    const el = document.getElementById('qr');
+    if (!el || typeof qrcode === 'undefined') return;
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    el.innerHTML = qr.createImgTag(4, 0);
+  }
 
   const netcodeEl = document.getElementById('netcode');
   const pingEl    = document.getElementById('ping');
@@ -361,7 +458,6 @@
   // --------------------------------------------------------------------
   // Lobby
   const statusEl = document.getElementById('status');
-  const seatEl   = document.getElementById('seat');
   const startBtn = document.getElementById('startBtn');
   const copyBtn  = document.getElementById('copyBtn');
 
@@ -790,7 +886,9 @@
   function handle(msg) {
     if (msg.type === 'welcome') {
       mySeat = msg.seat;
-      seatEl.textContent = 'You are ' + mySeat.toUpperCase();
+      // The local seat is indicated by the YOU badge on the player slot
+      // (refreshPlayerSlots renders it), so we no longer need a "You are
+      // P1" text node above the controls.
       // Tell the server our display name as soon as we have a seat
       // so the very first snapshot it broadcasts already includes it.
       if (myName) publishName();
@@ -873,6 +971,49 @@
   // class flip = entire UI transition.
   const tube = document.querySelector('.tube');
 
+  // Player slot elements, indexed by seat position. Filled from
+  // refreshPlayerSlots on every snapshot.
+  const playerSlotEls = SEATS.map(s =>
+    document.querySelector(`.player-slot[data-seat="${s}"]`));
+
+  function refreshPlayerSlots() {
+    if (!lastState) return;
+    for (let i = 0; i < MAX_SEATS; i++) {
+      const slot = playerSlotEls[i];
+      if (!slot) continue;
+      const p = lastState.players[i];
+      // alive doubles as the occupancy mask the server applies before
+      // broadcasting (initState marks every fresh ship alive; the
+      // broadcast loop overwrites alive=false for any seat with no
+      // socket). Caveat: during 'gameover' a player who actually died
+      // also reads as alive=false here, so their slot briefly shows
+      // empty until Start triggers a fresh initState. Pragmatic for
+      // the spike; if it bites we'll add a dedicated `seats` field
+      // to the wire.
+      const occupied = !!p?.alive;
+      slot.classList.toggle('is-active', occupied);
+      slot.classList.toggle('is-empty', !occupied);
+      const nameEl = slot.querySelector('.ps-name');
+      if (occupied) {
+        const trimmed = (p.name || '').trim();
+        nameEl.textContent = trimmed || 'PLAYER';
+      } else {
+        nameEl.textContent = 'waiting…';
+      }
+      // YOU badge on the local seat (created lazily; idempotent).
+      const isYou = SEATS[i] === mySeat && occupied;
+      let youEl = slot.querySelector('.ps-you');
+      if (isYou && !youEl) {
+        youEl = document.createElement('div');
+        youEl.className = 'ps-you';
+        youEl.textContent = 'YOU';
+        slot.appendChild(youEl);
+      } else if (!isYou && youEl) {
+        youEl.remove();
+      }
+    }
+  }
+
   function refreshLobby() {
     if (!lastState) return;
     const s = lastState.status;
@@ -886,6 +1027,7 @@
     // visible canvas. Goes back to the prescreen on waiting/ready (no
     // game yet) and gameover (so the player can hit Start to replay).
     tube.classList.toggle('is-ready', s === 'countdown' || s === 'running');
+    refreshPlayerSlots();
     if (s === 'waiting') {
       setStatus('Waiting…');
       startBtn.disabled = true;
