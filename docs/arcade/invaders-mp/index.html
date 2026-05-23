@@ -175,6 +175,15 @@
   </div>
 </div>
 
+<!-- SFX fallback elements — used by Arcade.Audio.play() in the brief
+     window between page load and the WebAudio buffer decode finishing.
+     Their ids MUST match the keys passed to Arcade.Audio.init below. -->
+<audio id="sfx-shoot"     src="../invaders/sfx-shoot.mp3" preload="auto"></audio>
+<audio id="sfx-kill"      src="../invaders/sfx-kill.wav"  preload="auto"></audio>
+<audio id="sfx-explosion" src="../shared/sfx-explosion.mp3" preload="auto"></audio>
+<audio id="sfx-lose"      src="../shared/sfx-lose.mp3"      preload="auto"></audio>
+
+<script src="../shared/audio.js"></script>
 <script src="./simple-peer.min.js"></script>
 <script type="module">
   // Single source of truth for game logic, shared with the server
@@ -192,6 +201,20 @@
   // it here for the renderer's row math. If engine.js ever changes
   // the grid width this has to move in lockstep.
   const SPRITE_COLS = 8;
+
+  // Register SFX with the shared audio module. The volume/muted keys
+  // are the global arcade keys so the slider state carries across
+  // every arcade game (SP Invaders, Space Jumper, …).
+  Arcade.Audio.init({
+    sfx: {
+      'sfx-shoot':     '../invaders/sfx-shoot.mp3',
+      'sfx-kill':      '../invaders/sfx-kill.wav',
+      'sfx-explosion': '../shared/sfx-explosion.mp3',
+      'sfx-lose':      '../shared/sfx-lose.mp3',
+    },
+    volumeKey: 'oyster-arcade-sfx-volume',
+    mutedKey:  'oyster-arcade-sfx-muted',
+  });
 
   // Per-seat colours for the canvas. Indexed by seat position so the
   // same player reads as the same colour on every viewer's screen.
@@ -790,6 +813,26 @@
       return;
     }
     if (msg.type === 'state') {
+      // Diff the new snapshot against the previous one to fire SFX on
+      // transitions: score jumping = invader kill, my seat going
+      // dead-this-tick = ship explosion, status flipping to gameover
+      // = end-of-run jingle (only the losing variant — wins stay
+      // silent because the "you won" overlay carries the moment).
+      // prevState is captured BEFORE overwriting lastState below.
+      const prev = lastState;
+      const seatIdx = mySeat ? SEATS.indexOf(mySeat) : -1;
+      if (prev) {
+        if (msg.score > prev.score) Arcade.Audio.play('sfx-kill', 0.5);
+        if (seatIdx >= 0
+            && prev.players[seatIdx]?.alive
+            && !msg.players[seatIdx]?.alive
+            && msg.status === 'running') {
+          Arcade.Audio.play('sfx-explosion', 0.6);
+        }
+        if (msg.status === 'gameover' && prev.status !== 'gameover' && !msg.won) {
+          Arcade.Audio.play('sfx-lose', 0.6);
+        }
+      }
       lastState = msg;
       snapBuffer.push(msg);
       latestServerT     = msg.t;
@@ -842,6 +885,9 @@
   }
 
   startBtn.addEventListener('click', () => {
+    // iOS needs the AudioContext created/resumed inside a real user
+    // gesture. Start is the first guaranteed tap, so do it here.
+    Arcade.Audio.ensureCtx();
     // Engage host mode on Start if at least one peer is up (host can
     // serve them; later joiners get added to the peer pool as their
     // WebRTC handshakes complete). Otherwise fall back to cloud relay.
@@ -988,6 +1034,7 @@
         born: now,
       });
       localShip.cooldown = FIRE_COOLDOWN;
+      Arcade.Audio.play('sfx-shoot', 0.55);
     }
     for (const gb of ghostBullets) gb.y -= BULLET_SPEED * dt;
     for (let i = ghostBullets.length - 1; i >= 0; i--) {
