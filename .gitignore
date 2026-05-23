@@ -5,6 +5,9 @@ node_modules/
 .claude/
 *.tgz
 
+# Wrangler local cache (account info, asset hashes, dev tmp) — never commit
+.wrangler/
+
 # Build output
 server/dist/
 shared/types.js
