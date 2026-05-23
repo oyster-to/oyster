@@ -1074,10 +1074,14 @@
     // Sprite + colour come from the grid row (squid / crab / crab /
     // octopus / octopus, top → bottom). Frame index is authoritative
     // (server-driven, distance-based) — same flip cadence as SP, where
-    // the pose changes with each march step. Falls back to 0 if an
-    // older snapshot somehow lacks the field.
+    // the pose changes with each march step. Pick the frame nearest to
+    // the rendered time within the [a, b] interpolation span so pose and
+    // lerped position match: first half of span = a's pose, second half
+    // = b's. Without this the pose can switch at alpha≈0 while position
+    // is still close to a → a tiny pose/motion mismatch. Falls back to
+    // 0 if an older snapshot somehow lacks the field.
     const n = Math.min(a.invaders.length, b.invaders.length);
-    const frame = (b.iFrame ?? 0) & 1;
+    const frame = ((alpha < 0.5 ? a.iFrame : b.iFrame) ?? 0) & 1;
     for (let i = 0; i < n; i++) {
       const ia = a.invaders[i], ib = b.invaders[i];
       if (!ib.a || !ia.a) continue;            // dead either side → hide
