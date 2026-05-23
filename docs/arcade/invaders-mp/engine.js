@@ -92,6 +92,12 @@ export function initState() {
     invaderDir: 1,
     invaderDropRemaining: 0,
     invaderFireAccum: 0,
+    // 2-frame "shuffle" animation. Advances by horizontal distance
+    // travelled, mirroring SP's discrete-step flip (~2 units per
+    // beat) — so the animation cadence is tied to march speed and
+    // accelerates naturally as the swarm thins.
+    invaderFrame: 0,
+    invaderFrameAccum: 0,
     // Per-seat display name, broadcast in snapshots so every viewer
     // sees the same labels. Set via the `name` wire message. Empty
     // string = no label rendered.
@@ -190,6 +196,15 @@ function stepInvaders(state, dt) {
     state.invaderDropRemaining = INV_DROP;
   } else {
     for (const inv of state.invaders) if (inv.alive) inv.x += dx;
+    // Distance-based frame flip — matches SP's "every step = pose
+    // change" feel. STRIDE chosen so initial 3.6 u/s march flips at
+    // ~550 ms (SP's starting cadence); end-game 20 u/s flips at ~100 ms.
+    state.invaderFrameAccum += Math.abs(dx);
+    if (state.invaderFrameAccum >= 2) {
+      const flips = Math.floor(state.invaderFrameAccum / 2);
+      state.invaderFrame = (state.invaderFrame + flips) & 1;
+      state.invaderFrameAccum -= flips * 2;
+    }
   }
 }
 
@@ -296,5 +311,9 @@ export function snapshotForClient(state) {
     bullets:        state.bullets.map(b => ({ x: round(b.x), y: round(b.y), o: b.owner })),
     invaderBullets: state.invaderBullets.map(b => ({ x: round(b.x), y: round(b.y) })),
     invaders:       state.invaders.map(i => ({ x: round(i.x), y: round(i.y), a: i.alive })),
+    // Current swarm animation frame (0 or 1). Authoritative — every
+    // client renders the same pose at the same tick instead of each
+    // running its own time-based ticker.
+    iFrame:         state.invaderFrame,
   };
 }

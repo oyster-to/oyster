@@ -1124,19 +1124,30 @@
     // order; dead invaders stay in the array with a:false). The classic
     // chunky shuffle becomes a smooth slide between marches.
     // Sprite + colour come from the grid row (squid / crab / crab /
-    // octopus / octopus, top → bottom). Two-frame animation toggles
-    // every 300 ms — same cadence as the SP original.
+    // octopus / octopus, top → bottom). Frame index is authoritative
+    // (server-driven, distance-based) — same flip cadence as SP, where
+    // the pose changes with each march step. Pick the frame nearest to
+    // the rendered time within the [a, b] interpolation span so pose and
+    // lerped position match: first half of span = a's pose, second half
+    // = b's. Without this the pose can switch at alpha≈0 while position
+    // is still close to a → a tiny pose/motion mismatch. Falls back to
+    // 0 if an older snapshot somehow lacks the field.
     const n = Math.min(a.invaders.length, b.invaders.length);
-    const frame = Math.floor(renderNowEarly / 300) % 2;
+    const frame = ((alpha < 0.5 ? a.iFrame : b.iFrame) ?? 0) & 1;
     for (let i = 0; i < n; i++) {
       const ia = a.invaders[i], ib = b.invaders[i];
       if (!ib.a || !ia.a) continue;            // dead either side → hide
       const row = Math.floor(i / SPRITE_COLS);
       const { frames, w } = spriteForRow(row);
       // Centre the sprite in the engine's INV_W cell so collisions
-      // (which use INV_W) stay aligned with what the eye sees.
-      const cellX = lerp(ia.x, ib.x) + (INV_W - w) / 2;
-      const cellY = lerp(ia.y, ib.y);
+      // (which use INV_W) stay aligned with what the eye sees. Snap
+      // to integer playfield pixels — fillRect at fractional coords
+      // anti-aliases each sprite-pixel's edge across two screen pixels
+      // at varying alpha, which reads as flicker during continuous
+      // motion. Rounding makes the swarm step pixel-by-pixel (the
+      // pixel-art look) instead of sub-pixel sliding.
+      const cellX = Math.round(lerp(ia.x, ib.x) + (INV_W - w) / 2);
+      const cellY = Math.round(lerp(ia.y, ib.y));
       paintPixels(ctx, cellX, cellY, frames[frame], 1, ROW_COLORS[row] || '#ffffff');
     }
 
