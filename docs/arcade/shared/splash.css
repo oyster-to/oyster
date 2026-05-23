@@ -109,4 +109,31 @@
 @media (prefers-reduced-motion: reduce) {
   .splash { animation: none; }
   .splash .start { animation: none; opacity: 1; }
+  /* Skip the .splash-view opacity fade too — the cycler still toggles
+     .is-active, but views snap instead of crossfading. */
+  .splash-main .splash-view { transition: none; }
+}
+
+/* Splash-view auto-cycler styling. Games that want a title ↔ leaderboard
+   (or similar) marquee use Arcade.Splash.startCycle (see shared/splash.js)
+   to rotate the .is-active class through these views every few seconds.
+   Each view fades in/out via opacity transition; only the active one is
+   pointer-interactive so links/buttons in inactive views don't catch
+   accidental taps. */
+.splash-main .splash-view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 2.4vw, 28px);
+  padding: 40px 24px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+.splash-main .splash-view.is-active {
+  opacity: 1;
+  pointer-events: auto;
 }
