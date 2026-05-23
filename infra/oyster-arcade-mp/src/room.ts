@@ -1,6 +1,7 @@
 // InvadersRoom — a Durable Object that owns one Invaders match for
-// one room code (e.g. /invaders-2p/FROG). First socket gets seat p1,
-// second gets p2, third receives `room_full` and is closed.
+// one room code (e.g. /invaders-mp/FROG). Each connection is
+// assigned the first free seat (p1 → p4); the MAX_SEATS+1-th
+// connection receives `room_full` and is closed.
 //
 // When at least one socket is present and someone sends `start`, an
 // in-memory setInterval drives the simulation at TICK_HZ until
@@ -10,10 +11,9 @@
 // In v17+ the DO also relays opaque WebRTC signalling between seats
 // and acts as a cloud-relay fallback when host-mode P2P can't
 // establish (e.g. captive-portal Wi-Fi, late joiner before retry).
-// The game engine itself lives in docs/arcade/invaders-2p/engine.js
+// The game engine itself lives in docs/arcade/invaders-mp/engine.js
 // and is shared verbatim with the host-mode client.
 
-import { DurableObject } from 'cloudflare:workers';
 import {
   initState,
   snapshotForClient,
@@ -21,12 +21,14 @@ import {
   zeroInput,
   PF_W,
   SHIP_W,
-} from '../../../docs/arcade/invaders-2p/engine.js';
+  SEATS,
+  MAX_SEATS,
+} from '../../../docs/arcade/invaders-mp/engine.js';
 import type {
   GameState,
   Input,
   Seat,
-} from '../../../docs/arcade/invaders-2p/engine.js';
+} from '../../../docs/arcade/invaders-mp/engine.js';
 import type { Env } from './worker';
 
 const TICK_HZ = 60;
@@ -67,24 +69,58 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //   v15  reverted to original singleton → MRS/CDG, BGP-bounded floor
 //   v16  per-pair rooms via ?code=FROG; DO relays opaque signal messages
 //   v17  WebRTC handshake via simple-peer using v16's signal relay;
-//        URL path scheme moved to /invaders-2p/FROG; Press Start 2P font
+//        URL path scheme moved to /invaders-2p/FROG (renamed to
+//        /invaders-mp/FROG in v19); Press Start 2P font.
 //   v18  Host-mode gameplay over DataChannel: P1 runs the engine
 //        locally, broadcasts snapshots via DC, P2 sends inputs over
 //        DC. DO stays as signalling broker + cloud-relay fallback.
-const NETCODE_VERSION = 18;
+//   v19  N players (up to 4). Seat union grows to p1|p2|p3|p4, ships
+//        becomes Record<Seat,Ship>, the wire snapshot's `players`
+//        array is always MAX_SEATS long. assignSeat takes first free
+//        of four. Path renamed /invaders-2p/ → /invaders-mp/ with a
+//        301 from the old path. Engine exports SEATS + MAX_SEATS so
+//        server + client share the constant.
+//   v20  Polish for live couch co-op: (1) per-seat colours are now
+//        consistent across all viewers (was: every viewer rendered
+//        themselves cyan, which collided with p1's cyan from the
+//        other-player palette). (2) Player `name` wire message; the
+//        room stores names per seat and ships them in every snapshot
+//        so all viewers see the same labels above each ship.
+//        (3) handleStart now runs a 3 s countdown — game state goes
+//        ready/waiting/gameover → 'countdown' → 'running', with the
+//        end time on the wire so the client can render 3/2/1/ATTACK.
+const NETCODE_VERSION = 20;
 
 type ClientMessage =
   | { type: 'ping';   t: number }
   | { type: 'input';  left?: boolean; right?: boolean; fire?: boolean }
   | { type: 'pos';    x: number }
   | { type: 'start' }
-  | { type: 'signal'; to: Seat; payload: unknown };
+  | { type: 'name';   name: unknown }
+  // `to` is untrusted wire data — narrowed by isSeat() in relaySignal.
+  | { type: 'signal'; to: unknown; payload: unknown };
+
+// 3-2-1-ATTACK countdown duration. status flips to 'running' when the
+// server clock catches up to game.countdownEndMs.
+const COUNTDOWN_MS = 3000;
+const MAX_NAME_CHARS = 12;
 
 type Occupancy = Record<Seat, boolean>;
 
-export class InvadersRoom extends DurableObject<Env> {
+function freshInputs(): Record<Seat, Input> {
+  return Object.fromEntries(SEATS.map((s) => [s, zeroInput()])) as Record<Seat, Input>;
+}
+
+// Narrowing predicate for untrusted wire values — used at the
+// boundary (`signal` relay payload, etc.) instead of trusting that a
+// declared `Seat`-typed field actually contains one.
+function isSeat(x: unknown): x is Seat {
+  return typeof x === 'string' && (SEATS as readonly string[]).includes(x);
+}
+
+export class InvadersRoom {
   private sockets = new Map<Seat, WebSocket>();
-  private inputs: Record<Seat, Input> = { p1: zeroInput(), p2: zeroInput() };
+  private inputs: Record<Seat, Input> = freshInputs();
   private game: GameState = initState();
   private loop: ReturnType<typeof setInterval> | null = null;
   private lastTickMs = 0;
@@ -93,7 +129,13 @@ export class InvadersRoom extends DurableObject<Env> {
   // client badge can show `worker → DO` routing.
   private doColo: string | null = null;
 
-  override async fetch(req: Request): Promise<Response> {
+  // The runtime instantiates the class with (state, env); we don't
+  // currently use either (no storage, env access goes via Env type
+  // on the worker entry). Underscore prefix silences unused-var
+  // warnings on strict TS.
+  constructor(_state: DurableObjectState, _env: Env) {}
+
+  async fetch(req: Request): Promise<Response> {
     if (req.headers.get('Upgrade') !== 'websocket') {
       return new Response('expected websocket upgrade', { status: 426 });
     }
@@ -146,8 +188,7 @@ export class InvadersRoom extends DurableObject<Env> {
   // Seats / sessions
 
   private assignSeat(): Seat | null {
-    if (!this.sockets.has('p1')) return 'p1';
-    if (!this.sockets.has('p2')) return 'p2';
+    for (const s of SEATS) if (!this.sockets.has(s)) return s;
     return null;
   }
 
@@ -222,6 +263,9 @@ export class InvadersRoom extends DurableObject<Env> {
       case 'pos':
         this.handlePos(seat, msg);
         return;
+      case 'name':
+        this.handleName(seat, msg);
+        return;
       case 'signal':
         this.relaySignal(seat, msg);
         return;
@@ -229,6 +273,14 @@ export class InvadersRoom extends DurableObject<Env> {
         this.handleStart();
         return;
     }
+  }
+
+  private handleName(seat: Seat, msg: { name: unknown }): void {
+    // Trim + cap so a misbehaving client can't push huge labels into
+    // every snapshot. Empty string is allowed (clears the name).
+    if (typeof msg.name !== 'string') return;
+    this.game.names[seat] = msg.name.trim().slice(0, MAX_NAME_CHARS);
+    this.broadcastSnapshot();
   }
 
   private handlePing(seat: Seat, msg: { t: number }): void {
@@ -251,12 +303,13 @@ export class InvadersRoom extends DurableObject<Env> {
     ship.x = Math.max(0, Math.min(PF_W - SHIP_W, msg.x));
   }
 
-  private relaySignal(sender: Seat, msg: { to: Seat; payload: unknown }): void {
+  private relaySignal(sender: Seat, msg: { to: unknown; payload: unknown }): void {
     // Opaque relay for WebRTC handshake (SDP offer/answer, ICE
     // candidates). DO doesn't interpret the payload — it just
     // forwards from one seat to the other so neither client needs
-    // a direct route until the DataChannel is up.
-    if (msg.to !== 'p1' && msg.to !== 'p2') return;
+    // a direct route until the DataChannel is up. `msg.to` is wire
+    // data so we narrow it with the isSeat type-guard before use.
+    if (!isSeat(msg.to)) return;
     if (msg.to === sender) return; // no self-signalling
     const targetWs = this.sockets.get(msg.to);
     if (!targetWs) return;
@@ -271,13 +324,18 @@ export class InvadersRoom extends DurableObject<Env> {
 
   private handleStart(): void {
     // Solo start allowed: any pre-game state with at least one player.
-    // The other seat can join mid-game; its ship is masked as
-    // not-alive on the wire and doesn't take damage until occupied.
+    // Other seats can join mid-countdown / mid-game; their ship is
+    // masked as not-alive on the wire and doesn't take damage until
+    // occupied. We preserve current names across the reset so a
+    // restart doesn't blank the labels.
     const s = this.game.status;
     if (s !== 'ready' && s !== 'waiting' && s !== 'gameover') return;
     if (this.sockets.size < 1) return;
+    const keepNames = this.game.names;
     this.game = initState();
-    this.game.status = 'running';
+    this.game.names = keepNames;
+    this.game.status = 'countdown';
+    this.game.countdownEndMs = Date.now() + COUNTDOWN_MS;
     this.startLoop();
     this.broadcastSnapshot();
   }
@@ -317,13 +375,24 @@ export class InvadersRoom extends DurableObject<Env> {
     const dt = Math.min(0.1, (now - this.lastTickMs) / 1000);
     this.lastTickMs = now;
 
+    if (this.game.status === 'countdown') {
+      // Engine.step is a no-op while non-running, so nothing actually
+      // simulates during countdown — we just count time and broadcast
+      // so the client can render the 3/2/1 overlay.
+      if (now >= this.game.countdownEndMs) this.game.status = 'running';
+      this.broadcastSnapshot();
+      return;
+    }
+
     step(this.game, this.inputs, dt, this.occupancy());
     this.broadcastSnapshot();
     if (this.game.status === 'gameover') this.stopLoop();
   }
 
   private occupancy(): Occupancy {
-    return { p1: this.sockets.has('p1'), p2: this.sockets.has('p2') };
+    return Object.fromEntries(
+      SEATS.map((s) => [s, this.sockets.has(s)]),
+    ) as Occupancy;
   }
 
   // --------------------------------------------------------------------
@@ -337,11 +406,12 @@ export class InvadersRoom extends DurableObject<Env> {
     // and network jitter without protocol or tick-rate changes).
     const snap = snapshotForClient(this.game);
     // Mask unoccupied seats as not-alive on the wire so the client
-    // doesn't paint a sitting-duck ghost while waiting for the other
-    // player. The server-side ship stays alive in the simulation; it
-    // just can't take damage or contribute to the wipe check.
-    if (!this.sockets.has('p1')) snap.players[0].alive = false;
-    if (!this.sockets.has('p2')) snap.players[1].alive = false;
+    // doesn't paint a sitting-duck ghost while waiting for other
+    // players. The server-side ship stays alive in the simulation;
+    // it just can't take damage or contribute to the wipe check.
+    for (let i = 0; i < MAX_SEATS; i++) {
+      if (!this.sockets.has(SEATS[i])) snap.players[i].alive = false;
+    }
     const msg = JSON.stringify({ type: 'state', t: Date.now(), ...snap });
     for (const ws of this.sockets.values()) {
       try { ws.send(msg); }

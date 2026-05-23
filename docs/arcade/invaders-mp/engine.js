@@ -6,13 +6,21 @@
 // Logical units: 240 wide × 280 tall (the client scales the canvas).
 // Origin is top-left. Down = +y.
 //
-// JSDoc types are declared here and re-declared as an ambient module
-// in engine.d.ts so room.ts gets full TypeScript type-checking
-// against this file without an allowJs build flag.
+// Types live in engine.d.ts as an ambient sibling declaration so
+// room.ts gets full TypeScript type-checking against this file
+// without an allowJs build flag.
 
 // === Playfield ===
 export const PF_W = 240;
 export const PF_H = 280;
+
+// === Seats / players ===
+// Up to MAX_SEATS players per room (couch co-op with 4 devices on
+// the same Wi-Fi). The wire snapshot's `players` array is always
+// MAX_SEATS long; absent players show as alive=false (the room masks
+// unoccupied seats before broadcasting).
+export const SEATS = Object.freeze(['p1', 'p2', 'p3', 'p4']);
+export const MAX_SEATS = SEATS.length;
 
 // === Ships ===
 export const SHIP_W = 16;
@@ -25,29 +33,29 @@ export const FIRE_COOLDOWN = 0.45;   // seconds between shots per ship
 export const BULLET_W = 2;
 export const BULLET_H = 6;
 export const BULLET_SPEED = 220;
-export const INV_BULLET_SPEED = 120;
+const INV_BULLET_SPEED = 120;
 
 // === Invaders ===
-export const INV_ROWS = 5;
-export const INV_COLS = 8;
+const INV_ROWS = 5;
+const INV_COLS = 8;
 export const INV_W = 12;
 export const INV_H = 8;
-export const INV_GAP_X = 18;
-export const INV_GAP_Y = 14;
-export const INV_ORIGIN_X = 18;
-export const INV_ORIGIN_Y = 24;
-export const INV_DROP = 8;
+const INV_GAP_X = 18;
+const INV_GAP_Y = 14;
+const INV_ORIGIN_X = 18;
+const INV_ORIGIN_Y = 24;
+const INV_DROP = 8;
 // Continuous-march speed (u/s) shrinks as the swarm thins so the last
 // few invaders sprint. The discrete-shuffle version of this used a
 // step every ~0.55 s with a 2-unit jump (≈3.6 u/s).
-export const INV_SPEED_FULL = 3.6;
-export const INV_SPEED_MIN  = 20;
+const INV_SPEED_FULL = 3.6;
+const INV_SPEED_MIN  = 20;
 // Wall-bounce drop speed. 8 units at 64 u/s = 125 ms — a hop, not a
 // teleport at the current tick rate.
-export const INV_DROP_SPEED = 64;
-export const INV_FIRE_INTERVAL = 1.4;
+const INV_DROP_SPEED = 64;
+const INV_FIRE_INTERVAL = 1.4;
 
-export const SCORE_PER_KILL = 10;
+const SCORE_PER_KILL = 10;
 
 export function zeroInput() {
   return { left: false, right: false, fire: false };
@@ -55,21 +63,43 @@ export function zeroInput() {
 
 // === Init / reset ===
 
+// Even spacing of MAX_SEATS ships across the playfield: (N+1) equal
+// margins surrounding N ships. With N=4, PF_W=240, SHIP_W=16 the
+// margin is 35.2 → spawn x's [35.2, 86.4, 137.6, 188.8].
+const SHIP_MARGIN = (PF_W - MAX_SEATS * SHIP_W) / (MAX_SEATS + 1);
+function spawnX(seatIndex) {
+  return SHIP_MARGIN + seatIndex * (SHIP_W + SHIP_MARGIN);
+}
+
+function freshShips() {
+  /** @type {Record<string, {x:number,alive:boolean,cooldown:number}>} */
+  const ships = {};
+  for (let i = 0; i < MAX_SEATS; i++) {
+    ships[SEATS[i]] = { x: spawnX(i), alive: true, cooldown: 0 };
+  }
+  return ships;
+}
+
 export function initState() {
   return {
     status: 'waiting',
     won: false,
     score: 0,
-    ships: {
-      p1: { x: PF_W / 2 - SHIP_W - 8, alive: true, cooldown: 0 },
-      p2: { x: PF_W / 2 + 8,           alive: true, cooldown: 0 },
-    },
+    ships: freshShips(),
     bullets: [],
     invaderBullets: [],
     invaders: buildGrid(),
     invaderDir: 1,
     invaderDropRemaining: 0,
     invaderFireAccum: 0,
+    // Per-seat display name, broadcast in snapshots so every viewer
+    // sees the same labels. Set via the `name` wire message. Empty
+    // string = no label rendered.
+    names: SEATS.reduce((acc, s) => (acc[s] = '', acc), /** @type {Record<string,string>} */({})),
+    // Server clock (ms) at which the countdown overlay should end and
+    // the game transitions from 'countdown' → 'running'. Only meaningful
+    // while status === 'countdown'.
+    countdownEndMs: 0,
   };
 }
 
@@ -89,7 +119,11 @@ function buildGrid() {
 
 // === Step ===
 
-export function step(state, inputs, dt, occupied = { p1: true, p2: true }) {
+const ALL_OCCUPIED = Object.freeze(
+  Object.fromEntries(SEATS.map((s) => [s, true])),
+);
+
+export function step(state, inputs, dt, occupied = ALL_OCCUPIED) {
   if (state.status !== 'running') return;
   stepShips(state, inputs, dt, occupied);
   stepBullets(state, dt);
@@ -104,10 +138,11 @@ function stepShips(state, inputs, dt, occupied) {
   // streams `pos` updates and writes them straight into ship.x. This
   // function only handles fire (so the cooldown + bullet spawn are
   // host-controlled, keeping per-player fire rate fair).
-  for (const seat of ['p1', 'p2']) {
+  for (const seat of SEATS) {
     const ship = state.ships[seat];
     if (!ship.alive || !occupied[seat]) continue;
     const input = inputs[seat];
+    if (!input) continue;
     ship.cooldown = Math.max(0, ship.cooldown - dt);
     if (input.fire && ship.cooldown <= 0) {
       state.bullets.push({
@@ -204,7 +239,7 @@ function resolveCollisions(state, occupied) {
 
   // Invader bullets vs ships. Unoccupied seats can't take damage.
   for (const b of state.invaderBullets) {
-    for (const seat of ['p1', 'p2']) {
+    for (const seat of SEATS) {
       const ship = state.ships[seat];
       if (!ship.alive || !occupied[seat]) continue;
       if (overlap(b.x, b.y, BULLET_W, BULLET_H, ship.x, SHIP_Y, SHIP_W, SHIP_H)) {
@@ -217,12 +252,11 @@ function resolveCollisions(state, occupied) {
 }
 
 function checkEnd(state, occupied) {
-  // Loss: any invader at the ship row, or no playable ship remains
-  // ("playable" = alive AND occupied, so a solo death ends the game
-  // even if the empty P2 ship is technically still alive).
+  // Loss: any invader at the ship row, or no playable ship remains.
+  // "Playable" = alive AND occupied — so a solo death ends the game
+  // even if other seats are empty-but-technically-alive.
   const breach = state.invaders.some(i => i.alive && i.y + INV_H >= SHIP_Y);
-  const playable = (s) => state.ships[s].alive && occupied[s];
-  const wipe = !playable('p1') && !playable('p2');
+  const wipe = SEATS.every((s) => !(state.ships[s].alive && occupied[s]));
   if (breach || wipe) { state.status = 'gameover'; state.won = false; return; }
 
   // Win: every invader dead.
@@ -242,10 +276,20 @@ export function snapshotForClient(state) {
     status: state.status,
     won: state.won,
     score: state.score,
-    players: [
-      { x: round(state.ships.p1.x), alive: state.ships.p1.alive },
-      { x: round(state.ships.p2.x), alive: state.ships.p2.alive },
-    ],
+    // Server clock the countdown should end at (only meaningful while
+    // status === 'countdown'). Client computes seconds-remaining from
+    // (countdownEndMs - serverNow) and renders the big overlay.
+    countdownEndMs: state.countdownEndMs,
+    // `players` is always MAX_SEATS long, indexed by seat position
+    // (p1 → 0, p2 → 1, …). The room masks unoccupied seats as
+    // alive:false before sending so the client can use this array
+    // directly to decide which ships to draw. `name` is the per-seat
+    // display name (empty = no label).
+    players: SEATS.map((s) => ({
+      x: round(state.ships[s].x),
+      alive: state.ships[s].alive,
+      name: state.names?.[s] ?? '',
+    })),
     // `o` (owner) is the firing seat — lets the client filter "my
     // bullets" if it ever wants per-bullet prediction. Invader
     // bullets have no owner.
