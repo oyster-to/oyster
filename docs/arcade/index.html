@@ -415,7 +415,7 @@
     .game-splash.is-fading            { animation-duration: 0.01s; }
   }
 
-  /* Coming-soon ADVERT — retro arcade marketing flyer that pops up
+  /* Coming-soon FLYER — retro arcade marketing flyer that pops up
      when a coming-soon game with a tagline is clicked. Title, tagline,
      numbered features, slanted COMING SOON stamp. CRT scanlines from
      .crt-global still render on top so it reads as a poster in the
@@ -1192,18 +1192,18 @@ function resetSplash() {
 }
 
 // ============================================
-// COMING-SOON ADVERT — populated per-game from GAMES entries that have
+// COMING-SOON FLYER — populated per-game from GAMES entries that have
 // `tagline` and optional `features` / `palette` fields. Dismisses on
 // the × button, ESC, or any tap/keypress while visible.
 // ============================================
 const flyerEl = document.getElementById('game-flyer');
-// Hoisted above showAdvert / hideAdvert so the closure refs are safely
+// Hoisted above showFlyer / hideFlyer so the closure refs are safely
 // in scope no matter when the flyer is invoked.
 let flyerCleanup = null;
 // Tracks the post-fade hide timer so a quick close→reopen (< fade
 // duration) can cancel the old timeout before it hides the new flyer.
 let flyerHideTimer = 0;
-function showAdvert(g) {
+function showFlyer(g) {
   if (!flyerEl) return;
   flyerEl.querySelector('#flyer-title').textContent   = g.name;
   flyerEl.querySelector('#flyer-tagline').textContent = g.tagline || '';
@@ -1220,9 +1220,9 @@ function showAdvert(g) {
   flyerEl.style.setProperty('--flyer-bg2',    p.bg2    || '#050a25');
   flyerEl.style.setProperty('--flyer-accent', p.accent || '#ffd84a');
   flyerEl.style.setProperty('--flyer-neon',   p.neon   || '#ff3aa1');
-  // Track listeners so hideAdvert() always tears them down — whether
+  // Track listeners so hideFlyer() always tears them down — whether
   // dismissed via × button, ESC, tap outside, or a re-opened flyer.
-  // Previously the × routed through hideAdvert() directly, bypassing
+  // Previously the × routed through hideFlyer() directly, bypassing
   // the keydown/pointerdown cleanup and leaving stale handlers
   // attached that would fire on the next keypress.
   if (flyerCleanup) flyerCleanup();
@@ -1231,10 +1231,10 @@ function showAdvert(g) {
   void flyerEl.offsetWidth;
   flyerEl.classList.add('is-visible');
   flyerEl.setAttribute('aria-hidden', 'false');
-  function onKey()   { hideAdvert(); }
+  function onKey()   { hideFlyer(); }
   function onTap(e) {
     if (e.target.closest('#flyer-close')) return;   // × has its own click handler
-    hideAdvert();
+    hideFlyer();
   }
   window.addEventListener('keydown', onKey, { once: true });
   flyerEl.addEventListener('pointerdown', onTap);
@@ -1244,7 +1244,7 @@ function showAdvert(g) {
     flyerCleanup = null;
   };
 }
-function hideAdvert() {
+function hideFlyer() {
   if (!flyerEl) return;
   if (flyerCleanup) flyerCleanup();
   if (flyerHideTimer) clearTimeout(flyerHideTimer);
@@ -1257,16 +1257,16 @@ function hideAdvert() {
 }
 document.getElementById('flyer-close').addEventListener('click', e => {
   e.stopPropagation();
-  hideAdvert();
+  hideFlyer();
 });
 
 function launch() {
   if (launched) return;
   const g = GAMES[sel];
   if (g.comingSoon) {
-    // Coming-soon games with marketing copy open an flyer instead of
+    // Coming-soon games with marketing copy open a flyer instead of
     // launching. Plain "COMING SOON" cards (no tagline) just no-op.
-    if (g.tagline) showAdvert(g);
+    if (g.tagline) showFlyer(g);
     return;
   }
   launched = true;
