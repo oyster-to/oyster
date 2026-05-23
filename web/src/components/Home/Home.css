@@ -2076,146 +2076,46 @@
   background: rgba(255,255,255,0.02);
 }
 
-/* ── Sessions FULL view ── */
-.home-sessions-full-list {
-  position: relative;
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 0 32px;
-}
-.home-sessions-full {
-  background: var(--home-surface);
-  border: 1px solid var(--home-border);
-  border-radius: 14px;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  overflow: hidden;
-}
-.session-row-full {
-  display: grid;
-  grid-template-columns: 72px 1fr 84px;
-  align-items: center;
-  column-gap: 16px;
-  padding: 12px 18px;
-  border-bottom: 1px solid var(--home-border);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.session-row-full:hover { background: rgba(124, 107, 255, 0.04); }
-.session-row-full:last-child { border-bottom: none; }
-.srf-time {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--home-text-muted);
-}
-.srf-main { min-width: 0; }
-.srf-line1 {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 4px;
-}
-.srf-pip {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  flex-shrink: 0;
-}
-.srf-pip.pip-green { background: var(--home-green); box-shadow: 0 0 6px var(--home-green); }
-.srf-pip.pip-amber { background: var(--home-amber); box-shadow: 0 0 6px var(--home-amber); }
-.srf-pip.pip-red   { background: var(--home-red);   box-shadow: 0 0 6px var(--home-red); }
-.srf-pip.pip-dim   { background: var(--home-text-muted); }
-.srf-title {
-  font-family: var(--font-body);
-  font-size: 13.5px;
-  color: var(--text);
+/* FULL view: bigger headline title (single deviation from COMPACT) */
+.home-row--full .home-row-title,
+.home-row--full .home-row-title-inner {
+  font-size: 14.5px;
   font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  min-width: 0;
+  letter-spacing: -0.005em;
 }
-.srf-title.untitled { color: var(--home-text-muted); font-style: italic; font-weight: 400; }
-.srf-state-badge {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--home-text-muted);
-  flex-shrink: 0;
-}
-.srf-state-badge.live { color: var(--home-green); }
-.srf-state-badge.waiting { color: var(--home-amber); }
-.srf-state-badge.warning { color: var(--home-amber); }
-.srf-line2 {
+
+/* Optional indented context line, rendered only in FULL when artifacts attributed.
+   Aligns under the .home-row title column. .home-row uses padding 12px 18px and
+   grid 18px 130px 1fr ... with gap 14px, so the title column starts at
+   18 (padding) + 18 (state) + 14 (gap) + 130 (project) + 14 (gap) = 194px from
+   the row's outer edge. */
+.sr-extra {
+  margin-left: 194px;
+  padding: 4px 18px 10px 0;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
+  flex-wrap: wrap;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--home-text-muted);
-  flex-wrap: wrap;
+  border-bottom: 1px solid var(--home-border);
 }
-.srf-project {
-  color: var(--home-accent-bright);
+.home-row + .sr-extra { margin-top: -1px; }
+.sr-artifact-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-}
-.srf-project .branch-icon {
-  width: 10px;
-  height: 10px;
-  opacity: 0.6;
-}
-.srf-agent {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.srf-agent-pip {
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: var(--home-text-muted);
-}
-.srf-agent--cc    .srf-agent-pip { background: #ff9b7a; }
-.srf-agent--codex .srf-agent-pip { background: #6ee7a8; }
-.srf-agent--oc    .srf-agent-pip { background: #b3a8ff; }
-.srf-sep { color: var(--home-text-muted); }
-.srf-reason { font-style: italic; color: var(--home-text-muted); }
-.srf-artifact-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
+  font-size: 10.5px;
   color: var(--home-accent-bright);
   background: rgba(124, 107, 255, 0.08);
   border: 1px solid rgba(124, 107, 255, 0.18);
   border-radius: 999px;
-  padding: 1px 7px 1px 6px;
+  padding: 1px 8px 1px 7px;
   cursor: pointer;
-  transition: background 0.15s;
 }
-.srf-artifact-chip:hover { background: rgba(124, 107, 255, 0.18); }
-.srf-artifact-chip-glyph { font-size: 9px; opacity: 0.8; }
-.srf-action {
-  font-family: var(--font-body);
-  font-size: 12px;
-  color: var(--text-dim);
-  background: transparent;
-  border: 1px solid var(--home-border);
-  border-radius: 6px;
-  padding: 5px 14px;
-  cursor: pointer;
-  text-align: center;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
-}
-.srf-action:hover {
-  color: var(--home-accent-bright);
-  border-color: var(--home-border-accent);
-  background: rgba(124, 107, 255, 0.08);
-}
+.sr-artifact-chip:hover { background: rgba(124, 107, 255, 0.18); }
+.sr-artifact-chip-glyph { font-size: 9px; opacity: 0.8; }
 
 /* ── Full/Compact toggle (text pills) ── */
 .view-toggle-text {
