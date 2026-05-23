@@ -1277,6 +1277,43 @@
   color: var(--accent-bright);
 }
 
+.home-project-tile-newsession {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: calc(100% - 16px);
+  margin: 0 8px 8px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--home-accent-bright);
+  background: rgba(124, 107, 255, 0.10);
+  border: 1px solid rgba(124, 107, 255, 0.28);
+  border-radius: 7px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.home-project-tile-newsession:hover {
+  background: rgba(124, 107, 255, 0.22);
+  border-color: rgba(124, 107, 255, 0.5);
+}
+.home-project-tile-newsession:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: transparent;
+  border-color: var(--home-border);
+  color: var(--text-dim);
+}
+.home-project-tile-newsession .plus {
+  color: inherit;
+  font-weight: 600;
+}
+.home-project-tile-newsession:disabled .plus {
+  color: var(--text-dim);
+}
+
 /* Tile dropdown menu */
 .home-project-tile-menu {
   position: absolute;

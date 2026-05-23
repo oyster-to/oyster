@@ -138,6 +138,21 @@ export function ProjectTile({
             )}
           </div>
         </button>
+        {onLaunchClaude && (
+          <button
+            type="button"
+            className="home-project-tile-newsession"
+            onClick={(e) => { e.stopPropagation(); onLaunchClaude(project.id); }}
+            disabled={project.hasLivePath === false}
+            title={
+              project.hasLivePath === false
+                ? "This project has no folder on this machine."
+                : `Run claude in ${project.recentPath ?? project.name}`
+            }
+          >
+            <span className="plus">+</span> New session
+          </button>
+        )}
         <button
           type="button"
           className={`home-project-tile-more${menuOpen ? " open" : ""}`}
