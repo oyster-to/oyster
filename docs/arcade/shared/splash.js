@@ -36,12 +36,19 @@
     const onShow     = typeof opts.onShow === 'function' ? opts.onShow : null;
     const views = document.querySelectorAll(sel);
     if (!views.length) return;
+    // Force view[0] active immediately so the module works regardless of
+    // whether the HTML pre-marked any view — and so a stopCycle + new
+    // startCycle reliably resets to the first view.
     let idx = 0;
+    views.forEach((v, i) => v.classList.toggle('is-active', i === idx));
+    if (onShow) {
+      try { onShow(views[idx], idx); } catch (e) { console.warn('Arcade.Splash onShow threw:', e); }
+    }
     cycleTimer = setInterval(() => {
       idx = (idx + 1) % views.length;
       views.forEach((v, i) => v.classList.toggle('is-active', i === idx));
       if (onShow) {
-        try { onShow(views[idx], idx); } catch (_) {}
+        try { onShow(views[idx], idx); } catch (e) { console.warn('Arcade.Splash onShow threw:', e); }
       }
     }, intervalMs);
   }

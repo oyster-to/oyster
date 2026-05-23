@@ -109,6 +109,9 @@
 @media (prefers-reduced-motion: reduce) {
   .splash { animation: none; }
   .splash .start { animation: none; opacity: 1; }
+  /* Skip the .splash-view opacity fade too — the cycler still toggles
+     .is-active, but views snap instead of crossfading. */
+  .splash-main .splash-view { transition: none; }
 }
 
 /* Splash-view auto-cycler styling. Games that want a title ↔ leaderboard
