@@ -13,20 +13,37 @@
 
   function bind(btn, onDown, onUp) {
     if (!btn) return;
+    // One press = one onDown, one release = one onUp. A single touch tap fires
+    // BOTH pointerdown and pointerenter (on no-hover devices pointerenter fires
+    // as a result of pointerdown, with buttons===1), and a release fires both
+    // pointerup and pointerleave. Without this latch each tap fired twice —
+    // harmless for idempotent movement keys, but the initials screen advances a
+    // letter per call, so taps skipped letters (A-C-E…) and slot/save misfired.
+    let pressed = false;
     const down = e => {
       // Release the implicit pointer capture a touch grabs on touchstart —
       // without this the first button keeps receiving events for the whole
       // gesture, so sliding a thumb from ◀ onto ▶ never fires ▶'s events
       // (you'd have to lift and re-tap). Releasing it lets pointerenter/leave
-      // fire on the other buttons as the finger slides across them.
+      // fire on the other buttons as the finger slides across them. This runs
+      // on every pointerdown regardless of the latch — touch fires pointerenter
+      // before pointerdown, so latching first would skip the release.
       if (e && e.pointerId != null && btn.hasPointerCapture && btn.hasPointerCapture(e.pointerId)) {
         try { btn.releasePointerCapture(e.pointerId); } catch (_) {}
       }
       if (e) e.preventDefault();
+      if (pressed) return;
+      pressed = true;
       btn.classList.add('is-pressed');
       onDown();
     };
-    const up   = e => { if (e) e.preventDefault(); btn.classList.remove('is-pressed'); onUp(); };
+    const up   = e => {
+      if (e) e.preventDefault();
+      if (!pressed) return;
+      pressed = false;
+      btn.classList.remove('is-pressed');
+      onUp();
+    };
     btn.addEventListener('pointerdown', down);
     btn.addEventListener('pointerup', up);
     btn.addEventListener('pointercancel', up);
