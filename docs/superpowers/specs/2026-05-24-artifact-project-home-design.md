@@ -59,9 +59,13 @@ Run as one transaction in `initDb`, guarded so repeat boots are no-ops (detect `
     WHERE project_id IS NULL
       AND json_extract(storage_config,'$.path') IS NOT NULL;
    ```
-2. **Report mismatches** to the log (not a failure): artifacts whose *old* `space_id` differs from their newly-resolved `project → space_id`. Matthew eyeballs these once; with 506 path-derived `discovered` artifacts the disagreement set should be tiny.
+2. **Log a before/after report** (informational, never a failure), captured *before* the column is dropped:
+   - total artifacts; how many had a non-empty `space_id`; how many `project_id` were just backfilled; how many still have `project_id IS NULL` after backfill (→ will be orphan); 
+   - the **mismatch list**: artifacts whose *old* `space_id` differs from their newly-resolved `project → space_id` (id, path, old space, new space). Matthew eyeballs these once; with 506 path-derived `discovered` artifacts the set should be tiny. The project wins — this is just visibility, not a prompt.
 3. **Rebuild the table without `space_id`** (SQLite `ALTER TABLE artifacts DROP COLUMN space_id` is available ≥3.35 and already used at `db.ts:112` for `repo_path`; prefer it, fall back to a `_artifacts_new` rebuild if a dependent object blocks it). Data preserved.
-4. **Rebuild the dedup index** `artifacts_space_source_ref_uq` (`db.ts:116`) from `(space_id, source_ref)` → **`(project_id, source_ref)`**.
+4. **Rebuild the dedup index** `artifacts_space_source_ref_uq` (`db.ts:116`) from `(space_id, source_ref)` → **`(project_id, source_ref) WHERE source_ref IS NOT NULL`** (keep the existing partial predicate).
+
+   **Explicit `project_id IS NULL` behaviour:** SQLite treats `NULL`s as distinct under `UNIQUE`, so this index does **not** constrain orphan artifacts (no project) — multiple orphans with the same `source_ref` are permitted by the index. This is **intentional and safe** because the authoritative dedup for *every* filesystem artifact is `getByPath` (the absolute path in `storage_config`), which is independent of project and `source_ref`. The `(project_id, source_ref)` index is a secondary guard for the scanner's `<path>:<kind>` convention *within a known project*; orphan dedup rides on `getByPath`. (In practice `source_ref`-bearing artifacts are always created in a project context, so orphan + `source_ref` is essentially nonexistent — but the behaviour is now stated rather than accidental.)
 
 ## Code changes (the write/derive paths — from the audit)
 
@@ -96,7 +100,8 @@ Reuse `lookupProject(db, dir, …)` (`lookup-project.ts:35`) for path→project 
 - **Mismatch report:** seed one artifact whose `space_id` disagrees with its resolved project's space; assert it appears in the logged report and the project wins.
 - **Idempotency:** run `initDb` twice; second boot makes no changes (no `space_id` column, no project_id rewrites).
 - **Derived queries:** `getBySpaceId(s)` returns exactly the artifacts whose project is in space `s`; `getDistinctSpaces` matches; an orphan (null project) appears in none.
-- **Dedup index:** two artifacts, same `source_ref`, same project → second insert rejected; same `source_ref`, different project → both allowed.
+- **Dedup index:** two artifacts, same `source_ref`, same project → second insert rejected; same `source_ref`, different project → both allowed; two orphans (`project_id NULL`), same `source_ref` → both allowed (NULLs distinct, intentional), while `getByPath` still rejects a duplicate at the same absolute path.
+- **Before/after report:** assert the migration logs total / had-space / project-backfilled / still-orphan counts and the mismatch list (seed a known mismatch, assert it's reported and the project's space wins).
 - **No regression:** existing artifact tests (`db-artefact-tombstone-recovery.test.ts`, etc.) pass.
 
 ## Non-goals
