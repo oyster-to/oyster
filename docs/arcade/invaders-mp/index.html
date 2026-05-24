@@ -1453,9 +1453,17 @@
       // drawPlayer block (pips line, optional charge bar, halo when
       // fully charged). Skipped during the name fade-in window so
       // the lobby/countdown looks clean; only renders during play.
+      // For the local player, the charge bar reads from
+      // localShip.holdSec instead of the snapshot — the wire round-
+      // trip (~150–300 ms RTT) would otherwise delay every "hold to
+      // charge" interaction, so the bar feels broken on first press.
+      // Other players' charge bars stay snapshot-driven (we don't
+      // have their local input).
       if (latestSnap.status === 'running') {
         const ammo = (live.superAmmo | 0);
-        const charge = (live.chargeSec || 0);
+        const charge = isMine
+          ? (input.fire ? (localShip.holdSec || 0) : 0)
+          : (live.chargeSec || 0);
         const pipY = SHIP_Y - 14;
         // 3 pips, 3 PF wide each, 2 PF gap. Filled gold if armed,
         // dim outline if used — same convention as SP.
