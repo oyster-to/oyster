@@ -43,7 +43,6 @@ export interface ArtifactStore {
   getBySpaceId(spaceId: string): ArtifactRow[];
   getByPath(absPath: string): ArtifactRow | undefined;
   getDistinctSpaces(): { space_id: string; count: number }[];
-  getByProjectAndSourceRef(projectId: string, sourceRef: string): ArtifactRow | undefined;
   insert(row: InsertRow): void;
   update(id: string, fields: Partial<Omit<ArtifactRow, "id" | "created_at">>): void;
   resurface(id: string): void;
@@ -64,7 +63,6 @@ export class SqliteArtifactStore implements ArtifactStore {
     getBySpaceId: Database.Statement;
     getByPath: Database.Statement;
     getDistinctSpaces: Database.Statement;
-    getByProjectAndSourceRef: Database.Statement;
     getAllArchived: Database.Statement;
     insert: Database.Statement;
     delete: Database.Statement;
@@ -85,9 +83,6 @@ export class SqliteArtifactStore implements ArtifactStore {
       getByPath: db.prepare(`${SELECT} WHERE json_extract(a.storage_config, '$.path') = ? AND a.removed_at IS NULL`),
       getDistinctSpaces: db.prepare(
         "SELECT p.space_id AS space_id, COUNT(*) as count FROM artifacts a JOIN projects p ON p.id = a.project_id WHERE a.removed_at IS NULL GROUP BY p.space_id ORDER BY p.space_id"
-      ),
-      getByProjectAndSourceRef: db.prepare(
-        `${SELECT} WHERE a.project_id = ? AND a.source_ref = ? AND a.removed_at IS NULL`
       ),
       getAllArchived: db.prepare(
         `${SELECT} WHERE a.removed_at IS NOT NULL ORDER BY a.removed_at DESC`
@@ -121,10 +116,6 @@ export class SqliteArtifactStore implements ArtifactStore {
 
   getDistinctSpaces(): { space_id: string; count: number }[] {
     return this.stmts.getDistinctSpaces.all() as { space_id: string; count: number }[];
-  }
-
-  getByProjectAndSourceRef(projectId: string, sourceRef: string): ArtifactRow | undefined {
-    return this.stmts.getByProjectAndSourceRef.get(projectId, sourceRef) as ArtifactRow | undefined;
   }
 
   insert(row: InsertRow): void {
