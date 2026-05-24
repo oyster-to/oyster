@@ -310,11 +310,9 @@ export class ArtifactService {
     debug("artifact-svc", "registerArtifact called", { path: params.path, label: params.label, id: params.id ?? null, project_id: params.project_id ?? null });
     const absPath = resolve(params.path);
 
-    const projectId = params.project_id !== undefined
-      ? params.project_id
-      : lookupProject(this.db, dirname(absPath)).projectId;
-
-    // Validate file exists
+    // Validate file exists before any side-effectful operations (lookupProject
+    // can stamp a .oyster/id marker and cache paths via the project_paths
+    // fallback — we must not do that for a path that doesn't exist).
     if (!existsSync(absPath)) {
       throw new Error(`File does not exist: ${absPath}`);
     }
@@ -329,6 +327,10 @@ export class ArtifactService {
         );
       }
     }
+
+    const projectId = params.project_id !== undefined
+      ? params.project_id
+      : lookupProject(this.db, dirname(absPath)).projectId;
 
     // Infer ID from filename stem if not provided
     const id = params.id || basename(absPath).replace(/\.[^.]+$/, "");
@@ -497,7 +499,8 @@ export class ArtifactService {
     // Approved-root check confirms the file we just wrote stayed within the
     // space's native folder (stricter than the old `[userlandDir]` check —
     // the subdir containment above already guarantees this).
-    const projectId = ensureNativeProject(this.db, this.userlandDir!, space_id);
+    if (!this.userlandDir) throw new Error("createArtifact requires userlandDir (Oyster home) to resolve the native project");
+    const projectId = ensureNativeProject(this.db, this.userlandDir, space_id);
     try {
       return await this.registerArtifact(
         { path: absPath, project_id: projectId, label, artifact_kind: params.artifact_kind, group_name: params.group_name, id, source_origin: params.source_origin },

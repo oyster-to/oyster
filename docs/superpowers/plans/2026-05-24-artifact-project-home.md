@@ -388,12 +388,26 @@ this.stmts = {
   getByPath: db.prepare(`${SELECT} WHERE json_extract(a.storage_config,'$.path') = ? AND a.removed_at IS NULL`),
   getDistinctSpaces: db.prepare(`SELECT p.space_id AS space_id, COUNT(*) as count FROM artifacts a JOIN projects p ON p.id = a.project_id WHERE a.removed_at IS NULL GROUP BY p.space_id ORDER BY p.space_id`),
   getByProjectAndSourceRef: db.prepare(`${SELECT} WHERE a.project_id = ? AND a.source_ref = ?`),
-  insert: db.prepare(`
-    INSERT INTO artifacts (id, owner_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, group_name, source_origin, source_ref, project_id)
-    VALUES (@id, @owner_id, @label, @artifact_kind, @storage_kind, @storage_config, @runtime_kind, @runtime_config, @group_name, COALESCE(@source_origin,'manual'), @source_ref, @project_id)`),
+  // INSERT must be built dynamically too: `space_id` is still NOT NULL until
+  // Task 7 drops it, so while the column exists we must supply a value ('') to
+  // satisfy the constraint; once dropped, we must NOT name it. Mirror the
+  // SELECT's PRAGMA approach.
+  insert: db.prepare(
+    hasSpaceCol
+      ? `INSERT INTO artifacts (id, owner_id, space_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, group_name, source_origin, source_ref, project_id)
+         VALUES (@id, @owner_id, '', @label, @artifact_kind, @storage_kind, @storage_config, @runtime_kind, @runtime_config, @group_name, COALESCE(@source_origin,'manual'), @source_ref, @project_id)`
+      : `INSERT INTO artifacts (id, owner_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, group_name, source_origin, source_ref, project_id)
+         VALUES (@id, @owner_id, @label, @artifact_kind, @storage_kind, @storage_config, @runtime_kind, @runtime_config, @group_name, COALESCE(@source_origin,'manual'), @source_ref, @project_id)`,
+  ),
   delete: db.prepare("DELETE FROM artifacts WHERE id = ?"),
 };
 ```
+
+where `hasSpaceCol` is computed once at the top of the constructor:
+```typescript
+const hasSpaceCol = (db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[]).some((c) => c.name === "space_id");
+```
+The transitional `''` is never read (derived reads use the join alias), and once Task 7 drops the column the store is reconstructed with `hasSpaceCol = false` so the column is no longer named.
 
 > `getBySpaceId` uses `LEFT JOIN` + `WHERE p.space_id = ?` — orphan artifacts (`project_id NULL` → `p.space_id NULL`) never match a real space id, so they're correctly excluded. `getAll` orders by `p.space_id` (the column is gone post-drop). `getDistinctSpaces` inner-joins (orphans absent), matching old behaviour where every artifact had a space.
 
