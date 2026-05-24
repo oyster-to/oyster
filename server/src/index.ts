@@ -272,7 +272,7 @@ delete cleanEnv["OPENAI_API_KEY"];
 
 // ── Artifact store ──
 
-const db = bootTime("initDb (migrations)", () => initDb(DB_DIR));
+const db = bootTime("initDb (migrations)", () => initDb(DB_DIR, OYSTER_HOME));
 const store = new SqliteArtifactStore(db);
 const spaceStore = new SqliteSpaceStore(db);
 const sessionStore = new SqliteSessionStore(db);

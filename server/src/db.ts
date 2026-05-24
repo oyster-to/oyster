@@ -37,9 +37,9 @@ CREATE TABLE IF NOT EXISTS spaces (
 );
 `;
 
-export function initDb(userlandDir: string): Database.Database {
+export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Database {
   const initT0 = performance.now();
-  const dbPath = join(userlandDir, "oyster.db");
+  const dbPath = join(dbDir, "oyster.db");
   const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
   // FK enforcement is required for projects.space_id ON DELETE CASCADE to fire.
@@ -503,7 +503,7 @@ export function initDb(userlandDir: string): Database.Database {
   db.exec("CREATE INDEX IF NOT EXISTS artifacts_project_id ON artifacts(project_id) WHERE project_id IS NOT NULL");
 
   {
-    const r = backfillArtifactProjects(db, userlandDir);
+    const r = backfillArtifactProjects(db, oysterHome);
     if (r.backfilled > 0 || r.mismatches.length > 0) {
       console.log(`[artifact-space] backfilled ${r.backfilled} project_id (of ${r.total}; ${r.hadSpace} had space; ${r.stillOrphan} orphan)`);
       for (const m of r.mismatches) console.log(`[artifact-space] mismatch ${m.id} (${m.path}): space ${m.oldSpace} → ${m.newSpace} (project wins)`);

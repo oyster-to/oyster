@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initDb } from "../src/db.js";
@@ -23,6 +23,36 @@ describe("backfillArtifactProjects", () => {
     db.prepare("INSERT INTO project_paths (project_id, path) VALUES ('p-repo','/repo')").run();
   });
   afterEach(() => { db.close(); rmSync(userland, { recursive: true, force: true }); });
+
+  it("native artifacts resolve correctly when dbDir and oysterHome are distinct dirs", () => {
+    // Simulate the production layout: dbDir = oysterHome/db, oysterHome != dbDir.
+    // The DB lives at oysterHome/db/oyster.db, native artifacts at oysterHome/spaces/<id>/.
+    // Previously initDb forwarded dbDir to the migration, so nativeRoot was
+    // oysterHome/db/spaces — and every native-workspace artifact silently stayed orphan.
+    const oysterHome = mkdtempSync(join(tmpdir(), "oyster-home-"));
+    const dbDir = join(oysterHome, "db");
+    mkdirSync(dbDir, { recursive: true });
+    let distinctDb: ReturnType<typeof initDb> | undefined;
+    try {
+      distinctDb = initDb(dbDir, oysterHome);
+      distinctDb.exec(`INSERT INTO spaces (id, display_name, color, scan_status) VALUES ('work','Work','#000','none')`);
+      const nativePath = join(oysterHome, "spaces", "work", "note.md");
+      distinctDb.prepare(
+        `INSERT INTO artifacts (id, space_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config)
+         VALUES ('a-native-dist', 'work', 'note', 'notes', 'filesystem', ?, 'static_file', '{}')`,
+      ).run(JSON.stringify({ path: nativePath }));
+
+      const report = backfillArtifactProjects(distinctDb, oysterHome);
+
+      // The native artifact must have been assigned a project_id (not orphaned).
+      const row = distinctDb.prepare("SELECT project_id FROM artifacts WHERE id='a-native-dist'").get() as { project_id: string | null };
+      expect(row.project_id).toBeTruthy();
+      expect(report.stillOrphan).toBe(0);
+    } finally {
+      distinctDb?.close();
+      rmSync(oysterHome, { recursive: true, force: true });
+    }
+  });
 
   it("backfills project_id from longest-prefix path, makes native projects, reports counts + mismatches", () => {
     seedArtifact(db, "a-repo", "work", "/repo/docs/report.md");           // resolves to p-repo (space work — matches)

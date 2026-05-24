@@ -19,6 +19,11 @@ export function nativeSpaceDir(userlandDir: string, spaceId: string): string {
  *  already registered for the folder. */
 export function ensureNativeProject(db: Database.Database, userlandDir: string, spaceId: string): string {
   const nativePath = nativeSpaceDir(userlandDir, spaceId);
+  // mkdirSync is called before the DB INSERTs. When invoked from inside a
+  // db.transaction(), the filesystem mkdir isn't rolled back if the txn
+  // aborts — but that's acceptable: the dir will just be empty, and the
+  // next call to ensureNativeProject is idempotent (recursive: true +
+  // path-keyed SELECT-before-INSERT).
   mkdirSync(nativePath, { recursive: true });
   const existing = db
     .prepare("SELECT project_id FROM project_paths WHERE path = ?")

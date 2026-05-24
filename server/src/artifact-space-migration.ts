@@ -71,7 +71,9 @@ export function backfillArtifactProjects(db: Database.Database, userlandDir: str
         )
         .all() as { id: string; space_id: string; project_id: string; path: string }[];
       for (const row of withBoth) {
-        const newSpace = (projectSpace.get(row.project_id) as { space_id: string | null }).space_id;
+        const projectRow = projectSpace.get(row.project_id) as { space_id: string | null } | undefined;
+        if (!projectRow) continue; // stale project_id — skip
+        const newSpace = projectRow.space_id;
         if (row.space_id !== newSpace) {
           report.mismatches.push({ id: row.id, path: row.path, oldSpace: row.space_id, newSpace });
         }
