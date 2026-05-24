@@ -372,6 +372,9 @@
     INV_W, INV_H, INV_COLS,
     SHIELD_W, SHIELD_H, SHIELD_COUNT, SHIELD_Y,
     decodeShields, shieldOffsets,
+    SUPER_SHOT_MAX, CHARGE_THRESHOLD_SEC,
+    CHARGED_BULLET_W, CHARGED_BULLET_H,
+    comboMultiplier,
     SEATS, MAX_SEATS,
   } = engine;
   import { ROW_COLORS, spriteForRow, paintPixels, paintShip } from './sprites.js';
@@ -410,7 +413,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 22;
+  const NETCODE_VERSION = 23;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -620,7 +623,7 @@
   // Local prediction state — only the seat we own. Integrated from
   // input each rAF frame using server-identical physics, snapped to the
   // server when we diverge (network drops, death/respawn).
-  const localShip = { x: null, cooldown: 0 };
+  const localShip = { x: null, cooldown: 0, holdSec: 0 };
   const ghostBullets = []; // [{ x, y, born }] — locally-predicted, fade after GHOST_TTL_MS
   let prevFrameT = 0;
   let posTimer = null;
@@ -1338,16 +1341,32 @@
     //    time the server's authoritative bullet has appeared in a
     //    snapshot and taken over the visual.
     localShip.cooldown = Math.max(0, localShip.cooldown - dt);
+    // Mirror the engine's hold-time tracking so the ghost bullet can
+    // preview a super-shot the moment the threshold is crossed (and
+    // ammo is still in stock per the latest snapshot).
+    if (input.fire) localShip.holdSec += dt;
+    else            localShip.holdSec = 0;
     if (input.fire && localShip.cooldown <= 0 && localAlive()) {
+      const me = mySeat && lastState ? lastState.players[SEATS.indexOf(mySeat)] : null;
+      const myAmmo = me ? (me.superAmmo | 0) : 0;
+      const charged = localShip.holdSec >= CHARGE_THRESHOLD_SEC && myAmmo > 0;
+      const bw = charged ? CHARGED_BULLET_W : BULLET_W;
+      const bh = charged ? CHARGED_BULLET_H : BULLET_H;
       ghostBullets.push({
-        x: localShip.x + SHIP_W / 2 - BULLET_W / 2,
-        y: SHIP_Y - BULLET_H,
+        x: localShip.x + SHIP_W / 2 - bw / 2,
+        y: SHIP_Y - bh,
         born: now,
+        charged: charged,
       });
       localShip.cooldown = FIRE_COOLDOWN;
-      Arcade.Audio.play('sfx-shoot', 0.55);
+      localShip.holdSec = 0;
+      Arcade.Audio.play('sfx-shoot', charged ? 0.75 : 0.55);
     }
-    for (const gb of ghostBullets) gb.y -= BULLET_SPEED * dt;
+    // Ghost bullets travel at the same speeds the engine uses (BULLET_
+    // SPEED for normal, CHARGED_BULLET_SPEED for super) so the visual
+    // hand-off lines up cleanly when the authoritative snapshot lands.
+    const CHARGED_GHOST_SPEED = 380;
+    for (const gb of ghostBullets) gb.y -= (gb.charged ? CHARGED_GHOST_SPEED : BULLET_SPEED) * dt;
     for (let i = ghostBullets.length - 1; i >= 0; i--) {
       if (now - ghostBullets[i].born > GHOST_TTL_MS || ghostBullets[i].y < -BULLET_H) {
         ghostBullets.splice(i, 1);
@@ -1424,6 +1443,47 @@
         ctx.fillText(live.name, x + SHIP_W / 2, SHIP_Y - 7);
         ctx.globalAlpha = 1;
       }
+
+      // Super-shot pips + charge bar above the ship. Mirrors SP's
+      // drawPlayer block (pips line, optional charge bar, halo when
+      // fully charged). Skipped during the name fade-in window so
+      // the lobby/countdown looks clean; only renders during play.
+      if (latestSnap.status === 'running') {
+        const ammo = (live.superAmmo | 0);
+        const charge = (live.chargeSec || 0);
+        const pipY = SHIP_Y - 14;
+        // 3 pips, 3 PF wide each, 2 PF gap. Filled gold if armed,
+        // dim outline if used — same convention as SP.
+        for (let p = 0; p < SUPER_SHOT_MAX; p++) {
+          const px = x + 1 + p * 5;
+          if (p < ammo) {
+            ctx.fillStyle = '#ffd84a';
+            ctx.fillRect(px, pipY, 3, 3);
+          } else {
+            ctx.fillStyle = 'rgba(255, 216, 74, 0.22)';
+            ctx.fillRect(px, pipY, 3, 3);
+          }
+        }
+        // Charge progress bar under the pips while holding (only
+        // when there's ammo to consume — bar wouldn't fire a super
+        // otherwise so don't tease the player).
+        if (charge > 0 && ammo > 0) {
+          const ratio = Math.min(1, charge / CHARGE_THRESHOLD_SEC);
+          ctx.fillStyle = 'rgba(255, 216, 74, 0.25)';
+          ctx.fillRect(x, SHIP_Y - 7, SHIP_W, 2);
+          ctx.fillStyle = '#ffd84a';
+          ctx.fillRect(x, SHIP_Y - 7, SHIP_W * ratio, 2);
+        }
+        // Pulsing halo when fully charged + ready to release. Tiny
+        // 1-PF inflation/contraction every 90 ms; subtle, just enough
+        // to draw the eye to "tap fire now".
+        if (charge >= CHARGE_THRESHOLD_SEC && ammo > 0) {
+          const pulse = 1 + Math.floor(performance.now() / 90) % 2;
+          ctx.fillStyle = 'rgba(255, 216, 74, 0.35)';
+          ctx.fillRect(x - pulse, SHIP_Y - 4 - pulse,
+                       SHIP_W + pulse * 2, 4 + 4 + pulse * 2);
+        }
+      }
     }
 
     // Invaders — lerp by array index (engine emits the grid in a stable
@@ -1484,13 +1544,34 @@
     }
 
     // Bullets — drawn from the latest snapshot (server-authoritative
-    // for spawn time + trajectory). Ghost bullets layered on top.
-    ctx.fillStyle = '#ffd84a';
-    for (const bl of latestSnap.bullets)        ctx.fillRect(bl.x, bl.y, BULLET_W, BULLET_H);
+    // for spawn time + trajectory). Normal bullets paint gold-on-
+    // white-core; charged super-shots paint fat gold + white core
+    // like SP, so the punch reads at a glance. Ghost bullets layered
+    // on top with the same charged/normal distinction.
+    for (const bl of latestSnap.bullets) {
+      if (bl.c) {
+        ctx.fillStyle = '#ffd84a';
+        ctx.fillRect(bl.x, bl.y, CHARGED_BULLET_W, CHARGED_BULLET_H);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(bl.x + 1, bl.y + 1, CHARGED_BULLET_W - 2, CHARGED_BULLET_H - 2);
+      } else {
+        ctx.fillStyle = '#ffd84a';
+        ctx.fillRect(bl.x, bl.y, BULLET_W, BULLET_H);
+      }
+    }
     ctx.fillStyle = '#ff6666';
     for (const bl of latestSnap.invaderBullets) ctx.fillRect(bl.x, bl.y, BULLET_W, BULLET_H);
-    ctx.fillStyle = 'rgba(255, 216, 74, 0.7)';
-    for (const gb of ghostBullets)              ctx.fillRect(gb.x, gb.y, BULLET_W, BULLET_H);
+    for (const gb of ghostBullets) {
+      if (gb.charged) {
+        ctx.fillStyle = 'rgba(255, 216, 74, 0.7)';
+        ctx.fillRect(gb.x, gb.y, CHARGED_BULLET_W, CHARGED_BULLET_H);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.fillRect(gb.x + 1, gb.y + 1, CHARGED_BULLET_W - 2, CHARGED_BULLET_H - 2);
+      } else {
+        ctx.fillStyle = 'rgba(255, 216, 74, 0.7)';
+        ctx.fillRect(gb.x, gb.y, BULLET_W, BULLET_H);
+      }
+    }
 
     // Countdown overlay (3/2/1) + a brief ATTACK! flash on the
     // countdown → running transition. Server publishes
@@ -1543,6 +1624,16 @@
       ctx.fillText('SCORE', 6, 4);
       ctx.fillStyle = seatIdx >= 0 ? SHIP_COLORS[seatIdx] : '#ffffff';
       ctx.fillText(String(myScore).padStart(4, '0'), 6, 12);
+      // Combo multiplier badge next to the score — only shown when
+      // the chain is at ×2 or higher (×1 = "no combo", don't add
+      // noise). Gold so it reads as a positive bonus indicator.
+      if (me && me.combo > 0) {
+        const mult = comboMultiplier(me.combo);
+        if (mult > 1) {
+          ctx.fillStyle = '#ffd84a';
+          ctx.fillText('x' + mult, 6 + 26, 12);
+        }
+      }
 
       // STAGE — centred. Placeholder "1-1" until Phase G.
       ctx.textAlign = 'center';
