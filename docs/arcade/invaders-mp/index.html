@@ -1432,11 +1432,13 @@
       // at varying alpha, which reads as flicker during continuous
       // motion. Rounding makes the swarm step pixel-by-pixel (the
       // pixel-art look) instead of sub-pixel sliding.
-      // 2× scale matches SP's chunky invader silhouette. Integer
-      // scale keeps every sprite pixel landing on whole PF coords,
-      // so image-rendering: pixelated stays crisp on the canvas
-      // upscale even as the swarm slides.
-      const SPRITE_SCALE = 2;
+      // 1.5× sprite scale = SP-exact match. 8-px source sprite paints
+      // 12 PF wide inside the 18 PF cell with 3 PF padding each side.
+      // Fractional scale is OK because cellX/cellY are Math.round'd —
+      // the within-sprite offsets are then constant per-frame, so
+      // anti-aliased edges stay still (no flicker on the canvas
+      // bitmap, just slightly soft edges when CSS-upscaled).
+      const SPRITE_SCALE = 1.5;
       const cellX = Math.round(lerp(ia.x, ib.x) + (INV_W - w * SPRITE_SCALE) / 2);
       const cellY = Math.round(lerp(ia.y, ib.y));
       paintPixels(ctx, cellX, cellY, frames[frame], SPRITE_SCALE, ROW_COLORS[row] || '#ffffff');

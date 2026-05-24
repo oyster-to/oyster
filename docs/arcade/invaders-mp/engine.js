@@ -41,17 +41,20 @@ const INV_BULLET_SPEED = 120;
 
 // === Invaders ===
 const INV_ROWS = 5;
-// 11 columns to match SP. Cells are 18×16 (sprites render at 2×
-// scale, so the 8×8 source sprite paints 16×16 with 1px padding
-// inside the 18-wide cell). With INV_GAP_X = 18 the cells touch
-// edge-to-edge, giving the dense SP look. Grid spans
-// (11-1)*18 + 18 = 198 PF wide; centred in PF=260 leaves
-// (260-198)/2 = 31 PF margin each side.
+// SP parity: 11 cols, 18×12 cells, sprites rendered at 1.5× so an
+// 8×8 source paints 12×12, with 3 PF padding inside the 18-wide cell.
+// INV_GAP_X = 18 → cells touch edge-to-edge. INV_GAP_Y = 15 → 3 PF
+// row gap (sprite 12 tall + 3 = 15). Grid spans 11*18 = 198 PF in
+// PF=260 → 31 PF margin each side. Fractional sprite scale is fine
+// here because cellX/cellY are Math.round'd in the renderer, so the
+// within-sprite fractional offsets are constant per-frame (anti-
+// aliased edges stay still — no flicker; only positions changing
+// per-frame caused the old shimmer).
 export const INV_COLS = 11;
 export const INV_W = 18;
-export const INV_H = 16;
+export const INV_H = 12;
 const INV_GAP_X = 18;
-const INV_GAP_Y = 19;            // 16-tall sprite + 3 PF row gap
+const INV_GAP_Y = 15;
 const INV_ORIGIN_X = 31;
 const INV_ORIGIN_Y = 24;
 const INV_DROP = 8;
