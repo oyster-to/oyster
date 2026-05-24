@@ -2,10 +2,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve, relative, sep } from "node:path";
 import type { Ignore } from "ignore";
 import ignore from "ignore";
+import type Database from "better-sqlite3";
 import type { SpaceStore, SpaceRow } from "./space-store.js";
 import type { ArtifactStore } from "./artifact-store.js";
 import type { ArtifactService } from "./artifact-service.js";
-import type { SessionStore } from "./session-store.js";
 import type { SpaceSyncService } from "./space-sync-service.js";
 import type { Space } from "../../shared/types.js";
 import { slugify, toScanStatus } from "./utils.js";
@@ -72,10 +72,10 @@ export class SpaceService {
     private spaceStore: SpaceStore,
     private artifactStore: ArtifactStore,
     _artifactService: ArtifactService,
-    _sessionStore: SessionStore,
+    private db: Database.Database,
     private spaceSync?: SpaceSyncService,
   ) {
-    void _artifactService; void _sessionStore;
+    void _artifactService;
   }
 
   createSpace(params: { name: string }): Space {
@@ -140,9 +140,31 @@ export class SpaceService {
   convertFolderToSpace(sourceSpaceId: string, folderName: string, targetSpaceId: string): void {
     const artifacts = this.artifactStore.getBySpaceId(sourceSpaceId)
       .filter(a => a.group_name === folderName);
-    for (const a of artifacts) {
-      this.artifactStore.update(a.id, { space_id: targetSpaceId, group_name: null });
-    }
+    const projectIds = Array.from(
+      new Set(artifacts.map(a => a.project_id).filter((p): p is string => p !== null)),
+    );
+    // Atomic: the project move, session sync, and label clear must all land or
+    // none — a mid-way throw must not leave projects moved but artifacts/sessions
+    // stale (user-visible split state).
+    this.db.transaction(() => {
+      // Move the owning projects to the target space so artifacts derive the new
+      // space via the project JOIN (artifact.space_id is derived, not stored).
+      for (const pid of projectIds) {
+        this.db.prepare("UPDATE projects SET space_id = ? WHERE id = ?").run(targetSpaceId, pid);
+      }
+      // sessions.space_id is a stored column (not derived), so reassigning projects
+      // doesn't move sessions. Sync sessions belonging to those projects.
+      if (projectIds.length > 0) {
+        const placeholders = projectIds.map(() => "?").join(", ");
+        this.db
+          .prepare(`UPDATE sessions SET space_id = ? WHERE project_id IN (${placeholders})`)
+          .run(targetSpaceId, ...projectIds);
+      }
+      // Clear group_name so the artifacts no longer appear as a folder in the source space.
+      for (const a of artifacts) {
+        this.artifactStore.update(a.id, { group_name: null });
+      }
+    })();
   }
 
   deleteSpace(id: string, folderNameOverride?: string): void {
@@ -150,15 +172,39 @@ export class SpaceService {
     const row = this.spaceStore.getById(id);
     if (!row) throw new Error(`Space "${id}" not found`);
     const folderName = folderNameOverride ?? row?.display_name ?? id;
-    const artifacts = this.artifactStore.getBySpaceId(id);
-    // Move orphaned artifacts to home in a folder named after the deleted space
-    for (const a of artifacts) {
-      this.artifactStore.update(a.id, { space_id: "home", group_name: folderName });
-    }
-    // Soft-delete locally; cloud propagates the tombstone via pushDelete.
-    // (pushDelete is fire-and-forget; the pending-delete sweep in the next
-    // reconcile() retries on failure.)
-    this.spaceStore.softDelete(id);
+    // Atomic: sessions sync, project move, artifact relabel, and tombstone must
+    // all land or none. (pushDelete is a network call and stays OUTSIDE the txn.)
+    this.db.transaction(() => {
+      // Collect artifacts in the deleted space BEFORE reassigning projects, so we
+      // can relabel them afterward.
+      const artifactsToLabel = this.artifactStore.getBySpaceId(id);
+      // Capture the deleted space's projects BEFORE moving them, so we can sync
+      // sessions by project membership (covers a session whose stored space_id has
+      // drifted/NULL but whose project is in this space).
+      const projectIds = (this.db.prepare("SELECT id FROM projects WHERE space_id = ?").all(id) as { id: string }[])
+        .map(r => r.id);
+      // Move sessions to 'home' by BOTH project membership and the stored space id.
+      if (projectIds.length > 0) {
+        const placeholders = projectIds.map(() => "?").join(", ");
+        this.db
+          .prepare(`UPDATE sessions SET space_id = 'home' WHERE project_id IN (${placeholders}) OR space_id = ?`)
+          .run(...projectIds, id);
+      } else {
+        this.db.prepare("UPDATE sessions SET space_id = 'home' WHERE space_id = ?").run(id);
+      }
+      // Reassign the deleted space's projects to "home" so their artifacts derive
+      // the correct space via the project JOIN (artifact.space_id is derived, not
+      // stored — writing it would be a silent no-op).
+      this.db.prepare("UPDATE projects SET space_id = 'home' WHERE space_id = ?").run(id);
+      // Apply the folder label so the moved artifacts appear grouped in "home"
+      // under the deleted space's display name.
+      for (const a of artifactsToLabel) {
+        this.artifactStore.update(a.id, { group_name: folderName });
+      }
+      // Soft-delete locally; cloud propagates the tombstone via pushDelete.
+      this.spaceStore.softDelete(id);
+    })();
+    // Fire-and-forget; the pending-delete sweep in the next reconcile() retries on failure.
     void this.spaceSync?.pushDelete(id);
   }
 }

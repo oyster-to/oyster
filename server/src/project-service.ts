@@ -261,7 +261,7 @@ export class ProjectService {
         .prepare("UPDATE projects SET removed_at = NULL, space_id = ? WHERE id = ?")
         .run(spaceId, projectId);
       this.db.prepare("UPDATE sessions SET space_id = ? WHERE project_id = ?").run(spaceId, projectId);
-      this.db.prepare("UPDATE artifacts SET space_id = ? WHERE project_id = ?").run(spaceId, projectId);
+      // artifacts.space_id has been dropped; space is derived at read-time via project JOIN.
     })();
   }
 
@@ -344,8 +344,8 @@ export class ProjectService {
         .prepare("UPDATE sessions SET project_id = ?, space_id = ? WHERE project_id = ?")
         .run(into.id, into.space_id, args.fromId);
       const artefacts = this.db
-        .prepare("UPDATE artifacts SET project_id = ?, space_id = ? WHERE project_id = ?")
-        .run(into.id, into.space_id, args.fromId);
+        .prepare("UPDATE artifacts SET project_id = ? WHERE project_id = ?")
+        .run(into.id, args.fromId);
       // De-dup PK conflicts (same path cached against both projects) by
       // dropping the loser's row before the bulk update.
       this.db

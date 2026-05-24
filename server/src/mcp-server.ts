@@ -321,7 +321,7 @@ See the "Set up Oyster for me" playbook above for the full audit + propose + app
 - Use \`create_artifact\` to write a new file and register it in one step.
 - After \`create_artifact\`, always call \`reveal_artifact\` with the new artifact's id — this switches the user's desktop to the right space and highlights the icon so they know where it landed.
 - Use \`read_artifact\` to read the content of an existing static file artifact.
-- Use \`update_artifact\` to rename, reassign to a different space, or change the group.
+- Use \`update_artifact\` to rename, change the kind, or change the group. Space is derived from the artifact's project and cannot be reassigned here.
 - Use \`remove_artifact\` to archive an artifact (hide from surface, reversible). The file and record are preserved and accessible via the archived view.
 
 **Archived / removed artifacts:**
@@ -579,10 +579,9 @@ export function createMcpServer(deps: McpDeps): McpServer {
 
   tool(
     "register_artifact",
-    "Register a file that already exists on disk as a desktop artifact. Use this only when the file already exists. To create new content and register it in one step, use create_artifact instead. Any absolute path the server can read is accepted; prefer files the user controls (inside a registered space folder or a repo the user has attached). Kind and ID are inferred from the filename if not provided.",
+    "Register a file that already exists on disk as a desktop artifact. Use this only when the file already exists. To create new content and register it in one step, use create_artifact instead. Any absolute path the server can read is accepted; prefer files the user controls (inside a registered space folder or a repo the user has attached). The space is derived automatically from the file's path via its project. Kind and ID are inferred from the filename if not provided.",
     {
       path: z.string().describe("Absolute path to the file"),
-      space_id: z.string().describe("Space to place the artifact in (use `list_spaces` to see what's available)"),
       label: z.string().describe("Display name on the desktop"),
       id: z.string().optional().describe("Kebab-case ID (inferred from filename if omitted)"),
       artifact_kind: z
@@ -591,10 +590,10 @@ export function createMcpServer(deps: McpDeps): McpServer {
         .describe("Artifact kind (inferred from file extension if omitted)"),
       group_name: z.string().optional().describe("Group name for visual grouping on the surface"),
     },
-    async ({ path, space_id, label, id, artifact_kind, group_name }) => {
-      debug("mcp", "register_artifact invoked", { path, label, id: id ?? null, space_id, kind: artifact_kind ?? null });
+    async ({ path, label, id, artifact_kind, group_name }) => {
+      debug("mcp", "register_artifact invoked", { path, label, id: id ?? null, kind: artifact_kind ?? null });
       return deps.service.registerArtifact(
-        { path, space_id, label, id, artifact_kind, group_name },
+        { path, label, id, artifact_kind, group_name },
         [], // MCP callers are trusted — no path restriction
       );
     },
@@ -651,18 +650,16 @@ export function createMcpServer(deps: McpDeps): McpServer {
 
   tool(
     "update_artifact",
-    "Update display metadata: label, space assignment, group name, or artifact kind. Does not rename or move the file on disk.",
+    "Update display metadata: label, group name, or artifact kind. Space follows the artifact's project (derived from file path) and cannot be reassigned here. Does not rename or move the file on disk.",
     {
       id: z.string().describe("Artifact ID to update"),
       label: z.string().optional().describe("New display name"),
-      space_id: z.string().optional().describe("Reassign to a different space (tab). Does not move the file."),
       group_name: z.string().optional().describe("Change visual group. Pass empty string to remove grouping."),
       artifact_kind: z.enum(["app", "deck", "map", "notes", "diagram", "wireframe", "table"]).optional().describe("Correct the artifact kind if it was inferred incorrectly."),
     },
-    async ({ id, label, space_id, group_name, artifact_kind }) => {
+    async ({ id, label, group_name, artifact_kind }) => {
       const updated = await deps.service.updateArtifact(id, {
         label,
-        space_id,
         artifact_kind,
         ...(group_name !== undefined ? { group_name: group_name || null } : {}),
       });
