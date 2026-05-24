@@ -41,15 +41,21 @@ const INV_BULLET_SPEED = 120;
 
 // === Invaders ===
 const INV_ROWS = 5;
-// 11 columns to match SP. With INV_GAP_X=18 and INV_W=12, the grid
-// spans (11-1)*18 + 12 = 192 PF units wide; centred in the PF=260
-// playfield leaves a (260-192)/2 = 34 PF left/right margin.
+// SP parity: 11 cols, 18×12 cells, sprites rendered at 1.5× so an
+// 8×8 source paints 12×12, with 3 PF padding inside the 18-wide cell.
+// INV_GAP_X = 18 → cells touch edge-to-edge. INV_GAP_Y = 15 → 3 PF
+// row gap (sprite 12 tall + 3 = 15). Grid spans 11*18 = 198 PF in
+// PF=260 → 31 PF margin each side. Fractional sprite scale is fine
+// here because cellX/cellY are Math.round'd in the renderer, so the
+// within-sprite fractional offsets are constant per-frame (anti-
+// aliased edges stay still — no flicker; only positions changing
+// per-frame caused the old shimmer).
 export const INV_COLS = 11;
-export const INV_W = 12;
-export const INV_H = 8;
+export const INV_W = 18;
+export const INV_H = 12;
 const INV_GAP_X = 18;
-const INV_GAP_Y = 14;
-const INV_ORIGIN_X = 34;
+const INV_GAP_Y = 15;
+const INV_ORIGIN_X = 31;
 const INV_ORIGIN_Y = 24;
 const INV_DROP = 8;
 // Per-row point value, top→bottom. Matches SP — top row (squid) is
@@ -65,6 +71,65 @@ const INV_SPEED_MIN  = 20;
 // teleport at the current tick rate.
 const INV_DROP_SPEED = 64;
 const INV_FIRE_INTERVAL = 1.4;
+
+// === Shields ===
+// 4 destructible bunkers between the swarm and the ship row, ported
+// from SP. Shared across all players in MP: the whole team shoots
+// through the same bunkers and both player + invader bullets chip
+// the same bitmap. State lives in state.shields as a flat Uint8Array
+// of length SHIELD_COUNT * SHIELD_W * SHIELD_H (each cell 0 or 1).
+export const SHIELD_W = 22;
+export const SHIELD_H = 16;
+export const SHIELD_COUNT = 4;
+export const SHIELD_Y = SHIP_Y - 30;            // sits just above the ship row
+// Pre-computed left-x of each shield — integer PF coords so fillRect
+// stays on whole device pixels (fractional positions would anti-alias
+// edges and make collision math vary with sub-pixel offsets). With
+// PF_W=260, 4×22 wide + 5 gaps = 172 PF for 5 gaps → 34 base each +
+// 2 remainder. Spread the remainder symmetrically into the outermost
+// (left + right) margins so shields stay centred.
+const SHIELD_BASE_GAP = Math.floor((PF_W - SHIELD_W * SHIELD_COUNT) / (SHIELD_COUNT + 1));
+const SHIELD_REM      = PF_W - SHIELD_W * SHIELD_COUNT - SHIELD_BASE_GAP * (SHIELD_COUNT + 1);
+const SHIELD_LEFT_PAD = SHIELD_BASE_GAP + Math.ceil(SHIELD_REM / 2);
+const SHIELD_X = [];
+for (let s = 0; s < SHIELD_COUNT; s++) {
+  SHIELD_X.push(SHIELD_LEFT_PAD + s * (SHIELD_W + SHIELD_BASE_GAP));
+}
+
+// Classic Invaders bunker silhouette: dome top + flat sides + a small
+// arched alcove at the bottom centre so the ship can crouch under it.
+// Each row is SHIELD_W chars; 'X' = solid, anything else = empty.
+const SHIELD_SHAPE = [
+  '.....XXXXXXXXXXXX.....',
+  '...XXXXXXXXXXXXXXXX...',
+  '..XXXXXXXXXXXXXXXXXX..',
+  '.XXXXXXXXXXXXXXXXXXXX.',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXX......XXXXXXXX',
+  'XXXXXXX........XXXXXXX',
+  'XXXXXXX........XXXXXXX',
+  'XXXXXXX........XXXXXXX',
+];
+function makeShields() {
+  const buf = new Uint8Array(SHIELD_COUNT * SHIELD_W * SHIELD_H);
+  for (let s = 0; s < SHIELD_COUNT; s++) {
+    const base = s * SHIELD_W * SHIELD_H;
+    for (let y = 0; y < SHIELD_H; y++) {
+      const row = SHIELD_SHAPE[y];
+      for (let x = 0; x < SHIELD_W; x++) {
+        buf[base + y * SHIELD_W + x] = row[x] === 'X' ? 1 : 0;
+      }
+    }
+  }
+  return buf;
+}
 
 // === Lives + respawn ===
 // Shared pool of respawn tokens. 3 means up to 3 ship deaths get
@@ -124,6 +189,10 @@ export function initState() {
     bullets: [],
     invaderBullets: [],
     invaders: buildGrid(),
+    // Shared destructible shields — flat Uint8Array of all
+    // SHIELD_COUNT bunkers. Bullets chip cells to 0; renderer reads
+    // the bitmap directly.
+    shields: makeShields(),
     invaderDir: 1,
     invaderDropRemaining: 0,
     invaderFireAccum: 0,
@@ -293,9 +362,51 @@ function stepInvaderFire(state, dt) {
   });
 }
 
+// Chip the shared shield bitmap where a bullet AABB overlaps.
+// Returns true if at least one solid cell was destroyed (caller kills
+// the bullet on hit). Walks only the overlap region — typically a
+// 2×6 (player bullet) or 2×6 (invader bullet) cell window, so this
+// stays cheap even with many bullets.
+function damageShields(state, bx, by, bw, bh) {
+  for (let s = 0; s < SHIELD_COUNT; s++) {
+    const sx = SHIELD_X[s];
+    if (bx + bw <= sx || bx >= sx + SHIELD_W) continue;
+    if (by + bh <= SHIELD_Y || by >= SHIELD_Y + SHIELD_H) continue;
+    const base = s * SHIELD_W * SHIELD_H;
+    const xLo = Math.max(0, Math.floor(bx - sx));
+    const xHi = Math.min(SHIELD_W, Math.ceil(bx + bw - sx));
+    const yLo = Math.max(0, Math.floor(by - SHIELD_Y));
+    const yHi = Math.min(SHIELD_H, Math.ceil(by + bh - SHIELD_Y));
+    let hit = false;
+    for (let y = yLo; y < yHi; y++) {
+      const row = base + y * SHIELD_W;
+      for (let x = xLo; x < xHi; x++) {
+        if (state.shields[row + x]) {
+          state.shields[row + x] = 0;
+          hit = true;
+        }
+      }
+    }
+    if (hit) return true;       // a bullet only hits one shield at a time
+  }
+  return false;
+}
+
 function resolveCollisions(state, occupied) {
-  // Player bullets vs invaders. Out-of-array marker (b.y = -999) gets
-  // swept by the next stepBullets — cheaper than splicing inside
+  // Player bullets vs shields, FIRST — a bullet that clipped the top
+  // of a shield never reaches an invader, so we resolve shields before
+  // invader hits. Killed bullets are flagged with the out-of-bounds
+  // marker (-999); the .filter sweep at the bottom of this function
+  // removes them in the same tick (no carry-over to next step).
+  for (const b of state.bullets) {
+    if (b.y < -BULLET_H) continue;
+    if (damageShields(state, b.x, b.y, BULLET_W, BULLET_H)) {
+      b.y = -999;
+    }
+  }
+
+  // Player bullets vs invaders. Out-of-array marker (b.y = -999) is
+  // filtered out at the bottom of this function — cheaper than splicing inside
   // a nested loop. Points are credited to the bullet's owner using
   // the row of the killed invader (top row = squid = 30, bottom row
   // = octopus = 10).
@@ -314,6 +425,16 @@ function resolveCollisions(state, occupied) {
     }
   }
   state.bullets = state.bullets.filter(b => b.y > -BULLET_H);
+
+  // Invader bullets vs shields, FIRST — chip the bunkers, kill the
+  // bullet, before any per-ship check. A bullet that hit a shield
+  // never reaches the ship below it.
+  for (const b of state.invaderBullets) {
+    if (b.y > PF_H) continue;
+    if (damageShields(state, b.x, b.y, BULLET_W, BULLET_H)) {
+      b.y = PF_H + 999;
+    }
+  }
 
   // Invader bullets vs ships. Skip unoccupied seats AND ships that
   // are in their post-respawn invulnerability window. On hit: if the
@@ -368,6 +489,40 @@ function overlap(ax, ay, aw, ah, bx, by, bw, bh) {
 
 function round(n) { return Math.round(n * 10) / 10; }
 
+// Pack the SHIELD_COUNT * SHIELD_W * SHIELD_H bit array into a
+// base64 string for the wire. 1408 bits / 8 = 176 bytes → ~236
+// chars of base64. Renders the whole bitmap, no diff/RLE — easy to
+// reason about, trivial bandwidth. btoa is supported in both
+// browsers and Cloudflare Workers.
+export function encodeShields(bits) {
+  const packed = new Uint8Array((bits.length + 7) >> 3);
+  for (let i = 0; i < bits.length; i++) {
+    if (bits[i]) packed[i >> 3] |= 1 << (7 - (i & 7));
+  }
+  // Single-call fromCharCode via spread — avoids the repeated string
+  // allocation + GC churn of `bin += ...` in a loop. The packed
+  // bitmap is 176 bytes, well under JS engines' call-arg limits.
+  return btoa(String.fromCharCode.apply(null, packed));
+}
+
+// Inverse of encodeShields — client-side, takes the base64 string
+// from the wire and returns the bits Uint8Array suitable for direct
+// rendering.
+export function decodeShields(b64) {
+  const bin = atob(b64);
+  const bits = new Uint8Array(SHIELD_COUNT * SHIELD_W * SHIELD_H);
+  for (let i = 0; i < bits.length; i++) {
+    if (bin.charCodeAt(i >> 3) & (1 << (7 - (i & 7)))) bits[i] = 1;
+  }
+  return bits;
+}
+
+// Public accessor for the per-shield left-x positions — the renderer
+// uses these to translate the bitmap into world coordinates.
+export function shieldOffsets() {
+  return SHIELD_X.slice();
+}
+
 export function snapshotForClient(state) {
   let teamScore = 0;
   for (const s of SEATS) teamScore += state.ships[s].score | 0;
@@ -408,5 +563,10 @@ export function snapshotForClient(state) {
     // client renders the same pose at the same tick instead of each
     // running its own time-based ticker.
     iFrame:         state.invaderFrame,
+    // Packed shield bitmap (~236 chars). Every snapshot includes
+    // the full bitmap — small enough that diffing or change-tracking
+    // would be premature optimisation. Client decodes once per
+    // snapshot and renders straight from the resulting Uint8Array.
+    shieldsBits:    encodeShields(state.shields),
   };
 }

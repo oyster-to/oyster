@@ -46,7 +46,12 @@ export function spriteForRow(row) {
 }
 
 // Paint a bitmap to the canvas in playfield units. Each source pixel
-// becomes a scale × scale rect.
+// becomes a scale × scale rect. Used by the invader renderer with
+// scale=1.5 to match SP's drawSquid/drawCrab/drawOctopus pipeline —
+// the canvas is at display resolution (set via fitCanvas), so
+// fractional rects anti-alias at sub-device-pixel level (invisible)
+// rather than warping like they would in a low-res CSS-upscaled
+// bitmap.
 export function paintPixels(ctx, px, py, pixels, scale, color) {
   ctx.fillStyle = color;
   for (let y = 0; y < pixels.length; y++) {

@@ -32,8 +32,12 @@
   }
   .tube canvas {
     width: auto; height: auto;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
+    /* No image-rendering — fitCanvas sizes the canvas to its CSS
+       display size × DPR (SP's approach), so there's no
+       browser-level upscale to control. The canvas bitmap is at
+       device-pixel resolution; the in-engine ctx.setTransform maps
+       PF coords directly. Crisp at any scale, no nearest-neighbour
+       8→12 warping. */
   }
 
   /* Touch-device safe-area. Shared cabinet.css drops .screen padding
@@ -354,20 +358,29 @@
 <script type="module">
   // Single source of truth for game logic, shared with the server
   // (which bundles this same file via wrangler import).
-  import {
+  // Namespace import (not destructured `import { ... }`) so a missing
+  // export from a stale-cached engine.js doesn't hard-fail the module
+  // link and white-screen the page. Destructure below; any missing
+  // member becomes `undefined` rather than a load-time error, so the
+  // page still renders (just hides the affected feature) during a
+  // brief deploy-crossover window.
+  import * as engine from './engine.js';
+  const {
     initState, step, snapshotForClient, zeroInput,
     PF_W, PF_H, SHIP_W, SHIP_H, SHIP_Y, SHIP_SPEED, FIRE_COOLDOWN,
     BULLET_W, BULLET_H, BULLET_SPEED,
-    INV_W, INV_H,
+    INV_W, INV_H, INV_COLS,
+    SHIELD_W, SHIELD_H, SHIELD_COUNT, SHIELD_Y,
+    decodeShields, shieldOffsets,
     SEATS, MAX_SEATS,
-  } from './engine.js';
+  } = engine;
   import { ROW_COLORS, spriteForRow, paintPixels, paintShip } from './sprites.js';
-  // Mirror engine.js's INV_COLS instead of named-importing it. Named
-  // imports of missing exports are a hard module-link error: if an old
-  // edge-cached engine.js gets paired with this fresh index.html (rare
-  // but possible during a deploy crossover), the page wouldn't load
-  // at all. Keep this in sync when engine.js changes the grid width.
-  const SPRITE_COLS = 11;
+  // Renderer uses INV_COLS to map invader array index → grid row. It
+  // happens to equal 11 in the current engine; mirror as a const so a
+  // future engine.INV_COLS change forces an audit here rather than
+  // silently picking up a different value (the sprite-row map +
+  // bullet-fire column logic depend on it).
+  const SPRITE_COLS = INV_COLS ?? 11;
 
   // Register SFX with the shared audio module. The volume/muted keys
   // are the global arcade keys so the slider state carries across
@@ -397,7 +410,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 21;
+  const NETCODE_VERSION = 22;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -1234,27 +1247,36 @@
   // ship + ghost bullets layered on top.
   const canvas = document.getElementById('cv');
   const ctx = canvas.getContext('2d');
-
   function fitCanvas() {
-    // Measure the tube, not the screen — the screen includes bezel
-    // padding; the tube is the actual visible playfield area. Subtract
-    // a small slack so the canvas doesn't touch the rounded-glass
-    // corners.
-    //
-    // Use the largest scale that preserves the 260:280 aspect. We
-    // *don't* floor to integers: on a laptop the available scale is
-    // ~3.6× and on an iPhone portrait it's ~1.6×, both of which round
-    // down to 3 and 1 — wasting ~25% of the playfield area in either
-    // direction. Fractional scales are crisp because the canvas has
-    // image-rendering: pixelated (nearest-neighbour upscale, so each
-    // sprite pixel maps to a whole number of screen pixels even if
-    // the multiplier is fractional).
+    // Match SP's rendering pipeline: canvas bitmap is sized to the
+    // CSS display size × devicePixelRatio, so each canvas pixel = one
+    // device pixel. ctx.setTransform then maps PF coords to canvas
+    // pixels at a floating-point scale. This avoids the "fixed PF
+    // bitmap, then CSS-upscale-with-nearest-neighbour" approach,
+    // which warped 8-px source sprites into asymmetric 1/2-PF-wide
+    // columns when scaled to 12 PF visible. At display resolution
+    // any fillRect anti-aliasing is sub-pixel and invisible.
     const tube = canvas.parentElement;          // .tube
     const sw = tube.clientWidth  - 16;
     const sh = tube.clientHeight - 16;
     const scale = Math.max(1, Math.min(sw / PF_W, sh / PF_H));
-    canvas.style.width  = Math.round(PF_W * scale) + 'px';
-    canvas.style.height = Math.round(PF_H * scale) + 'px';
+    const cssW = Math.round(PF_W * scale);
+    const cssH = Math.round(PF_H * scale);
+    const dpr  = window.devicePixelRatio || 1;
+    canvas.style.width  = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    canvas.width  = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    // setTransform replaces the matrix (cheap on resize), maps the
+    // 260×280 PF playfield onto the full canvas pixel grid. Use
+    // separate sx/sy because Math.round on cssW/cssH can leave their
+    // ratios slightly off PF_W:PF_H — a single uniform scale would
+    // sub-pixel-stretch one axis. Independent factors keep the
+    // playfield exactly aligned to canvas edges. All existing render
+    // code uses PF coords — no per-call changes.
+    const sx = canvas.width  / PF_W;
+    const sy = canvas.height / PF_H;
+    ctx.setTransform(sx, 0, 0, sy, 0, 0);
   }
   window.addEventListener('resize', fitCanvas);
   window.addEventListener('orientationchange', fitCanvas);
@@ -1418,21 +1440,47 @@
     // 0 if an older snapshot somehow lacks the field.
     const n = Math.min(a.invaders.length, b.invaders.length);
     const frame = ((alpha < 0.5 ? a.iFrame : b.iFrame) ?? 0) & 1;
+    // SP-exact rendering: paintPixels draws each 8×8 source pixel as
+    // a 1.5×1.5 PF fillRect on the canvas. fitCanvas sized the canvas
+    // to display resolution × DPR, so fillRect's anti-aliased edges
+    // are at sub-device-pixel level and invisible. Sprites are
+    // LEFT-aligned in the 18 PF cell (not centred) for SP's uniform
+    // 6 PF right-padding gap; squid (9 PF wide) gets the SP-style
+    // +2 PF rightward nudge to align columns under the wider rows.
+    const SPRITE_SCALE = 1.5;
     for (let i = 0; i < n; i++) {
       const ia = a.invaders[i], ib = b.invaders[i];
       if (!ib.a || !ia.a) continue;            // dead either side → hide
       const row = Math.floor(i / SPRITE_COLS);
       const { frames, w } = spriteForRow(row);
-      // Centre the sprite in the engine's INV_W cell so collisions
-      // (which use INV_W) stay aligned with what the eye sees. Snap
-      // to integer playfield pixels — fillRect at fractional coords
-      // anti-aliases each sprite-pixel's edge across two screen pixels
-      // at varying alpha, which reads as flicker during continuous
-      // motion. Rounding makes the swarm step pixel-by-pixel (the
-      // pixel-art look) instead of sub-pixel sliding.
-      const cellX = Math.round(lerp(ia.x, ib.x) + (INV_W - w) / 2);
+      const ox = row === 0 ? 2 : 0;
+      const cellX = Math.round(lerp(ia.x, ib.x) + ox);
       const cellY = Math.round(lerp(ia.y, ib.y));
-      paintPixels(ctx, cellX, cellY, frames[frame], 1, ROW_COLORS[row] || '#ffffff');
+      paintPixels(ctx, cellX, cellY, frames[frame], SPRITE_SCALE, ROW_COLORS[row] || '#ffffff');
+    }
+
+    // Shields — decode the packed bitmap from the snapshot once when
+    // it changes, then blit each set cell as a 1×1 PF px rect. Cap is
+    // SHIELD_COUNT * SHIELD_W * SHIELD_H = 1408 cells; canvas handles
+    // this at 60 Hz without breaking sweat. Cyan to match SP's
+    // bunker colour. Hidden until at least one snapshot decodes.
+    if (latestSnap.shieldsBits && latestSnap.shieldsBits !== lastShieldsBits) {
+      shieldBitmap = decodeShields(latestSnap.shieldsBits);
+      lastShieldsBits = latestSnap.shieldsBits;
+    }
+    if (shieldBitmap) {
+      ctx.fillStyle = '#7ad0e0';
+      for (let s = 0; s < SHIELD_COUNT; s++) {
+        const sx = SHIELD_X[s];
+        const base = s * SHIELD_W * SHIELD_H;
+        for (let y = 0; y < SHIELD_H; y++) {
+          const wy = SHIELD_Y + y;
+          const rowBase = base + y * SHIELD_W;
+          for (let x = 0; x < SHIELD_W; x++) {
+            if (shieldBitmap[rowBase + x]) ctx.fillRect(sx + x, wy, 1, 1);
+          }
+        }
+      }
     }
 
     // Bullets — drawn from the latest snapshot (server-authoritative
@@ -1583,6 +1631,14 @@
   // visible evidence — this surfaces both at a glance.
   let lastRTT = null;
   let currentTransport = 'relay';
+
+  // Shield bitmap cache. The wire's `shieldsBits` is a base64 string;
+  // decode once when it changes, render straight from the cached
+  // Uint8Array each frame. SHIELD_X is precomputed by the engine —
+  // grab once at module load.
+  let shieldBitmap = null;
+  let lastShieldsBits = null;
+  const SHIELD_X = shieldOffsets();
   function drawCenteredOverlay(text, color, sizePx) {
     ctx.save();
     ctx.font = sizePx + 'px "Press Start 2P", monospace';
