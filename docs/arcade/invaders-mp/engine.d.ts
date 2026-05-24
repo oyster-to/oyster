@@ -49,6 +49,20 @@ export interface Invader {
   alive: boolean;
 }
 
+export interface Popup {
+  x: number;
+  y: number;
+  text: string;
+  col: string;
+  /** Seconds of life remaining; renderer fades by life/POPUP_LIFE_SEC. */
+  life: number;
+}
+
+export interface Ufo {
+  x: number;
+  dir: 1 | -1;
+}
+
 export interface GameState {
   status: Status;
   won: boolean;
@@ -60,6 +74,18 @@ export interface GameState {
   invaders: Invader[];
   /** Flat shared shield bitmap; 1 = solid, 0 = chipped. Length = SHIELD_COUNT * SHIELD_W * SHIELD_H. */
   shields: Uint8Array;
+  /** Stage label set (1, 2, 3, …) — boss interrupt arrives in Phase H. */
+  stageSet: number;
+  /** Stage label number within the set (1..STAGES_PER_SET). */
+  stageNum: number;
+  /** Seconds remaining of the "STAGE n-m" overlay between waves. */
+  stageAnnounceIn: number;
+  /** Bonus UFO when on-screen; null when between spawns. */
+  ufo: Ufo | null;
+  /** Seconds until the next UFO spawns. */
+  ufoNextSec: number;
+  /** Live floating score popups; filtered to life > 0. */
+  popups: Popup[];
   invaderDir: 1 | -1;
   invaderDropRemaining: number;
   invaderFireAccum: number;
@@ -97,6 +123,16 @@ export interface WireSnapshot {
   iFrame: 0 | 1;
   /** Packed shield bitmap (base64 of SHIELD_COUNT * SHIELD_W * SHIELD_H bits). */
   shieldsBits: string;
+  /** Stage label set (1, 2, 3, …). */
+  stageSet: number;
+  /** Stage label number within the set (1..STAGES_PER_SET). */
+  stageNum: number;
+  /** Seconds remaining of the centred "STAGE n-m" announce overlay. */
+  stageAnnounceIn: number;
+  /** Bonus UFO when on-screen (x = left edge, d = travel direction); null between spawns. */
+  ufo: { x: number; d: 1 | -1 } | null;
+  /** Floating score popups; client renders + fades by `l` / POPUP_LIFE_SEC. */
+  popups: Array<{ x: number; y: number; t: string; c: string; l: number }>;
   /**
    * Per-seat occupancy. Set by the transport layer (room.ts on the
    * server, hostTick on the client) after snapshotForClient returns,
@@ -130,6 +166,10 @@ export const SUPER_SHOT_MAX: number;
 export const CHARGE_THRESHOLD_SEC: number;
 export const CHARGED_BULLET_W: number;
 export const CHARGED_BULLET_H: number;
+export const CHARGED_BULLET_SPEED: number;
+export const UFO_W_EXPORT: number;
+export const UFO_H_EXPORT: number;
+export const UFO_Y_EXPORT: number;
 export function comboMultiplier(count: number): number;
 
 export const SEATS: readonly Seat[];

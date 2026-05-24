@@ -112,7 +112,14 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //        piercer (tunnels through shields, kills every aligned
 //        invader). New wire fields: players[i].combo /
 //        .superAmmo / .chargeSec, bullets[].c.
-const NETCODE_VERSION = 23;
+// v24 — Phase G: stage progression (1-1, 1-2, 1-3, 2-1, ...) advances
+//        on grid clear; "STAGE n-m" announce overlay fades between
+//        waves. UFO bonus enemy spawns 25-45 s apart, points 50/100/
+//        150/300 by screen progress, kill refills the shooter's
+//        super ammo to MAX. Floating score popups ("+30" / "x3 +60"
+//        / UFO bonus) on each kill. New wire fields: stageSet /
+//        stageNum / stageAnnounceIn / ufo / popups.
+const NETCODE_VERSION = 24;
 
 type ClientMessage =
   | { type: 'ping';   t: number }

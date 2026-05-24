@@ -131,6 +131,41 @@ function makeShields() {
   return buf;
 }
 
+// === Stages ===
+// Stages are labelled "set-num" (1-1, 1-2, 1-3, 2-1, ...). Endless
+// for now — the boss interrupt every set lands in Phase H. On grid
+// clear we advance the counter, rebuild the swarm, and trigger a
+// 2 s "STAGE n-m" announce overlay. Player state (score, ammo,
+// combo) persists across stages.
+const STAGES_PER_SET = 3;
+const STAGE_ANNOUNCE_SEC = 2;
+
+// === UFO ===
+// Bonus enemy that flies across the top of the playfield occasionally.
+// Spawns from a random edge moving inward, despawns when it exits the
+// opposite edge or gets shot. Score depends on where you hit it
+// (UFO_SCORES sampled by progress across the screen — classic). A
+// kill refills the shooter's super-shot ammo to MAX, which is the
+// strategic reason to interrupt your aim and chase the UFO.
+const UFO_W = 16;
+const UFO_H = 7;
+const UFO_Y = 12;                        // sits above the invader grid (INV_ORIGIN_Y=24)
+const UFO_SPEED = 50;                    // PF/sec
+const UFO_MIN_INTERVAL = 25;             // seconds — earliest possible respawn
+const UFO_MAX_INTERVAL = 45;             // seconds — latest
+const UFO_SCORES = [50, 100, 150, 300];
+export const UFO_W_EXPORT = UFO_W;        // for renderer + collision
+export const UFO_H_EXPORT = UFO_H;
+export const UFO_Y_EXPORT = UFO_Y;
+
+// === Score popups ===
+// Floating "+30" / "x3 +60" text spawned on each kill, fades over
+// POPUP_LIFE_SEC. Lives only on the wire when active. Server pushes
+// new ones into state.popups; tick decrements life + floats up; the
+// snapshot dump filters out expired entries before broadcast.
+const POPUP_LIFE_SEC = 0.6;
+const POPUP_FLOAT_SPEED = 18;             // PF/sec, upward drift
+
 // === Lives + respawn ===
 // Shared pool of respawn tokens. 3 means up to 3 ship deaths get
 // brought back; the 4th (and beyond) is permanent. With 4 ships +
@@ -233,6 +268,20 @@ export function initState() {
     // SHIELD_COUNT bunkers. Bullets chip cells to 0; renderer reads
     // the bitmap directly.
     shields: makeShields(),
+    // Stage progression (Phase G). stageSet 1..∞, stageNum 1..3,
+    // labelled "1-1" / "1-2" / ... by the renderer. announceIn counts
+    // down a brief "STAGE n-m" overlay fade after each wave clear.
+    stageSet: 1,
+    stageNum: 1,
+    stageAnnounceIn: 0,
+    // UFO bonus enemy. ufo is null when off-screen; ufoNextSec ticks
+    // down the time until the next spawn (randomised on each despawn).
+    ufo: null,
+    ufoNextSec: UFO_MIN_INTERVAL + Math.random() * (UFO_MAX_INTERVAL - UFO_MIN_INTERVAL),
+    // Floating "+30" / "x3 +60" score popups. Each entry {x, y, text,
+    // col, life} where life is seconds remaining; tick decays + drifts
+    // y upward; expired entries filtered out before broadcast.
+    popups: [],
     invaderDir: 1,
     invaderDropRemaining: 0,
     invaderFireAccum: 0,
@@ -276,12 +325,70 @@ const ALL_OCCUPIED = Object.freeze(
 export function step(state, inputs, dt, occupied = ALL_OCCUPIED) {
   if (state.status !== 'running') return;
   tickRespawnAndInvuln(state, dt);
+  tickStageAnnounce(state, dt);
   stepShips(state, inputs, dt, occupied);
   stepBullets(state, dt);
   stepInvaders(state, dt);
   stepInvaderFire(state, dt);
+  stepUfo(state, dt);
+  stepPopups(state, dt);
   resolveCollisions(state, occupied);
+  checkStageClear(state);
   checkEnd(state, occupied);
+}
+
+function tickStageAnnounce(state, dt) {
+  if (state.stageAnnounceIn > 0) {
+    state.stageAnnounceIn = Math.max(0, state.stageAnnounceIn - dt);
+  }
+}
+
+function stepUfo(state, dt) {
+  if (state.ufo) {
+    state.ufo.x += UFO_SPEED * state.ufo.dir * dt;
+    // Despawn once fully past the opposite edge.
+    if ((state.ufo.dir > 0 && state.ufo.x > PF_W) ||
+        (state.ufo.dir < 0 && state.ufo.x + UFO_W < 0)) {
+      state.ufo = null;
+      state.ufoNextSec = UFO_MIN_INTERVAL + Math.random() * (UFO_MAX_INTERVAL - UFO_MIN_INTERVAL);
+    }
+    return;
+  }
+  state.ufoNextSec -= dt;
+  if (state.ufoNextSec <= 0) {
+    const fromLeft = Math.random() < 0.5;
+    state.ufo = { x: fromLeft ? -UFO_W : PF_W, dir: fromLeft ? 1 : -1 };
+  }
+}
+
+function stepPopups(state, dt) {
+  if (state.popups.length === 0) return;
+  for (const p of state.popups) {
+    p.life -= dt;
+    p.y -= POPUP_FLOAT_SPEED * dt;
+  }
+  state.popups = state.popups.filter(p => p.life > 0);
+}
+
+// Called after resolveCollisions. If every invader is dead the wave
+// is over — bump the stage counter, rebuild the grid, fire the
+// announce overlay. Player state (score, ammo, combo, lives) carries
+// forward. Bullets persist (they'll fly through to no-op) and
+// invaderBullets are cleared so a leftover doesn't reach the ship
+// during the announce. UFO + popups stay too.
+function checkStageClear(state) {
+  if (state.invaders.some(i => i.alive)) return;
+  state.stageNum += 1;
+  if (state.stageNum > STAGES_PER_SET) {
+    state.stageNum = 1;
+    state.stageSet += 1;
+  }
+  state.invaders = buildGrid();
+  state.invaderDir = 1;
+  state.invaderDropRemaining = 0;
+  state.invaderFireAccum = 0;
+  state.invaderBullets = [];
+  state.stageAnnounceIn = STAGE_ANNOUNCE_SEC;
 }
 
 function tickRespawnAndInvuln(state, dt) {
@@ -513,7 +620,20 @@ function resolveCollisions(state, occupied) {
         owner.combo += 1;
         owner.comboDecayIn = COMBO_WINDOW_SEC;
         const basePts = ROW_POINTS[Math.floor(i / INV_COLS)] || 0;
-        owner.score += basePts * comboMultiplier(owner.combo);
+        const mult = comboMultiplier(owner.combo);
+        const pts = basePts * mult;
+        owner.score += pts;
+        // Floating score popup: "+30" for a vanilla kill, "x3 +60"
+        // when a multiplier's active. Drawn at the killed invader's
+        // position, drifts up and fades.
+        const text = mult > 1 ? `x${mult} +${pts}` : `+${pts}`;
+        state.popups.push({
+          x: inv.x + INV_W / 2,
+          y: inv.y,
+          text: text,
+          col: '#ffffff',
+          life: POPUP_LIFE_SEC,
+        });
         // Earned-ammo threshold crossings — bump the threshold even
         // when at max so a long high-score run isn't "wasted".
         while (owner.score >= owner.nextSuperAt) {
@@ -523,6 +643,39 @@ function resolveCollisions(state, occupied) {
       }
       if (!b.charged) { b.y = -999; break; }
       // charged: keep checking other invaders this tick
+    }
+  }
+
+  // Player bullets vs UFO. Charged bullets one-shot a UFO too. Score
+  // is sampled from UFO_SCORES by where the UFO is across the screen
+  // — closer to the centre/far edge = higher payout. Kill refills
+  // the shooter's super ammo to MAX (the strategic carrot).
+  if (state.ufo) {
+    for (const b of state.bullets) {
+      const bw = b.charged ? CHARGED_BULLET_W : BULLET_W;
+      const bh = b.charged ? CHARGED_BULLET_H : BULLET_H;
+      if (b.y < -bh) continue;
+      if (overlap(b.x, b.y, bw, bh, state.ufo.x, UFO_Y, UFO_W, UFO_H)) {
+        const progress = (state.ufo.x + UFO_W) / (PF_W + UFO_W * 2);
+        const idx = Math.min(UFO_SCORES.length - 1, Math.max(0, Math.floor(progress * UFO_SCORES.length)));
+        const pts = UFO_SCORES[idx];
+        const owner = b.owner && state.ships[b.owner];
+        if (owner) {
+          owner.score += pts;
+          owner.superAmmo = SUPER_SHOT_MAX;
+          state.popups.push({
+            x: state.ufo.x + UFO_W / 2,
+            y: UFO_Y,
+            text: `+${pts}`,
+            col: '#ffd84a',          // gold to celebrate the bonus
+            life: POPUP_LIFE_SEC,
+          });
+        }
+        state.ufo = null;
+        state.ufoNextSec = UFO_MIN_INTERVAL + Math.random() * (UFO_MAX_INTERVAL - UFO_MIN_INTERVAL);
+        if (!b.charged) b.y = -999;
+        break;                       // one bullet hits at most one UFO
+      }
     }
   }
   state.bullets = state.bullets.filter(b => b.y > -BULLET_H);
@@ -578,8 +731,10 @@ function checkEnd(state, occupied) {
     return;
   }
 
-  // Win: every invader dead.
-  if (!state.invaders.some(i => i.alive)) { state.status = 'gameover'; state.won = true; }
+  // No more "every invader dead = win" — stages are endless until
+  // a boss interrupts (Phase H) or you lose to breach/wipe.
+  // checkStageClear (called before this in step()) handles the
+  // grid-clear case by rebuilding the next stage.
 }
 
 function overlap(ax, ay, aw, ah, bx, by, bw, bh) {
@@ -679,5 +834,16 @@ export function snapshotForClient(state) {
     // would be premature optimisation. Client decodes once per
     // snapshot and renders straight from the resulting Uint8Array.
     shieldsBits:    encodeShields(state.shields),
+    // Phase G: stage + UFO + popups. stageSet/stageNum render as
+    // "n-m" in the HUD; stageAnnounceIn drives the centred overlay
+    // between waves. ufo is null when off-screen. popups is the
+    // floating-text list (already filtered to live entries).
+    stageSet:       state.stageSet,
+    stageNum:       state.stageNum,
+    stageAnnounceIn: round(state.stageAnnounceIn),
+    ufo:            state.ufo ? { x: round(state.ufo.x), d: state.ufo.dir } : null,
+    popups:         state.popups.map(p => ({
+      x: round(p.x), y: round(p.y), t: p.text, c: p.col, l: round(p.life),
+    })),
   };
 }
