@@ -104,9 +104,10 @@ function freshShips() {
       // consumes a shared life token; ticked down each step; on hit-0
       // the ship blinks back at spawnX with invulnFor set.
       respawnIn: 0,
-      // Seconds of post-respawn invulnerability remaining. Renderer
-      // blinks the ship while > 0 so the player can see the grace
-      // window. Also makes resolveCollisions skip damage.
+      // Seconds of post-respawn invulnerability remaining. Engine-
+      // internal — resolveCollisions skips damage while > 0. Not on
+      // the wire (yet); a future PR can expose it for a respawn-blink
+      // visual, but for now the ship just reappears at spawnX.
       invulnFor: 0,
     };
   }
@@ -345,7 +346,10 @@ function checkEnd(state, occupied) {
   if (breach) { state.status = 'gameover'; state.won = false; return; }
 
   const noOneAlive  = SEATS.every((s) => !(state.ships[s].alive && occupied[s]));
-  const noOneComing = SEATS.every((s) => state.ships[s].respawnIn === 0);
+  // A "coming back" seat must be both occupied AND mid-respawn — a
+  // disconnected seat's leftover respawnIn shouldn't keep the match
+  // running when no one's actually there to come back to.
+  const noOneComing = SEATS.every((s) => !(occupied[s] && state.ships[s].respawnIn > 0));
   if (noOneAlive && noOneComing) {
     state.status = 'gameover';
     state.won = false;

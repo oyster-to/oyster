@@ -71,6 +71,14 @@ export interface WireSnapshot {
   invaders: Array<{ x: number; y: number; a: boolean }>;
   /** Authoritative swarm animation frame (0 or 1). */
   iFrame: 0 | 1;
+  /**
+   * Per-seat occupancy. Set by the transport layer (room.ts on the
+   * server, hostTick on the client) after snapshotForClient returns,
+   * NOT by the engine itself. Optional because mid-deploy a client
+   * may briefly receive a pre-Phase-D snapshot without it — fall back
+   * to `players[i].alive` in that case.
+   */
+  seats?: Record<Seat, boolean>;
 }
 
 export const PF_W: number;

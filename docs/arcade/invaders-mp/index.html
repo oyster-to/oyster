@@ -358,12 +358,16 @@
     initState, step, snapshotForClient, zeroInput,
     PF_W, PF_H, SHIP_W, SHIP_H, SHIP_Y, SHIP_SPEED, FIRE_COOLDOWN,
     BULLET_W, BULLET_H, BULLET_SPEED,
-    INV_W, INV_H, INV_COLS,
+    INV_W, INV_H,
     SEATS, MAX_SEATS,
   } from './engine.js';
   import { ROW_COLORS, spriteForRow, paintPixels, paintShip } from './sprites.js';
-  // Renderer uses INV_COLS for row-major sprite picks.
-  const SPRITE_COLS = INV_COLS;
+  // Mirror engine.js's INV_COLS instead of named-importing it. Named
+  // imports of missing exports are a hard module-link error: if an old
+  // edge-cached engine.js gets paired with this fresh index.html (rare
+  // but possible during a deploy crossover), the page wouldn't load
+  // at all. Keep this in sync when engine.js changes the grid width.
+  const SPRITE_COLS = 11;
 
   // Register SFX with the shared audio module. The volume/muted keys
   // are the global arcade keys so the slider state carries across
@@ -673,7 +677,10 @@
       step(hostState, hostInputs, dt, occupied);
     }
 
-    const snap = { type: 'state', t: now, ...snapshotForClient(hostState) };
+    // `seats` mirrors the server-side wire field so clients can tell
+    // "connected but dead/respawning" from "vacant seat" — `alive`
+    // alone became ambiguous once respawns landed in Phase D.
+    const snap = { type: 'state', t: now, ...snapshotForClient(hostState), seats: { ...occupied } };
     for (let i = 0; i < SEATS.length; i++) {
       if (!occupied[SEATS[i]]) snap.players[i].alive = false;
     }
@@ -879,6 +886,15 @@
   // Idempotent — call from state handler / on demand. Host (P1)
   // creates one peer per other occupied seat; clients create exactly
   // one peer to P1 once P1 shows alive in the snapshot.
+  // Prefer the wire `seats` map (authoritative connected-or-not, set
+  // by the transport layer) over `players[i].alive` (which now flips
+  // false during mid-respawn windows too). Falls back to `alive` for
+  // pre-Phase-D snapshots that lack the field.
+  function seatOccupied(i) {
+    if (!lastState) return false;
+    if (lastState.seats) return !!lastState.seats[SEATS[i]];
+    return !!lastState.players[i]?.alive;
+  }
   function maybeCreatePeers() {
     if (typeof SimplePeer === 'undefined') return;
     if (!mySeat || !lastState) return;
@@ -886,11 +902,11 @@
       for (let i = 1; i < SEATS.length; i++) {
         const other = SEATS[i];
         if (peers.has(other)) continue;
-        if (lastState.players[i]?.alive) makePeerTo(other);
+        if (seatOccupied(i)) makePeerTo(other);
       }
     } else {
       if (peers.has('p1')) return;
-      if (lastState.players[0]?.alive) makePeerTo('p1');
+      if (seatOccupied(0)) makePeerTo('p1');
     }
   }
 
@@ -1069,15 +1085,11 @@
       const slot = playerSlotEls[i];
       if (!slot) continue;
       const p = lastState.players[i];
-      // alive doubles as the occupancy mask the server applies before
-      // broadcasting (initState marks every fresh ship alive; the
-      // broadcast loop overwrites alive=false for any seat with no
-      // socket). Caveat: during 'gameover' a player who actually died
-      // also reads as alive=false here, so their slot briefly shows
-      // empty until Start triggers a fresh initState. Pragmatic for
-      // the spike; if it bites we'll add a dedicated `seats` field
-      // to the wire.
-      const occupied = !!p?.alive;
+      // Prefer the authoritative `seats` map (added in Phase D) over
+      // `players[i].alive` — once respawns landed, alive can be false
+      // for a connected seat that's mid-respawn or just died at end
+      // of a round. Falls back to alive for pre-Phase-D snapshots.
+      const occupied = seatOccupied(i);
       slot.classList.toggle('is-active', occupied);
       slot.classList.toggle('is-empty', !occupied);
       const nameEl = slot.querySelector('.ps-name');
@@ -1104,11 +1116,11 @@
   function refreshLobby() {
     if (!lastState) return;
     const s = lastState.status;
-    // The server masks unoccupied seats as alive:false on the wire,
-    // so a non-running game's player.alive count is a clean occupancy
-    // proxy. During a running game players may legitimately be dead
-    // — the count still reads as "currently active".
-    const occupied = lastState.players.filter(p => p && p.alive).length;
+    // Use the authoritative `seats` map (added in Phase D) — true
+    // occupancy regardless of alive/respawn state. Pre-Phase-D
+    // snapshots fall back to the alive proxy via seatOccupied().
+    let occupied = 0;
+    for (let i = 0; i < MAX_SEATS; i++) if (seatOccupied(i)) occupied++;
     // Reveal the cabinet (canvas visible + prescreen faded) once the
     // countdown begins, so the 3-2-1 → ATTACK overlay paints on a
     // visible canvas. Goes back to the prescreen on waiting/ready (no

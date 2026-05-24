@@ -416,10 +416,17 @@ export class InvadersRoom {
     // doesn't paint a sitting-duck ghost while waiting for other
     // players. The server-side ship stays alive in the simulation;
     // it just can't take damage or contribute to the wipe check.
+    // Also build a `seats` map so the client can distinguish
+    // "connected but dead/respawning" from "vacant seat" — `alive`
+    // alone became ambiguous once respawns landed in Phase D.
+    const seats = {} as Record<Seat, boolean>;
     for (let i = 0; i < MAX_SEATS; i++) {
-      if (!this.sockets.has(SEATS[i])) snap.players[i].alive = false;
+      const s = SEATS[i];
+      const here = this.sockets.has(s);
+      seats[s] = here;
+      if (!here) snap.players[i].alive = false;
     }
-    const msg = JSON.stringify({ type: 'state', t: Date.now(), ...snap });
+    const msg = JSON.stringify({ type: 'state', t: Date.now(), ...snap, seats });
     for (const ws of this.sockets.values()) {
       try { ws.send(msg); }
       catch { /* socket dying; close handler will clean up */ }
