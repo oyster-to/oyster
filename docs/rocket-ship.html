@@ -974,10 +974,11 @@ let touchThrust = false;
     const handler = window.__rocketGameOverTouch;
     return !!(handler && handler(action));
   }
-  Arcade.Touch.bind(document.getElementById('tc-left'),
+  // ◀▶ as one analog d-pad: slip off the edge keeps steering, cross the midline
+  // flips direction, lift stops. (Discrete letter-stepping in initials.)
+  Arcade.Touch.movePad(document.getElementById('tc-left'), document.getElementById('tc-right'),
     () => { if (!goConsumed('letter-prev')) keys['ArrowLeft']  = true; },
-    () => keys['ArrowLeft']  = false);
-  Arcade.Touch.bind(document.getElementById('tc-right'),
+    () => keys['ArrowLeft']  = false,
     () => { if (!goConsumed('letter-next')) keys['ArrowRight'] = true; },
     () => keys['ArrowRight'] = false);
   Arcade.Touch.bind(document.getElementById('tc-thrust'),
