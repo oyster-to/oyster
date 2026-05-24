@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import Database from "better-sqlite3";
 import { initDb } from "../src/db.js";
 import { backfillArtifactProjects, dropArtifactSpaceColumn } from "../src/artifact-space-migration.js";
 
@@ -97,5 +98,34 @@ describe("backfillArtifactProjects", () => {
     expect(() => ins("x2", "p-repo", "README.md:notes")).toThrow(); // same project+ref → UNIQUE violation
     expect(() => ins("x3", null, "README.md:notes")).not.toThrow(); // orphan
     expect(() => ins("x4", null, "README.md:notes")).not.toThrow(); // orphan NULLs distinct (intentional)
+  });
+
+  it("reports a stored space_id that disagrees with the resolved project's space (column present)", () => {
+    // Build a minimal schema WITH artifacts.space_id present (mimics a pre-migration DB),
+    // WITHOUT initDb (which would drop the column).
+    const mem = new Database(":memory:");
+    mem.exec(`
+      CREATE TABLE spaces (id TEXT PRIMARY KEY, display_name TEXT, color TEXT, scan_status TEXT);
+      CREATE TABLE projects (id TEXT PRIMARY KEY, space_id TEXT, name TEXT);
+      CREATE TABLE project_paths (project_id TEXT, path TEXT);
+      CREATE TABLE artifacts (
+        id TEXT PRIMARY KEY, space_id TEXT NOT NULL, project_id TEXT,
+        label TEXT, artifact_kind TEXT, storage_kind TEXT,
+        storage_config TEXT, runtime_kind TEXT, runtime_config TEXT,
+        source_ref TEXT, removed_at TEXT
+      );
+    `);
+    mem.exec(`INSERT INTO spaces (id,display_name,color,scan_status) VALUES ('work','Work','#000','none'),('home','Home','#111','none')`);
+    mem.prepare("INSERT INTO projects (id,space_id,name) VALUES ('p-repo','work','repo')").run();
+    mem.prepare("INSERT INTO project_paths (project_id,path) VALUES ('p-repo','/repo')").run();
+    // artifact stored under space 'home' but its path resolves to p-repo (space 'work') → mismatch
+    mem.prepare(`INSERT INTO artifacts (id,space_id,label,artifact_kind,storage_kind,storage_config,runtime_kind,runtime_config)
+                 VALUES ('a-mm','home','x','notes','filesystem',?, 'static_file','{}')`).run(JSON.stringify({ path: "/repo/x.md" }));
+
+    const report = backfillArtifactProjects(mem, "/tmp/whatever-oyster-home");
+    expect(report.backfilled).toBe(1);
+    expect(report.mismatches).toHaveLength(1);
+    expect(report.mismatches[0]).toMatchObject({ id: "a-mm", oldSpace: "home", newSpace: "work" });
+    mem.close();
   });
 });

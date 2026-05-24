@@ -9,7 +9,6 @@ export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS artifacts (
   id             TEXT PRIMARY KEY,
   owner_id       TEXT,
-  space_id       TEXT NOT NULL,
   label          TEXT NOT NULL,
   artifact_kind  TEXT NOT NULL,
   storage_kind   TEXT NOT NULL,
@@ -525,8 +524,8 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
   // space_id NULL — those then render as orphans in the home view even
   // though they belong to a real project. Idempotent: only touches rows
   // whose project is live AND whose space_id disagrees.
-  // artifacts.space_id is no longer stored (dropped above) — space is now
-  // derived at read-time via project JOIN, so no repair is needed there.
+  // artifacts.space_id is derived from the project and is dropped later in
+  // this function; this sessions repair never touched it.
   // ─────────────────────────────────────────────────────────────────────────
   db.exec(`
     UPDATE sessions
