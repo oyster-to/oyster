@@ -358,22 +358,29 @@
 <script type="module">
   // Single source of truth for game logic, shared with the server
   // (which bundles this same file via wrangler import).
-  import {
+  // Namespace import (not destructured `import { ... }`) so a missing
+  // export from a stale-cached engine.js doesn't hard-fail the module
+  // link and white-screen the page. Destructure below; any missing
+  // member becomes `undefined` rather than a load-time error, so the
+  // page still renders (just hides the affected feature) during a
+  // brief deploy-crossover window.
+  import * as engine from './engine.js';
+  const {
     initState, step, snapshotForClient, zeroInput,
     PF_W, PF_H, SHIP_W, SHIP_H, SHIP_Y, SHIP_SPEED, FIRE_COOLDOWN,
     BULLET_W, BULLET_H, BULLET_SPEED,
-    INV_W, INV_H,
+    INV_W, INV_H, INV_COLS,
     SHIELD_W, SHIELD_H, SHIELD_COUNT, SHIELD_Y,
     decodeShields, shieldOffsets,
     SEATS, MAX_SEATS,
-  } from './engine.js';
+  } = engine;
   import { ROW_COLORS, spriteForRow, paintPixels, paintShip } from './sprites.js';
-  // Mirror engine.js's INV_COLS instead of named-importing it. Named
-  // imports of missing exports are a hard module-link error: if an old
-  // edge-cached engine.js gets paired with this fresh index.html (rare
-  // but possible during a deploy crossover), the page wouldn't load
-  // at all. Keep this in sync when engine.js changes the grid width.
-  const SPRITE_COLS = 11;
+  // Renderer uses INV_COLS to map invader array index → grid row. It
+  // happens to equal 11 in the current engine; mirror as a const so a
+  // future engine.INV_COLS change forces an audit here rather than
+  // silently picking up a different value (the sprite-row map +
+  // bullet-fire column logic depend on it).
+  const SPRITE_COLS = INV_COLS ?? 11;
 
   // Register SFX with the shared audio module. The volume/muted keys
   // are the global arcade keys so the slider state carries across

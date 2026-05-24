@@ -396,7 +396,8 @@ function resolveCollisions(state, occupied) {
   // Player bullets vs shields, FIRST — a bullet that clipped the top
   // of a shield never reaches an invader, so we resolve shields before
   // invader hits. Killed bullets are flagged with the out-of-bounds
-  // marker (-999) and swept by the next stepBullets.
+  // marker (-999); the .filter sweep at the bottom of this function
+  // removes them in the same tick (no carry-over to next step).
   for (const b of state.bullets) {
     if (b.y < -BULLET_H) continue;
     if (damageShields(state, b.x, b.y, BULLET_W, BULLET_H)) {
@@ -404,8 +405,8 @@ function resolveCollisions(state, occupied) {
     }
   }
 
-  // Player bullets vs invaders. Out-of-array marker (b.y = -999) gets
-  // swept by the next stepBullets — cheaper than splicing inside
+  // Player bullets vs invaders. Out-of-array marker (b.y = -999) is
+  // filtered out at the bottom of this function — cheaper than splicing inside
   // a nested loop. Points are credited to the bullet's owner using
   // the row of the killed invader (top row = squid = 30, bottom row
   // = octopus = 10).
@@ -498,9 +499,10 @@ export function encodeShields(bits) {
   for (let i = 0; i < bits.length; i++) {
     if (bits[i]) packed[i >> 3] |= 1 << (7 - (i & 7));
   }
-  let bin = '';
-  for (let i = 0; i < packed.length; i++) bin += String.fromCharCode(packed[i]);
-  return btoa(bin);
+  // Single-call fromCharCode via spread — avoids the repeated string
+  // allocation + GC churn of `bin += ...` in a loop. The packed
+  // bitmap is 176 bytes, well under JS engines' call-arg limits.
+  return btoa(String.fromCharCode.apply(null, packed));
 }
 
 // Inverse of encodeShields — client-side, takes the base64 string
