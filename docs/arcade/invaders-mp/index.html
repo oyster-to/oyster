@@ -363,7 +363,7 @@
     decodeShields, shieldOffsets,
     SEATS, MAX_SEATS,
   } from './engine.js';
-  import { ROW_COLORS, spriteForRow, paintPixels, paintShip } from './sprites.js';
+  import { ROW_COLORS, spriteForRow, getInvaderSprite, paintShip } from './sprites.js';
   // Mirror engine.js's INV_COLS instead of named-importing it. Named
   // imports of missing exports are a hard module-link error: if an old
   // edge-cached engine.js gets paired with this fresh index.html (rare
@@ -1236,6 +1236,9 @@
   // ship + ghost bullets layered on top.
   const canvas = document.getElementById('cv');
   const ctx = canvas.getContext('2d');
+  // Crisp pixel-art upscaling for all drawImage calls (used by the
+  // invader sprite blitter). fillRect / fillText aren't affected.
+  ctx.imageSmoothingEnabled = false;
 
   function fitCanvas() {
     // Measure the tube, not the screen — the screen includes bezel
@@ -1420,28 +1423,27 @@
     // 0 if an older snapshot somehow lacks the field.
     const n = Math.min(a.invaders.length, b.invaders.length);
     const frame = ((alpha < 0.5 ? a.iFrame : b.iFrame) ?? 0) & 1;
+    // 1.5× SP-exact sprite scale (8-px source paints 12 PF visible).
+    // Painting with fillRect at fractional coords smears edges; instead
+    // we grab a pre-rendered 1:1 offscreen canvas for each (row, frame)
+    // and let drawImage do nearest-neighbour upscale. Sprites are
+    // LEFT-aligned in the 18 PF cell (not centred), matching SP's
+    // invaders/index.html: the consistent right-padding produces a
+    // uniform 6 PF visible gap between sprite edges. Squid is 9 PF
+    // wide (vs 12 for crab/octopus) so SP nudges it +2 PF rightward
+    // to keep columns lining up; we mirror that.
+    const SPRITE_SCALE = 1.5;
     for (let i = 0; i < n; i++) {
       const ia = a.invaders[i], ib = b.invaders[i];
       if (!ib.a || !ia.a) continue;            // dead either side → hide
       const row = Math.floor(i / SPRITE_COLS);
-      const { frames, w } = spriteForRow(row);
-      // Centre the sprite in the engine's INV_W cell so collisions
-      // (which use INV_W) stay aligned with what the eye sees. Snap
-      // to integer playfield pixels — fillRect at fractional coords
-      // anti-aliases each sprite-pixel's edge across two screen pixels
-      // at varying alpha, which reads as flicker during continuous
-      // motion. Rounding makes the swarm step pixel-by-pixel (the
-      // pixel-art look) instead of sub-pixel sliding.
-      // 1.5× sprite scale = SP-exact match. 8-px source sprite paints
-      // 12 PF wide inside the 18 PF cell with 3 PF padding each side.
-      // Fractional scale is OK because cellX/cellY are Math.round'd —
-      // the within-sprite offsets are then constant per-frame, so
-      // anti-aliased edges stay still (no flicker on the canvas
-      // bitmap, just slightly soft edges when CSS-upscaled).
-      const SPRITE_SCALE = 1.5;
-      const cellX = Math.round(lerp(ia.x, ib.x) + (INV_W - w * SPRITE_SCALE) / 2);
+      const sprite = getInvaderSprite(row, frame);
+      const dstW = Math.round(sprite.w * SPRITE_SCALE);
+      const dstH = Math.round(sprite.h * SPRITE_SCALE);
+      const ox  = row === 0 ? 2 : 0;     // SP-style squid nudge
+      const cellX = Math.round(lerp(ia.x, ib.x) + ox);
       const cellY = Math.round(lerp(ia.y, ib.y));
-      paintPixels(ctx, cellX, cellY, frames[frame], SPRITE_SCALE, ROW_COLORS[row] || '#ffffff');
+      ctx.drawImage(sprite.canvas, cellX, cellY, dstW, dstH);
     }
 
     // Shields — decode the packed bitmap from the snapshot once when
