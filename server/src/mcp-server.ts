@@ -321,7 +321,7 @@ See the "Set up Oyster for me" playbook above for the full audit + propose + app
 - Use \`create_artifact\` to write a new file and register it in one step.
 - After \`create_artifact\`, always call \`reveal_artifact\` with the new artifact's id — this switches the user's desktop to the right space and highlights the icon so they know where it landed.
 - Use \`read_artifact\` to read the content of an existing static file artifact.
-- Use \`update_artifact\` to rename, reassign to a different space, or change the group.
+- Use \`update_artifact\` to rename, change the kind, or change the group. Space is derived from the artifact's project and cannot be reassigned here.
 - Use \`remove_artifact\` to archive an artifact (hide from surface, reversible). The file and record are preserved and accessible via the archived view.
 
 **Archived / removed artifacts:**
