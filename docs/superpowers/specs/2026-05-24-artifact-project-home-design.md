@@ -48,6 +48,7 @@ Every artifact-store SELECT gains `LEFT JOIN projects p ON p.id = a.project_id` 
 
 Run as one transaction in `initDb`, guarded so repeat boots are no-ops (detect `space_id` column presence via `PRAGMA table_info(artifacts)`).
 
+0. **Ensure a native project per space that holds created content.** Artifacts whose file lives under `~/Oyster/spaces/<space-id>/` (agent-created via `create_artifact` — 18 on the main DB, 0 project-resolvable since no `project_paths` point there) get a **native project**: for each such space, ensure a `projects` row bound to that space and a `project_paths` entry `path = <userland>/spaces/<space-id>`. The model stays uniform — *every* artifact is project-parented; a space's native folder is simply a project filed under that space. The backfill in step 1 then resolves these via the same longest-prefix match.
 1. **Backfill `project_id`** for every artifact (active and tombstoned) that has `project_id IS NULL` and a `storage_config.$.path`, using **longest-prefix** `project_paths` match:
    ```sql
    UPDATE artifacts
@@ -71,7 +72,8 @@ Run as one transaction in `initDb`, guarded so repeat boots are no-ops (detect `
 
 - **`artifact-store.ts`**: drop `space_id` from the INSERT column list (`:83`) and from `UPDATABLE_COLUMNS` (`:130-134`); rewrite the six SELECTs to join projects; `getBySpaceAndSourceRef` keys on `(project_id, source_ref)` (`:78`).
 - **`artifact-service.ts`**: `registerArtifact` (`:296`) takes `project_id?: string | null` instead of `space_id`; resolves it from the file path via `lookupProject` when not supplied. `createArtifact` (`:452`) resolves `project_id` from the target path. The returned `Artifact` literal (`:395`) sets `spaceId` from the resolved project's space. `updateArtifact` (`:589`) **drops** direct space reassignment — moving an artifact between spaces now means moving its **project** (or the file); document this. `reconcileGeneratedArtifact` (`:557`) passes `project_id` (from `artifact.projectId`).
-- **`mcp-server.ts`**: `register_artifact` / `create_artifact` (`:594`) drop the `space_id` tool param — the project (and thus space) is determined by the file's path. `update_artifact` (`:663`) drops `space_id` reassignment. **MCP API change**, acceptable (single user, local tools); update tool descriptions.
+- **`mcp-server.ts`**: `register_artifact` (`:594`) drops the `space_id` tool param — project (hence space) comes from the file's path. `create_artifact` (`:640`) **keeps** `space_id` (it still chooses *which* native folder to write into via `getNativeSourcePath(space_id)`), but the created artifact is parented to that space's **native project**, not given a stored `space_id`. `update_artifact` (`:663`) drops `space_id` reassignment. **MCP API change** (register/update), acceptable (single user, local tools); update tool descriptions.
+- **`artifact-service.ts` `createArtifact`** ensures the space's native project exists (idempotent — same helper the migration uses) and passes its `project_id` to `registerArtifact`.
 - **`publish-service.ts`**: `publishArtifact` (`:143,182`) and `backfillPublications` (`:444-474`) derive `space_id` via `JOIN projects` before bundling it into the cloud payload. Wire format unchanged.
 - **`import.ts`** (`:538-580`) and **`routes/import.ts`** (`:84`): `createArtifact` calls resolve a `project_id` for the target folder/space context instead of passing `space_id`.
 
