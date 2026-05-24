@@ -186,6 +186,21 @@ describe("SpaceService session sync on deleteSpace / convertFolderToSpace", () =
     expect(row.space_id).toBe("home");
   });
 
+  it("deleteSpace: session whose project is in the deleted space moves to home even if its stored space_id has drifted (NULL)", () => {
+    // s-drift belongs to p-work (in 'work') but its own space_id is NULL — a
+    // drifted state. Matching only by space_id would miss it; matching by project
+    // membership catches it.
+    db.prepare(
+      `INSERT INTO sessions (id, agent, state, space_id, project_id) VALUES ('s-drift', 'claude-code', 'done', NULL, 'p-work')`,
+    ).run();
+
+    const { svc } = makeService(db);
+    svc.deleteSpace("work");
+
+    const row = db.prepare("SELECT space_id FROM sessions WHERE id = 's-drift'").get() as { space_id: string };
+    expect(row.space_id).toBe("home");
+  });
+
   it("deleteSpace: session in a different space is unaffected", () => {
     db.prepare(
       `INSERT INTO sessions (id, agent, state, space_id, project_id) VALUES ('s-home', 'claude-code', 'done', 'home', 'p-home')`,
