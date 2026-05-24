@@ -1534,16 +1534,17 @@
         ctx.restore();
       }
 
-      // Transport + ping indicator — tiny status badge below LIVES,
-      // visible during gameplay so a "felt laggy" report has numbers
-      // to back it up. Single colour-coded line (green/yellow/red on
-      // the ping bucket — the alarming bit); transport label gives
-      // context. Hidden in kid view (?clean) so non-debug builds
-      // stay clean.
+      // Transport + ping indicator — tucked into the bottom-left
+      // corner of the canvas (below the ship row, mirrors SCORE's
+      // top-left position). Out of the HUD strip so it doesn't
+      // compete with the gameplay numbers. Single colour-coded line
+      // (green/yellow/red on the ping bucket — the alarming bit);
+      // transport label drawn muted alongside as context. Hidden
+      // in kid view (?clean).
       if (!isClean) {
         const labelMap = { p2p: 'P2P', connecting: 'P2P…', relay: 'RELAY' };
         const label = labelMap[currentTransport] || 'RELAY';
-        let color = '#bbbbbb';                                   // unknown ping
+        let color = '#777777';                                   // unknown ping → muted
         if (lastRTT != null) {
           if      (lastRTT < 80)   color = '#6bff8c';            // green — snappy
           else if (lastRTT < 180)  color = '#ffd84a';            // yellow — playable
@@ -1551,9 +1552,14 @@
         }
         const pingStr = lastRTT != null ? `${lastRTT}ms` : '—';
         ctx.font = '5px "Press Start 2P", monospace';
-        ctx.textAlign = 'right';
+        ctx.textAlign = 'left';
+        // Transport label muted; ping coloured. Tiny gap between
+        // them so the colour-coded number reads as the headline.
+        ctx.fillStyle = '#777777';
+        ctx.fillText(label, 6, PF_H - 6);
+        const gap = ctx.measureText(label + ' ').width;
         ctx.fillStyle = color;
-        ctx.fillText(`${label} ${pingStr}`, PF_W - 6, 22);
+        ctx.fillText(pingStr, 6 + gap, PF_H - 6);
       }
     }
   }
