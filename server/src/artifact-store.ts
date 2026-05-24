@@ -71,10 +71,10 @@ export class SqliteArtifactStore implements ArtifactStore {
   };
 
   constructor(private db: Database.Database) {
-    const hasSpaceCol = (db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[]).some((c) => c.name === "space_id");
+    const pragmaCols = db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[];
+    const hasSpaceCol = pragmaCols.some((c) => c.name === "space_id");
     // Column list for SELECTs: every artifact column EXCEPT space_id, plus the derived alias.
-    const artCols = (db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[])
-      .map((c) => c.name).filter((n) => n !== "space_id").map((n) => `a.${n}`).join(", ");
+    const artCols = pragmaCols.filter((c) => c.name !== "space_id").map((c) => `a.${c.name}`).join(", ");
     const SELECT = `SELECT ${artCols}, COALESCE(p.space_id,'') AS space_id
                       FROM artifacts a LEFT JOIN projects p ON p.id = a.project_id`;
 

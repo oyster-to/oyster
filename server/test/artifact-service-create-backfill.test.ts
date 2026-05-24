@@ -53,7 +53,7 @@ describe("ArtifactService.registerArtifact — session→creation link backfill"
     recordWriteEvent("sess-1", filePath);
 
     const art = await service.registerArtifact(
-      { path: filePath, space_id: "work", label: "report" },
+      { path: filePath, label: "report" },
       [folder],
     );
 
@@ -69,7 +69,7 @@ describe("ArtifactService.registerArtifact — session→creation link backfill"
     recordWriteEvent("sess-1", filePath);
 
     // First call: inserts + backfills → 1 link.
-    const art = await service.registerArtifact({ path: filePath, space_id: "work", label: "x", id: "fixed-id" }, [folder]);
+    const art = await service.registerArtifact({ path: filePath, label: "x", id: "fixed-id" }, [folder]);
     expect((db.prepare("SELECT COUNT(*) AS c FROM session_artifacts WHERE artifact_id = ?").get(art.id) as { c: number }).c).toBe(1);
 
     // Soft-delete + re-register: hits the resurrect branch (existing
@@ -77,7 +77,7 @@ describe("ArtifactService.registerArtifact — session→creation link backfill"
     // backfill — the original link is still there, so adding another
     // would produce a duplicate touch.
     db.prepare("UPDATE artifacts SET removed_at = datetime('now') WHERE id = ?").run("fixed-id");
-    await service.registerArtifact({ path: filePath, space_id: "work", label: "x", id: "fixed-id" }, [folder]);
+    await service.registerArtifact({ path: filePath, label: "x", id: "fixed-id" }, [folder]);
     expect((db.prepare("SELECT COUNT(*) AS c FROM session_artifacts WHERE artifact_id = ?").get(art.id) as { c: number }).c).toBe(1);
   });
 
@@ -90,7 +90,7 @@ describe("ArtifactService.registerArtifact — session→creation link backfill"
       JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Write", input: { file_path: filePath } }] } }),
     );
 
-    const art = await service.registerArtifact({ path: filePath, space_id: "work", label: "tool" }, [folder]);
+    const art = await service.registerArtifact({ path: filePath, label: "tool" }, [folder]);
 
     const link = db.prepare("SELECT session_id, role FROM session_artifacts WHERE artifact_id = ?").get(art.id) as { session_id: string; role: string };
     expect(link).toEqual({ session_id: "sess-1", role: "create" });
@@ -110,7 +110,7 @@ describe("ArtifactService.registerArtifact — session→creation link backfill"
       JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Write", input: { file_path: join(folder, "reportXv1.md") } }] } }),
     );
 
-    const art = await service.registerArtifact({ path: wildPath, space_id: "work", label: "wild" }, [folder]);
+    const art = await service.registerArtifact({ path: wildPath, label: "wild" }, [folder]);
 
     // No false match — the event mentions reportXv1.md, not report_v1.md.
     const count = db.prepare("SELECT COUNT(*) AS c FROM session_artifacts WHERE artifact_id = ?").get(art.id) as { c: number };
@@ -123,7 +123,7 @@ describe("ArtifactService.registerArtifact — session→creation link backfill"
     // No recordWriteEvent — no prior writes for this path.
 
     const art = await service.registerArtifact(
-      { path: filePath, space_id: "work", label: "u" },
+      { path: filePath, label: "u" },
       [folder],
     );
 
@@ -145,7 +145,7 @@ describe("ArtifactService.registerArtifact — session→creation link backfill"
       JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Read", input: { file_path: filePath } }] } }),
     );
 
-    const art = await service.registerArtifact({ path: filePath, space_id: "work", label: "e" }, [folder]);
+    const art = await service.registerArtifact({ path: filePath, label: "e" }, [folder]);
 
     const links = db.prepare(
       "SELECT session_id, role FROM session_artifacts WHERE artifact_id = ? ORDER BY session_id",

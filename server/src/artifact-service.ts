@@ -9,6 +9,8 @@ import { isPortOpen, isStarting, clearStarting, getGeneratedArtifactEntries } fr
 import { resolveArtifactPathViaProjects } from "./resolve-artifact-path.js";
 import { artifactTouchFromToolUse } from "./watchers/claude-code.js";
 import { slugify, inferKindFromPath, toArtifactKind } from "./utils.js";
+import { lookupProject } from "./lookup-project.js";
+import { ensureNativeProject } from "./native-project.js";
 import { debug, debugEnabled } from "./debug.js";
 
 // ── Config shapes (validated here, not in route handlers) ──
@@ -296,7 +298,7 @@ export class ArtifactService {
   async registerArtifact(
     params: {
       path: string;
-      space_id: string;
+      project_id?: string | null;
       label: string;
       id?: string;
       artifact_kind?: ArtifactKind;
@@ -305,8 +307,12 @@ export class ArtifactService {
     },
     approvedRoots: string[],
   ): Promise<Artifact> {
-    debug("artifact-svc", "registerArtifact called", { path: params.path, label: params.label, id: params.id ?? null, space_id: params.space_id });
+    debug("artifact-svc", "registerArtifact called", { path: params.path, label: params.label, id: params.id ?? null, project_id: params.project_id ?? null });
     const absPath = resolve(params.path);
+
+    const projectId = params.project_id !== undefined
+      ? params.project_id
+      : lookupProject(this.db, dirname(absPath)).projectId;
 
     // Validate file exists
     if (!existsSync(absPath)) {
@@ -345,7 +351,7 @@ export class ArtifactService {
         this.invalidateArchivedPaths();
         const kind = params.artifact_kind || inferKindFromPath(absPath);
         this.store.update(id, {
-          space_id: params.space_id,
+          project_id: projectId,
           label: params.label,
           artifact_kind: kind,
           group_name: params.group_name || null,
@@ -363,7 +369,6 @@ export class ArtifactService {
     this.store.insert({
       id,
       owner_id: null,
-      space_id: params.space_id,
       label: params.label,
       artifact_kind: kind,
       storage_kind: "filesystem",
@@ -373,6 +378,7 @@ export class ArtifactService {
       group_name: params.group_name || null,
       source_origin: params.source_origin ?? "manual",
       source_ref: null,
+      project_id: projectId,
     });
 
     // Backfill session→artefact links. The watcher's live touch-detection
@@ -383,18 +389,7 @@ export class ArtifactService {
     // rows.
     this.backfillTouchesForNewArtefact(id, absPath);
 
-    return {
-      id,
-      label: params.label,
-      artifactKind: kind,
-      spaceId: params.space_id,
-      status: "ready",
-      runtimeKind: "static_file",
-      runtimeConfig: {},
-      url: `/docs/${id}`,
-      createdAt: new Date().toISOString(),
-      groupName: params.group_name || undefined,
-    };
+    return await this.rowToArtifact(this.store.getById(id)!);
   }
 
   // Look back at recent assistant events for tool_use blocks at this
@@ -502,9 +497,10 @@ export class ArtifactService {
     // Approved-root check confirms the file we just wrote stayed within the
     // space's native folder (stricter than the old `[userlandDir]` check —
     // the subdir containment above already guarantees this).
+    const projectId = ensureNativeProject(this.db, this.userlandDir!, space_id);
     try {
       return await this.registerArtifact(
-        { path: absPath, space_id, label, artifact_kind: params.artifact_kind, group_name: params.group_name, id, source_origin: params.source_origin },
+        { path: absPath, project_id: projectId, label, artifact_kind: params.artifact_kind, group_name: params.group_name, id, source_origin: params.source_origin },
         [spaceNativePath],
       );
     } catch (err) {
@@ -554,7 +550,7 @@ export class ArtifactService {
     debug("reconcile", "inserting new row", { label: artifact.label, filePath, newId: "pending-uuid" });
     try {
       this.registerArtifact(
-        { path: filePath, space_id: artifact.spaceId, label: artifact.label, artifact_kind: artifact.artifactKind, id: crypto.randomUUID() },
+        { path: filePath, label: artifact.label, artifact_kind: artifact.artifactKind, id: crypto.randomUUID() },
         [userlandDir],
       );
     } catch (err) {
@@ -575,7 +571,7 @@ export class ArtifactService {
 
   async updateArtifact(
     id: string,
-    fields: { label?: string; space_id?: string; group_name?: string | null; artifact_kind?: ArtifactKind },
+    fields: { label?: string; group_name?: string | null; artifact_kind?: ArtifactKind },
   ): Promise<Artifact> {
     const row = this.store.getById(id);
     if (!row) throw new Error(`Artifact "${id}" not found`);
@@ -585,11 +581,6 @@ export class ArtifactService {
       const label = fields.label.trim();
       if (!label) throw new Error("label must not be empty");
       updateable.label = label;
-    }
-    if (fields.space_id !== undefined) {
-      const space_id = fields.space_id.trim();
-      if (!space_id) throw new Error("space_id must not be empty");
-      updateable.space_id = space_id;
     }
     if (fields.artifact_kind !== undefined) updateable.artifact_kind = fields.artifact_kind;
     if ("group_name" in fields) updateable.group_name = fields.group_name ?? null;
