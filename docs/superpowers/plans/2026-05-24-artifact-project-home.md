@@ -62,8 +62,16 @@ describe("ensureNativeProject", () => {
     const path = db.prepare("SELECT path FROM project_paths WHERE project_id = ?").get(id1) as { path: string };
     expect(path.path).toBe(join(userland, "spaces", "work"));
   });
+
+  it("creates the native folder on disk", () => {
+    const id = ensureNativeProject(db, userland, "work");
+    expect(existsSync(join(userland, "spaces", "work"))).toBe(true);
+    expect(id).toBeTruthy();
+  });
 });
 ```
+
+> Add `existsSync` to the imports: `import { mkdtempSync, rmSync, existsSync } from "node:fs";`
 
 - [ ] **Step 2: Run it, verify it fails**
 
@@ -76,15 +84,26 @@ Expected: FAIL — `ensureNativeProject` not found.
 // server/src/native-project.ts
 import type Database from "better-sqlite3";
 import { join } from "node:path";
+import { mkdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 
-/** The native workspace folder for a space (`<userland>/spaces/<id>`) is
- *  itself a project, filed under that space. This keeps the model uniform:
- *  every artefact — repo file or agent-created content — is project-parented,
- *  and its space derives via that project. Idempotent: returns the existing
- *  native project id if one is already registered for the folder. */
+/** The native workspace folder for a space (`<userland>/spaces/<id>`) is the
+ *  path where `create_artifact` writes content (via getNativeSourcePath).
+ *  Compute it the same way the rest of the server does — via `path.join`, so
+ *  the separator is platform-correct. */
+export function nativeSpaceDir(userlandDir: string, spaceId: string): string {
+  return join(userlandDir, "spaces", spaceId);
+}
+
+/** The native workspace folder for a space is itself a project, filed under
+ *  that space. This keeps the model uniform: every artefact — repo file or
+ *  agent-created content — is project-parented, and its space derives via
+ *  that project. Ensures the folder exists on disk (create_artifact writes
+ *  into it). Idempotent: returns the existing native project id if one is
+ *  already registered for the folder. */
 export function ensureNativeProject(db: Database.Database, userlandDir: string, spaceId: string): string {
-  const nativePath = join(userlandDir, "spaces", spaceId);
+  const nativePath = nativeSpaceDir(userlandDir, spaceId);
+  mkdirSync(nativePath, { recursive: true });
   const existing = db
     .prepare("SELECT project_id FROM project_paths WHERE path = ?")
     .get(nativePath) as { project_id: string } | undefined;
@@ -182,6 +201,7 @@ Expected: FAIL — module not found.
 ```typescript
 // server/src/artifact-space-migration.ts
 import type Database from "better-sqlite3";
+import { join, relative, sep, isAbsolute } from "node:path";
 import { ensureNativeProject } from "./native-project.js";
 
 export interface ArtifactSpaceReport {
@@ -195,20 +215,14 @@ export interface ArtifactSpaceReport {
 /** Backfill artifacts.project_id from the file path so space can be derived
  *  via project. Native workspace files (<userland>/spaces/<id>) get a native
  *  project for their space first. Does NOT drop space_id — that is a separate
- *  step run only after all readers stop using the column. Idempotent. */
+ *  step run only after all readers stop using the column.
+ *
+ *  Idempotent AND safe after space_id has been dropped: the SELECT shape is
+ *  chosen from PRAGMA, so it never names a column that no longer exists. */
 export function backfillArtifactProjects(db: Database.Database, userlandDir: string): ArtifactSpaceReport {
   const cols = db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[];
   const hasSpaceCol = cols.some((c) => c.name === "space_id");
 
-  const rows = db
-    .prepare(
-      `SELECT id, space_id, json_extract(storage_config,'$.path') AS path
-         FROM artifacts
-        WHERE project_id IS NULL AND json_extract(storage_config,'$.path') IS NOT NULL`,
-    )
-    .all() as { id: string; space_id: string | null; path: string }[];
-
-  const nativePrefix = `${userlandDir}/spaces/`;
   const resolveProject = db.prepare(
     `SELECT pp.project_id FROM project_paths pp
       WHERE ? LIKE pp.path || '/%' OR ? = pp.path
@@ -216,28 +230,53 @@ export function backfillArtifactProjects(db: Database.Database, userlandDir: str
   );
   const setProject = db.prepare("UPDATE artifacts SET project_id = ? WHERE id = ?");
   const projectSpace = db.prepare("SELECT space_id FROM projects WHERE id = ?");
+  const nativeRoot = join(userlandDir, "spaces");
 
   const report: ArtifactSpaceReport = { total: 0, hadSpace: 0, backfilled: 0, stillOrphan: 0, mismatches: [] };
   const txn = db.transaction(() => {
-    const allCount = db.prepare("SELECT COUNT(*) AS n FROM artifacts").get() as { n: number };
-    report.total = allCount.n;
+    report.total = (db.prepare("SELECT COUNT(*) AS n FROM artifacts").get() as { n: number }).n;
     if (hasSpaceCol) {
       report.hadSpace = (db.prepare("SELECT COUNT(*) AS n FROM artifacts WHERE space_id IS NOT NULL AND space_id != ''").get() as { n: number }).n;
     }
-    for (const row of rows) {
+
+    // 1. Backfill project_id for rows missing it. The query NEVER references
+    //    space_id directly — it may have been dropped on a prior boot.
+    const needBackfill = db
+      .prepare(
+        `SELECT id, json_extract(storage_config,'$.path') AS path
+           FROM artifacts
+          WHERE project_id IS NULL AND json_extract(storage_config,'$.path') IS NOT NULL`,
+      )
+      .all() as { id: string; path: string }[];
+    for (const row of needBackfill) {
       // Native workspace file → ensure its space's native project first.
-      if (row.path.startsWith(nativePrefix) && row.space_id) {
-        const rest = row.path.slice(nativePrefix.length);
-        const spaceId = rest.split("/")[0];
+      const rel = relative(nativeRoot, row.path);
+      if (rel && !rel.startsWith("..") && !isAbsolute(rel)) {
+        const spaceId = rel.split(sep)[0];
         if (spaceId) ensureNativeProject(db, userlandDir, spaceId);
       }
       const hit = resolveProject.get(row.path, row.path) as { project_id: string } | undefined;
       if (!hit) { report.stillOrphan++; continue; }
       setProject.run(hit.project_id, row.id);
       report.backfilled++;
-      const newSpace = (projectSpace.get(hit.project_id) as { space_id: string | null }).space_id;
-      if (row.space_id && row.space_id !== "" && row.space_id !== newSpace) {
-        report.mismatches.push({ id: row.id, path: row.path, oldSpace: row.space_id, newSpace });
+    }
+
+    // 2. Mismatch report — only possible while space_id still exists. Covers
+    //    ALL parented rows (pre-existing project_id too), not just the ones
+    //    just backfilled, so a stale manual space assignment is surfaced.
+    if (hasSpaceCol) {
+      const withBoth = db
+        .prepare(
+          `SELECT id, space_id, project_id, json_extract(storage_config,'$.path') AS path
+             FROM artifacts
+            WHERE project_id IS NOT NULL AND space_id IS NOT NULL AND space_id != ''`,
+        )
+        .all() as { id: string; space_id: string; project_id: string; path: string }[];
+      for (const row of withBoth) {
+        const newSpace = (projectSpace.get(row.project_id) as { space_id: string | null }).space_id;
+        if (row.space_id !== newSpace) {
+          report.mismatches.push({ id: row.id, path: row.path, oldSpace: row.space_id, newSpace });
+        }
       }
     }
   });
@@ -245,6 +284,8 @@ export function backfillArtifactProjects(db: Database.Database, userlandDir: str
   return report;
 }
 ```
+
+> The mismatch test in Step 1 still holds: `a-mismatch` is parented to `p-repo` (space `work`) in pass 1, then pass 2 finds its old space `home ≠ work` and reports it. Add a second assertion to the test that a row with a *pre-existing* `project_id` whose old `space_id` disagrees is also reported (seed one before calling).
 
 - [ ] **Step 4: Run it, verify it passes**
 
@@ -328,20 +369,25 @@ Expected: FAIL — `insert` still requires `space_id` (TS error or runtime: `a1`
 
 - [ ] **Step 3: Implement — rewrite SELECTs + insert + UPDATABLE_COLUMNS**
 
-In `server/src/artifact-store.ts`, replace the SELECT statements (`:73-80`) so each derives space via join (alias kept as `space_id`):
+In `server/src/artifact-store.ts`, replace the SELECT statements (`:73-80`). **Do not use `a.*`** — build the artifact column list dynamically from `PRAGMA table_info`, excluding `space_id`, and append the derived alias. This is robust whether or not the column still exists, and never produces a duplicate `space_id` column (so we don't rely on better-sqlite3's row-key overwrite order):
 
 ```typescript
-const SELECT = `SELECT a.*, COALESCE(p.space_id,'') AS space_id
+// Column list for SELECTs: every artifact column EXCEPT space_id, plus the
+// derived space alias. Built once; correct pre- and post-column-drop.
+const artCols = (db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[])
+  .map((c) => c.name)
+  .filter((n) => n !== "space_id")
+  .map((n) => `a.${n}`)
+  .join(", ");
+const SELECT = `SELECT ${artCols}, COALESCE(p.space_id,'') AS space_id
                   FROM artifacts a LEFT JOIN projects p ON p.id = a.project_id`;
-// note: a.* no longer includes space_id once the column is dropped (Task 7);
-// before then, the aliased COALESCE column shadows a.space_id in the result.
 this.stmts = {
-  getAll: db.prepare(`${SELECT} WHERE a.removed_at IS NULL ORDER BY a.space_id, a.created_at`),
+  getAll: db.prepare(`${SELECT} WHERE a.removed_at IS NULL ORDER BY p.space_id, a.created_at`),
   getById: db.prepare(`${SELECT} WHERE a.id = ?`),
-  getBySpaceId: db.prepare(`SELECT a.*, p.space_id AS space_id FROM artifacts a JOIN projects p ON p.id = a.project_id WHERE p.space_id = ? AND a.removed_at IS NULL ORDER BY a.created_at`),
+  getBySpaceId: db.prepare(`${SELECT} WHERE p.space_id = ? AND a.removed_at IS NULL ORDER BY a.created_at`),
   getByPath: db.prepare(`${SELECT} WHERE json_extract(a.storage_config,'$.path') = ? AND a.removed_at IS NULL`),
   getDistinctSpaces: db.prepare(`SELECT p.space_id AS space_id, COUNT(*) as count FROM artifacts a JOIN projects p ON p.id = a.project_id WHERE a.removed_at IS NULL GROUP BY p.space_id ORDER BY p.space_id`),
-  getBySpaceAndSourceRef: db.prepare(`SELECT a.*, p.space_id AS space_id FROM artifacts a JOIN projects p ON p.id = a.project_id WHERE p.space_id = ? AND a.source_ref = ?`),
+  getByProjectAndSourceRef: db.prepare(`${SELECT} WHERE a.project_id = ? AND a.source_ref = ?`),
   insert: db.prepare(`
     INSERT INTO artifacts (id, owner_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, group_name, source_origin, source_ref, project_id)
     VALUES (@id, @owner_id, @label, @artifact_kind, @storage_kind, @storage_config, @runtime_kind, @runtime_config, @group_name, COALESCE(@source_origin,'manual'), @source_ref, @project_id)`),
@@ -349,9 +395,11 @@ this.stmts = {
 };
 ```
 
-> `getAll`'s `ORDER BY a.space_id` must change once the column is dropped (Task 7) — change it to `ORDER BY p.space_id` there. For now `a.space_id` still exists.
+> `getBySpaceId` uses `LEFT JOIN` + `WHERE p.space_id = ?` — orphan artifacts (`project_id NULL` → `p.space_id NULL`) never match a real space id, so they're correctly excluded. `getAll` orders by `p.space_id` (the column is gone post-drop). `getDistinctSpaces` inner-joins (orphans absent), matching old behaviour where every artifact had a space.
 
-Update `InsertRow` (`:33`): **add `"space_id"` to the `Omit<ArtifactRow, ...>` list** so it is no longer a required insert field (callers stop supplying it; `project_id` is the home now). `ArtifactRow.space_id` (`:8`) **stays** `string` — it is now populated by the derived `space_id` alias from the SELECT (the alias is listed *after* `a.*`, so better-sqlite3's row object takes the derived value, shadowing the stored column while it still exists, and supplying it once the column is dropped). Add a comment on `ArtifactRow.space_id` noting it is derived, not stored.
+**Rename `getBySpaceAndSourceRef` → `getByProjectAndSourceRef`** (signature `(projectId: string, sourceRef: string)`), keyed on `(project_id, source_ref)` to match the new dedup index — space-keyed lookup is ambiguous now (multiple projects per space). Update the `ArtifactStore` interface (`:45`) and the method body. The audit found **zero external callers**, so no call sites need updating; grep to confirm: `grep -rn "getBySpaceAndSourceRef" server/src`.
+
+Update `InsertRow` (`:33`): **add `"space_id"` to the `Omit<ArtifactRow, ...>` list** so it is no longer a required insert field (callers stop supplying it; `project_id` is the home now). `ArtifactRow.space_id` (`:8`) **stays** `string` — populated by the derived alias (which is the *only* `space_id` column in the result, so no shadowing ambiguity). Add a comment on `ArtifactRow.space_id` noting it is derived, not stored.
 
 Remove `"space_id"` from `UPDATABLE_COLUMNS` (`:130-134`):
 
@@ -548,13 +596,18 @@ Expected: FAIL — `dropArtifactSpaceColumn` not exported; index still keyed on 
 // append to server/src/artifact-space-migration.ts
 export function dropArtifactSpaceColumn(db: Database.Database): void {
   const hasCol = (db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[]).some((c) => c.name === "space_id");
-  if (!hasCol) return; // idempotent
-  db.exec("DROP INDEX IF EXISTS artifacts_space_source_ref_uq");
-  try {
+  if (hasCol) {
+    db.exec("DROP INDEX IF EXISTS artifacts_space_source_ref_uq");
+    // DROP COLUMN requires SQLite ≥ 3.35 (2021); better-sqlite3 v12 bundles a
+    // newer SQLite, so this is supported. We deliberately do NOT swallow a
+    // failure — dropping the column is the whole point of this migration; a
+    // silent no-op would hide a real problem and leave the schema half-done.
+    // If a future runtime ever lacks DROP COLUMN support, this throws at boot
+    // (loud + visible) rather than degrading quietly.
     db.exec("ALTER TABLE artifacts DROP COLUMN space_id");
-  } catch {
-    /* SQLite < 3.35: column stays but nothing reads it. Acceptable. */
   }
+  // Idempotent: ensure the new dedup index exists regardless of whether the
+  // column was just dropped or dropped on a prior boot.
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS artifacts_project_source_ref_uq
              ON artifacts(project_id, source_ref) WHERE source_ref IS NOT NULL`);
 }
@@ -568,18 +621,14 @@ In `server/src/db.ts`, replace the `artifacts_space_source_ref_uq` creation bloc
 dropArtifactSpaceColumn(db); // import alongside backfillArtifactProjects
 ```
 
-> Order matters: `backfillArtifactProjects` (needs `space_id` for the report) runs first, then `dropArtifactSpaceColumn`. The old `artifacts_space_source_ref_uq` CREATE at `:114-120` must be **removed** (the column won't exist), or guarded — delete those lines since the drop function now owns the dedup index.
+> Order matters: `backfillArtifactProjects` (needs `space_id` for the report) runs first, then `dropArtifactSpaceColumn`. The old `artifacts_space_source_ref_uq` CREATE at `db.ts:114-120` must be **removed** (the column won't exist) — delete those lines; `dropArtifactSpaceColumn` now owns the dedup index. (`getAll`'s ORDER BY already uses `p.space_id` from Task 3, so nothing to change here.)
 
-- [ ] **Step 5: Fix `getAll` ORDER BY in artifact-store.ts**
-
-Change `getAll`'s `ORDER BY a.space_id, a.created_at` → `ORDER BY p.space_id, a.created_at` (the column is gone now).
-
-- [ ] **Step 6: Run tests + full suite + build**
+- [ ] **Step 5: Run tests + full suite + build**
 
 Run: `npm --prefix server test && npm --prefix server run build`
 Expected: all PASS, tsc clean.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add server/src/artifact-space-migration.ts server/src/db.ts server/src/artifact-store.ts server/test/artifact-space-migration.test.ts
@@ -627,3 +676,4 @@ git commit -m "docs(changelog): artefacts follow their project's space"
 - **Don't remove `projects.space_id`** or any space plumbing — spaces still organise projects. Out of scope.
 - **No reactive registration** — that's Plan 2 (`2026-05-24-session-output-registration-design.md`), built on this.
 - If a TS call site breaks because it passed `space_id` to `registerArtifact`, that's expected — switch it to omit `space_id` (project resolves from path) or pass `project_id`.
+- **Path portability (residual):** native-folder construction and containment now use `path.join` / `path.relative` / `path.sep` (platform-correct). One known residual remains — the longest-prefix `resolveProject` SQL uses `LIKE pp.path || '/%'` with a hard-coded `/`. On the current (macOS) machine all stored `storage_config.path` and `project_paths.path` are POSIX, so this is correct here. If Oyster targets Windows, normalise both sides to `/` before the `LIKE` (or store canonical POSIX paths). Out of scope for this PR; flagged so it isn't a silent surprise.
