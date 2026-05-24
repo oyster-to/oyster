@@ -9,10 +9,24 @@ import { createPublishService } from "../src/publish-service.js";
 function makeDb(): Database.Database {
   const db = new Database(":memory:");
   db.exec(`
+    CREATE TABLE spaces (
+      id           TEXT PRIMARY KEY,
+      display_name TEXT NOT NULL DEFAULT ''
+    );
+    INSERT INTO spaces (id, display_name) VALUES ('home', 'Home'), ('client-projects', 'Client Projects');
+
+    CREATE TABLE projects (
+      id        TEXT PRIMARY KEY,
+      space_id  TEXT NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+      name      TEXT NOT NULL DEFAULT '',
+      removed_at INTEGER
+    );
+
     CREATE TABLE artifacts (
       id                   TEXT PRIMARY KEY,
       owner_id             TEXT,
-      space_id             TEXT NOT NULL,
+      space_id             TEXT NOT NULL DEFAULT '',
+      project_id           TEXT REFERENCES projects(id) ON DELETE SET NULL,
       label                TEXT NOT NULL,
       artifact_kind        TEXT NOT NULL,
       storage_kind         TEXT NOT NULL,
@@ -32,13 +46,21 @@ function makeDb(): Database.Database {
   return db;
 }
 
-function seedArtifact(db: Database.Database, opts: { id?: string; artifact_kind?: string; owner_id?: string | null } = {}) {
+function seedArtifact(db: Database.Database, opts: { id?: string; artifact_kind?: string; owner_id?: string | null; project_id?: string | null } = {}) {
   const id = opts.id ?? "art_1";
   db.prepare(
     `INSERT INTO artifacts
-       (id, owner_id, space_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config)
-     VALUES (?, ?, 'home', 'test', ?, 'filesystem', '{"path":"/tmp/fake.md"}', 'static_file', '{}')`
-  ).run(id, opts.owner_id ?? null, opts.artifact_kind ?? "notes");
+       (id, owner_id, project_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config)
+     VALUES (?, ?, ?, 'test', ?, 'filesystem', '{"path":"/tmp/fake.md"}', 'static_file', '{}')`
+  ).run(id, opts.owner_id ?? null, opts.project_id ?? null, opts.artifact_kind ?? "notes");
+  return id;
+}
+
+/** Insert a project row and return its id. */
+function seedProject(db: Database.Database, opts: { id?: string; space_id?: string } = {}) {
+  const id = opts.id ?? "proj_1";
+  db.prepare(`INSERT INTO projects (id, space_id, name) VALUES (?, ?, 'Test Project')`)
+    .run(id, opts.space_id ?? "home");
   return id;
 }
 
@@ -528,9 +550,10 @@ describe("backfillPublications", () => {
 
   it("opportunistically pushes local label + space_id to D1 when cloud row is stale", async () => {
     const db = makeDb();
-    seedArtifact(db, { id: "art_present", owner_id: null });
-    db.prepare("UPDATE artifacts SET label = ?, space_id = ? WHERE id = ?")
-      .run("Friendly Label", "client-projects", "art_present");
+    const projId = seedProject(db, { id: "proj_cp", space_id: "client-projects" });
+    seedArtifact(db, { id: "art_present", owner_id: null, project_id: projId });
+    db.prepare("UPDATE artifacts SET label = ? WHERE id = ?")
+      .run("Friendly Label", "art_present");
 
     let mineCalls = 0;
     let patchCall: { url?: string; body?: any } = {};
@@ -580,9 +603,10 @@ describe("backfillPublications", () => {
 
   it("does NOT fire context up-sync when cloud + local already agree", async () => {
     const db = makeDb();
-    seedArtifact(db, { id: "art_present", owner_id: null });
-    db.prepare("UPDATE artifacts SET label = ?, space_id = ? WHERE id = ?")
-      .run("Same Label", "home", "art_present");
+    const projId = seedProject(db, { id: "proj_home", space_id: "home" });
+    seedArtifact(db, { id: "art_present", owner_id: null, project_id: projId });
+    db.prepare("UPDATE artifacts SET label = ? WHERE id = ?")
+      .run("Same Label", "art_present");
 
     const fetchMock = vi.fn(async (url: string) => {
       if (url.endsWith("/api/publish/mine")) {
@@ -591,7 +615,7 @@ describe("backfillPublications", () => {
             share_token: "tok", artifact_id: "art_present", artifact_kind: "notes",
             mode: "open", content_type: "text/plain", size_bytes: 10,
             published_at: 1, updated_at: 1,
-            label: "Same Label", space_id: "home",    // matches local
+            label: "Same Label", space_id: "home",    // matches local derived space
           }],
         }), { status: 200, headers: { "content-type": "application/json" } });
       }

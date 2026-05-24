@@ -140,7 +140,9 @@ export function createPublishService(deps: PublishServiceDeps): PublishService {
       if (!user || !token) throw new PublishError(401, "sign_in_required", "Sign in to publish artefacts.");
 
       const row = deps.db.prepare(
-        "SELECT id, artifact_kind, owner_id, share_token, unpublished_at, label, space_id FROM artifacts WHERE id = ?"
+        `SELECT a.id, a.artifact_kind, a.owner_id, a.share_token, a.unpublished_at, a.label, COALESCE(p.space_id,'') AS space_id
+           FROM artifacts a LEFT JOIN projects p ON p.id = a.project_id
+          WHERE a.id = ?`
       ).get(args.artifact_id) as ArtifactRow | undefined;
       if (!row) throw new PublishError(404, "artifact_not_found", `No artefact with id ${args.artifact_id}`);
 
@@ -441,7 +443,9 @@ export function createPublishService(deps: PublishServiceDeps): PublishService {
       // inputs); using changes alone would mis-classify such rows as ghosts.
       // The local-context SELECT below also doubles as the existence check.
       const localContextStmt = deps.db.prepare(
-        "SELECT label, space_id FROM artifacts WHERE id = ?"
+        `SELECT a.label, COALESCE(p.space_id,'') AS space_id
+           FROM artifacts a LEFT JOIN projects p ON p.id = a.project_id
+          WHERE a.id = ?`
       );
 
       let mirrored = 0;
