@@ -136,9 +136,23 @@ Worth a 15-minute talk before we start coding.
 
 ## First moves when you start
 
-1. Fresh worktree off latest `main` — e.g. `~/Dev/oyster.worktrees/artifact-scanner`
-2. **First conversation:** the open question above. Are we registering everything as an artifact (filter at UI), or splitting into `session_file_touches`? Don't write code until that's settled.
-3. Once settled, brainstorm the spec — there's enough above to start, but it needs the open question answered before becoming a real plan.
-4. Verify on `/tmp/oyster-fresh` first — that's the canary. If a fresh user gets meaningful chips on their first session, the work is done.
+1. Fresh worktree off latest `main` — e.g. `~/Dev/oyster.worktrees/artifact-scanner`.
+
+2. **Code audit BEFORE the architecture discussion.** The previous session made architectural calls without code grounding and had to backtrack. Don't repeat that. Dispatch a code-explorer subagent (or read directly) to map the current state and bring findings back to the main thread *before* tackling the open question. The audit should answer:
+
+   - **Watcher → `session_artifacts` write path.** In `server/src/watchers/claude-code.ts`, trace every place `insertArtifactTouch` (or the underlying SQL) is called. What's the exact event flow? Where would a *new* "every-touch" path hook in?
+   - **Backfill path.** `server/src/artifact-service.ts:backfillTouchesForNewArtefact` — what does it scan, what bounds it (30 days?), what's its idempotency story?
+   - **`Artifact` registry shape.** `shared/types.ts:20` — what does the curated `Artifact` interface promise that an auto-registered file might violate (publication state, sharing, pinning, manual labels)? Worth mapping before deciding whether to overload or split.
+   - **The dormant scanner.** Search the repo + git history for the code that *used* to write `source_origin: 'discovered'` (the 506 artifacts on Matthew's DB). It's gone from the current tree but the migration trail might tell us why it was removed. Useful prior art either way.
+   - **Existing scan scaffolding.** `space-store.ts` already has `scan_status`, `last_scanned_at`, `last_scan_summary` columns. Are there any partial scanner remnants (functions, MCP handlers, UI hooks) that point at those columns? Reuse > rebuild.
+   - **The dedup/UNIQUE problem** in `session_artifacts`. Confirm the bug from this handover by checking the schema (`server/src/db.ts:307+`) and the live insert paths. The fix is a schema migration; in scope or not depends on the chosen path.
+
+   **Cap the audit at ~600 words back to the main thread.** Findings should be specific (file:line, current behaviour, what's missing) — not vibes.
+
+3. **Then settle the open question** with code in hand. Are we registering everything as an artifact (filter at UI), or splitting into `session_file_touches`? Don't write code until that's settled.
+
+4. **Then brainstorm the spec** — there's enough in this handover to start, but the audit + the answered question shape it into a real plan.
+
+5. **Verify on `/tmp/oyster-fresh` first.** That's the canary. If a fresh user gets meaningful chips on their first session, the work is done.
 
 Sleep well. This will feel obvious in the morning.
