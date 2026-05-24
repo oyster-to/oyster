@@ -725,11 +725,14 @@
   function allOccupiedPeersConnected() {
     // Host (P1): every occupied non-P1 seat must have a connected peer.
     // Client (non-P1): we just need a connected peer to P1.
+    // Uses seatOccupied() (authoritative `seats` field) rather than
+    // .alive so a mid-respawn ship doesn't briefly read as "vacant"
+    // and demote the transport badge to "connecting" or "relay".
     if (!mySeat || !lastState) return false;
     if (mySeat === 'p1') {
       let anyOther = false;
       for (let i = 1; i < SEATS.length; i++) {
-        if (!lastState.players[i]?.alive) continue;
+        if (!seatOccupied(i)) continue;
         anyOther = true;
         if (!peerConnectedTo(SEATS[i])) return false;
       }
