@@ -165,7 +165,7 @@ export const CHARGE_THRESHOLD_SEC = 0.5;
 const SUPER_SCORE_INTERVAL = 1000;
 export const CHARGED_BULLET_W = 4;
 export const CHARGED_BULLET_H = 12;
-const CHARGED_BULLET_SPEED = 380;
+export const CHARGED_BULLET_SPEED = 380;
 
 export function zeroInput() {
   return { left: false, right: false, fire: false };
@@ -205,12 +205,14 @@ function freshShips() {
       combo: 0,
       comboDecayIn: 0,
       // Super-shot ammo + charge accumulator. chargeSec ticks up
-      // while FIRE is held; on cooldown-clear, if chargeSec ≥
-      // CHARGE_THRESHOLD_SEC and superAmmo > 0 we spawn a charged
-      // bullet and decrement ammo. nextSuperAt is the score
-      // threshold for the next earned ammo refill.
+      // while FIRE is held. SP-style release-to-fire: a shot spawns
+      // on the input.fire true→false transition — if chargeSec was
+      // ≥ CHARGE_THRESHOLD_SEC AND superAmmo > 0 it's a charged
+      // bullet, otherwise a normal one. wasFiring tracks the previous
+      // tick's input so we can detect the edge.
       superAmmo: SUPER_SHOT_MAX,
       chargeSec: 0,
+      wasFiring: false,
       nextSuperAt: SUPER_SCORE_INTERVAL,
     };
   }
@@ -318,19 +320,26 @@ function tickRespawnAndInvuln(state, dt) {
 function stepShips(state, inputs, dt, occupied) {
   // Ship horizontal position is client-authoritative: the caller
   // streams `pos` updates and writes them straight into ship.x. This
-  // function handles fire (cooldown + bullet spawn host-controlled
-  // for fair per-player fire rate) and super-shot charging.
+  // function handles fire + super-shot charging via SP-style release
+  // semantics: shots spawn on the input.fire true→false edge. Holding
+  // accumulates charge; on release the spawn is charged if held ≥
+  // CHARGE_THRESHOLD_SEC AND superAmmo > 0, else normal. Auto-fire on
+  // hold is gone (it conflicted with charging — FIRE_COOLDOWN 0.45s
+  // < CHARGE_THRESHOLD_SEC 0.5s would have rapid-fired before the
+  // charge ever completed). Players tap-tap-tap for rapid normal
+  // fire, hold-and-release for charged.
   for (const seat of SEATS) {
     const ship = state.ships[seat];
     if (!ship.alive || !occupied[seat]) continue;
     const input = inputs[seat];
-    if (!input) continue;
+    if (!input) { ship.wasFiring = false; continue; }
     ship.cooldown = Math.max(0, ship.cooldown - dt);
-    if (input.fire) {
-      // Hold accumulates charge time. We don't gate this on superAmmo
-      // > 0 — the check happens at spawn time, so the bar fills
-      // visibly even when empty (just doesn't spawn a charged shot).
+    const firing = !!input.fire;
+    if (firing) {
       ship.chargeSec += dt;
+    } else if (ship.wasFiring) {
+      // Release edge: spawn a shot if cooldown is clear. Otherwise
+      // the input was just spam — drop the charge silently.
       if (ship.cooldown <= 0) {
         const charged = ship.chargeSec >= CHARGE_THRESHOLD_SEC && ship.superAmmo > 0;
         const bw = charged ? CHARGED_BULLET_W : BULLET_W;
@@ -343,11 +352,10 @@ function stepShips(state, inputs, dt, occupied) {
         });
         ship.cooldown = FIRE_COOLDOWN;
         if (charged) ship.superAmmo--;
-        ship.chargeSec = 0;        // reset; next charged needs another hold
       }
-    } else {
-      ship.chargeSec = 0;          // released → drop the charge
+      ship.chargeSec = 0;
     }
+    ship.wasFiring = firing;
   }
 }
 

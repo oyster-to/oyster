@@ -373,7 +373,7 @@
     SHIELD_W, SHIELD_H, SHIELD_COUNT, SHIELD_Y,
     decodeShields, shieldOffsets,
     SUPER_SHOT_MAX, CHARGE_THRESHOLD_SEC,
-    CHARGED_BULLET_W, CHARGED_BULLET_H,
+    CHARGED_BULLET_W, CHARGED_BULLET_H, CHARGED_BULLET_SPEED,
     comboMultiplier,
     SEATS, MAX_SEATS,
   } = engine;
@@ -623,7 +623,7 @@
   // Local prediction state — only the seat we own. Integrated from
   // input each rAF frame using server-identical physics, snapped to the
   // server when we diverge (network drops, death/respawn).
-  const localShip = { x: null, cooldown: 0, holdSec: 0 };
+  const localShip = { x: null, cooldown: 0, holdSec: 0, wasFiring: false };
   const ghostBullets = []; // [{ x, y, born }] — locally-predicted, fade after GHOST_TTL_MS
   let prevFrameT = 0;
   let posTimer = null;
@@ -1341,12 +1341,14 @@
     //    time the server's authoritative bullet has appeared in a
     //    snapshot and taken over the visual.
     localShip.cooldown = Math.max(0, localShip.cooldown - dt);
-    // Mirror the engine's hold-time tracking so the ghost bullet can
-    // preview a super-shot the moment the threshold is crossed (and
-    // ammo is still in stock per the latest snapshot).
+    // Release-to-fire mirrors the engine: chargeSec accumulates while
+    // holding, the shot spawns on the true→false edge. localAlive +
+    // cooldown gate the spawn so a held button can't queue infinite
+    // shots, and tap-tap-tap rapid-fire respects FIRE_COOLDOWN. The
+    // ghost previews charged mode the moment hold ≥ threshold + the
+    // latest snapshot says we have ammo.
     if (input.fire) localShip.holdSec += dt;
-    else            localShip.holdSec = 0;
-    if (input.fire && localShip.cooldown <= 0 && localAlive()) {
+    if (localShip.wasFiring && !input.fire && localShip.cooldown <= 0 && localAlive()) {
       const me = mySeat && lastState ? lastState.players[SEATS.indexOf(mySeat)] : null;
       const myAmmo = me ? (me.superAmmo | 0) : 0;
       const charged = localShip.holdSec >= CHARGE_THRESHOLD_SEC && myAmmo > 0;
@@ -1359,14 +1361,17 @@
         charged: charged,
       });
       localShip.cooldown = FIRE_COOLDOWN;
-      localShip.holdSec = 0;
       Arcade.Audio.play('sfx-shoot', charged ? 0.75 : 0.55);
     }
-    // Ghost bullets travel at the same speeds the engine uses (BULLET_
-    // SPEED for normal, CHARGED_BULLET_SPEED for super) so the visual
-    // hand-off lines up cleanly when the authoritative snapshot lands.
-    const CHARGED_GHOST_SPEED = 380;
-    for (const gb of ghostBullets) gb.y -= (gb.charged ? CHARGED_GHOST_SPEED : BULLET_SPEED) * dt;
+    if (!input.fire) localShip.holdSec = 0;
+    localShip.wasFiring = !!input.fire;
+    // Ghost bullets travel at the same speeds the engine uses so the
+    // visual hand-off lines up cleanly when the authoritative snapshot
+    // lands. CHARGED_BULLET_SPEED is imported from the engine to keep
+    // the predictor locked to sim values; falls back to a constant if
+    // a stale engine.js doesn't export it yet.
+    const chargedSpeed = CHARGED_BULLET_SPEED ?? 380;
+    for (const gb of ghostBullets) gb.y -= (gb.charged ? chargedSpeed : BULLET_SPEED) * dt;
     for (let i = ghostBullets.length - 1; i >= 0; i--) {
       if (now - ghostBullets[i].born > GHOST_TTL_MS || ghostBullets[i].y < -BULLET_H) {
         ghostBullets.splice(i, 1);

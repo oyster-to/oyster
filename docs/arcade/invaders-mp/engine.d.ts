@@ -27,8 +27,10 @@ export interface Ship {
   comboDecayIn: number;
   /** Charged-fire ammo remaining (0..SUPER_SHOT_MAX). */
   superAmmo: number;
-  /** Accumulated FIRE-hold time in seconds; resets on release or shot spawn. */
+  /** Accumulated FIRE-hold time in seconds; resets on release. */
   chargeSec: number;
+  /** Previous tick's fire input — drives release-to-fire edge detection. */
+  wasFiring: boolean;
   /** Score threshold for the next earned ammo refill. */
   nextSuperAt: number;
 }
