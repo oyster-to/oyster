@@ -36,6 +36,21 @@
     image-rendering: crisp-edges;
   }
 
+  /* Touch-device safe-area. Shared cabinet.css drops .screen padding
+     to 0 on coarse pointers (edge-to-edge phone look), which strips
+     the browser-chrome insets too — on iPad landscape Safari that
+     lets the cabinet extend under the toolbar and crops the HUD +
+     top invader row. Re-add the safe-area insets so content always
+     lives inside the visible region. */
+  @media (pointer: coarse) {
+    #stage.screen {
+      padding-top:    env(safe-area-inset-top);
+      padding-right:  env(safe-area-inset-right);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left:   env(safe-area-inset-left);
+    }
+  }
+
   /* Prescreen — covers the tube while the game is in the waiting,
      ready, or gameover states (the lobby/restart UI). Hidden during
      countdown + running, when .tube.is-ready is set by refreshLobby
@@ -1008,6 +1023,13 @@
         if (msg.status === 'gameover' && prev.status !== 'gameover' && !msg.won) {
           Arcade.Audio.play('sfx-lose', 0.6);
         }
+        if (typeof msg.lives === 'number' && typeof prev.lives === 'number'
+            && msg.lives < prev.lives) {
+          // Shared-pool tick: brief flash + "-1" popup near the LIVES
+          // HUD so the whole team can see "we just lost one" instead
+          // of having to spot a quiet number change while shooting.
+          livesFlashUntil = performance.now() + LIVES_FLASH_MS;
+        }
       }
       lastState = msg;
       snapBuffer.push(msg);
@@ -1465,13 +1487,38 @@
       ctx.fillText('1-1', PF_W / 2, 12);
 
       // LIVES — shared respawn-pool counter, right-aligned. "—" if
-      // an older snapshot omits the field.
+      // an older snapshot omits the field. The value flashes brighter
+      // (yellow→white) and a floating "-1" rises and fades for
+      // LIVES_FLASH_MS after the pool decrements, so the whole team
+      // sees the loss instead of having to spot a quiet tick.
       ctx.textAlign = 'right';
       ctx.fillStyle = '#ffffff';
       ctx.fillText('LIVES', PF_W - 6, 4);
-      ctx.fillStyle = '#ffd84a';
       const lives = (latestSnap.lives != null) ? String(latestSnap.lives) : '—';
+      const flashFor = Math.max(0, livesFlashUntil - performance.now());
+      if (flashFor > 0) {
+        // t: 1 at flash start, 0 at end. Brighten yellow towards white
+        // by lifting green + blue channels.
+        const t = flashFor / LIVES_FLASH_MS;
+        const g = Math.round(216 + (255 - 216) * t);
+        const b = Math.round(74  + (255 - 74)  * t);
+        ctx.fillStyle = `rgb(255, ${g}, ${b})`;
+      } else {
+        ctx.fillStyle = '#ffd84a';
+      }
       ctx.fillText(lives, PF_W - 6, 12);
+
+      // Floating "-1" — animates up from just below the LIVES value
+      // and fades as t→0. Only rendered while flashFor > 0.
+      if (flashFor > 0) {
+        const t = flashFor / LIVES_FLASH_MS;
+        ctx.save();
+        ctx.globalAlpha = t;
+        ctx.fillStyle = '#ff6666';
+        ctx.font = '7px "Press Start 2P", monospace';
+        ctx.fillText('-1', PF_W - 6, 22 - 10 * (1 - t));
+        ctx.restore();
+      }
     }
   }
 
@@ -1479,6 +1526,11 @@
   let attackOverlayUntil = 0;
   let nameFadeStartAt = 0;
   const NAME_FADE_MS = 800;
+  // Lives-decrement HUD flash. Set when a snapshot diff sees lives go
+  // down; the HUD renderer brightens the LIVES value and floats a
+  // "-1" popup above it until this clock passes.
+  let livesFlashUntil = 0;
+  const LIVES_FLASH_MS = 600;
   function drawCenteredOverlay(text, color, sizePx) {
     ctx.save();
     ctx.font = sizePx + 'px "Press Start 2P", monospace';
