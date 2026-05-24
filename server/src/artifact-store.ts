@@ -5,6 +5,7 @@ import type Database from "better-sqlite3";
 export interface ArtifactRow {
   id: string;
   owner_id: string | null;
+  /** Derived via LEFT JOIN projects — not stored directly (transitional: column still exists but reads use the join). */
   space_id: string;
   label: string;
   artifact_kind: string;
@@ -30,7 +31,7 @@ export interface ArtifactRow {
 
 // ── Store interface ──
 
-export type InsertRow = Omit<ArtifactRow, "created_at" | "updated_at" | "removed_at" | "source_origin" | "source_ref" | "project_id" | "share_token" | "share_mode" | "share_password_hash" | "published_at" | "share_updated_at" | "unpublished_at" | "pinned_at"> & {
+export type InsertRow = Omit<ArtifactRow, "space_id" | "created_at" | "updated_at" | "removed_at" | "source_origin" | "source_ref" | "project_id" | "share_token" | "share_mode" | "share_password_hash" | "published_at" | "share_updated_at" | "unpublished_at" | "pinned_at"> & {
   source_origin?: "manual" | "discovered" | "ai_generated";
   source_ref?: string | null;
   project_id?: string | null;
@@ -42,7 +43,7 @@ export interface ArtifactStore {
   getBySpaceId(spaceId: string): ArtifactRow[];
   getByPath(absPath: string): ArtifactRow | undefined;
   getDistinctSpaces(): { space_id: string; count: number }[];
-  getBySpaceAndSourceRef(spaceId: string, sourceRef: string): ArtifactRow | undefined;
+  getByProjectAndSourceRef(projectId: string, sourceRef: string): ArtifactRow | undefined;
   insert(row: InsertRow): void;
   update(id: string, fields: Partial<Omit<ArtifactRow, "id" | "created_at">>): void;
   resurface(id: string): void;
@@ -63,32 +64,41 @@ export class SqliteArtifactStore implements ArtifactStore {
     getBySpaceId: Database.Statement;
     getByPath: Database.Statement;
     getDistinctSpaces: Database.Statement;
-    getBySpaceAndSourceRef: Database.Statement;
+    getByProjectAndSourceRef: Database.Statement;
+    getAllArchived: Database.Statement;
     insert: Database.Statement;
     delete: Database.Statement;
   };
 
   constructor(private db: Database.Database) {
+    const hasSpaceCol = (db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[]).some((c) => c.name === "space_id");
+    // Column list for SELECTs: every artifact column EXCEPT space_id, plus the derived alias.
+    const artCols = (db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[])
+      .map((c) => c.name).filter((n) => n !== "space_id").map((n) => `a.${n}`).join(", ");
+    const SELECT = `SELECT ${artCols}, COALESCE(p.space_id,'') AS space_id
+                      FROM artifacts a LEFT JOIN projects p ON p.id = a.project_id`;
+
     this.stmts = {
-      getAll: db.prepare("SELECT * FROM artifacts WHERE removed_at IS NULL ORDER BY space_id, created_at"),
-      getById: db.prepare("SELECT * FROM artifacts WHERE id = ?"),
-      getBySpaceId: db.prepare("SELECT * FROM artifacts WHERE space_id = ? AND removed_at IS NULL ORDER BY created_at"),
-      getByPath: db.prepare("SELECT * FROM artifacts WHERE json_extract(storage_config, '$.path') = ? AND removed_at IS NULL"),
-      getDistinctSpaces: db.prepare("SELECT space_id, COUNT(*) as count FROM artifacts WHERE removed_at IS NULL GROUP BY space_id ORDER BY space_id"),
-      getBySpaceAndSourceRef: db.prepare(
-        "SELECT * FROM artifacts WHERE space_id = ? AND source_ref = ?"
+      getAll: db.prepare(`${SELECT} WHERE a.removed_at IS NULL ORDER BY p.space_id, a.created_at`),
+      getById: db.prepare(`${SELECT} WHERE a.id = ?`),
+      getBySpaceId: db.prepare(`${SELECT} WHERE p.space_id = ? AND a.removed_at IS NULL ORDER BY a.created_at`),
+      getByPath: db.prepare(`${SELECT} WHERE json_extract(a.storage_config, '$.path') = ? AND a.removed_at IS NULL`),
+      getDistinctSpaces: db.prepare(
+        "SELECT p.space_id AS space_id, COUNT(*) as count FROM artifacts a JOIN projects p ON p.id = a.project_id WHERE a.removed_at IS NULL GROUP BY p.space_id ORDER BY p.space_id"
       ),
-      insert: db.prepare(`
-        INSERT INTO artifacts (
-          id, owner_id, space_id, label, artifact_kind,
-          storage_kind, storage_config, runtime_kind, runtime_config,
-          group_name, source_origin, source_ref, project_id
-        ) VALUES (
-          @id, @owner_id, @space_id, @label, @artifact_kind,
-          @storage_kind, @storage_config, @runtime_kind, @runtime_config,
-          @group_name, COALESCE(@source_origin, 'manual'), @source_ref, @project_id
-        )
-      `),
+      getByProjectAndSourceRef: db.prepare(
+        `${SELECT} WHERE a.project_id = ? AND a.source_ref = ?`
+      ),
+      getAllArchived: db.prepare(
+        `${SELECT} WHERE a.removed_at IS NOT NULL ORDER BY a.removed_at DESC`
+      ),
+      insert: db.prepare(
+        hasSpaceCol
+          ? `INSERT INTO artifacts (id, owner_id, space_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, group_name, source_origin, source_ref, project_id)
+             VALUES (@id, @owner_id, '', @label, @artifact_kind, @storage_kind, @storage_config, @runtime_kind, @runtime_config, @group_name, COALESCE(@source_origin,'manual'), @source_ref, @project_id)`
+          : `INSERT INTO artifacts (id, owner_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, group_name, source_origin, source_ref, project_id)
+             VALUES (@id, @owner_id, @label, @artifact_kind, @storage_kind, @storage_config, @runtime_kind, @runtime_config, @group_name, COALESCE(@source_origin,'manual'), @source_ref, @project_id)`,
+      ),
       delete: db.prepare("DELETE FROM artifacts WHERE id = ?"),
     };
   }
@@ -113,12 +123,12 @@ export class SqliteArtifactStore implements ArtifactStore {
     return this.stmts.getDistinctSpaces.all() as { space_id: string; count: number }[];
   }
 
-  getBySpaceAndSourceRef(spaceId: string, sourceRef: string): ArtifactRow | undefined {
-    return this.stmts.getBySpaceAndSourceRef.get(spaceId, sourceRef) as ArtifactRow | undefined;
+  getByProjectAndSourceRef(projectId: string, sourceRef: string): ArtifactRow | undefined {
+    return this.stmts.getByProjectAndSourceRef.get(projectId, sourceRef) as ArtifactRow | undefined;
   }
 
   insert(row: InsertRow): void {
-    this.stmts.insert.run({ project_id: null, ...row });
+    this.stmts.insert.run({ project_id: null, source_origin: null, source_ref: null, ...row });
   }
 
   resurface(id: string): void {
@@ -128,7 +138,7 @@ export class SqliteArtifactStore implements ArtifactStore {
   }
 
   private static readonly UPDATABLE_COLUMNS = new Set([
-    "owner_id", "space_id", "label", "artifact_kind",
+    "owner_id", "label", "artifact_kind",
     "storage_kind", "storage_config", "runtime_kind", "runtime_config",
     "group_name", "removed_at", "source_origin", "source_ref", "project_id",
   ]);
@@ -163,9 +173,7 @@ export class SqliteArtifactStore implements ArtifactStore {
 
   // All rows that have been soft-deleted — newest first, for the Archived view.
   getAllArchived(): ArtifactRow[] {
-    return this.db.prepare(
-      "SELECT * FROM artifacts WHERE removed_at IS NOT NULL ORDER BY removed_at DESC"
-    ).all() as ArtifactRow[];
+    return this.stmts.getAllArchived.all() as ArtifactRow[];
   }
 
   // Paths of soft-deleted filesystem-backed artifacts. Used by getAllArtifacts

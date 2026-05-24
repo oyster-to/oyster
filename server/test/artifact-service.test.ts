@@ -31,6 +31,11 @@ function makeDb(): Database.Database {
       unpublished_at       INTEGER,
       pinned_at            INTEGER
     );
+    CREATE TABLE projects (
+      id       TEXT PRIMARY KEY,
+      space_id TEXT NOT NULL,
+      name     TEXT NOT NULL
+    );
   `);
   return db;
 }
