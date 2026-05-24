@@ -532,6 +532,7 @@
   }
   function applyPong(serverT) {
     const rtt = Math.round(performance.now() - serverT);
+    lastRTT = rtt;
     pingEl.textContent = rtt + ' ms';
     pingEl.classList.remove('low', 'mid', 'high');
     if      (rtt < 80)  pingEl.classList.add('low');
@@ -784,6 +785,7 @@
 
   const transportEl = document.getElementById('transport');
   function setTransport(state) {
+    currentTransport = state;
     transportEl.classList.remove('p2p', 'connecting');
     if (state === 'p2p')             { transportEl.textContent = 'P2P';  transportEl.classList.add('p2p'); }
     else if (state === 'connecting') { transportEl.textContent = 'P2P…'; transportEl.classList.add('connecting'); }
@@ -1531,6 +1533,28 @@
         ctx.fillText('-1', PF_W - 6, 22 - 10 * (1 - t));
         ctx.restore();
       }
+
+      // Transport + ping indicator — tiny status badge below LIVES,
+      // visible during gameplay so a "felt laggy" report has numbers
+      // to back it up. Single colour-coded line (green/yellow/red on
+      // the ping bucket — the alarming bit); transport label gives
+      // context. Hidden in kid view (?clean) so non-debug builds
+      // stay clean.
+      if (!isClean) {
+        const labelMap = { p2p: 'P2P', connecting: 'P2P…', relay: 'RELAY' };
+        const label = labelMap[currentTransport] || 'RELAY';
+        let color = '#bbbbbb';                                   // unknown ping
+        if (lastRTT != null) {
+          if      (lastRTT < 80)   color = '#6bff8c';            // green — snappy
+          else if (lastRTT < 180)  color = '#ffd84a';            // yellow — playable
+          else                     color = '#ff6666';            // red — laggy
+        }
+        const pingStr = lastRTT != null ? `${lastRTT}ms` : '—';
+        ctx.font = '5px "Press Start 2P", monospace';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = color;
+        ctx.fillText(`${label} ${pingStr}`, PF_W - 6, 22);
+      }
     }
   }
 
@@ -1543,6 +1567,13 @@
   // "-1" popup above it until this clock passes.
   let livesFlashUntil = 0;
   const LIVES_FLASH_MS = 600;
+  // Latest measured RTT (ms) + current transport state. Mirrored to
+  // the prescreen meta DOM by applyPong/setTransport AND read by the
+  // in-canvas HUD so lag/transport are visible during gameplay too,
+  // not just in the lobby. Henry called out a "laggy" round with no
+  // visible evidence — this surfaces both at a glance.
+  let lastRTT = null;
+  let currentTransport = 'relay';
   function drawCenteredOverlay(text, color, sizePx) {
     ctx.save();
     ctx.font = sizePx + 'px "Press Start 2P", monospace';
