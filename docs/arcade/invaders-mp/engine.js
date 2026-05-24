@@ -140,6 +140,33 @@ export const STARTING_LIVES = 3;
 const RESPAWN_SEC = 2;
 const INVULN_SEC = 1;
 
+// === Combos ===
+// Kills within COMBO_WINDOW_SEC of the previous extend the chain.
+// Multiplier ramps at SP's thresholds: 1× → 2× (3 kills) → 3× (5) →
+// 4× (8). Each kill awards ROW_POINTS[row] × multiplier to the owner.
+// Per-player state — each ship maintains its own chain so kills by
+// one player don't boost a teammate's multiplier.
+const COMBO_WINDOW_SEC = 1.5;
+export function comboMultiplier(count) {
+  if (count >= 8) return 4;
+  if (count >= 5) return 3;
+  if (count >= 3) return 2;
+  return 1;
+}
+
+// === Super shots (charged fire) ===
+// Hold FIRE for ≥ CHARGE_THRESHOLD_SEC with superAmmo > 0 and the
+// next bullet spawned is a fat golden piercer: passes through
+// shields (carves but isn't consumed) and through invaders (kills
+// every one in its path, not just the first). Earned +1 ammo every
+// SUPER_SCORE_INTERVAL points; UFO refill to max in Phase G.
+export const SUPER_SHOT_MAX = 3;
+export const CHARGE_THRESHOLD_SEC = 0.5;
+const SUPER_SCORE_INTERVAL = 1000;
+export const CHARGED_BULLET_W = 4;
+export const CHARGED_BULLET_H = 12;
+export const CHARGED_BULLET_SPEED = 380;
+
 export function zeroInput() {
   return { left: false, right: false, fire: false };
 }
@@ -155,7 +182,6 @@ function spawnX(seatIndex) {
 }
 
 function freshShips() {
-  /** @type {Record<string, {x:number,alive:boolean,cooldown:number,score:number,respawnIn:number,invulnFor:number}>} */
   const ships = {};
   for (let i = 0; i < MAX_SEATS; i++) {
     ships[SEATS[i]] = {
@@ -163,17 +189,31 @@ function freshShips() {
       alive: true,
       cooldown: 0,
       // Per-player score — replaces the old top-level state.score.
-      // Each kill awards ROW_POINTS[invader-row] to the bullet owner.
+      // Each kill awards ROW_POINTS[invader-row] × combo multiplier.
       score: 0,
       // Seconds until respawn (0 = not respawning). Set when a death
       // consumes a shared life token; ticked down each step; on hit-0
       // the ship blinks back at spawnX with invulnFor set.
       respawnIn: 0,
       // Seconds of post-respawn invulnerability remaining. Engine-
-      // internal — resolveCollisions skips damage while > 0. Not on
-      // the wire (yet); a future PR can expose it for a respawn-blink
-      // visual, but for now the ship just reappears at spawnX.
+      // internal — resolveCollisions skips damage while > 0.
       invulnFor: 0,
+      // Combo chain — how many consecutive kills within the decay
+      // window. comboDecayIn ticks down each step; when it hits 0,
+      // combo resets to 0. comboMultiplier(combo) gives the score
+      // bonus 1×/2×/3×/4×.
+      combo: 0,
+      comboDecayIn: 0,
+      // Super-shot ammo + charge accumulator. chargeSec ticks up
+      // while FIRE is held. SP-style release-to-fire: a shot spawns
+      // on the input.fire true→false transition — if chargeSec was
+      // ≥ CHARGE_THRESHOLD_SEC AND superAmmo > 0 it's a charged
+      // bullet, otherwise a normal one. wasFiring tracks the previous
+      // tick's input so we can detect the edge.
+      superAmmo: SUPER_SHOT_MAX,
+      chargeSec: 0,
+      wasFiring: false,
+      nextSuperAt: SUPER_SCORE_INTERVAL,
     };
   }
   return ships;
@@ -245,15 +285,19 @@ export function step(state, inputs, dt, occupied = ALL_OCCUPIED) {
 }
 
 function tickRespawnAndInvuln(state, dt) {
-  // Count down respawn + invuln timers each tick. On respawn complete
-  // (timer hits 0 from > 0), reset that ship to alive at its spawnX
-  // with the grace window armed. Permanent-dead ships (lives==0 when
-  // they died) have respawnIn = 0 and stay dead — this branch is
-  // skipped for them because the > 0 check fails.
+  // Count down respawn + invuln + combo-decay timers each tick. On
+  // respawn complete (respawnIn hits 0 from > 0), reset that ship
+  // alive at its spawnX with the grace window armed. Permanent-dead
+  // ships (lives==0 when they died) have respawnIn = 0 and stay dead
+  // — that branch is skipped because the > 0 check fails.
   for (let i = 0; i < MAX_SEATS; i++) {
     const ship = state.ships[SEATS[i]];
     if (ship.invulnFor > 0) {
       ship.invulnFor = Math.max(0, ship.invulnFor - dt);
+    }
+    if (ship.comboDecayIn > 0) {
+      ship.comboDecayIn = Math.max(0, ship.comboDecayIn - dt);
+      if (ship.comboDecayIn === 0) ship.combo = 0;
     }
     if (ship.respawnIn > 0) {
       ship.respawnIn = Math.max(0, ship.respawnIn - dt);
@@ -262,6 +306,16 @@ function tickRespawnAndInvuln(state, dt) {
         ship.alive = true;
         ship.cooldown = 0;
         ship.invulnFor = INVULN_SEC;
+        // Fresh start on respawn — drop any in-flight combo or
+        // mid-hold charge AND clear the wasFiring edge tracker, so
+        // a player who died holding FIRE doesn't get an unintended
+        // release-edge spawn on the first post-respawn tick.
+        // superAmmo + nextSuperAt persist (long-term resource, not
+        // per-life).
+        ship.combo = 0;
+        ship.comboDecayIn = 0;
+        ship.chargeSec = 0;
+        ship.wasFiring = false;
       }
     }
   }
@@ -270,29 +324,59 @@ function tickRespawnAndInvuln(state, dt) {
 function stepShips(state, inputs, dt, occupied) {
   // Ship horizontal position is client-authoritative: the caller
   // streams `pos` updates and writes them straight into ship.x. This
-  // function only handles fire (so the cooldown + bullet spawn are
-  // host-controlled, keeping per-player fire rate fair).
+  // function handles fire + super-shot charging via SP-style release
+  // semantics: shots spawn on the input.fire true→false edge. Holding
+  // accumulates charge; on release the spawn is charged if held ≥
+  // CHARGE_THRESHOLD_SEC AND superAmmo > 0, else normal. Auto-fire on
+  // hold is gone (it conflicted with charging — FIRE_COOLDOWN 0.45s
+  // < CHARGE_THRESHOLD_SEC 0.5s would have rapid-fired before the
+  // charge ever completed). Players tap-tap-tap for rapid normal
+  // fire, hold-and-release for charged.
   for (const seat of SEATS) {
     const ship = state.ships[seat];
     if (!ship.alive || !occupied[seat]) continue;
     const input = inputs[seat];
-    if (!input) continue;
-    ship.cooldown = Math.max(0, ship.cooldown - dt);
-    if (input.fire && ship.cooldown <= 0) {
-      state.bullets.push({
-        x: ship.x + SHIP_W / 2 - BULLET_W / 2,
-        y: SHIP_Y - BULLET_H,
-        owner: seat,
-      });
-      ship.cooldown = FIRE_COOLDOWN;
+    // Missing input → treat as neutral (released, no charge). Clear
+    // chargeSec too so a dropped input tick during a hold can't bank
+    // stale charge that fires a charged shot on the next release.
+    if (!input) {
+      ship.wasFiring = false;
+      ship.chargeSec = 0;
+      continue;
     }
+    ship.cooldown = Math.max(0, ship.cooldown - dt);
+    const firing = !!input.fire;
+    if (firing) {
+      ship.chargeSec += dt;
+    } else if (ship.wasFiring) {
+      // Release edge: spawn a shot if cooldown is clear. Otherwise
+      // the input was just spam — drop the charge silently.
+      if (ship.cooldown <= 0) {
+        const charged = ship.chargeSec >= CHARGE_THRESHOLD_SEC && ship.superAmmo > 0;
+        const bw = charged ? CHARGED_BULLET_W : BULLET_W;
+        const bh = charged ? CHARGED_BULLET_H : BULLET_H;
+        state.bullets.push({
+          x: ship.x + SHIP_W / 2 - bw / 2,
+          y: SHIP_Y - bh,
+          owner: seat,
+          charged: charged,
+        });
+        ship.cooldown = FIRE_COOLDOWN;
+        if (charged) ship.superAmmo--;
+      }
+      ship.chargeSec = 0;
+    }
+    ship.wasFiring = firing;
   }
 }
 
 function stepBullets(state, dt) {
-  for (const b of state.bullets)        b.y -= BULLET_SPEED * dt;
+  // Charged bullets travel faster than the standard variant — matches
+  // SP and makes the super read as a punchy salvo, not just a fat
+  // ordinary shot.
+  for (const b of state.bullets)        b.y -= (b.charged ? CHARGED_BULLET_SPEED : BULLET_SPEED) * dt;
   for (const b of state.invaderBullets) b.y += INV_BULLET_SPEED * dt;
-  state.bullets        = state.bullets.filter(b => b.y + BULLET_H > 0);
+  state.bullets        = state.bullets.filter(b => b.y + (b.charged ? CHARGED_BULLET_H : BULLET_H) > 0);
   state.invaderBullets = state.invaderBullets.filter(b => b.y < PF_H);
 }
 
@@ -393,35 +477,52 @@ function damageShields(state, bx, by, bw, bh) {
 }
 
 function resolveCollisions(state, occupied) {
-  // Player bullets vs shields, FIRST — a bullet that clipped the top
-  // of a shield never reaches an invader, so we resolve shields before
-  // invader hits. Killed bullets are flagged with the out-of-bounds
-  // marker (-999); the .filter sweep at the bottom of this function
-  // removes them in the same tick (no carry-over to next step).
+  // Player bullets vs shields. Charged bullets carve cells but
+  // aren't consumed — they tunnel through. Normal bullets are
+  // killed by the first contact. Marker (-999) is swept by the
+  // .filter at the bottom of this function (same tick).
   for (const b of state.bullets) {
-    if (b.y < -BULLET_H) continue;
-    if (damageShields(state, b.x, b.y, BULLET_W, BULLET_H)) {
+    const bw = b.charged ? CHARGED_BULLET_W : BULLET_W;
+    const bh = b.charged ? CHARGED_BULLET_H : BULLET_H;
+    // Off-screen guard uses the bullet's own height — charged bullets
+    // are taller (12 vs 6), so -BULLET_H would skip collisions for
+    // charged bullets that are still partially on-screen.
+    if (b.y < -bh) continue;
+    if (damageShields(state, b.x, b.y, bw, bh) && !b.charged) {
       b.y = -999;
     }
   }
 
-  // Player bullets vs invaders. Out-of-array marker (b.y = -999) is
-  // filtered out at the bottom of this function — cheaper than splicing inside
-  // a nested loop. Points are credited to the bullet's owner using
-  // the row of the killed invader (top row = squid = 30, bottom row
-  // = octopus = 10).
+  // Player bullets vs invaders. Score = ROW_POINTS[row] × combo
+  // multiplier; the kill extends the owner's combo chain. Normal
+  // bullets stop at the first hit; charged bullets pierce every
+  // overlap (typically a 1-cell column on its way up, but if the
+  // swarm sloped at a wall-bounce more can stack). Earned ammo:
+  // crossing nextSuperAt threshold yields +1 (capped at MAX).
   for (const b of state.bullets) {
-    if (b.y < -BULLET_H) continue;
+    const bw = b.charged ? CHARGED_BULLET_W : BULLET_W;
+    const bh = b.charged ? CHARGED_BULLET_H : BULLET_H;
+    if (b.y < -bh) continue;
     for (let i = 0; i < state.invaders.length; i++) {
       const inv = state.invaders[i];
       if (!inv.alive) continue;
-      if (overlap(b.x, b.y, BULLET_W, BULLET_H, inv.x, inv.y, INV_W, INV_H)) {
-        inv.alive = false;
-        b.y = -999;
-        const owner = b.owner && state.ships[b.owner];
-        if (owner) owner.score += ROW_POINTS[Math.floor(i / INV_COLS)] || 0;
-        break;
+      if (!overlap(b.x, b.y, bw, bh, inv.x, inv.y, INV_W, INV_H)) continue;
+      inv.alive = false;
+      const owner = b.owner && state.ships[b.owner];
+      if (owner) {
+        owner.combo += 1;
+        owner.comboDecayIn = COMBO_WINDOW_SEC;
+        const basePts = ROW_POINTS[Math.floor(i / INV_COLS)] || 0;
+        owner.score += basePts * comboMultiplier(owner.combo);
+        // Earned-ammo threshold crossings — bump the threshold even
+        // when at max so a long high-score run isn't "wasted".
+        while (owner.score >= owner.nextSuperAt) {
+          if (owner.superAmmo < SUPER_SHOT_MAX) owner.superAmmo++;
+          owner.nextSuperAt += SUPER_SCORE_INTERVAL;
+        }
       }
+      if (!b.charged) { b.y = -999; break; }
+      // charged: keep checking other invaders this tick
     }
   }
   state.bullets = state.bullets.filter(b => b.y > -BULLET_H);
@@ -546,17 +647,27 @@ export function snapshotForClient(state) {
     // alive:false before sending so the client can use this array
     // directly to decide which ships to draw. `name` is the per-seat
     // display name (empty = no label).
-    players: SEATS.map((s) => ({
-      x: round(state.ships[s].x),
-      alive: state.ships[s].alive,
-      name: state.names?.[s] ?? '',
-      // Per-player score (replaces the old top-level state.score).
-      score: state.ships[s].score,
-    })),
+    players: SEATS.map((s) => {
+      const ship = state.ships[s];
+      return {
+        x: round(ship.x),
+        alive: ship.alive,
+        name: state.names?.[s] ?? '',
+        // Per-player score (replaces the old top-level state.score).
+        score: ship.score,
+        // Phase F per-player additions — combo chain length, current
+        // super-shot ammo, and the live charge accumulator (so the
+        // client can draw a charge progress bar above the ship).
+        combo: ship.combo,
+        superAmmo: ship.superAmmo,
+        chargeSec: round(ship.chargeSec),
+      };
+    }),
     // `o` (owner) is the firing seat — lets the client filter "my
-    // bullets" if it ever wants per-bullet prediction. Invader
-    // bullets have no owner.
-    bullets:        state.bullets.map(b => ({ x: round(b.x), y: round(b.y), o: b.owner })),
+    // bullets" if it ever wants per-bullet prediction. `c` marks
+    // a charged bullet (renderer draws it bigger + gold; collision
+    // already handled server-side as pierce + shield pass-through).
+    bullets:        state.bullets.map(b => ({ x: round(b.x), y: round(b.y), o: b.owner, c: !!b.charged })),
     invaderBullets: state.invaderBullets.map(b => ({ x: round(b.x), y: round(b.y) })),
     invaders:       state.invaders.map(i => ({ x: round(i.x), y: round(i.y), a: i.alive })),
     // Current swarm animation frame (0 or 1). Authoritative — every

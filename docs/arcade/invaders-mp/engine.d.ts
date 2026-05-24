@@ -15,18 +15,32 @@ export interface Ship {
   x: number;
   alive: boolean;
   cooldown: number;
-  /** Per-player score (kills × ROW_POINTS[row]). */
+  /** Per-player score (kills × ROW_POINTS[row] × combo multiplier). */
   score: number;
   /** Seconds until respawn; 0 = not respawning (either alive or permanent-dead). */
   respawnIn: number;
   /** Seconds of post-respawn invulnerability remaining; 0 = vulnerable. */
   invulnFor: number;
+  /** Consecutive kills within the combo decay window. */
+  combo: number;
+  /** Seconds left before combo decays back to 0. */
+  comboDecayIn: number;
+  /** Charged-fire ammo remaining (0..SUPER_SHOT_MAX). */
+  superAmmo: number;
+  /** Accumulated FIRE-hold time in seconds; resets on release. */
+  chargeSec: number;
+  /** Previous tick's fire input — drives release-to-fire edge detection. */
+  wasFiring: boolean;
+  /** Score threshold for the next earned ammo refill. */
+  nextSuperAt: number;
 }
 
 export interface Bullet {
   x: number;
   y: number;
   owner: Seat | null;
+  /** True for super-shot bullets — pierces invaders, tunnels through shields. */
+  charged?: boolean;
 }
 
 export interface Invader {
@@ -67,8 +81,16 @@ export interface WireSnapshot {
   lives: number;
   countdownEndMs: number;
   /** Always MAX_SEATS entries, indexed by seat position (p1 → 0, …). */
-  players: Array<{ x: number; alive: boolean; name: string; score: number }>;
-  bullets: Array<{ x: number; y: number; o: Seat | null }>;
+  players: Array<{
+    x: number;
+    alive: boolean;
+    name: string;
+    score: number;
+    combo: number;
+    superAmmo: number;
+    chargeSec: number;
+  }>;
+  bullets: Array<{ x: number; y: number; o: Seat | null; c: boolean }>;
   invaderBullets: Array<{ x: number; y: number }>;
   invaders: Array<{ x: number; y: number; a: boolean }>;
   /** Authoritative swarm animation frame (0 or 1). */
@@ -104,6 +126,11 @@ export const SHIELD_W: number;
 export const SHIELD_H: number;
 export const SHIELD_COUNT: number;
 export const SHIELD_Y: number;
+export const SUPER_SHOT_MAX: number;
+export const CHARGE_THRESHOLD_SEC: number;
+export const CHARGED_BULLET_W: number;
+export const CHARGED_BULLET_H: number;
+export function comboMultiplier(count: number): number;
 
 export const SEATS: readonly Seat[];
 export const MAX_SEATS: number;

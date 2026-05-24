@@ -105,7 +105,14 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //        with SP at 18×12, sprites rendered at 1.5× scale on a
 //        display-resolution canvas (fitCanvas + ctx.setTransform)
 //        for crisp pixel art without warp.
-const NETCODE_VERSION = 22;
+// v23 — Phase F: per-player combos + super shots. Each player has
+//        their own combo chain (×1/2/3/4 at 3/5/8 kills, 1.5 s
+//        decay) and ammo counter (cap 3, +1 per 1000 pts). Hold
+//        FIRE ≥ 500 ms with ammo → next bullet is a fat golden
+//        piercer (tunnels through shields, kills every aligned
+//        invader). New wire fields: players[i].combo /
+//        .superAmmo / .chargeSec, bullets[].c.
+const NETCODE_VERSION = 23;
 
 type ClientMessage =
   | { type: 'ping';   t: number }
