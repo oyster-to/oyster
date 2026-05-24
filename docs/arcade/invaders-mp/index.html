@@ -29,6 +29,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Extend the playfield's navy gradient over the whole tube so
+       the canvas's edges blend invisibly into the surrounding cabinet
+       area (the canvas itself paints the same gradient internally).
+       Shared cabinet.css defaults .tube to solid #000; override here
+       just for MP. Vertical gradient matches the canvas one stop-for-
+       stop (#0d1a60 top → #050a30 bottom). */
+    background: linear-gradient(180deg, #0d1a60 0%, #050a30 100%);
   }
   .tube canvas {
     width: auto; height: auto;
