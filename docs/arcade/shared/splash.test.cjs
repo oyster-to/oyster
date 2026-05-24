@@ -51,6 +51,7 @@ const hits = { title: 0, play: 0, lb: 0, unlock: 0 };
 let busy = false;
 S.mount({
   cycleMs: 999999,   // keep the interval from firing during the test
+  graceMs: 0,        // no transition grace — these checks fire input synchronously
   onTitle:  () => hits.title++,
   onPlay:   () => hits.play++,
   onLeaderboardShow: () => hits.lb++,
@@ -107,5 +108,15 @@ fireWin('keydown', { key: ' ' });
 check('title tap after attract -> playing', S.isPlaying(), true);
 
 S.stopCycle();
+
+// Grace window: the input that triggers a transition (and its paired
+// touchstart→click) must NOT immediately dismiss the freshly-shown splash —
+// otherwise saving initials bleeds straight into starting a new game.
+Object.keys(winL).forEach(k => delete winL[k]);   // drop the first mount's listeners
+S.mount({ cycleMs: 999999, graceMs: 10000, onTitle: () => {}, onPlay: () => {} });
+fireWin('keydown', { key: ' ' });   // arrives within the grace window
+check('grace: input right after a transition is ignored', S.isPlaying(), false);
+S.stopCycle();
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

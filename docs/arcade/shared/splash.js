@@ -55,6 +55,9 @@
   let phase = 'booting';   // 'booting' | 'title' | 'playing'
   let views = [];
   let viewIdx = 0;
+  let ignoreUntil = 0;     // swallow dismiss input briefly after a transition
+
+  const arm = () => { ignoreUntil = Date.now() + cfg.graceMs; };
 
   const q = sel => (sel ? document.querySelector(sel) : null);
   const safe = fn => { if (typeof fn === 'function') { try { fn(); } catch (e) { console.warn('Arcade.Splash hook threw:', e); } } };
@@ -73,6 +76,7 @@
 
   function enterTitle(startIdx) {
     phase = 'title';
+    arm();   // ignore the input that brought us here (e.g. the initials save)
     const splash = q(cfg.splash), tube = q(cfg.tube), boot = q(cfg.boot);
     if (splash) splash.classList.remove('is-hidden');
     if (tube)   tube.classList.remove('is-ready');
@@ -83,6 +87,7 @@
   }
   function enterPlay() {
     phase = 'playing';
+    arm();
     stopCycle();
     const splash = q(cfg.splash), tube = q(cfg.tube);
     if (splash) splash.classList.add('is-hidden');
@@ -95,7 +100,9 @@
   // title card, start the game.
   function tryDismiss() {
     if (phase !== 'title') return;
+    if (Date.now() < ignoreUntil) return;     // grace: ignore the transition input + its paired click
     if (cfg.isBusy && cfg.isBusy()) return;
+    arm();                                     // and ignore the next rapid repeat (touchstart→click)
     safe(cfg.unlockAudio);
     if (views.length > 1 && viewIdx === cfg.leaderboardIndex) {
       stopCycle();
@@ -109,6 +116,7 @@
     cfg = Object.assign({
       splash: '#splash', tube: '.tube', views: '#splash .splash-view',
       boot: null, titleIndex: 0, leaderboardIndex: 1, cycleMs: 5500, bootMs: 0,
+      graceMs: 450,   // ignore dismiss input for this long after a transition
       ignore: null,   // CSS selector for taps that must NOT start (e.g. sound toggles)
       onTitle: null, onPlay: null, onLeaderboardShow: null, unlockAudio: null, isBusy: null,
     }, opts || {});
