@@ -44,6 +44,8 @@ export interface GameState {
   bullets: Bullet[];
   invaderBullets: Bullet[];
   invaders: Invader[];
+  /** Flat shared shield bitmap; 1 = solid, 0 = chipped. Length = SHIELD_COUNT * SHIELD_W * SHIELD_H. */
+  shields: Uint8Array;
   invaderDir: 1 | -1;
   invaderDropRemaining: number;
   invaderFireAccum: number;
@@ -71,6 +73,8 @@ export interface WireSnapshot {
   invaders: Array<{ x: number; y: number; a: boolean }>;
   /** Authoritative swarm animation frame (0 or 1). */
   iFrame: 0 | 1;
+  /** Packed shield bitmap (base64 of SHIELD_COUNT * SHIELD_W * SHIELD_H bits). */
+  shieldsBits: string;
   /**
    * Per-seat occupancy. Set by the transport layer (room.ts on the
    * server, hostTick on the client) after snapshotForClient returns,
@@ -96,6 +100,10 @@ export const INV_H: number;
 export const INV_COLS: number;
 export const ROW_POINTS: readonly number[];
 export const STARTING_LIVES: number;
+export const SHIELD_W: number;
+export const SHIELD_H: number;
+export const SHIELD_COUNT: number;
+export const SHIELD_Y: number;
 
 export const SEATS: readonly Seat[];
 export const MAX_SEATS: number;
@@ -109,3 +117,6 @@ export function step(
   occupied?: Record<Seat, boolean>,
 ): void;
 export function snapshotForClient(state: GameState): WireSnapshot;
+export function encodeShields(bits: Uint8Array): string;
+export function decodeShields(b64: string): Uint8Array;
+export function shieldOffsets(): number[];

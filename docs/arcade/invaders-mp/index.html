@@ -359,6 +359,8 @@
     PF_W, PF_H, SHIP_W, SHIP_H, SHIP_Y, SHIP_SPEED, FIRE_COOLDOWN,
     BULLET_W, BULLET_H, BULLET_SPEED,
     INV_W, INV_H,
+    SHIELD_W, SHIELD_H, SHIELD_COUNT, SHIELD_Y,
+    decodeShields, shieldOffsets,
     SEATS, MAX_SEATS,
   } from './engine.js';
   import { ROW_COLORS, spriteForRow, paintPixels, paintShip } from './sprites.js';
@@ -397,7 +399,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 21;
+  const NETCODE_VERSION = 22;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -1430,9 +1432,38 @@
       // at varying alpha, which reads as flicker during continuous
       // motion. Rounding makes the swarm step pixel-by-pixel (the
       // pixel-art look) instead of sub-pixel sliding.
-      const cellX = Math.round(lerp(ia.x, ib.x) + (INV_W - w) / 2);
+      // 2× scale matches SP's chunky invader silhouette. Integer
+      // scale keeps every sprite pixel landing on whole PF coords,
+      // so image-rendering: pixelated stays crisp on the canvas
+      // upscale even as the swarm slides.
+      const SPRITE_SCALE = 2;
+      const cellX = Math.round(lerp(ia.x, ib.x) + (INV_W - w * SPRITE_SCALE) / 2);
       const cellY = Math.round(lerp(ia.y, ib.y));
-      paintPixels(ctx, cellX, cellY, frames[frame], 1, ROW_COLORS[row] || '#ffffff');
+      paintPixels(ctx, cellX, cellY, frames[frame], SPRITE_SCALE, ROW_COLORS[row] || '#ffffff');
+    }
+
+    // Shields — decode the packed bitmap from the snapshot once when
+    // it changes, then blit each set cell as a 1×1 PF px rect. Cap is
+    // SHIELD_COUNT * SHIELD_W * SHIELD_H = 1408 cells; canvas handles
+    // this at 60 Hz without breaking sweat. Cyan to match SP's
+    // bunker colour. Hidden until at least one snapshot decodes.
+    if (latestSnap.shieldsBits && latestSnap.shieldsBits !== lastShieldsBits) {
+      shieldBitmap = decodeShields(latestSnap.shieldsBits);
+      lastShieldsBits = latestSnap.shieldsBits;
+    }
+    if (shieldBitmap) {
+      ctx.fillStyle = '#7ad0e0';
+      for (let s = 0; s < SHIELD_COUNT; s++) {
+        const sx = SHIELD_X[s];
+        const base = s * SHIELD_W * SHIELD_H;
+        for (let y = 0; y < SHIELD_H; y++) {
+          const wy = SHIELD_Y + y;
+          const rowBase = base + y * SHIELD_W;
+          for (let x = 0; x < SHIELD_W; x++) {
+            if (shieldBitmap[rowBase + x]) ctx.fillRect(sx + x, wy, 1, 1);
+          }
+        }
+      }
     }
 
     // Bullets — drawn from the latest snapshot (server-authoritative
@@ -1583,6 +1614,14 @@
   // visible evidence — this surfaces both at a glance.
   let lastRTT = null;
   let currentTransport = 'relay';
+
+  // Shield bitmap cache. The wire's `shieldsBits` is a base64 string;
+  // decode once when it changes, render straight from the cached
+  // Uint8Array each frame. SHIELD_X is precomputed by the engine —
+  // grab once at module load.
+  let shieldBitmap = null;
+  let lastShieldsBits = null;
+  const SHIELD_X = shieldOffsets();
   function drawCenteredOverlay(text, color, sizePx) {
     ctx.save();
     ctx.font = sizePx + 'px "Press Start 2P", monospace';

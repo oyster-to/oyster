@@ -95,8 +95,15 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //        Shared lives pool: state.lives, decremented on each death;
 //        ship.respawnIn + ship.invulnFor drive the 2 s respawn + 1 s
 //        invulnerability grace window. Row-tiered kill points
-//        (30/20/20/10/10 top→bottom) instead of flat 10.
-const NETCODE_VERSION = 21;
+//        (30/20/20/10/10 top→bottom) instead of flat 10. Also adds
+//        a `seats` field to the wire so clients can distinguish
+//        "connected but dead/respawning" from "vacant seat".
+// v22 — Phase E: shared destructible shields (4 bunkers between the
+//        swarm and the ship row). snapshot.shieldsBits carries the
+//        packed bitmap (~236 chars/tick) — both player + invader
+//        bullets chip the same shared bitmap. Invader cells upsized
+//        to 18×16 (sprite render at 2× scale) to match SP density.
+const NETCODE_VERSION = 22;
 
 type ClientMessage =
   | { type: 'ping';   t: number }
