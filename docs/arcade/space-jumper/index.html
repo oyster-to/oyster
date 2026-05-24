@@ -222,15 +222,19 @@ window.addEventListener('keydown', e => {
   const left  = document.getElementById('tc-left');
   const right = document.getElementById('tc-right');
   const jump  = document.getElementById('tc-jump');
-  Arcade.Touch.bind(left,
+  // ◀▶ as one analog d-pad: slip off the edge keeps moving, cross the midline
+  // flips direction, lift stops. (Discrete letter-stepping in initials.)
+  // Release always clears the key — never gate the up-handler on initials, or a
+  // direction held when you die (and the screen flips to initials) sticks into
+  // the next game. Clearing during initials is harmless.
+  Arcade.Touch.movePad(left, right,
     () => { if (Arcade.Initials.isActive()) { Arcade.Initials.action('letter-prev'); return; } keys['ArrowLeft']  = true;  },
-    () => { if (Arcade.Initials.isActive()) return; keys['ArrowLeft']  = false; });
-  Arcade.Touch.bind(right,
+    () => { keys['ArrowLeft']  = false; },
     () => { if (Arcade.Initials.isActive()) { Arcade.Initials.action('letter-next'); return; } keys['ArrowRight'] = true;  },
-    () => { if (Arcade.Initials.isActive()) return; keys['ArrowRight'] = false; });
+    () => { keys['ArrowRight'] = false; });
   Arcade.Touch.bind(jump,
     () => { if (Arcade.Initials.isActive()) { Arcade.Initials.action('advance');     return; } keys[' ']          = true;  },
-    () => { if (Arcade.Initials.isActive()) return; keys[' ']          = false; });
+    () => { keys[' ']          = false; });
 })();
 
 // ============================================
