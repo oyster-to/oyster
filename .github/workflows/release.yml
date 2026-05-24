@@ -30,6 +30,14 @@ jobs:
           cd web && npm ci && cd ..
           cd server && npm ci && cd ..
 
+      - name: Sync root deps from server (authoritative for publish)
+        # server/package.json is the source of truth for runtime deps. Mirror
+        # it into root package.json here so the published tarball always pins
+        # the same versions, regardless of committed drift. package-lock.json
+        # isn't published and a global install re-resolves ranges, so only
+        # package.json needs syncing.
+        run: node scripts/sync-published-deps.mjs
+
       - name: Build
         run: npm run build
 
