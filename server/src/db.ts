@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 import { resolveArtifactPathViaProjects, findProjectAtAncestor } from "./resolve-artifact-path.js";
+import { backfillArtifactProjects } from "./artifact-space-migration.js";
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS artifacts (
@@ -500,6 +501,14 @@ export function initDb(userlandDir: string): Database.Database {
   try { db.exec("ALTER TABLE artifacts ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL"); }
   catch { /* already exists */ }
   db.exec("CREATE INDEX IF NOT EXISTS artifacts_project_id ON artifacts(project_id) WHERE project_id IS NOT NULL");
+
+  {
+    const r = backfillArtifactProjects(db, userlandDir);
+    if (r.backfilled > 0 || r.mismatches.length > 0) {
+      console.log(`[artifact-space] backfilled ${r.backfilled} project_id (of ${r.total}; ${r.hadSpace} had space; ${r.stillOrphan} orphan)`);
+      for (const m of r.mismatches) console.log(`[artifact-space] mismatch ${m.id} (${m.path}): space ${m.oldSpace} → ${m.newSpace} (project wins)`);
+    }
+  }
 
   // Sources → projects backfill was a one-shot for pre-rewrite installs;
   // it has already run on the only DB it ever needed to migrate. Fresh
