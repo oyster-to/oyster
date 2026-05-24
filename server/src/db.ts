@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 import { resolveArtifactPathViaProjects, findProjectAtAncestor } from "./resolve-artifact-path.js";
-import { backfillArtifactProjects } from "./artifact-space-migration.js";
+import { backfillArtifactProjects, dropArtifactSpaceColumn } from "./artifact-space-migration.js";
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS artifacts (
@@ -111,14 +111,6 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
     `);
   } catch { /* column already dropped */ }
   try { db.exec(`ALTER TABLE spaces DROP COLUMN repo_path`); } catch { /* already dropped, fresh install, or SQLite < 3.35 */ }
-
-  try {
-    db.exec(`
-      CREATE UNIQUE INDEX IF NOT EXISTS artifacts_space_source_ref_uq
-        ON artifacts(space_id, source_ref)
-        WHERE source_ref IS NOT NULL
-    `);
-  } catch { /* already exists */ }
 
   // R5 publish & share (#314). Turn an artifact into a shareable URL.
   // share_token gets a UNIQUE index in a separate statement — SQLite
@@ -527,12 +519,14 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
   db.exec("DROP TABLE IF EXISTS sources");
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Repair: heal sessions / artefacts whose space_id is out of sync with
-  // their project's space. Source of the drift: an earlier ad-hoc dedup
-  // SQL with a UPDATE-FROM order bug left some rows with a valid
-  // project_id but space_id NULL — those then render as orphans in the
-  // home view even though they belong to a real project. Idempotent: only
-  // touches rows whose project is live AND whose space_id disagrees.
+  // Repair: heal sessions whose space_id is out of sync with their project's
+  // space. Source of the drift: an earlier ad-hoc dedup SQL with a
+  // UPDATE-FROM order bug left some rows with a valid project_id but
+  // space_id NULL — those then render as orphans in the home view even
+  // though they belong to a real project. Idempotent: only touches rows
+  // whose project is live AND whose space_id disagrees.
+  // artifacts.space_id is no longer stored (dropped above) — space is now
+  // derived at read-time via project JOIN, so no repair is needed there.
   // ─────────────────────────────────────────────────────────────────────────
   db.exec(`
     UPDATE sessions
@@ -546,20 +540,6 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
           WHERE p.id = sessions.project_id
             AND p.removed_at IS NULL
             AND (sessions.space_id IS NULL OR sessions.space_id != p.space_id)
-       );
-  `);
-  db.exec(`
-    UPDATE artifacts
-       SET space_id = (
-         SELECT p.space_id FROM projects p
-          WHERE p.id = artifacts.project_id AND p.removed_at IS NULL
-       )
-     WHERE project_id IS NOT NULL
-       AND EXISTS (
-         SELECT 1 FROM projects p
-          WHERE p.id = artifacts.project_id
-            AND p.removed_at IS NULL
-            AND (artifacts.space_id IS NULL OR artifacts.space_id != p.space_id)
        );
   `);
 
@@ -836,17 +816,23 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
   // repairFtsIfUnhealthy() below, invoked after the server is listening.
 
   // One-time seed: populate spaces from artifact space_ids only if the table is empty.
-  // Using INSERT OR IGNORE on an existing table would resurrect deleted spaces on restart.
-  const spaceCount = (db.prepare("SELECT COUNT(*) as n FROM spaces").get() as { n: number }).n;
-  if (spaceCount === 0) {
-    db.exec(`
-      INSERT OR IGNORE INTO spaces (id, display_name, created_at, updated_at)
-      SELECT DISTINCT space_id, space_id, datetime('now'), datetime('now')
-      FROM artifacts
-      WHERE space_id IS NOT NULL AND space_id != ''
-        AND removed_at IS NULL
-    `);
+  // Only runs while space_id still exists (the column is dropped below). On a
+  // fresh install the artifacts table is empty anyway; on an existing install
+  // spaces already exist so the block is skipped before the column is dropped.
+  {
+    const hasSpaceColForSeed = (db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[]).some((c) => c.name === "space_id");
+    const spaceCount = (db.prepare("SELECT COUNT(*) as n FROM spaces").get() as { n: number }).n;
+    if (hasSpaceColForSeed && spaceCount === 0) {
+      db.exec(`
+        INSERT OR IGNORE INTO spaces (id, display_name, created_at, updated_at)
+        SELECT DISTINCT space_id, space_id, datetime('now'), datetime('now')
+        FROM artifacts
+        WHERE space_id IS NOT NULL AND space_id != ''
+          AND removed_at IS NULL
+      `);
+    }
   }
+  dropArtifactSpaceColumn(db);
 
   // Allow orphan projects (project rows without a space). Pre-1.0 schema
   // change — `projects.space_id NOT NULL` is dropped to support

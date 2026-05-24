@@ -25,8 +25,8 @@ describe("initDb artefact dedup by path", () => {
 
   function seedArtifact(db: ReturnType<typeof initDb>, id: string, path: string, createdAt: string) {
     db.prepare(
-      `INSERT INTO artifacts (id, space_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, created_at)
-       VALUES (?, 'home', ?, 'notes', 'filesystem', ?, 'static_file', '{}', ?)`,
+      `INSERT INTO artifacts (id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, created_at)
+       VALUES (?, ?, 'notes', 'filesystem', ?, 'static_file', '{}', ?)`,
     ).run(id, id, JSON.stringify({ path }), createdAt);
   }
 
@@ -96,8 +96,8 @@ describe("initDb artefact dedup by path", () => {
     const path = "/abs/ts/y.md";
     seedArtifact(db, "alive", path, "2026-05-14 10:00:00");
     db.prepare(
-      `INSERT INTO artifacts (id, space_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, created_at, removed_at)
-       VALUES ('dead', 'home', 'd', 'notes', 'filesystem', ?, 'static_file', '{}', '2026-05-14 09:00:00', datetime('now'))`,
+      `INSERT INTO artifacts (id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, created_at, removed_at)
+       VALUES ('dead', 'd', 'notes', 'filesystem', ?, 'static_file', '{}', '2026-05-14 09:00:00', datetime('now'))`,
     ).run(JSON.stringify({ path }));
     db.close();
 

@@ -33,8 +33,8 @@ describe("initDb artefact tombstone recovery", () => {
     db.prepare(`INSERT OR IGNORE INTO project_paths (project_id, path) VALUES (?, ?)`).run(PROJ_ID, oldDir);
     db.prepare(`INSERT OR IGNORE INTO project_paths (project_id, path) VALUES (?, ?)`).run(PROJ_ID, newDir);
     db.prepare(
-      `INSERT INTO artifacts (id, space_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, removed_at)
-       VALUES (?, 'work', 'doc', 'notes', 'filesystem', ?, 'static_file', '{}', datetime('now'))`,
+      `INSERT INTO artifacts (id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, removed_at)
+       VALUES (?, 'doc', 'notes', 'filesystem', ?, 'static_file', '{}', datetime('now'))`,
     ).run(id, JSON.stringify({ path }));
   }
 

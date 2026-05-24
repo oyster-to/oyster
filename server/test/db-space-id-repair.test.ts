@@ -32,21 +32,14 @@ describe("initDb space_id repair", () => {
     db2.close();
   });
 
-  it("syncs artefacts.space_id from project's space too (stale-space case)", () => {
+  it("artefacts no longer have a stored space_id (column dropped by initDb)", () => {
+    // artifacts.space_id was dropped as part of the artifact→project model
+    // refactor; space is now derived at read-time via project JOIN. Verify
+    // the column is absent after initDb runs.
     const db = initDb(dir);
-    db.exec(`INSERT INTO spaces (id, display_name, color, scan_status) VALUES ('work', 'Work', '#000', 'none')`);
-    db.exec(`INSERT INTO spaces (id, display_name, color, scan_status) VALUES ('home', 'Home', '#000', 'none')`);
-    db.exec(`INSERT INTO projects (id, space_id, name) VALUES ('22222222-2222-2222-2222-222222222222', 'work', 'Proj')`);
-    // Stale space — project moved to 'work' but artefact still points 'home'.
-    // (artifacts.space_id is NOT NULL, so the bad-state we repair is a
-    // stale value rather than NULL.)
-    db.exec(`INSERT INTO artifacts (id, space_id, label, artifact_kind, storage_kind, runtime_kind, project_id) VALUES ('a', 'home', 'l', 'notes', 'filesystem', 'static_file', '22222222-2222-2222-2222-222222222222')`);
+    const cols = (db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[]).map((c) => c.name);
+    expect(cols).not.toContain("space_id");
     db.close();
-
-    const db2 = initDb(dir);
-    const row = db2.prepare("SELECT space_id FROM artifacts WHERE id = 'a'").get() as { space_id: string };
-    expect(row.space_id).toBe("work");
-    db2.close();
   });
 
   it("leaves space_id alone when project is soft-deleted (don't re-bind to a tombstone)", () => {

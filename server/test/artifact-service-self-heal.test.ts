@@ -45,8 +45,8 @@ describe("ArtifactService.getAllArtifacts self-heal — resolver path", () => {
 
   function seedFilesystemArtifact(id: string, path: string, project_id: string | null = null) {
     db.prepare(
-      `INSERT INTO artifacts (id, space_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, project_id)
-       VALUES (?, 'work', ?, 'notes', 'filesystem', ?, 'static_file', '{}', ?)`,
+      `INSERT INTO artifacts (id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, project_id)
+       VALUES (?, ?, 'notes', 'filesystem', ?, 'static_file', '{}', ?)`,
     ).run(id, "doc", JSON.stringify({ path }), project_id);
   }
 

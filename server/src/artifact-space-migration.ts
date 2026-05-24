@@ -83,3 +83,22 @@ export function backfillArtifactProjects(db: Database.Database, userlandDir: str
   txn();
   return report;
 }
+
+export function dropArtifactSpaceColumn(db: Database.Database): void {
+  const hasCol = (db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[]).some((c) => c.name === "space_id");
+  if (hasCol) {
+    // The old dedup index includes space_id; SQLite refuses to drop a column
+    // referenced by an index, so drop it first.
+    db.exec("DROP INDEX IF EXISTS artifacts_space_source_ref_uq");
+    // DROP COLUMN requires SQLite ≥ 3.35 (2021); better-sqlite3 v12 bundles a
+    // newer SQLite, so this is supported. We deliberately do NOT swallow a
+    // failure — dropping the column is the point; a silent no-op would hide a
+    // real problem and leave the schema half-migrated. If a future runtime
+    // lacks DROP COLUMN, this throws at boot (loud + visible).
+    db.exec("ALTER TABLE artifacts DROP COLUMN space_id");
+  }
+  // Idempotent: ensure the new dedup index exists whether the column was just
+  // dropped or dropped on a prior boot.
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS artifacts_project_source_ref_uq
+             ON artifacts(project_id, source_ref) WHERE source_ref IS NOT NULL`);
+}

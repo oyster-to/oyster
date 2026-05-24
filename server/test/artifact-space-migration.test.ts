@@ -3,13 +3,13 @@ import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initDb } from "../src/db.js";
-import { backfillArtifactProjects } from "../src/artifact-space-migration.js";
+import { backfillArtifactProjects, dropArtifactSpaceColumn } from "../src/artifact-space-migration.js";
 
-function seedArtifact(db: ReturnType<typeof initDb>, id: string, spaceId: string, path: string, projectId: string | null = null) {
+function seedArtifact(db: ReturnType<typeof initDb>, id: string, _spaceId: string, path: string, projectId: string | null = null) {
   db.prepare(
-    `INSERT INTO artifacts (id, space_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, project_id)
-     VALUES (?, ?, ?, 'notes', 'filesystem', ?, 'static_file', '{}', ?)`,
-  ).run(id, spaceId, id, JSON.stringify({ path }), projectId);
+    `INSERT INTO artifacts (id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, project_id)
+     VALUES (?, ?, 'notes', 'filesystem', ?, 'static_file', '{}', ?)`,
+  ).run(id, id, JSON.stringify({ path }), projectId);
 }
 
 describe("backfillArtifactProjects", () => {
@@ -38,8 +38,8 @@ describe("backfillArtifactProjects", () => {
       distinctDb.exec(`INSERT INTO spaces (id, display_name, color, scan_status) VALUES ('work','Work','#000','none')`);
       const nativePath = join(oysterHome, "spaces", "work", "note.md");
       distinctDb.prepare(
-        `INSERT INTO artifacts (id, space_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config)
-         VALUES ('a-native-dist', 'work', 'note', 'notes', 'filesystem', ?, 'static_file', '{}')`,
+        `INSERT INTO artifacts (id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config)
+         VALUES ('a-native-dist', 'note', 'notes', 'filesystem', ?, 'static_file', '{}')`,
       ).run(JSON.stringify({ path: nativePath }));
 
       const report = backfillArtifactProjects(distinctDb, oysterHome);
@@ -73,8 +73,29 @@ describe("backfillArtifactProjects", () => {
     expect(report.total).toBe(5);
     expect(report.backfilled).toBe(3);       // repo, mismatch, native (a-orphan unresolved, a-pre already had project)
     expect(report.stillOrphan).toBe(1);      // a-orphan
-    const mmIds = report.mismatches.map((m) => m.id);
-    expect(mmIds).toContain("a-mismatch");   // newly backfilled, space disagrees
-    expect(mmIds).toContain("a-pre");        // pre-existing project, space disagrees
+    // space_id column is dropped by initDb before seeds run; mismatch detection
+    // requires the column and is skipped — mismatches is empty.
+    expect(report.mismatches).toHaveLength(0);
+  });
+
+  it("drops space_id and is idempotent", () => {
+    seedArtifact(db, "a-repo", "work", "/repo/r.md");
+    backfillArtifactProjects(db, userland);
+    dropArtifactSpaceColumn(db);
+    const cols = (db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[]).map((c) => c.name);
+    expect(cols).not.toContain("space_id");
+    expect(() => dropArtifactSpaceColumn(db)).not.toThrow(); // idempotent
+  });
+
+  it("re-keyed dedup index: same source_ref same project rejected; orphans allowed", () => {
+    backfillArtifactProjects(db, userland);
+    dropArtifactSpaceColumn(db);
+    const ins = (id: string, projectId: string | null, ref: string) => db.prepare(
+      `INSERT INTO artifacts (id,label,artifact_kind,storage_kind,storage_config,runtime_kind,runtime_config,source_ref,project_id)
+       VALUES (?,?, 'notes','filesystem','{}','static_file','{}',?,?)`).run(id, id, ref, projectId);
+    ins("x1", "p-repo", "README.md:notes");
+    expect(() => ins("x2", "p-repo", "README.md:notes")).toThrow(); // same project+ref → UNIQUE violation
+    expect(() => ins("x3", null, "README.md:notes")).not.toThrow(); // orphan
+    expect(() => ins("x4", null, "README.md:notes")).not.toThrow(); // orphan NULLs distinct (intentional)
   });
 });
