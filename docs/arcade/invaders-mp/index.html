@@ -64,12 +64,13 @@
     pointer-events: none;
   }
 
-  /* Debug-only items — netcode/ping/transport diagnostic line and the
-     Retry P2P button. Hidden by default; the URL ?debug query enables
-     them by adding .is-debug on <body>. Keeps the kid view clean while
-     leaving the tools one URL tweak away. */
-  body:not(.is-debug) #prescreen .meta,
-  body:not(.is-debug) #prescreen #retryBtn {
+  /* Diagnostic line (netcode / ping / transport) + Retry P2P button.
+     Visible by default during the testing phase — they're genuinely
+     useful for spotting bad transport / version mismatches. The URL
+     ?clean query hides them via body.is-clean for the kid view, and
+     we'll flip the default back to "hidden unless ?debug" at release. */
+  body.is-clean #prescreen .meta,
+  body.is-clean #prescreen #retryBtn {
     display: none;
   }
 
@@ -412,10 +413,10 @@
   if (!roomCode) roomCode = randomCode();
   // Normalise the address bar to the clean path form regardless of how
   // we arrived — query-string bookmarks rewrite themselves on first
-  // load and stay shareable in the new form. We preserve ?debug across
-  // the rewrite so the debug toggle survives bookmarks/reloads.
-  const isDebug = new URLSearchParams(location.search).has('debug');
-  const cleanPath = '/invaders-mp/' + roomCode + (isDebug ? '?debug' : '');
+  // load and stay shareable in the new form. We preserve ?clean across
+  // the rewrite so the kid-view bookmark survives reloads.
+  const isClean = new URLSearchParams(location.search).has('clean');
+  const cleanPath = '/invaders-mp/' + roomCode + (isClean ? '?clean' : '');
   if ((location.pathname + location.search) !== cleanPath) {
     history.replaceState(null, '', cleanPath);
   }
@@ -433,12 +434,11 @@
   document.getElementById('roomCode').textContent = roomCode;
   renderQR(location.href);
 
-  // ?debug on the URL reveals the diagnostic meta line (netcode /
-  // ping / transport) and the Retry P2P button. Kept off by default
-  // so the kid view stays clean. The flag is captured before the
-  // history.replaceState above so the original ?debug isn't lost in
-  // the path normalisation; reuse it here.
-  if (isDebug) document.body.classList.add('is-debug');
+  // ?clean on the URL hides the diagnostic meta line + Retry P2P for
+  // the kid view. Default is to show them — they're handy while we're
+  // actively testing. Flag captured before history.replaceState above
+  // so the original ?clean survives path normalisation.
+  if (isClean) document.body.classList.add('is-clean');
 
   // QR code for the join URL. Type 0 = auto-fit the smallest matrix
   // that fits the URL; 'M' = medium error-correction (handles a 7-bit
@@ -1435,46 +1435,37 @@
       drawCenteredOverlay('ATTACK!', `rgba(255, 58, 161, ${alpha.toFixed(2)})`, 22);
     }
 
-    // HUD — top of canvas, in three columns matching SP's layout but
-    // adapted for MP: per-player SCORE pairs in seat colour on the
-    // left, a STAGE placeholder in the centre (real progression lands
-    // in Phase G), and the shared LIVES count on the right. Two lines
-    // (label / value) so a growing score doesn't push the label off
-    // screen.
+    // HUD — three SP-style columns across the top of the canvas:
+    // SCORE (local player only, in their seat colour) | STAGE (real
+    // progression lands in Phase G) | LIVES (shared respawn pool).
+    // Two-line layout (label above value) so growing digits don't
+    // push the label off screen.
     if (latestSnap.status === 'running' || latestSnap.status === 'gameover') {
       ctx.font = '6px "Press Start 2P", monospace';
-      ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
 
-      // SCORE: P1 + P2 share the top-left column, P3 + P4 share the
-      // column just to their right. Each entry shows "P1" label in
-      // the seat colour above a 4-digit value in white.
-      const SCORE_COL_W = 26;
-      const SCORE_ROW_H = 8;
-      for (let i = 0; i < MAX_SEATS; i++) {
-        const col = i % 2;                   // 0 → left, 1 → right column
-        const row = Math.floor(i / 2);       // 0 → top, 1 → bottom row
-        const x = 6 + col * SCORE_COL_W;
-        const y = 4 + row * SCORE_ROW_H;
-        const p = latestSnap.players[i];
-        ctx.fillStyle = SHIP_COLORS[i];
-        ctx.fillText('P' + (i + 1), x, y);
-        ctx.fillStyle = '#ffffff';
-        const score = (p && p.score) || 0;
-        ctx.fillText(String(score).padStart(4, '0'), x + 10, y);
-      }
+      // SCORE — local player only. Friends' scores were cluttering
+      // the HUD; each player sees their own score in their own
+      // colour. Spectators (no assigned seat) get a neutral white
+      // "0000" fallback.
+      const seatIdx = mySeat ? SEATS.indexOf(mySeat) : -1;
+      const me = seatIdx >= 0 ? latestSnap.players[seatIdx] : null;
+      const myScore = (me && me.score) || 0;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('SCORE', 6, 4);
+      ctx.fillStyle = seatIdx >= 0 ? SHIP_COLORS[seatIdx] : '#ffffff';
+      ctx.fillText(String(myScore).padStart(4, '0'), 6, 12);
 
-      // STAGE — centred. Real progression lands in Phase G; for now
-      // it always says 1-1 so the slot is reserved in the HUD.
+      // STAGE — centred. Placeholder "1-1" until Phase G.
       ctx.textAlign = 'center';
       ctx.fillStyle = '#ffffff';
       ctx.fillText('STAGE', PF_W / 2, 4);
       ctx.fillStyle = '#ffd84a';
       ctx.fillText('1-1', PF_W / 2, 12);
 
-      // LIVES — shared respawn-pool counter on the right. Renders even
-      // if the field is missing (older snapshot) by falling back to a
-      // blank "—" so the layout doesn't jitter.
+      // LIVES — shared respawn-pool counter, right-aligned. "—" if
+      // an older snapshot omits the field.
       ctx.textAlign = 'right';
       ctx.fillStyle = '#ffffff';
       ctx.fillText('LIVES', PF_W - 6, 4);
