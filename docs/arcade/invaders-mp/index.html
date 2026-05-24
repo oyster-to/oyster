@@ -382,6 +382,7 @@
     SUPER_SHOT_MAX, CHARGE_THRESHOLD_SEC,
     CHARGED_BULLET_W, CHARGED_BULLET_H, CHARGED_BULLET_SPEED,
     UFO_W_EXPORT, UFO_H_EXPORT, UFO_Y_EXPORT,
+    BOSS_W, BOSS_H, BOSS_Y,
     comboMultiplier,
     SEATS, MAX_SEATS,
   } = engine;
@@ -390,7 +391,7 @@
   const UFO_W = UFO_W_EXPORT ?? 16;
   const UFO_H = UFO_H_EXPORT ?? 7;
   const UFO_Y = UFO_Y_EXPORT ?? 12;
-  import { ROW_COLORS, spriteForRow, paintPixels, paintShip } from './sprites.js';
+  import { ROW_COLORS, spriteForRow, paintPixels, paintShip, paintBoss } from './sprites.js';
   // Renderer uses INV_COLS to map invader array index → grid row. It
   // happens to equal 11 in the current engine; mirror as a const so a
   // future engine.INV_COLS change forces an audit here rather than
@@ -426,7 +427,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 24;
+  const NETCODE_VERSION = 25;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -1582,6 +1583,23 @@
       }
     }
 
+    // Boss — chunky 40×40 octopus + a green→yellow→red HP bar above
+    // it. Same 2-frame animation cadence as the regular swarm (toggle
+    // every 300 ms). HP ratio drives the bar fill colour for a quick
+    // glance read.
+    if (latestSnap.phase === 'boss' && latestSnap.boss) {
+      const bf = Math.floor(performance.now() / 300) & 1;
+      paintBoss(ctx, latestSnap.boss.x, BOSS_Y, 5, bf);
+      const hp = latestSnap.boss.hp;
+      const hpMax = latestSnap.boss.hpMax || 1;
+      const ratio = Math.max(0, Math.min(1, hp / hpMax));
+      const barY = BOSS_Y - 4;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+      ctx.fillRect(latestSnap.boss.x, barY, BOSS_W, 2);
+      ctx.fillStyle = ratio > 0.6 ? '#6bff8c' : ratio > 0.3 ? '#ffd84a' : '#ff6666';
+      ctx.fillRect(latestSnap.boss.x, barY, BOSS_W * ratio, 2);
+    }
+
     // UFO bonus enemy — saucer silhouette ported from SP's drawUfo.
     // Position is server-authoritative; render straight from the
     // snapshot's ufo.x at the fixed UFO_Y row above the swarm.
@@ -1726,7 +1744,10 @@
       ctx.fillStyle = '#ffd84a';
       const stageSet = latestSnap.stageSet ?? 1;
       const stageNum = latestSnap.stageNum ?? 1;
-      ctx.fillText(stageSet + '-' + stageNum, PF_W / 2, 12);
+      const stageLabel = latestSnap.phase === 'boss'
+        ? stageSet + '-BOSS'
+        : stageSet + '-' + stageNum;
+      ctx.fillText(stageLabel, PF_W / 2, 12);
 
       // LIVES — shared respawn-pool counter, right-aligned. "—" if
       // an older snapshot omits the field. The value flashes brighter

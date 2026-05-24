@@ -119,7 +119,15 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //        super ammo to MAX. Floating score popups ("+30" / "x3 +60"
 //        / UFO bonus) on each kill. New wire fields: stageSet /
 //        stageNum / stageAnnounceIn / ufo / popups.
-const NETCODE_VERSION = 24;
+// v25 — Phase H (1/2): boss waves. After STAGES_PER_SET normal
+//        stages, the next "stage" is a boss instead — phase flips to
+//        'boss', a chunky 40×40 octopus spawns at the top, HP ramps
+//        per set (30 + 15*set). Normal bullets deal 1 dmg, charged
+//        deal 3 (and tunnel). Defeat → phase back to 'grid', stageSet
+//        +1, fresh wave at n-1. STAGE label shows "n-BOSS" during
+//        the fight. Multiple boss types + minion adds + win cutscene
+//        deferred to Phase H/2. New wire fields: phase / boss.
+const NETCODE_VERSION = 25;
 
 type ClientMessage =
   | { type: 'ping';   t: number }

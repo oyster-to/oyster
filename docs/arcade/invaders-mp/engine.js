@@ -132,13 +132,32 @@ function makeShields() {
 }
 
 // === Stages ===
-// Stages are labelled "set-num" (1-1, 1-2, 1-3, 2-1, ...). Endless
-// for now — the boss interrupt every set lands in Phase H. On grid
-// clear we advance the counter, rebuild the swarm, and trigger a
-// 2 s "STAGE n-m" announce overlay. Player state (score, ammo,
-// combo) persists across stages.
+// Stages are labelled "set-num" (1-1, 1-2, 1-3, 1-BOSS, 2-1, ...).
+// After STAGES_PER_SET (3) normal waves the next "stage" is a boss:
+// state.phase flips to 'boss', state.boss spawns, normal swarm
+// stays cleared. Defeat boss → phase back to 'grid', stageSet++,
+// fresh wave. Player state (score, ammo, combo) persists across
+// stages + sets.
 const STAGES_PER_SET = 3;
 const STAGE_ANNOUNCE_SEC = 2;
+
+// === Boss ===
+// Single boss type for Phase H (a chunky 8×8 octopus scaled 5× to
+// 40 PF). Multiple boss types + minion adds + win cutscene deferred
+// to a follow-up. HP, speed, and fire interval all ramp per set so
+// later bosses feel progressively scarier.
+export const BOSS_W = 40;
+export const BOSS_H = 40;
+export const BOSS_Y = 24;                        // sits where the top invader row would
+const BOSS_BASE_HP = 30;                         // ~10 charged hits or 30 normal at set 1
+const BOSS_HP_PER_SET = 15;                      // +15 HP per set
+const BOSS_BASE_SPEED = 38;                      // PF/sec at set 1
+const BOSS_SPEED_PER_SET = 12;
+const BOSS_FIRE_INTERVAL_BASE = 1.1;             // seconds at set 1
+const BOSS_FIRE_INTERVAL_MIN = 0.38;             // floor — fastest possible
+const BOSS_FIRE_INTERVAL_STEP = 0.2;             // shrinks per set
+const BOSS_HIT_SCORE = 50;                       // points per damaging hit
+const BOSS_DEFEAT_SCORE = 500;                   // bonus on kill
 
 // === UFO ===
 // Bonus enemy that flies across the top of the playfield occasionally.
@@ -270,10 +289,15 @@ export function initState() {
     shields: makeShields(),
     // Stage progression (Phase G). stageSet 1..∞, stageNum 1..3,
     // labelled "1-1" / "1-2" / ... by the renderer. announceIn counts
-    // down a brief "STAGE n-m" overlay fade after each wave clear.
+    // down a brief "STAGE n-m" / "STAGE n-BOSS" overlay fade after
+    // each wave clear. phase distinguishes the normal grid wave from
+    // a boss interrupt — boss waves spawn after STAGES_PER_SET normal
+    // stages clear. state.boss is null between bosses.
     stageSet: 1,
     stageNum: 1,
     stageAnnounceIn: 0,
+    phase: 'grid',                        // 'grid' | 'boss'
+    boss: null,
     // UFO bonus enemy. ufo is null when off-screen; ufoNextSec ticks
     // down the time until the next spawn (randomised on each despawn).
     ufo: null,
@@ -328,8 +352,15 @@ export function step(state, inputs, dt, occupied = ALL_OCCUPIED) {
   tickStageAnnounce(state, dt);
   stepShips(state, inputs, dt, occupied);
   stepBullets(state, dt);
-  stepInvaders(state, dt);
-  stepInvaderFire(state, dt);
+  // During a boss wave the normal swarm logic stays dormant — invaders
+  // array is empty so stepInvaders + stepInvaderFire short-circuit.
+  // stepBoss takes over movement + fire from the single boss entity.
+  if (state.phase === 'boss') {
+    stepBoss(state, dt);
+  } else {
+    stepInvaders(state, dt);
+    stepInvaderFire(state, dt);
+  }
   stepUfo(state, dt);
   stepPopups(state, dt);
   resolveCollisions(state, occupied);
@@ -370,18 +401,80 @@ function stepPopups(state, dt) {
   state.popups = state.popups.filter(p => p.life > 0);
 }
 
-// Called after resolveCollisions. If every invader is dead the wave
-// is over — bump the stage counter, rebuild the grid, fire the
-// announce overlay. Player state (score, ammo, combo, lives) carries
-// forward. Bullets persist (they'll fly through to no-op) and
-// invaderBullets are cleared so a leftover doesn't reach the ship
-// during the announce. UFO + popups stay too.
+function spawnBoss(setNum) {
+  const hp = BOSS_BASE_HP + (setNum - 1) * BOSS_HP_PER_SET;
+  return {
+    x: PF_W / 2 - BOSS_W / 2,
+    hp,
+    hpMax: hp,
+    dir: 1,
+    speed: BOSS_BASE_SPEED + (setNum - 1) * BOSS_SPEED_PER_SET,
+    fireAccum: 0,
+    fireInterval: Math.max(
+      BOSS_FIRE_INTERVAL_MIN,
+      BOSS_FIRE_INTERVAL_BASE - (setNum - 1) * BOSS_FIRE_INTERVAL_STEP,
+    ),
+  };
+}
+
+// Boss tick: horizontal bounce + periodic fire from centre-bottom.
+// No vertical descent — the boss stays parked at BOSS_Y and applies
+// pressure via bullets instead of swarm-pushdown.
+function stepBoss(state, dt) {
+  if (state.phase !== 'boss' || !state.boss) return;
+  const b = state.boss;
+  b.x += b.speed * b.dir * dt;
+  // 8 PF wall padding gives a satisfying back-and-forth instead of
+  // edge-grinding.
+  if (b.x < 8)                  { b.x = 8;                  b.dir = 1;  }
+  if (b.x > PF_W - 8 - BOSS_W)  { b.x = PF_W - 8 - BOSS_W;  b.dir = -1; }
+  b.fireAccum += dt;
+  if (b.fireAccum >= b.fireInterval) {
+    b.fireAccum = 0;
+    state.invaderBullets.push({
+      x: b.x + BOSS_W / 2 - BULLET_W / 2,
+      y: BOSS_Y + BOSS_H,
+      owner: null,
+    });
+  }
+}
+
+// Called after resolveCollisions. Two clear paths:
+//   - phase 'grid', grid empty: bump stage counter. If we just
+//     cleared the STAGES_PER_SET'th normal wave, the next "stage"
+//     is the boss — phase flips and we spawn it. Otherwise it's
+//     the next normal wave.
+//   - phase 'boss', boss.hp <= 0: defeat. stageSet++, phase back
+//     to 'grid', wave 1 spawns. Player keeps everything.
+// Player state (score, ammo, combo, lives) carries forward through
+// both transitions. Bullets persist; invaderBullets clear so a
+// leftover doesn't kill anyone during the announce.
 function checkStageClear(state) {
+  if (state.phase === 'boss') {
+    if (!state.boss || state.boss.hp > 0) return;
+    state.phase = 'grid';
+    state.boss = null;
+    state.stageSet += 1;
+    state.stageNum = 1;
+    state.invaders = buildGrid();
+    state.invaderDir = 1;
+    state.invaderDropRemaining = 0;
+    state.invaderFireAccum = 0;
+    state.invaderBullets = [];
+    state.stageAnnounceIn = STAGE_ANNOUNCE_SEC;
+    return;
+  }
   if (state.invaders.some(i => i.alive)) return;
   state.stageNum += 1;
   if (state.stageNum > STAGES_PER_SET) {
-    state.stageNum = 1;
-    state.stageSet += 1;
+    // Boss wave instead of another normal wave. stageNum stays at
+    // STAGES_PER_SET + 1 as a sentinel for the renderer's "n-BOSS"
+    // label (also derivable from phase, but explicit is easier).
+    state.phase = 'boss';
+    state.boss = spawnBoss(state.stageSet);
+    state.invaderBullets = [];
+    state.stageAnnounceIn = STAGE_ANNOUNCE_SEC;
+    return;
   }
   state.invaders = buildGrid();
   state.invaderDir = 1;
@@ -646,6 +739,47 @@ function resolveCollisions(state, occupied) {
     }
   }
 
+  // Player bullets vs boss. Damage = 1 (normal) or 3 (charged).
+  // Charged bullets still tunnel (don't get consumed) so a sustained
+  // hold of FIRE while standing under the boss can grind it down
+  // fast. Score per damaging hit + bigger bonus on the killing blow.
+  // Damage popup floats off the impact site.
+  if (state.phase === 'boss' && state.boss && state.boss.hp > 0) {
+    const bs = state.boss;
+    for (const b of state.bullets) {
+      const bw = b.charged ? CHARGED_BULLET_W : BULLET_W;
+      const bh = b.charged ? CHARGED_BULLET_H : BULLET_H;
+      if (b.y < -bh) continue;
+      if (!overlap(b.x, b.y, bw, bh, bs.x, BOSS_Y, BOSS_W, BOSS_H)) continue;
+      const dmg = b.charged ? 3 : 1;
+      bs.hp = Math.max(0, bs.hp - dmg);
+      const owner = b.owner && state.ships[b.owner];
+      if (owner) {
+        owner.score += BOSS_HIT_SCORE;
+        state.popups.push({
+          x: bs.x + BOSS_W / 2,
+          y: BOSS_Y,
+          text: `-${dmg}`,
+          col: '#ff7a7a',
+          life: POPUP_LIFE_SEC,
+        });
+        if (bs.hp === 0) {
+          owner.score += BOSS_DEFEAT_SCORE;
+          state.popups.push({
+            x: bs.x + BOSS_W / 2,
+            y: BOSS_Y + BOSS_H / 2,
+            text: `+${BOSS_DEFEAT_SCORE}`,
+            col: '#ffd84a',
+            life: POPUP_LIFE_SEC * 2,
+          });
+        }
+      }
+      if (!b.charged) { b.y = -999; break; }
+      // charged: keep tunneling — already inflicted damage this tick
+      if (bs.hp === 0) break;
+    }
+  }
+
   // Player bullets vs UFO. Charged bullets one-shot a UFO too. Score
   // is sampled from UFO_SCORES by where the UFO is across the screen
   // — closer to the centre/far edge = higher payout. Kill refills
@@ -856,5 +990,14 @@ export function snapshotForClient(state) {
     popups:         state.popups.map(p => ({
       x: round(p.x), y: round(p.y), t: p.text, c: p.col, l: round(p.life),
     })),
+    // Phase H: boss waves. phase 'grid' for normal stages, 'boss'
+    // while a boss is on-screen. boss carries x + hp + hpMax for the
+    // renderer's sprite + health bar. null between bosses.
+    phase:          state.phase,
+    boss:           state.boss ? {
+      x:    round(state.boss.x),
+      hp:   state.boss.hp,
+      hpMax: state.boss.hpMax,
+    } : null,
   };
 }
