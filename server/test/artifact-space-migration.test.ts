@@ -89,6 +89,22 @@ describe("backfillArtifactProjects", () => {
     expect(() => dropArtifactSpaceColumn(db)).not.toThrow(); // idempotent
   });
 
+  it("underscore in project path does not wildcard-match sibling paths (LIKE escape fix)", () => {
+    // Project root: /a/my_proj  — the underscore must NOT act as a LIKE wildcard.
+    // An artifact at /a/myXproj/f.md must NOT resolve to this project.
+    db.prepare("INSERT INTO projects (id, space_id, name) VALUES ('p-under','work','underscore')").run();
+    db.prepare("INSERT INTO project_paths (project_id, path) VALUES ('p-under','/a/my_proj')").run();
+    seedArtifact(db, "a-nomatch", "work", "/a/myXproj/f.md");  // 'X' replaces '_' in the path
+    seedArtifact(db, "a-match",   "work", "/a/my_proj/f.md");  // genuine child — must match
+
+    backfillArtifactProjects(db, userland);
+
+    // The sibling path must NOT resolve to p-under
+    expect(db.prepare("SELECT project_id FROM artifacts WHERE id='a-nomatch'").get()).toEqual({ project_id: null });
+    // The genuine child must resolve correctly
+    expect(db.prepare("SELECT project_id FROM artifacts WHERE id='a-match'").get()).toEqual({ project_id: "p-under" });
+  });
+
   it("re-keyed dedup index: same source_ref same project rejected; orphans allowed", () => {
     backfillArtifactProjects(db, userland);
     dropArtifactSpaceColumn(db);

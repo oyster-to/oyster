@@ -2,10 +2,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve, relative, sep } from "node:path";
 import type { Ignore } from "ignore";
 import ignore from "ignore";
+import type Database from "better-sqlite3";
 import type { SpaceStore, SpaceRow } from "./space-store.js";
 import type { ArtifactStore } from "./artifact-store.js";
 import type { ArtifactService } from "./artifact-service.js";
-import type { SessionStore } from "./session-store.js";
 import type { SpaceSyncService } from "./space-sync-service.js";
 import type { Space } from "../../shared/types.js";
 import { slugify, toScanStatus } from "./utils.js";
@@ -72,10 +72,10 @@ export class SpaceService {
     private spaceStore: SpaceStore,
     private artifactStore: ArtifactStore,
     _artifactService: ArtifactService,
-    _sessionStore: SessionStore,
+    private db: Database.Database,
     private spaceSync?: SpaceSyncService,
   ) {
-    void _artifactService; void _sessionStore;
+    void _artifactService;
   }
 
   createSpace(params: { name: string }): Space {
@@ -140,8 +140,15 @@ export class SpaceService {
   convertFolderToSpace(sourceSpaceId: string, folderName: string, targetSpaceId: string): void {
     const artifacts = this.artifactStore.getBySpaceId(sourceSpaceId)
       .filter(a => a.group_name === folderName);
+    // Move the owning projects to the target space so artifacts derive the new
+    // space via the project JOIN (artifact.space_id is derived, not stored).
+    const projectIds = new Set(artifacts.map(a => a.project_id).filter((p): p is string => p !== null));
+    for (const pid of projectIds) {
+      this.db.prepare("UPDATE projects SET space_id = ? WHERE id = ?").run(targetSpaceId, pid);
+    }
+    // Clear group_name so the artifacts no longer appear as a folder in the source space.
     for (const a of artifacts) {
-      this.artifactStore.update(a.id, { space_id: targetSpaceId, group_name: null });
+      this.artifactStore.update(a.id, { group_name: null });
     }
   }
 
@@ -150,10 +157,17 @@ export class SpaceService {
     const row = this.spaceStore.getById(id);
     if (!row) throw new Error(`Space "${id}" not found`);
     const folderName = folderNameOverride ?? row?.display_name ?? id;
-    const artifacts = this.artifactStore.getBySpaceId(id);
-    // Move orphaned artifacts to home in a folder named after the deleted space
-    for (const a of artifacts) {
-      this.artifactStore.update(a.id, { space_id: "home", group_name: folderName });
+    // Collect artifacts that were in the deleted space BEFORE reassigning projects,
+    // so we can apply the folder label to them afterward.
+    const artifactsToLabel = this.artifactStore.getBySpaceId(id);
+    // Reassign the deleted space's projects to "home" so their artifacts and
+    // sessions derive the correct space via the project JOIN (artifact.space_id
+    // is derived, not stored — writing it would be a silent no-op).
+    this.db.prepare("UPDATE projects SET space_id = 'home' WHERE space_id = ?").run(id);
+    // Apply the folder label so the moved artifacts appear grouped in "home"
+    // under the deleted space's display name.
+    for (const a of artifactsToLabel) {
+      this.artifactStore.update(a.id, { group_name: folderName });
     }
     // Soft-delete locally; cloud propagates the tombstone via pushDelete.
     // (pushDelete is fire-and-forget; the pending-delete sweep in the next

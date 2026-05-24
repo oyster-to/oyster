@@ -21,9 +21,13 @@ export function backfillArtifactProjects(db: Database.Database, userlandDir: str
   const cols = db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[];
   const hasSpaceCol = cols.some((c) => c.name === "space_id");
 
+  // Use substr-based prefix matching instead of LIKE to avoid treating `_` and
+  // `%` in project paths as SQL wildcards. Mirrors the approach in
+  // project-service.ts ~lines 149-163. A path matches if it equals the project
+  // root exactly, or if it is a direct descendant (separated by `/`).
   const resolveProject = db.prepare(
     `SELECT pp.project_id FROM project_paths pp
-      WHERE ? LIKE pp.path || '/%' OR ? = pp.path
+      WHERE ? = pp.path OR substr(?, 1, length(pp.path) + 1) = pp.path || '/'
       ORDER BY LENGTH(pp.path) DESC LIMIT 1`,
   );
   const setProject = db.prepare("UPDATE artifacts SET project_id = ? WHERE id = ?");

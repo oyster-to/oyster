@@ -561,7 +561,7 @@ const sessionSnapshotHandle = setInterval(() => {
 }, SESSION_SNAPSHOT_INTERVAL_MS);
 sessionSnapshotHandle.unref();
 
-const spaceService = new SpaceService(spaceStore, store, artifactService, sessionStore, spaceSync);
+const spaceService = new SpaceService(spaceStore, store, artifactService, db, spaceSync);
 const projectService = new ProjectService(db);
 const sessionService = new SessionService(db, sessionStore);
 const claudePtyManager = new ClaudePtyManager({ sessionStore, db, broadcastUiEvent });

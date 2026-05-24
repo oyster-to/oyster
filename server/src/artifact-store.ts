@@ -87,7 +87,7 @@ export class SqliteArtifactStore implements ArtifactStore {
         "SELECT p.space_id AS space_id, COUNT(*) as count FROM artifacts a JOIN projects p ON p.id = a.project_id WHERE a.removed_at IS NULL GROUP BY p.space_id ORDER BY p.space_id"
       ),
       getByProjectAndSourceRef: db.prepare(
-        `${SELECT} WHERE a.project_id = ? AND a.source_ref = ?`
+        `${SELECT} WHERE a.project_id = ? AND a.source_ref = ? AND a.removed_at IS NULL`
       ),
       getAllArchived: db.prepare(
         `${SELECT} WHERE a.removed_at IS NOT NULL ORDER BY a.removed_at DESC`
