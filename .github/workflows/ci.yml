@@ -28,7 +28,14 @@ jobs:
           cd server && npm ci && cd ..
 
       - name: Verify root deps mirror server runtime deps
-        run: node scripts/sync-published-deps.mjs --check
+        # Advisory: release.yml re-syncs authoritatively before publish, so
+        # committed drift (e.g. from a dependabot server bump) can't reach end
+        # users. Don't block the merge on it — but surface drift as a warning
+        # annotation (visible in the PR checks/summary) rather than swallowing
+        # it, so it isn't silently ignored.
+        run: |
+          node scripts/sync-published-deps.mjs --check \
+            || echo "::warning title=Dependency mirror drift::root package.json drifts from server/package.json. release.yml re-syncs before publish; run 'node scripts/sync-published-deps.mjs' to update the committed mirror."
 
       - name: Build
         run: npm run build
