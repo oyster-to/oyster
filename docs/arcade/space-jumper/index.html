@@ -317,8 +317,7 @@ Arcade.Initials.mount({
     hideEndOverlay();
     Arcade.Leaderboard.submit(score, initials).then(res => {
       if (!res.ok) console.warn('leaderboard submit failed:', res.error);
-      paintSplashHiScore();
-      paintLeaderboard();
+      refreshLeaderboard(true);   // pull fresh so the just-saved score shows
     });
     // Back to attract mode — opens on the leaderboard so the new score shows,
     // then cycles to the title card; a tap there starts a fresh run.
@@ -342,10 +341,17 @@ function paintSplashHiScore() {
 function paintLeaderboard() {
   Arcade.Leaderboard.paintList({ listSelector: '#lb-list', pad: 3 });
 }
+// Pull live scores from the DB whenever the board is shown — so the splash
+// stays current (including the score you just saved), not just at boot.
+// Throttled so the 5.5s title↔leaderboard cycle doesn't hammer the worker.
+let _lbRefreshAt = 0;
+function refreshLeaderboard(force) {
+  if (!force && Date.now() - _lbRefreshAt < 8000) { paintLeaderboard(); return; }
+  _lbRefreshAt = Date.now();
+  Arcade.Leaderboard.refresh().then(() => { paintSplashHiScore(); paintLeaderboard(); });
+}
 paintSplashHiScore();
-paintLeaderboard();
-// Fire-and-forget cloud refresh; repaint both splash views when it lands.
-Arcade.Leaderboard.refresh().then(() => { paintSplashHiScore(); paintLeaderboard(); });
+refreshLeaderboard(true);
 
 // (Initials state machine + listeners now live in shared/initials.js — see
 // the Arcade.Initials.mount(...) call above for the per-game config.)
@@ -438,7 +444,7 @@ Arcade.Splash.mount({
     Arcade.Audio.ensureCtx();
     resetRun();                              // resumeBgm() runs inside (now 'playing')
   },
-  onLeaderboardShow: () => paintLeaderboard(),
+  onLeaderboardShow: () => refreshLeaderboard(),
   unlockAudio() {                            // iOS: first title gesture unlocks audio
     Arcade.Audio.ensureCtx();
     const t = _bgmTheme(); if (t) t.play().catch(() => {});
