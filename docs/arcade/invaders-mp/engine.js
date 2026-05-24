@@ -656,7 +656,14 @@ function resolveCollisions(state, occupied) {
       const bh = b.charged ? CHARGED_BULLET_H : BULLET_H;
       if (b.y < -bh) continue;
       if (overlap(b.x, b.y, bw, bh, state.ufo.x, UFO_Y, UFO_W, UFO_H)) {
-        const progress = (state.ufo.x + UFO_W) / (PF_W + UFO_W * 2);
+        // Progress = distance travelled from the spawn edge, so left-
+        // and right-spawning UFOs both pay 0 at their spawn point and
+        // ramp up to the max as they approach the despawn edge —
+        // symmetric scoring regardless of direction.
+        const dir = state.ufo.dir;
+        const travelMax = PF_W + UFO_W * 2;
+        const travelled = dir > 0 ? (state.ufo.x + UFO_W) : (PF_W - state.ufo.x);
+        const progress = travelled / travelMax;
         const idx = Math.min(UFO_SCORES.length - 1, Math.max(0, Math.floor(progress * UFO_SCORES.length)));
         const pts = UFO_SCORES[idx];
         const owner = b.owner && state.ships[b.owner];
@@ -678,7 +685,11 @@ function resolveCollisions(state, occupied) {
       }
     }
   }
-  state.bullets = state.bullets.filter(b => b.y > -BULLET_H);
+  // Filter using each bullet's own height — charged bullets are
+  // 12 PF tall, so the -BULLET_H constant would cull them ~6 PF
+  // early while their bottom edge is still on-screen. Killed bullets
+  // (marker y = -999) get caught by either height check.
+  state.bullets = state.bullets.filter(b => b.y > -(b.charged ? CHARGED_BULLET_H : BULLET_H));
 
   // Invader bullets vs shields, FIRST — chip the bunkers, kill the
   // bullet, before any per-ship check. A bullet that hit a shield
