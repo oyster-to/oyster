@@ -124,6 +124,9 @@ interface ArtifactRow {
   share_token: string | null;
   unpublished_at: number | null;
   label: string;
+  // Derived (artifact → project → space) by the joined SELECTs in
+  // publishArtifact / backfillPublications. NOT selected by unpublishArtifact,
+  // which never reads it.
   space_id: string;
 }
 

@@ -25,7 +25,7 @@ function makeDb(): Database.Database {
     CREATE TABLE artifacts (
       id                   TEXT PRIMARY KEY,
       owner_id             TEXT,
-      space_id             TEXT NOT NULL DEFAULT '',
+      space_id             TEXT NOT NULL DEFAULT '', -- test convenience; space is derived via project; legacy column kept until dropped
       project_id           TEXT REFERENCES projects(id) ON DELETE SET NULL,
       label                TEXT NOT NULL,
       artifact_kind        TEXT NOT NULL,
