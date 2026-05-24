@@ -381,9 +381,15 @@
     decodeShields, shieldOffsets,
     SUPER_SHOT_MAX, CHARGE_THRESHOLD_SEC,
     CHARGED_BULLET_W, CHARGED_BULLET_H, CHARGED_BULLET_SPEED,
+    UFO_W_EXPORT, UFO_H_EXPORT, UFO_Y_EXPORT,
     comboMultiplier,
     SEATS, MAX_SEATS,
   } = engine;
+  // Local aliases so the renderer reads UFO_W / UFO_H / UFO_Y like the
+  // engine code does, without colliding with anything else.
+  const UFO_W = UFO_W_EXPORT ?? 16;
+  const UFO_H = UFO_H_EXPORT ?? 7;
+  const UFO_Y = UFO_Y_EXPORT ?? 12;
   import { ROW_COLORS, spriteForRow, paintPixels, paintShip } from './sprites.js';
   // Renderer uses INV_COLS to map invader array index → grid row. It
   // happens to equal 11 in the current engine; mirror as a const so a
@@ -420,7 +426,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 23;
+  const NETCODE_VERSION = 24;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -1576,6 +1582,21 @@
       }
     }
 
+    // UFO bonus enemy — saucer silhouette ported from SP's drawUfo.
+    // Position is server-authoritative; render straight from the
+    // snapshot's ufo.x at the fixed UFO_Y row above the swarm.
+    if (latestSnap.ufo) {
+      const ux = latestSnap.ufo.x;
+      ctx.fillStyle = '#a855f7';                       // purple body
+      ctx.fillRect(ux + 2,           UFO_Y + 0, UFO_W - 4, 1);
+      ctx.fillRect(ux + 0,           UFO_Y + 1, UFO_W,     2);
+      ctx.fillRect(ux + 2,           UFO_Y + 3, UFO_W - 4, 1);
+      ctx.fillRect(ux + 4,           UFO_Y + 4, UFO_W - 8, 1);
+      ctx.fillStyle = '#2dd4ff';                       // cyan undercarriage glints
+      ctx.fillRect(ux + 1,           UFO_Y + 4, 2, 1);
+      ctx.fillRect(ux + UFO_W - 3,   UFO_Y + 4, 2, 1);
+    }
+
     // Bullets — drawn from the latest snapshot (server-authoritative
     // for spawn time + trajectory). Normal bullets paint gold-on-
     // white-core; charged super-shots paint fat gold + white core
@@ -1636,6 +1657,36 @@
       drawCenteredOverlay('ATTACK!', `rgba(255, 58, 161, ${alpha.toFixed(2)})`, 22);
     }
 
+    // Stage announce overlay — "STAGE n-m" centred + fades out as
+    // stageAnnounceIn drops to 0. Server keeps the timer, so all
+    // clients show it in sync. Skip the overlay during the very first
+    // stage (stageAnnounceIn defaults to 0 in initState) so the wave
+    // doesn't get an extra "STAGE 1-1" flash before play even starts.
+    if ((latestSnap.stageAnnounceIn || 0) > 0) {
+      const STAGE_ANNOUNCE_TOTAL = 2;
+      const t = Math.min(1, (latestSnap.stageAnnounceIn || 0) / STAGE_ANNOUNCE_TOTAL);
+      const label = 'STAGE ' + (latestSnap.stageSet ?? 1) + '-' + (latestSnap.stageNum ?? 1);
+      drawCenteredOverlay(label, `rgba(255, 216, 74, ${t.toFixed(2)})`, 18);
+    }
+
+    // Floating score popups — server-spawned on each kill, live for
+    // POPUP_LIFE_SEC (0.6 s), drift upward. Each renders centred on
+    // its (x, y) with alpha = life / POPUP_LIFE_SEC. Tiny font so
+    // multiple stacked popups in a combo stay readable.
+    if (latestSnap.popups && latestSnap.popups.length) {
+      const POPUP_TOTAL = 0.6;
+      ctx.font = '5px "Press Start 2P", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (const p of latestSnap.popups) {
+        const alpha = Math.max(0, Math.min(1, (p.l || 0) / POPUP_TOTAL));
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = p.c || '#ffffff';
+        ctx.fillText(p.t || '', p.x, p.y);
+      }
+      ctx.globalAlpha = 1;
+    }
+
     // HUD — three SP-style columns across the top of the canvas:
     // SCORE (local player only, in their seat colour) | STAGE (real
     // progression lands in Phase G) | LIVES (shared respawn pool).
@@ -1673,7 +1724,9 @@
       ctx.fillStyle = '#ffffff';
       ctx.fillText('STAGE', PF_W / 2, 4);
       ctx.fillStyle = '#ffd84a';
-      ctx.fillText('1-1', PF_W / 2, 12);
+      const stageSet = latestSnap.stageSet ?? 1;
+      const stageNum = latestSnap.stageNum ?? 1;
+      ctx.fillText(stageSet + '-' + stageNum, PF_W / 2, 12);
 
       // LIVES — shared respawn-pool counter, right-aligned. "—" if
       // an older snapshot omits the field. The value flashes brighter
