@@ -44,6 +44,33 @@
       6px 6px 0 #2dd4ff,
       0 0 18px rgba(255, 216, 74, 0.45);
   }
+  /* Splash leaderboard view (title ↔ leaderboard cycle). Palette matches the
+     title; can move to shared/ once Invaders + Rocket Ship adopt the shared
+     splash lifecycle. */
+  .leaderboard { color: #fff; font-family: 'Press Start 2P', ui-monospace, monospace; }
+  .leaderboard .lb-title {
+    font-size: clamp(16px, 3vw, 28px);
+    color: #ffd84a;
+    letter-spacing: 0.12em;
+    text-shadow: 3px 3px 0 #ff3aa1, 5px 5px 0 #2dd4ff;
+    margin-bottom: clamp(8px, 1.5vw, 16px);
+  }
+  .leaderboard .lb-list {
+    list-style: none; padding: 0; margin: 0;
+    display: grid; grid-template-columns: auto auto auto;
+    gap: 6px 22px;
+    font-size: clamp(10px, 1.5vw, 14px);
+    letter-spacing: 0.14em; align-items: center;
+  }
+  .leaderboard .lb-list li { display: contents; }
+  .leaderboard .lb-rank     { color: #ff3aa1; text-align: right; }
+  .leaderboard .lb-initials { color: #2dd4ff; text-align: left; letter-spacing: 0.2em; }
+  .leaderboard .lb-score    { color: #ffd84a; text-align: right; }
+  .leaderboard .lb-empty {
+    font-size: clamp(10px, 1.4vw, 12px);
+    color: rgba(255, 255, 255, 0.55);
+    grid-column: 1 / -1; text-align: center;
+  }
   .splash .sound-controls {
     position: absolute;
     top: clamp(10px, 1.6vw, 18px);
@@ -95,6 +122,7 @@
 <script src="../shared/touch.js"></script>
 <script src="../shared/iframe-host.js"></script>
 <script src="../shared/leaderboard.js"></script>
+<script src="../shared/splash.js"></script>
 <script src="../shared/initials.js"></script>
 <script src="../shared/end-overlay.js"></script>
 <audio id="sfx-powerup"   src="../shared/sfx-powerup.mp3"   preload="auto"></audio>
@@ -140,7 +168,7 @@
     </div>
     <div class="splash" id="splash">
       <div class="splash-main">
-        <div class="title-card">
+        <div class="title-card splash-view is-active">
           <div class="title">SPACE JUMPER</div>
           <div class="start"><span class="key-only">INSERT COIN TO PLAY</span><span class="touch-only">TAP TO PLAY</span></div>
           <div class="controls">
@@ -148,6 +176,11 @@
             <div class="key key-only">SPACE</div><div class="key touch-only">TAP JUMP</div><div class="desc">JUMP</div>
           </div>
           <div class="hiscore-row" id="hiscore-row" hidden>HIGH SCORE <span class="hs-val" id="hs-val-splash">000</span> <span class="hs-initials" id="hs-initials-splash">---</span></div>
+          <div class="credit">© OYSTER 2026 — <span class="key-only">PRESS ANY KEY</span><span class="touch-only">TAP TO PLAY</span></div>
+        </div>
+        <div class="leaderboard splash-view">
+          <div class="lb-title">HIGH SCORES</div>
+          <ol class="lb-list" id="lb-list"></ol>
           <div class="credit">© OYSTER 2026 — <span class="key-only">PRESS ANY KEY</span><span class="touch-only">TAP TO PLAY</span></div>
         </div>
       </div>
@@ -281,13 +314,15 @@ Arcade.Initials.mount({
   fireLabel:  { idle: 'JUMP', select: 'SELECT' },
   extraKeys:  { 'letter-prev': ['w', 'W'], 'letter-next': ['s', 'S'] },
   onSubmit: (initials) => {
-    const goHi = document.getElementById('go-hiscore');
-    if (goHi) goHi.textContent = `SCORE SAVED · ${initials}`;
-    Arcade.EndOverlay.extendGrace(400);
+    hideEndOverlay();
     Arcade.Leaderboard.submit(score, initials).then(res => {
       if (!res.ok) console.warn('leaderboard submit failed:', res.error);
       paintSplashHiScore();
+      paintLeaderboard();
     });
+    // Back to attract mode — opens on the leaderboard so the new score shows,
+    // then cycles to the title card; a tap there starts a fresh run.
+    Arcade.Splash.enterAttract();
   },
 });
 function paintSplashHiScore() {
@@ -302,9 +337,15 @@ function paintSplashHiScore() {
     hideWhenEmpty: true,
   });
 }
+// Top-10 list for the splash's leaderboard view (3-digit pad, legacy from
+// when scores capped at 999).
+function paintLeaderboard() {
+  Arcade.Leaderboard.paintList({ listSelector: '#lb-list', pad: 3 });
+}
 paintSplashHiScore();
-// Fire-and-forget cloud refresh; repaint when it lands.
-Arcade.Leaderboard.refresh().then(paintSplashHiScore);
+paintLeaderboard();
+// Fire-and-forget cloud refresh; repaint both splash views when it lands.
+Arcade.Leaderboard.refresh().then(() => { paintSplashHiScore(); paintLeaderboard(); });
 
 // (Initials state machine + listeners now live in shared/initials.js — see
 // the Arcade.Initials.mount(...) call above for the per-game config.)
@@ -377,52 +418,31 @@ function hideEndOverlay() {
 // ============================================
 // SPLASH — dismiss on any input, unlock audio on same gesture.
 // ============================================
-const splash = document.getElementById('splash');
-const tube = document.querySelector('.tube');
-let started = false;
-function startGame() {
-  if (started) return;
-  started = true;
-  Arcade.Audio.ensureCtx();
-  splash.classList.add('is-hidden');
-  if (tube) tube.classList.add('is-ready');
-  document.body.classList.add('is-ingame');
-  // Cross-fade from the title theme to the level-1 music. Same user
-  // gesture also unlocks audio on iOS — if the theme failed to autoplay
-  // earlier (cross-origin / direct visit), .play() here is what
-  // actually unlocks the audio system for the bgm track too.
-  const bgmTheme = document.getElementById('bgm-theme');
-  if (bgmTheme) { bgmTheme.pause(); bgmTheme.currentTime = 0; }
-  const bgm = document.getElementById('bgm');
-  if (bgm) {
-    bgm.volume = 0.35;
-    bgm.currentTime = 0;
-    bgm.play().catch(() => {});
-  }
-}
+// Splash + attract-mode lifecycle (shared/splash.js). Boots to the title,
+// cycles title ↔ leaderboard, and returns to attract after a game (see the
+// enterAttract() calls below). Replaces the old one-shot startGame() latch.
+const _bgm      = () => document.getElementById('bgm');        // level music
+const _bgmTheme = () => document.getElementById('bgm-theme');  // title theme
 
-// Title theme — try to autoplay on page load so visitors hear something
-// while reading the title. Browsers block autoplay without a user
-// gesture; if rejected here, the same media starts inside startGame()
-// via its first-tap gesture (then immediately pauses for level-1 BGM).
-// The arcade iframe sets `allow="autoplay"` so launches from the
-// cabinet bypass the block.
-(function () {
-  // Belt + braces: make absolutely sure the level music isn't already
-  // playing at title-screen time (defends against any stray autoplay
-  // path from older deployed JS / cached state).
-  const bgm = document.getElementById('bgm');
-  if (bgm) { bgm.pause(); bgm.currentTime = 0; }
-  const bgmTheme = document.getElementById('bgm-theme');
-  if (!bgmTheme) return;
-  bgmTheme.volume = 0.4;
-  bgmTheme.play().catch(() => {});
-})();
-window.addEventListener('keydown', e => { if (e.key !== 'Escape') startGame(); });
-splash.addEventListener('pointerdown', e => {
-  // Ignore taps on the sound toggle.
-  if (e.target.closest('.sound-toggle')) return;
-  startGame();
+Arcade.Splash.mount({
+  views:  '#splash .splash-view',
+  ignore: '.sound-controls',                 // taps on the sound toggles don't start
+  isBusy: () => Arcade.Initials.isActive(),  // never start/advance mid-initials
+  onTitle() {
+    const b = _bgm();      if (b) { b.pause(); b.currentTime = 0; }
+    const t = _bgmTheme(); if (t) { t.volume = 0.4; t.currentTime = 0; t.play().catch(() => {}); }
+  },
+  onPlay() {
+    const t = _bgmTheme(); if (t) { t.pause(); t.currentTime = 0; }
+    const b = _bgm();      if (b) b.volume = 0.35;
+    Arcade.Audio.ensureCtx();
+    resetRun();                              // resumeBgm() runs inside (now 'playing')
+  },
+  onLeaderboardShow: () => paintLeaderboard(),
+  unlockAudio() {                            // iOS: first title gesture unlocks audio
+    Arcade.Audio.ensureCtx();
+    const t = _bgmTheme(); if (t) t.play().catch(() => {});
+  },
 });
 
 // ============================================
@@ -757,12 +777,10 @@ function resetRun() {
   hideEndOverlay();
   initEnemies();
   resetPlayer();
-  // Only kick the level BGM if the game has been started at least once.
-  // The initial call (script bootstrap) leaves the level music silent so
-  // the title-theme IIFE owns the title screen alone — psykick starts
-  // when the level actually begins (first startGame, or restart after
-  // game-over / level-complete, both of which happen after `started`).
-  if (started) resumeBgm();
+  // Only kick the level BGM once we're actually playing. The bootstrap call
+  // leaves it silent so the title theme owns the title screen; onPlay flips
+  // the phase to 'playing' before calling resetRun(), so this fires then.
+  if (Arcade.Splash.isPlaying()) resumeBgm();
 }
 
 // Lose a life but keep score and coin progress. If lives drop to 0 the
@@ -949,7 +967,10 @@ function update() {
         Arcade.Initials.open();
         return;
       }
-      resetRun();
+      // GAME OVER / GAME COMPLETE → bow out to the attract screen instead of
+      // restarting immediately: the leaderboard shows, then a tap plays again.
+      hideEndOverlay();
+      Arcade.Splash.enterAttract();
     }
     return;
   }
@@ -2724,7 +2745,7 @@ function drawLivesScreen() {
 }
 
 function loop() {
-  if (started) {
+  if (Arcade.Splash.isPlaying()) {
     update();
     draw();
   }
