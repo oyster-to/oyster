@@ -32,8 +32,12 @@
   }
   .tube canvas {
     width: auto; height: auto;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
+    /* No image-rendering — fitCanvas sizes the canvas to its CSS
+       display size × DPR (SP's approach), so there's no
+       browser-level upscale to control. The canvas bitmap is at
+       device-pixel resolution; the in-engine ctx.setTransform maps
+       PF coords directly. Crisp at any scale, no nearest-neighbour
+       8→12 warping. */
   }
 
   /* Touch-device safe-area. Shared cabinet.css drops .screen padding
@@ -363,7 +367,7 @@
     decodeShields, shieldOffsets,
     SEATS, MAX_SEATS,
   } from './engine.js';
-  import { ROW_COLORS, spriteForRow, getInvaderSprite, paintShip } from './sprites.js';
+  import { ROW_COLORS, spriteForRow, paintPixels, paintShip } from './sprites.js';
   // Mirror engine.js's INV_COLS instead of named-importing it. Named
   // imports of missing exports are a hard module-link error: if an old
   // edge-cached engine.js gets paired with this fresh index.html (rare
@@ -1236,30 +1240,37 @@
   // ship + ghost bullets layered on top.
   const canvas = document.getElementById('cv');
   const ctx = canvas.getContext('2d');
-  // Crisp pixel-art upscaling for all drawImage calls (used by the
-  // invader sprite blitter). fillRect / fillText aren't affected.
-  ctx.imageSmoothingEnabled = false;
-
   function fitCanvas() {
-    // Measure the tube, not the screen — the screen includes bezel
-    // padding; the tube is the actual visible playfield area. Subtract
-    // a small slack so the canvas doesn't touch the rounded-glass
-    // corners.
-    //
-    // Use the largest scale that preserves the 260:280 aspect. We
-    // *don't* floor to integers: on a laptop the available scale is
-    // ~3.6× and on an iPhone portrait it's ~1.6×, both of which round
-    // down to 3 and 1 — wasting ~25% of the playfield area in either
-    // direction. Fractional scales are crisp because the canvas has
-    // image-rendering: pixelated (nearest-neighbour upscale, so each
-    // sprite pixel maps to a whole number of screen pixels even if
-    // the multiplier is fractional).
+    // Match SP's rendering pipeline: canvas bitmap is sized to the
+    // CSS display size × devicePixelRatio, so each canvas pixel = one
+    // device pixel. ctx.setTransform then maps PF coords to canvas
+    // pixels at a floating-point scale. This avoids the "fixed PF
+    // bitmap, then CSS-upscale-with-nearest-neighbour" approach,
+    // which warped 8-px source sprites into asymmetric 1/2-PF-wide
+    // columns when scaled to 12 PF visible. At display resolution
+    // any fillRect anti-aliasing is sub-pixel and invisible.
     const tube = canvas.parentElement;          // .tube
     const sw = tube.clientWidth  - 16;
     const sh = tube.clientHeight - 16;
     const scale = Math.max(1, Math.min(sw / PF_W, sh / PF_H));
-    canvas.style.width  = Math.round(PF_W * scale) + 'px';
-    canvas.style.height = Math.round(PF_H * scale) + 'px';
+    const cssW = Math.round(PF_W * scale);
+    const cssH = Math.round(PF_H * scale);
+    const dpr  = window.devicePixelRatio || 1;
+    canvas.style.width  = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    canvas.width  = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    // setTransform replaces the matrix (cheap on resize), maps the
+    // 260×280 PF playfield onto the full canvas pixel grid. All
+    // existing render code uses PF coords — no per-call changes.
+    const px = canvas.width / PF_W;
+    ctx.setTransform(px, 0, 0, px, 0, 0);
+    // Re-enable smooth interpolation for the invader drawImage path
+    // — at display resolution the bilinear filter actually looks
+    // crisper than nearest-neighbour because it averages within a
+    // sub-pixel where the eye can't resolve individual pixels.
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
   }
   window.addEventListener('resize', fitCanvas);
   window.addEventListener('orientationchange', fitCanvas);
@@ -1423,27 +1434,23 @@
     // 0 if an older snapshot somehow lacks the field.
     const n = Math.min(a.invaders.length, b.invaders.length);
     const frame = ((alpha < 0.5 ? a.iFrame : b.iFrame) ?? 0) & 1;
-    // 1.5× SP-exact sprite scale (8-px source paints 12 PF visible).
-    // Painting with fillRect at fractional coords smears edges; instead
-    // we grab a pre-rendered 1:1 offscreen canvas for each (row, frame)
-    // and let drawImage do nearest-neighbour upscale. Sprites are
-    // LEFT-aligned in the 18 PF cell (not centred), matching SP's
-    // invaders/index.html: the consistent right-padding produces a
-    // uniform 6 PF visible gap between sprite edges. Squid is 9 PF
-    // wide (vs 12 for crab/octopus) so SP nudges it +2 PF rightward
-    // to keep columns lining up; we mirror that.
+    // SP-exact rendering: paintPixels draws each 8×8 source pixel as
+    // a 1.5×1.5 PF fillRect on the canvas. fitCanvas sized the canvas
+    // to display resolution × DPR, so fillRect's anti-aliased edges
+    // are at sub-device-pixel level and invisible. Sprites are
+    // LEFT-aligned in the 18 PF cell (not centred) for SP's uniform
+    // 6 PF right-padding gap; squid (9 PF wide) gets the SP-style
+    // +2 PF rightward nudge to align columns under the wider rows.
     const SPRITE_SCALE = 1.5;
     for (let i = 0; i < n; i++) {
       const ia = a.invaders[i], ib = b.invaders[i];
       if (!ib.a || !ia.a) continue;            // dead either side → hide
       const row = Math.floor(i / SPRITE_COLS);
-      const sprite = getInvaderSprite(row, frame);
-      const dstW = Math.round(sprite.w * SPRITE_SCALE);
-      const dstH = Math.round(sprite.h * SPRITE_SCALE);
-      const ox  = row === 0 ? 2 : 0;     // SP-style squid nudge
+      const { frames, w } = spriteForRow(row);
+      const ox = row === 0 ? 2 : 0;
       const cellX = Math.round(lerp(ia.x, ib.x) + ox);
       const cellY = Math.round(lerp(ia.y, ib.y));
-      ctx.drawImage(sprite.canvas, cellX, cellY, dstW, dstH);
+      paintPixels(ctx, cellX, cellY, frames[frame], SPRITE_SCALE, ROW_COLORS[row] || '#ffffff');
     }
 
     // Shields — decode the packed bitmap from the snapshot once when
