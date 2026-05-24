@@ -1250,6 +1250,11 @@
   // ship + ghost bullets layered on top.
   const canvas = document.getElementById('cv');
   const ctx = canvas.getContext('2d');
+  // Navy background gradient (SP-matched). Built once per resize in
+  // fitCanvas; renderInterpolated paints it as the playfield bg each
+  // frame. Declared here (before fitCanvas) so the first call from
+  // module init doesn't hit the let TDZ.
+  let bgGradient = null;
   function fitCanvas() {
     // Match SP's rendering pipeline: canvas bitmap is sized to the
     // CSS display size × devicePixelRatio, so each canvas pixel = one
@@ -1280,6 +1285,13 @@
     const sx = canvas.width  / PF_W;
     const sy = canvas.height / PF_H;
     ctx.setTransform(sx, 0, 0, sy, 0, 0);
+    // SP's washed navy gradient — rebuilt each resize because gradient
+    // objects are bound to the canvas dimensions, not the user-space
+    // transform. Stored in module scope; renderInterpolated paints it
+    // every frame as the playfield background.
+    bgGradient = ctx.createLinearGradient(0, 0, 0, PF_H);
+    bgGradient.addColorStop(0, '#0d1a60');
+    bgGradient.addColorStop(1, '#050a30');
   }
   window.addEventListener('resize', fitCanvas);
   window.addEventListener('orientationchange', fitCanvas);
@@ -1400,7 +1412,7 @@
   }
 
   function renderInterpolated() {
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = bgGradient || '#000';
     ctx.fillRect(0, 0, PF_W, PF_H);
 
     if (snapBuffer.length === 0) return;
