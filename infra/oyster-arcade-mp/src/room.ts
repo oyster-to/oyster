@@ -89,7 +89,14 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //        (3) handleStart now runs a 3 s countdown — game state goes
 //        ready/waiting/gameover → 'countdown' → 'running', with the
 //        end time on the wire so the client can render 3/2/1/ATTACK.
-const NETCODE_VERSION = 20;
+// v21 — Phase D: PF_W widened to 260 with an 11-column invader grid.
+//        Per-player score (players[i].score) replaces the old top-level
+//        state.score (kept on the wire as the sum for back-compat).
+//        Shared lives pool: state.lives, decremented on each death;
+//        ship.respawnIn + ship.invulnFor drive the 2 s respawn + 1 s
+//        invulnerability grace window. Row-tiered kill points
+//        (30/20/20/10/10 top→bottom) instead of flat 10.
+const NETCODE_VERSION = 21;
 
 type ClientMessage =
   | { type: 'ping';   t: number }

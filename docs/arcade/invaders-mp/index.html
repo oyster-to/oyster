@@ -21,7 +21,7 @@
   }
   /* Canvas centring + crisp pixel-art scaling. cabinet.css has a
      `canvas { width: 100%; height: 100% }` rule for games whose
-     engines size the bitmap to the tube; MP keeps a fixed 240×280
+     engines size the bitmap to the tube; MP keeps a fixed 260×280
      bitmap and rescales via fitCanvas's inline style.width/height
      (integer multiples → no sub-pixel blur). The .tube canvas
      selector is more specific so this wins. */
@@ -267,7 +267,7 @@
      comes back so a player can hit Start again to replay. -->
 <div id="stage" class="screen">
   <div class="tube">
-    <canvas id="cv" width="240" height="280"></canvas>
+    <canvas id="cv" width="260" height="280"></canvas>
     <div class="overlay"></div>
     <div class="vignette"></div>
     <div class="touch-controls">
@@ -342,15 +342,12 @@
     initState, step, snapshotForClient, zeroInput,
     PF_W, PF_H, SHIP_W, SHIP_H, SHIP_Y, SHIP_SPEED, FIRE_COOLDOWN,
     BULLET_W, BULLET_H, BULLET_SPEED,
-    INV_W, INV_H,
+    INV_W, INV_H, INV_COLS,
     SEATS, MAX_SEATS,
   } from './engine.js';
   import { ROW_COLORS, spriteForRow, paintPixels, paintShip } from './sprites.js';
-  // INV_COLS isn't exported by engine.js (it's a private constant)
-  // but the grid stride is fixed by the wire snapshot, so we mirror
-  // it here for the renderer's row math. If engine.js ever changes
-  // the grid width this has to move in lockstep.
-  const SPRITE_COLS = 8;
+  // Renderer uses INV_COLS for row-major sprite picks.
+  const SPRITE_COLS = INV_COLS;
 
   // Register SFX with the shared audio module. The volume/muted keys
   // are the global arcade keys so the slider state carries across
@@ -380,7 +377,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 20;
+  const NETCODE_VERSION = 21;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -1205,7 +1202,7 @@
     // a small slack so the canvas doesn't touch the rounded-glass
     // corners.
     //
-    // Use the largest scale that preserves the 240:280 aspect. We
+    // Use the largest scale that preserves the 260:280 aspect. We
     // *don't* floor to integers: on a laptop the available scale is
     // ~3.6× and on an iPhone portrait it's ~1.6×, both of which round
     // down to 3 and 1 — wasting ~25% of the playfield area in either
@@ -1438,18 +1435,52 @@
       drawCenteredOverlay('ATTACK!', `rgba(255, 58, 161, ${alpha.toFixed(2)})`, 22);
     }
 
-    // Score HUD — top-left corner, in-canvas so it lives inside the
-    // cabinet's CRT/scanlines instead of bleeding outside the tube.
-    // SP draws labels above values on two lines; we do the same so a
-    // running score doesn't push the label off-screen as digits grow.
+    // HUD — top of canvas, in three columns matching SP's layout but
+    // adapted for MP: per-player SCORE pairs in seat colour on the
+    // left, a STAGE placeholder in the centre (real progression lands
+    // in Phase G), and the shared LIVES count on the right. Two lines
+    // (label / value) so a growing score doesn't push the label off
+    // screen.
     if (latestSnap.status === 'running' || latestSnap.status === 'gameover') {
-      ctx.fillStyle = '#ffffff';
       ctx.font = '6px "Press Start 2P", monospace';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
-      ctx.fillText('SCORE', 6, 4);
+
+      // SCORE: P1 + P2 share the top-left column, P3 + P4 share the
+      // column just to their right. Each entry shows "P1" label in
+      // the seat colour above a 4-digit value in white.
+      const SCORE_COL_W = 26;
+      const SCORE_ROW_H = 8;
+      for (let i = 0; i < MAX_SEATS; i++) {
+        const col = i % 2;                   // 0 → left, 1 → right column
+        const row = Math.floor(i / 2);       // 0 → top, 1 → bottom row
+        const x = 6 + col * SCORE_COL_W;
+        const y = 4 + row * SCORE_ROW_H;
+        const p = latestSnap.players[i];
+        ctx.fillStyle = SHIP_COLORS[i];
+        ctx.fillText('P' + (i + 1), x, y);
+        ctx.fillStyle = '#ffffff';
+        const score = (p && p.score) || 0;
+        ctx.fillText(String(score).padStart(4, '0'), x + 10, y);
+      }
+
+      // STAGE — centred. Real progression lands in Phase G; for now
+      // it always says 1-1 so the slot is reserved in the HUD.
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('STAGE', PF_W / 2, 4);
       ctx.fillStyle = '#ffd84a';
-      ctx.fillText(String(latestSnap.score).padStart(4, '0'), 6, 12);
+      ctx.fillText('1-1', PF_W / 2, 12);
+
+      // LIVES — shared respawn-pool counter on the right. Renders even
+      // if the field is missing (older snapshot) by falling back to a
+      // blank "—" so the layout doesn't jitter.
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('LIVES', PF_W - 6, 4);
+      ctx.fillStyle = '#ffd84a';
+      const lives = (latestSnap.lives != null) ? String(latestSnap.lives) : '—';
+      ctx.fillText(lives, PF_W - 6, 12);
     }
   }
 

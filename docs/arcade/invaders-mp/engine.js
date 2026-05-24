@@ -3,7 +3,7 @@
 // as a <script type="module">). Pure functions only — no I/O, no
 // globals. The caller drives time and supplies input bags.
 //
-// Logical units: 240 wide × 280 tall (the client scales the canvas).
+// Logical units: 260 wide × 280 tall (the client scales the canvas).
 // Origin is top-left. Down = +y.
 //
 // Types live in engine.d.ts as an ambient sibling declaration so
@@ -11,7 +11,11 @@
 // without an allowJs build flag.
 
 // === Playfield ===
-export const PF_W = 240;
+// Widened from 240 in Phase D to match SP and host the 11-column
+// invader grid. With 4 ships at SHIP_W=16, the spawn margin is now
+// (260 - 64) / 5 = 39.2 per ship (vs 35.2 at PF_W=240) so the ships
+// also sit slightly less crowded.
+export const PF_W = 260;
 export const PF_H = 280;
 
 // === Seats / players ===
@@ -37,14 +41,21 @@ const INV_BULLET_SPEED = 120;
 
 // === Invaders ===
 const INV_ROWS = 5;
-const INV_COLS = 8;
+// 11 columns to match SP. With INV_GAP_X=18 and INV_W=12, the grid
+// spans (11-1)*18 + 12 = 192 PF units wide; centred in the PF=260
+// playfield leaves a (260-192)/2 = 34 PF left/right margin.
+export const INV_COLS = 11;
 export const INV_W = 12;
 export const INV_H = 8;
 const INV_GAP_X = 18;
 const INV_GAP_Y = 14;
-const INV_ORIGIN_X = 18;
+const INV_ORIGIN_X = 34;
 const INV_ORIGIN_Y = 24;
 const INV_DROP = 8;
+// Per-row point value, top→bottom. Matches SP — top row (squid) is
+// worth most, bottom rows (octopus) least, so going for the top row
+// first is the strategic play.
+export const ROW_POINTS = [30, 20, 20, 10, 10];
 // Continuous-march speed (u/s) shrinks as the swarm thins so the last
 // few invaders sprint. The discrete-shuffle version of this used a
 // step every ~0.55 s with a 2-unit jump (≈3.6 u/s).
@@ -55,7 +66,14 @@ const INV_SPEED_MIN  = 20;
 const INV_DROP_SPEED = 64;
 const INV_FIRE_INTERVAL = 1.4;
 
-const SCORE_PER_KILL = 10;
+// === Lives + respawn ===
+// Shared pool of respawn tokens. 3 means up to 3 ship deaths get
+// brought back; the 4th (and beyond) is permanent. With 4 ships +
+// 3 respawns = 7 total deaths before gameover — generous error
+// budget for kid co-op.
+export const STARTING_LIVES = 3;
+const RESPAWN_SEC = 2;
+const INVULN_SEC = 1;
 
 export function zeroInput() {
   return { left: false, right: false, fire: false };
@@ -72,10 +90,25 @@ function spawnX(seatIndex) {
 }
 
 function freshShips() {
-  /** @type {Record<string, {x:number,alive:boolean,cooldown:number}>} */
+  /** @type {Record<string, {x:number,alive:boolean,cooldown:number,score:number,respawnIn:number,invulnFor:number}>} */
   const ships = {};
   for (let i = 0; i < MAX_SEATS; i++) {
-    ships[SEATS[i]] = { x: spawnX(i), alive: true, cooldown: 0 };
+    ships[SEATS[i]] = {
+      x: spawnX(i),
+      alive: true,
+      cooldown: 0,
+      // Per-player score — replaces the old top-level state.score.
+      // Each kill awards ROW_POINTS[invader-row] to the bullet owner.
+      score: 0,
+      // Seconds until respawn (0 = not respawning). Set when a death
+      // consumes a shared life token; ticked down each step; on hit-0
+      // the ship blinks back at spawnX with invulnFor set.
+      respawnIn: 0,
+      // Seconds of post-respawn invulnerability remaining. Renderer
+      // blinks the ship while > 0 so the player can see the grace
+      // window. Also makes resolveCollisions skip damage.
+      invulnFor: 0,
+    };
   }
   return ships;
 }
@@ -84,7 +117,8 @@ export function initState() {
   return {
     status: 'waiting',
     won: false,
-    score: 0,
+    // Shared pool of respawn tokens (see STARTING_LIVES).
+    lives: STARTING_LIVES,
     ships: freshShips(),
     bullets: [],
     invaderBullets: [],
@@ -131,12 +165,36 @@ const ALL_OCCUPIED = Object.freeze(
 
 export function step(state, inputs, dt, occupied = ALL_OCCUPIED) {
   if (state.status !== 'running') return;
+  tickRespawnAndInvuln(state, dt);
   stepShips(state, inputs, dt, occupied);
   stepBullets(state, dt);
   stepInvaders(state, dt);
   stepInvaderFire(state, dt);
   resolveCollisions(state, occupied);
   checkEnd(state, occupied);
+}
+
+function tickRespawnAndInvuln(state, dt) {
+  // Count down respawn + invuln timers each tick. On respawn complete
+  // (timer hits 0 from > 0), reset that ship to alive at its spawnX
+  // with the grace window armed. Permanent-dead ships (lives==0 when
+  // they died) have respawnIn = 0 and stay dead — this branch is
+  // skipped for them because the > 0 check fails.
+  for (let i = 0; i < MAX_SEATS; i++) {
+    const ship = state.ships[SEATS[i]];
+    if (ship.invulnFor > 0) {
+      ship.invulnFor = Math.max(0, ship.invulnFor - dt);
+    }
+    if (ship.respawnIn > 0) {
+      ship.respawnIn = Math.max(0, ship.respawnIn - dt);
+      if (ship.respawnIn === 0) {
+        ship.x = spawnX(i);
+        ship.alive = true;
+        ship.cooldown = 0;
+        ship.invulnFor = INVULN_SEC;
+      }
+    }
+  }
 }
 
 function stepShips(state, inputs, dt, occupied) {
@@ -237,28 +295,39 @@ function stepInvaderFire(state, dt) {
 function resolveCollisions(state, occupied) {
   // Player bullets vs invaders. Out-of-array marker (b.y = -999) gets
   // swept by the next stepBullets — cheaper than splicing inside
-  // a nested loop.
+  // a nested loop. Points are credited to the bullet's owner using
+  // the row of the killed invader (top row = squid = 30, bottom row
+  // = octopus = 10).
   for (const b of state.bullets) {
     if (b.y < -BULLET_H) continue;
-    for (const inv of state.invaders) {
+    for (let i = 0; i < state.invaders.length; i++) {
+      const inv = state.invaders[i];
       if (!inv.alive) continue;
       if (overlap(b.x, b.y, BULLET_W, BULLET_H, inv.x, inv.y, INV_W, INV_H)) {
         inv.alive = false;
         b.y = -999;
-        state.score += SCORE_PER_KILL;
+        const owner = b.owner && state.ships[b.owner];
+        if (owner) owner.score += ROW_POINTS[Math.floor(i / INV_COLS)] || 0;
         break;
       }
     }
   }
   state.bullets = state.bullets.filter(b => b.y > -BULLET_H);
 
-  // Invader bullets vs ships. Unoccupied seats can't take damage.
+  // Invader bullets vs ships. Skip unoccupied seats AND ships that
+  // are in their post-respawn invulnerability window. On hit: if the
+  // shared lives pool has tokens, consume one and queue a respawn;
+  // otherwise the ship stays dead permanently.
   for (const b of state.invaderBullets) {
     for (const seat of SEATS) {
       const ship = state.ships[seat];
-      if (!ship.alive || !occupied[seat]) continue;
+      if (!ship.alive || !occupied[seat] || ship.invulnFor > 0) continue;
       if (overlap(b.x, b.y, BULLET_W, BULLET_H, ship.x, SHIP_Y, SHIP_W, SHIP_H)) {
         ship.alive = false;
+        if (state.lives > 0) {
+          state.lives--;
+          ship.respawnIn = RESPAWN_SEC;
+        }
         b.y = PF_H + 999;
       }
     }
@@ -267,12 +336,21 @@ function resolveCollisions(state, occupied) {
 }
 
 function checkEnd(state, occupied) {
-  // Loss: any invader at the ship row, or no playable ship remains.
-  // "Playable" = alive AND occupied — so a solo death ends the game
-  // even if other seats are empty-but-technically-alive.
+  // Loss conditions:
+  //  - any invader has reached the ship row (instant gameover, no
+  //    respawn can save you from a swarm breach), OR
+  //  - every playable seat is dead AND nobody has a pending respawn
+  //    AND the shared lives pool is empty (i.e. no one's coming back).
   const breach = state.invaders.some(i => i.alive && i.y + INV_H >= SHIP_Y);
-  const wipe = SEATS.every((s) => !(state.ships[s].alive && occupied[s]));
-  if (breach || wipe) { state.status = 'gameover'; state.won = false; return; }
+  if (breach) { state.status = 'gameover'; state.won = false; return; }
+
+  const noOneAlive  = SEATS.every((s) => !(state.ships[s].alive && occupied[s]));
+  const noOneComing = SEATS.every((s) => state.ships[s].respawnIn === 0);
+  if (noOneAlive && noOneComing) {
+    state.status = 'gameover';
+    state.won = false;
+    return;
+  }
 
   // Win: every invader dead.
   if (!state.invaders.some(i => i.alive)) { state.status = 'gameover'; state.won = true; }
@@ -287,10 +365,19 @@ function overlap(ax, ay, aw, ah, bx, by, bw, bh) {
 function round(n) { return Math.round(n * 10) / 10; }
 
 export function snapshotForClient(state) {
+  let teamScore = 0;
+  for (const s of SEATS) teamScore += state.ships[s].score | 0;
   return {
     status: state.status,
     won: state.won,
-    score: state.score,
+    // Team score = sum of per-player scores. Kept on the wire because
+    // the gameover/lobby copy ("Earth is safe! Score: 250") reads
+    // cleanly as one team number, and external bits (sfx-kill diff)
+    // can just watch this for "any kill happened".
+    score: teamScore,
+    // Shared respawn-pool counter. Decremented each time a ship dies
+    // (down to 0). Renderer shows it as the LIVES HUD value.
+    lives: state.lives,
     // Server clock the countdown should end at (only meaningful while
     // status === 'countdown'). Client computes seconds-remaining from
     // (countdownEndMs - serverNow) and renders the big overlay.
@@ -304,6 +391,8 @@ export function snapshotForClient(state) {
       x: round(state.ships[s].x),
       alive: state.ships[s].alive,
       name: state.names?.[s] ?? '',
+      // Per-player score (replaces the old top-level state.score).
+      score: state.ships[s].score,
     })),
     // `o` (owner) is the firing seat — lets the client filter "my
     // bullets" if it ever wants per-bullet prediction. Invader
