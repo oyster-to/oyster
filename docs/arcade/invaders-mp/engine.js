@@ -307,11 +307,15 @@ function tickRespawnAndInvuln(state, dt) {
         ship.cooldown = 0;
         ship.invulnFor = INVULN_SEC;
         // Fresh start on respawn — drop any in-flight combo or
-        // mid-hold charge. superAmmo + nextSuperAt persist (they're
-        // a long-term resource, not a per-life one).
+        // mid-hold charge AND clear the wasFiring edge tracker, so
+        // a player who died holding FIRE doesn't get an unintended
+        // release-edge spawn on the first post-respawn tick.
+        // superAmmo + nextSuperAt persist (long-term resource, not
+        // per-life).
         ship.combo = 0;
         ship.comboDecayIn = 0;
         ship.chargeSec = 0;
+        ship.wasFiring = false;
       }
     }
   }
@@ -332,7 +336,14 @@ function stepShips(state, inputs, dt, occupied) {
     const ship = state.ships[seat];
     if (!ship.alive || !occupied[seat]) continue;
     const input = inputs[seat];
-    if (!input) { ship.wasFiring = false; continue; }
+    // Missing input → treat as neutral (released, no charge). Clear
+    // chargeSec too so a dropped input tick during a hold can't bank
+    // stale charge that fires a charged shot on the next release.
+    if (!input) {
+      ship.wasFiring = false;
+      ship.chargeSec = 0;
+      continue;
+    }
     ship.cooldown = Math.max(0, ship.cooldown - dt);
     const firing = !!input.fire;
     if (firing) {
@@ -471,9 +482,12 @@ function resolveCollisions(state, occupied) {
   // killed by the first contact. Marker (-999) is swept by the
   // .filter at the bottom of this function (same tick).
   for (const b of state.bullets) {
-    if (b.y < -BULLET_H) continue;
     const bw = b.charged ? CHARGED_BULLET_W : BULLET_W;
     const bh = b.charged ? CHARGED_BULLET_H : BULLET_H;
+    // Off-screen guard uses the bullet's own height — charged bullets
+    // are taller (12 vs 6), so -BULLET_H would skip collisions for
+    // charged bullets that are still partially on-screen.
+    if (b.y < -bh) continue;
     if (damageShields(state, b.x, b.y, bw, bh) && !b.charged) {
       b.y = -999;
     }
@@ -486,9 +500,9 @@ function resolveCollisions(state, occupied) {
   // swarm sloped at a wall-bounce more can stack). Earned ammo:
   // crossing nextSuperAt threshold yields +1 (capped at MAX).
   for (const b of state.bullets) {
-    if (b.y < -BULLET_H) continue;
     const bw = b.charged ? CHARGED_BULLET_W : BULLET_W;
     const bh = b.charged ? CHARGED_BULLET_H : BULLET_H;
+    if (b.y < -bh) continue;
     for (let i = 0; i < state.invaders.length; i++) {
       const inv = state.invaders[i];
       if (!inv.alive) continue;

@@ -57,16 +57,14 @@ Fix is one line in `renderInterpolated`: build a navy gradient once and reuse. T
 ### Combo scoring
 
 - **SP:** kills within `COMBO_WINDOW_MS = 1500` extend a chain; multiplier ramps 1 → 2 → 3 → 4 by kill count (`comboMultiplier()` thresholds at 3, 5, 8 kills) (`invaders/index.html:~1668-1673`). Each kill adds `rowPoints × multiplier` and emits a `+30` / `×3 +60` popup.
-- **MP:** absent. Flat 10 per kill, no chain state.
-- **MP-specific call:** **per-player combo chain** (recommend) — each player has their own combo state. Avoids the "P1 kills, P2 gets the multiplier" weirdness. Adds `players[i].combo: number` and `players[i].lastKillAt: number` to engine state, exposed in snapshot.
+- **MP (shipped in Phase F):** per-player chain. Engine: `ship.combo: number` (chain count) + `ship.comboDecayIn: number` (seconds left before reset). On each kill: `combo++`, `comboDecayIn = COMBO_WINDOW_SEC` (1.5). The tick handler decays `comboDecayIn` and zeroes `combo` when it hits 0. Wire exposes `players[i].combo`; renderer reads it via `comboMultiplier(combo)` and draws the `xN` HUD badge.
 
 ### Super shots (charged fire)
 
 - **SP:** hold SPACE → after `CHARGE_THRESHOLD_MS=500ms` with `superShotAmmo > 0`, releasing fires a fat golden piercing bullet (`CHARGED_BULLET_W=4, CHARGED_BULLET_H=12, CHARGED_BULLET_SPEED=380`) that passes through shields and damages the whole column.
   - Ammo: `SUPER_SHOT_MAX = 3`, start with full clip, +1 awarded every `SUPER_SCORE_INTERVAL=1000` points, refilled to MAX on UFO kill.
   - UI: 3 gold pips above the ship, charge progress bar below the pips while holding, pulsing halo when fully charged & ready (`drawPlayer` `~L1837-1879`).
-- **MP:** absent. Ship has only the basic `fire` input → single white bullet.
-- **MP-specific call:** **per-player ammo + charge state**. Adds `players[i].superAmmo: number` and `players[i].charging: boolean` (+ `chargeStartAt` server-side). Pips render above each ship in that seat's colour. Touch input stays "hold FIRE" — no separate super button.
+- **MP (shipped in Phase F):** per-player ammo + release-to-fire charging. Engine: `ship.superAmmo: number` (cap `SUPER_SHOT_MAX = 3`), `ship.chargeSec: number` (accumulates while FIRE held, resets on release), `ship.wasFiring: boolean` (edge tracker), `ship.nextSuperAt: number` (score threshold for next earned ammo). Wire exposes `players[i].superAmmo` + `players[i].chargeSec`. Engine exports `SUPER_SHOT_MAX`, `CHARGE_THRESHOLD_SEC`, `CHARGED_BULLET_W/H/SPEED`. Pips + charge bar + halo render above each ship in seat colour; local charge bar reads `localShip.holdSec` for zero-RTT feedback. UFO ammo refill arrives with Phase G.
 
 ### Lives + ship death + respawn
 

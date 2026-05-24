@@ -1354,7 +1354,16 @@
     // shots, and tap-tap-tap rapid-fire respects FIRE_COOLDOWN. The
     // ghost previews charged mode the moment hold ≥ threshold + the
     // latest snapshot says we have ammo.
-    if (input.fire) localShip.holdSec += dt;
+    if (!localAlive()) {
+      // Server resets chargeSec + wasFiring on respawn — mirror that
+      // here so a player who died holding FIRE doesn't carry stale
+      // hold-time across the death/respawn boundary and fire a
+      // ghost-charged shot the server won't honour.
+      localShip.holdSec = 0;
+      localShip.wasFiring = false;
+    } else if (input.fire) {
+      localShip.holdSec += dt;
+    }
     if (localShip.wasFiring && !input.fire && localShip.cooldown <= 0 && localAlive()) {
       const me = mySeat && lastState ? lastState.players[SEATS.indexOf(mySeat)] : null;
       const myAmmo = me ? (me.superAmmo | 0) : 0;
