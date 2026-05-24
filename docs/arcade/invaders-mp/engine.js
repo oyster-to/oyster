@@ -82,10 +82,19 @@ export const SHIELD_W = 22;
 export const SHIELD_H = 16;
 export const SHIELD_COUNT = 4;
 export const SHIELD_Y = SHIP_Y - 30;            // sits just above the ship row
-const SHIELD_GAP = (PF_W - SHIELD_W * SHIELD_COUNT) / (SHIELD_COUNT + 1);
-// Pre-computed left-x of each shield — collision + render reuse.
+// Pre-computed left-x of each shield — integer PF coords so fillRect
+// stays on whole device pixels (fractional positions would anti-alias
+// edges and make collision math vary with sub-pixel offsets). With
+// PF_W=260, 4×22 wide + 5 gaps = 172 PF for 5 gaps → 34 base each +
+// 2 remainder. Spread the remainder symmetrically into the outermost
+// (left + right) margins so shields stay centred.
+const SHIELD_BASE_GAP = Math.floor((PF_W - SHIELD_W * SHIELD_COUNT) / (SHIELD_COUNT + 1));
+const SHIELD_REM      = PF_W - SHIELD_W * SHIELD_COUNT - SHIELD_BASE_GAP * (SHIELD_COUNT + 1);
+const SHIELD_LEFT_PAD = SHIELD_BASE_GAP + Math.ceil(SHIELD_REM / 2);
 const SHIELD_X = [];
-for (let s = 0; s < SHIELD_COUNT; s++) SHIELD_X.push(SHIELD_GAP + s * (SHIELD_W + SHIELD_GAP));
+for (let s = 0; s < SHIELD_COUNT; s++) {
+  SHIELD_X.push(SHIELD_LEFT_PAD + s * (SHIELD_W + SHIELD_BASE_GAP));
+}
 
 // Classic Invaders bunker silhouette: dome top + flat sides + a small
 // arched alcove at the bottom centre so the ship can crouch under it.

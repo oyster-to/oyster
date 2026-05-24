@@ -1261,16 +1261,15 @@
     canvas.width  = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
     // setTransform replaces the matrix (cheap on resize), maps the
-    // 260×280 PF playfield onto the full canvas pixel grid. All
-    // existing render code uses PF coords — no per-call changes.
-    const px = canvas.width / PF_W;
-    ctx.setTransform(px, 0, 0, px, 0, 0);
-    // Re-enable smooth interpolation for the invader drawImage path
-    // — at display resolution the bilinear filter actually looks
-    // crisper than nearest-neighbour because it averages within a
-    // sub-pixel where the eye can't resolve individual pixels.
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    // 260×280 PF playfield onto the full canvas pixel grid. Use
+    // separate sx/sy because Math.round on cssW/cssH can leave their
+    // ratios slightly off PF_W:PF_H — a single uniform scale would
+    // sub-pixel-stretch one axis. Independent factors keep the
+    // playfield exactly aligned to canvas edges. All existing render
+    // code uses PF coords — no per-call changes.
+    const sx = canvas.width  / PF_W;
+    const sy = canvas.height / PF_H;
+    ctx.setTransform(sx, 0, 0, sy, 0, 0);
   }
   window.addEventListener('resize', fitCanvas);
   window.addEventListener('orientationchange', fitCanvas);

@@ -46,9 +46,12 @@ export function spriteForRow(row) {
 }
 
 // Paint a bitmap to the canvas in playfield units. Each source pixel
-// becomes a scale × scale rect. Kept exported for ad-hoc use; the
-// invader renderer prefers getInvaderSprite + drawImage so it can
-// land non-integer scales (1.5× SP match) without anti-aliased blur.
+// becomes a scale × scale rect. Used by the invader renderer with
+// scale=1.5 to match SP's drawSquid/drawCrab/drawOctopus pipeline —
+// the canvas is at display resolution (set via fitCanvas), so
+// fractional rects anti-alias at sub-device-pixel level (invisible)
+// rather than warping like they would in a low-res CSS-upscaled
+// bitmap.
 export function paintPixels(ctx, px, py, pixels, scale, color) {
   ctx.fillStyle = color;
   for (let y = 0; y < pixels.length; y++) {
@@ -59,42 +62,6 @@ export function paintPixels(ctx, px, py, pixels, scale, color) {
       }
     }
   }
-}
-
-// Pre-rendered invader sprite cache. Each row/frame combo gets one
-// offscreen canvas at the sprite's native source resolution (8×8 or
-// 6×8), painted once at 1:1 — no fractional pixels in the source.
-// The renderer later does ctx.drawImage(sprite, dx, dy, dstW, dstH)
-// with ctx.imageSmoothingEnabled = false, so the browser does
-// nearest-neighbour upscale to the destination size. That keeps
-// pixels crisp even at non-integer scales (8→12 at SP's 1.5×
-// produces a mix of 1- and 2-PF-wide sprite pixels — the standard
-// pixel-art trade for sub-integer scaling, still sharp not blurry).
-const _invaderCache = new Map();
-export function getInvaderSprite(row, frame) {
-  const key = row * 2 + (frame & 1);
-  const hit = _invaderCache.get(key);
-  if (hit) return hit;
-
-  const { frames, w } = spriteForRow(row);
-  const px = frames[frame & 1];
-  const h = px.length;
-  const color = ROW_COLORS[row] || '#ffffff';
-
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const cctx = canvas.getContext('2d');
-  cctx.fillStyle = color;
-  for (let y = 0; y < h; y++) {
-    const rowStr = px[y];
-    for (let x = 0; x < w; x++) {
-      if (rowStr[x] === 'X') cctx.fillRect(x, y, 1, 1);
-    }
-  }
-  const sprite = { canvas, w, h };
-  _invaderCache.set(key, sprite);
-  return sprite;
 }
 
 // Player ship — body sits at shipY (the engine's collision top edge);

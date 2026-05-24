@@ -101,8 +101,10 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 // v22 — Phase E: shared destructible shields (4 bunkers between the
 //        swarm and the ship row). snapshot.shieldsBits carries the
 //        packed bitmap (~236 chars/tick) — both player + invader
-//        bullets chip the same shared bitmap. Invader cells upsized
-//        to 18×16 (sprite render at 2× scale) to match SP density.
+//        bullets chip the same shared bitmap. Invader cells aligned
+//        with SP at 18×12, sprites rendered at 1.5× scale on a
+//        display-resolution canvas (fitCanvas + ctx.setTransform)
+//        for crisp pixel art without warp.
 const NETCODE_VERSION = 22;
 
 type ClientMessage =
