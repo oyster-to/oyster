@@ -157,3 +157,70 @@ describe("SpaceService.convertFolderToSpace — reassigns project to target spac
     expect(artifactStore.getById("a6")!.group_name).toBe("OtherFolder");
   });
 });
+
+describe("SpaceService session sync on deleteSpace / convertFolderToSpace", () => {
+  let userland: string;
+  let db: ReturnType<typeof initDb>;
+
+  beforeEach(() => {
+    userland = mkdtempSync(join(tmpdir(), "oyster-sess-"));
+    db = initDb(userland);
+    ensureHomeSpace(db);
+    db.exec(`INSERT INTO spaces (id, display_name, color, scan_status) VALUES ('work','Work','#000','none')`);
+    db.exec(`INSERT INTO spaces (id, display_name, color, scan_status) VALUES ('target','Target','#000','none')`);
+    db.prepare("INSERT INTO projects (id, space_id, name) VALUES ('p-work','work','work-proj')").run();
+    db.prepare("INSERT INTO projects (id, space_id, name) VALUES ('p-home','home','home-proj')").run();
+    db.prepare("INSERT INTO projects (id, space_id, name) VALUES ('p-folder','home','my-folder')").run();
+  });
+  afterEach(() => { db.close(); rmSync(userland, { recursive: true, force: true }); });
+
+  it("deleteSpace: session in deleted space is moved to home", () => {
+    db.prepare(
+      `INSERT INTO sessions (id, agent, state, space_id, project_id) VALUES ('s-work', 'claude-code', 'done', 'work', 'p-work')`,
+    ).run();
+
+    const { svc } = makeService(db);
+    svc.deleteSpace("work");
+
+    const row = db.prepare("SELECT space_id FROM sessions WHERE id = 's-work'").get() as { space_id: string };
+    expect(row.space_id).toBe("home");
+  });
+
+  it("deleteSpace: session in a different space is unaffected", () => {
+    db.prepare(
+      `INSERT INTO sessions (id, agent, state, space_id, project_id) VALUES ('s-home', 'claude-code', 'done', 'home', 'p-home')`,
+    ).run();
+
+    const { svc } = makeService(db);
+    svc.deleteSpace("work");
+
+    const row = db.prepare("SELECT space_id FROM sessions WHERE id = 's-home'").get() as { space_id: string };
+    expect(row.space_id).toBe("home"); // unchanged
+  });
+
+  it("convertFolderToSpace: session bound to converted project gets targetSpaceId", () => {
+    seedArtifact(db, "a-folder", "p-folder", "MyFolder");
+    db.prepare(
+      `INSERT INTO sessions (id, agent, state, space_id, project_id) VALUES ('s-folder', 'claude-code', 'done', 'home', 'p-folder')`,
+    ).run();
+
+    const { svc } = makeService(db);
+    svc.convertFolderToSpace("home", "MyFolder", "target");
+
+    const row = db.prepare("SELECT space_id FROM sessions WHERE id = 's-folder'").get() as { space_id: string };
+    expect(row.space_id).toBe("target");
+  });
+
+  it("convertFolderToSpace: session bound to unaffected project keeps its space", () => {
+    seedArtifact(db, "a-folder", "p-folder", "MyFolder");
+    db.prepare(
+      `INSERT INTO sessions (id, agent, state, space_id, project_id) VALUES ('s-other', 'claude-code', 'done', 'home', 'p-home')`,
+    ).run();
+
+    const { svc } = makeService(db);
+    svc.convertFolderToSpace("home", "MyFolder", "target");
+
+    const row = db.prepare("SELECT space_id FROM sessions WHERE id = 's-other'").get() as { space_id: string };
+    expect(row.space_id).toBe("home"); // unchanged
+  });
+});

@@ -146,6 +146,15 @@ export class SpaceService {
     for (const pid of projectIds) {
       this.db.prepare("UPDATE projects SET space_id = ? WHERE id = ?").run(targetSpaceId, pid);
     }
+    // sessions.space_id is a stored column (not derived), so reassigning projects
+    // above doesn't automatically move sessions. Sync sessions belonging to those
+    // projects to targetSpaceId.
+    if (projectIds.size > 0) {
+      const placeholders = Array.from(projectIds).map(() => "?").join(", ");
+      this.db
+        .prepare(`UPDATE sessions SET space_id = ? WHERE project_id IN (${placeholders})`)
+        .run(targetSpaceId, ...Array.from(projectIds));
+    }
     // Clear group_name so the artifacts no longer appear as a folder in the source space.
     for (const a of artifacts) {
       this.artifactStore.update(a.id, { group_name: null });
@@ -164,6 +173,9 @@ export class SpaceService {
     // sessions derive the correct space via the project JOIN (artifact.space_id
     // is derived, not stored — writing it would be a silent no-op).
     this.db.prepare("UPDATE projects SET space_id = 'home' WHERE space_id = ?").run(id);
+    // sessions.space_id is a stored column (not derived), so reassigning projects
+    // above doesn't automatically move sessions. Sync them to 'home' here.
+    this.db.prepare("UPDATE sessions SET space_id = 'home' WHERE space_id = ?").run(id);
     // Apply the folder label so the moved artifacts appear grouped in "home"
     // under the deleted space's display name.
     for (const a of artifactsToLabel) {

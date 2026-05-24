@@ -493,6 +493,34 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
   catch { /* already exists */ }
   db.exec("CREATE INDEX IF NOT EXISTS artifacts_project_id ON artifacts(project_id) WHERE project_id IS NOT NULL");
 
+  // Seed spaces from artifacts.space_id BEFORE backfillArtifactProjects runs.
+  // On a legacy DB whose `spaces` table is empty (spaces only implied by
+  // artifacts.space_id), ensureNativeProject's FK INSERT would fail because
+  // the referenced space row doesn't exist yet. The seed reads
+  // artifacts.space_id, which is still present at this point (dropped below
+  // by dropArtifactSpaceColumn). Guards: only while the column exists and the
+  // table is empty (an existing install already has space rows).
+  // Also ensure 'home' exists: ensureNativeProject may INSERT projects
+  // referencing 'home' when artifacts live under <oysterHome>/spaces/home/;
+  // 'home' may not appear in any artifact.space_id on the legacy DB.
+  {
+    const hasSpaceColForSeed = (db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[]).some((c) => c.name === "space_id");
+    const spaceCount = (db.prepare("SELECT COUNT(*) as n FROM spaces").get() as { n: number }).n;
+    if (hasSpaceColForSeed && spaceCount === 0) {
+      db.exec(`
+        INSERT OR IGNORE INTO spaces (id, display_name, created_at, updated_at)
+        SELECT DISTINCT space_id, space_id, datetime('now'), datetime('now')
+        FROM artifacts
+        WHERE space_id IS NOT NULL AND space_id != ''
+          AND removed_at IS NULL
+      `);
+      // 'home' may not appear in any artifact.space_id (all artifacts could
+      // belong to other spaces), but backfill can still call ensureNativeProject
+      // for a native artifact under <oysterHome>/spaces/home/. Ensure the row.
+      db.exec(`INSERT OR IGNORE INTO spaces (id, display_name, created_at, updated_at) VALUES ('home', 'Home', datetime('now'), datetime('now'))`);
+    }
+  }
+
   {
     const r = backfillArtifactProjects(db, oysterHome);
     if (r.backfilled > 0 || r.mismatches.length > 0) {
@@ -814,23 +842,6 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
   // size of the search index. Repair now happens out-of-band — see
   // repairFtsIfUnhealthy() below, invoked after the server is listening.
 
-  // One-time seed: populate spaces from artifact space_ids only if the table is empty.
-  // Only runs while space_id still exists (the column is dropped below). On a
-  // fresh install the artifacts table is empty anyway; on an existing install
-  // spaces already exist so the block is skipped before the column is dropped.
-  {
-    const hasSpaceColForSeed = (db.prepare("PRAGMA table_info(artifacts)").all() as { name: string }[]).some((c) => c.name === "space_id");
-    const spaceCount = (db.prepare("SELECT COUNT(*) as n FROM spaces").get() as { n: number }).n;
-    if (hasSpaceColForSeed && spaceCount === 0) {
-      db.exec(`
-        INSERT OR IGNORE INTO spaces (id, display_name, created_at, updated_at)
-        SELECT DISTINCT space_id, space_id, datetime('now'), datetime('now')
-        FROM artifacts
-        WHERE space_id IS NOT NULL AND space_id != ''
-          AND removed_at IS NULL
-      `);
-    }
-  }
   dropArtifactSpaceColumn(db);
 
   // Allow orphan projects (project rows without a space). Pre-1.0 schema

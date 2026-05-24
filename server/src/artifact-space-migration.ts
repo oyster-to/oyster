@@ -24,10 +24,14 @@ export function backfillArtifactProjects(db: Database.Database, userlandDir: str
   // Use substr-based prefix matching instead of LIKE to avoid treating `_` and
   // `%` in project paths as SQL wildcards. Mirrors the approach in
   // project-service.ts ~lines 149-163. A path matches if it equals the project
-  // root exactly, or if it is a direct descendant (separated by `/`).
+  // root exactly, or if it is a direct descendant (separated by `/` or `\`).
+  // The backslash variant handles Windows project_paths rows. Three `?` params
+  // map to: exact-match candidate, `/`-separator candidate, `\`-separator candidate.
   const resolveProject = db.prepare(
     `SELECT pp.project_id FROM project_paths pp
-      WHERE ? = pp.path OR substr(?, 1, length(pp.path) + 1) = pp.path || '/'
+      WHERE ? = pp.path
+         OR substr(?, 1, length(pp.path) + 1) = pp.path || '/'
+         OR substr(?, 1, length(pp.path) + 1) = pp.path || '\\'
       ORDER BY LENGTH(pp.path) DESC LIMIT 1`,
   );
   const setProject = db.prepare("UPDATE artifacts SET project_id = ? WHERE id = ?");
@@ -57,7 +61,7 @@ export function backfillArtifactProjects(db: Database.Database, userlandDir: str
         const spaceId = rel.split(sep)[0];
         if (spaceId) ensureNativeProject(db, userlandDir, spaceId);
       }
-      const hit = resolveProject.get(row.path, row.path) as { project_id: string } | undefined;
+      const hit = resolveProject.get(row.path, row.path, row.path) as { project_id: string } | undefined;
       if (!hit) { report.stillOrphan++; continue; }
       setProject.run(hit.project_id, row.id);
       report.backfilled++;
