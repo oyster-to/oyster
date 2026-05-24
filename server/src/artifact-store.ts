@@ -5,7 +5,7 @@ import type Database from "better-sqlite3";
 export interface ArtifactRow {
   id: string;
   owner_id: string | null;
-  /** Derived via LEFT JOIN projects — not stored directly (transitional: column still exists but reads use the join). */
+  /** Derived via LEFT JOIN projects (artifact → project → space) — not stored in the artifacts table. */
   space_id: string;
   label: string;
   artifact_kind: string;

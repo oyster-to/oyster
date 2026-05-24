@@ -6,6 +6,7 @@ import Database from "better-sqlite3";
 import { initDb } from "../src/db.js";
 import { backfillArtifactProjects, dropArtifactSpaceColumn } from "../src/artifact-space-migration.js";
 
+// Helper to insert test artifacts; _spaceId is kept for call-site readability (documents pre-migration space) but is intentionally not inserted.
 function seedArtifact(db: ReturnType<typeof initDb>, id: string, _spaceId: string, path: string, projectId: string | null = null) {
   db.prepare(
     `INSERT INTO artifacts (id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, project_id)
