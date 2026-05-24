@@ -103,7 +103,7 @@ Worth a 15-minute talk before we start coding.
 
 ---
 
-## Existing data bugs surfaced (worth fixing in this PR or separately)
+## Existing data bugs surfaced (worth a follow-up PR)
 
 1. **`session_artifacts` has no UNIQUE constraint.** Same `(session_id, artifact_id, role)` can be inserted multiple times at the exact same timestamp — confirmed in Matthew's DB. Looks like the live watcher and the on-register backfill both insert for the same tool_use event. Easy fix: add `PRIMARY KEY (session_id, artifact_id, role, when_at)` or `UNIQUE` index. Backfill the existing dupes if we care.
 2. **`displayReason` empty for old dormant sessions.** Not the scanner's problem, but worth noting — sessions ingested before #548's state machine don't have `explicit_exit_seen` / `clean_process_exit` populated, so `deriveReason` returns `""`. Deferred per Matthew unless it bites in dogfooding.
@@ -128,7 +128,7 @@ Worth a 15-minute talk before we start coding.
 - `docs/mockups/home-sessions-unified-v2.html` — the FULL/COMPACT mock you can `open` to remember the visual target
 
 **Working pattern (Matthew's preference):**
-- Worktree: `~/Dev/oyster.worktrees/<branch>` ([[feedback_worktree_default]])
+- Worktree: `~/Dev/oyster.worktrees/<branch>`
 - Subagent-driven implementation when the work spans multiple files; punch-list audit + targeted implementer for review-comment fixes
 - Squash-merge PRs
 
