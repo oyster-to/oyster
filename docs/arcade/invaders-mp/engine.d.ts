@@ -15,6 +15,12 @@ export interface Ship {
   x: number;
   alive: boolean;
   cooldown: number;
+  /** Per-player score (kills × ROW_POINTS[row]). */
+  score: number;
+  /** Seconds until respawn; 0 = not respawning (either alive or permanent-dead). */
+  respawnIn: number;
+  /** Seconds of post-respawn invulnerability remaining; 0 = vulnerable. */
+  invulnFor: number;
 }
 
 export interface Bullet {
@@ -32,7 +38,8 @@ export interface Invader {
 export interface GameState {
   status: Status;
   won: boolean;
-  score: number;
+  /** Shared respawn-pool counter (starts at STARTING_LIVES, decrements per death). */
+  lives: number;
   ships: Record<Seat, Ship>;
   bullets: Bullet[];
   invaderBullets: Bullet[];
@@ -52,15 +59,26 @@ export interface GameState {
 export interface WireSnapshot {
   status: Status;
   won: boolean;
+  /** Sum of all per-player scores; convenience for HUD/team copy. */
   score: number;
+  /** Shared respawn pool. */
+  lives: number;
   countdownEndMs: number;
   /** Always MAX_SEATS entries, indexed by seat position (p1 → 0, …). */
-  players: Array<{ x: number; alive: boolean; name: string }>;
+  players: Array<{ x: number; alive: boolean; name: string; score: number }>;
   bullets: Array<{ x: number; y: number; o: Seat | null }>;
   invaderBullets: Array<{ x: number; y: number }>;
   invaders: Array<{ x: number; y: number; a: boolean }>;
   /** Authoritative swarm animation frame (0 or 1). */
   iFrame: 0 | 1;
+  /**
+   * Per-seat occupancy. Set by the transport layer (room.ts on the
+   * server, hostTick on the client) after snapshotForClient returns,
+   * NOT by the engine itself. Optional because mid-deploy a client
+   * may briefly receive a pre-Phase-D snapshot without it — fall back
+   * to `players[i].alive` in that case.
+   */
+  seats?: Record<Seat, boolean>;
 }
 
 export const PF_W: number;
@@ -75,6 +93,9 @@ export const BULLET_H: number;
 export const BULLET_SPEED: number;
 export const INV_W: number;
 export const INV_H: number;
+export const INV_COLS: number;
+export const ROW_POINTS: readonly number[];
+export const STARTING_LIVES: number;
 
 export const SEATS: readonly Seat[];
 export const MAX_SEATS: number;

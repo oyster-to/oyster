@@ -21,7 +21,7 @@
   }
   /* Canvas centring + crisp pixel-art scaling. cabinet.css has a
      `canvas { width: 100%; height: 100% }` rule for games whose
-     engines size the bitmap to the tube; MP keeps a fixed 240×280
+     engines size the bitmap to the tube; MP keeps a fixed 260×280
      bitmap and rescales via fitCanvas's inline style.width/height
      (integer multiples → no sub-pixel blur). The .tube canvas
      selector is more specific so this wins. */
@@ -34,6 +34,21 @@
     width: auto; height: auto;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
+  }
+
+  /* Touch-device safe-area. Shared cabinet.css drops .screen padding
+     to 0 on coarse pointers (edge-to-edge phone look), which strips
+     the browser-chrome insets too — on iPad landscape Safari that
+     lets the cabinet extend under the toolbar and crops the HUD +
+     top invader row. Re-add the safe-area insets so content always
+     lives inside the visible region. */
+  @media (pointer: coarse) {
+    #stage.screen {
+      padding-top:    env(safe-area-inset-top);
+      padding-right:  env(safe-area-inset-right);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left:   env(safe-area-inset-left);
+    }
   }
 
   /* Prescreen — covers the tube while the game is in the waiting,
@@ -64,12 +79,13 @@
     pointer-events: none;
   }
 
-  /* Debug-only items — netcode/ping/transport diagnostic line and the
-     Retry P2P button. Hidden by default; the URL ?debug query enables
-     them by adding .is-debug on <body>. Keeps the kid view clean while
-     leaving the tools one URL tweak away. */
-  body:not(.is-debug) #prescreen .meta,
-  body:not(.is-debug) #prescreen #retryBtn {
+  /* Diagnostic line (netcode / ping / transport) + Retry P2P button.
+     Visible by default during the testing phase — they're genuinely
+     useful for spotting bad transport / version mismatches. The URL
+     ?clean query hides them via body.is-clean for the kid view, and
+     we'll flip the default back to "hidden unless ?debug" at release. */
+  body.is-clean #prescreen .meta,
+  body.is-clean #prescreen #retryBtn {
     display: none;
   }
 
@@ -267,7 +283,7 @@
      comes back so a player can hit Start again to replay. -->
 <div id="stage" class="screen">
   <div class="tube">
-    <canvas id="cv" width="240" height="280"></canvas>
+    <canvas id="cv" width="260" height="280"></canvas>
     <div class="overlay"></div>
     <div class="vignette"></div>
     <div class="touch-controls">
@@ -346,11 +362,12 @@
     SEATS, MAX_SEATS,
   } from './engine.js';
   import { ROW_COLORS, spriteForRow, paintPixels, paintShip } from './sprites.js';
-  // INV_COLS isn't exported by engine.js (it's a private constant)
-  // but the grid stride is fixed by the wire snapshot, so we mirror
-  // it here for the renderer's row math. If engine.js ever changes
-  // the grid width this has to move in lockstep.
-  const SPRITE_COLS = 8;
+  // Mirror engine.js's INV_COLS instead of named-importing it. Named
+  // imports of missing exports are a hard module-link error: if an old
+  // edge-cached engine.js gets paired with this fresh index.html (rare
+  // but possible during a deploy crossover), the page wouldn't load
+  // at all. Keep this in sync when engine.js changes the grid width.
+  const SPRITE_COLS = 11;
 
   // Register SFX with the shared audio module. The volume/muted keys
   // are the global arcade keys so the slider state carries across
@@ -380,7 +397,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 20;
+  const NETCODE_VERSION = 21;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -415,10 +432,10 @@
   if (!roomCode) roomCode = randomCode();
   // Normalise the address bar to the clean path form regardless of how
   // we arrived — query-string bookmarks rewrite themselves on first
-  // load and stay shareable in the new form. We preserve ?debug across
-  // the rewrite so the debug toggle survives bookmarks/reloads.
-  const isDebug = new URLSearchParams(location.search).has('debug');
-  const cleanPath = '/invaders-mp/' + roomCode + (isDebug ? '?debug' : '');
+  // load and stay shareable in the new form. We preserve ?clean across
+  // the rewrite so the kid-view bookmark survives reloads.
+  const isClean = new URLSearchParams(location.search).has('clean');
+  const cleanPath = '/invaders-mp/' + roomCode + (isClean ? '?clean' : '');
   if ((location.pathname + location.search) !== cleanPath) {
     history.replaceState(null, '', cleanPath);
   }
@@ -436,12 +453,11 @@
   document.getElementById('roomCode').textContent = roomCode;
   renderQR(location.href);
 
-  // ?debug on the URL reveals the diagnostic meta line (netcode /
-  // ping / transport) and the Retry P2P button. Kept off by default
-  // so the kid view stays clean. The flag is captured before the
-  // history.replaceState above so the original ?debug isn't lost in
-  // the path normalisation; reuse it here.
-  if (isDebug) document.body.classList.add('is-debug');
+  // ?clean on the URL hides the diagnostic meta line + Retry P2P for
+  // the kid view. Default is to show them — they're handy while we're
+  // actively testing. Flag captured before history.replaceState above
+  // so the original ?clean survives path normalisation.
+  if (isClean) document.body.classList.add('is-clean');
 
   // QR code for the join URL. Type 0 = auto-fit the smallest matrix
   // that fits the URL; 'M' = medium error-correction (handles a 7-bit
@@ -516,6 +532,7 @@
   }
   function applyPong(serverT) {
     const rtt = Math.round(performance.now() - serverT);
+    lastRTT = rtt;
     pingEl.textContent = rtt + ' ms';
     pingEl.classList.remove('low', 'mid', 'high');
     if      (rtt < 80)  pingEl.classList.add('low');
@@ -661,7 +678,10 @@
       step(hostState, hostInputs, dt, occupied);
     }
 
-    const snap = { type: 'state', t: now, ...snapshotForClient(hostState) };
+    // `seats` mirrors the server-side wire field so clients can tell
+    // "connected but dead/respawning" from "vacant seat" — `alive`
+    // alone became ambiguous once respawns landed in Phase D.
+    const snap = { type: 'state', t: now, ...snapshotForClient(hostState), seats: { ...occupied } };
     for (let i = 0; i < SEATS.length; i++) {
       if (!occupied[SEATS[i]]) snap.players[i].alive = false;
     }
@@ -705,11 +725,14 @@
   function allOccupiedPeersConnected() {
     // Host (P1): every occupied non-P1 seat must have a connected peer.
     // Client (non-P1): we just need a connected peer to P1.
+    // Uses seatOccupied() (authoritative `seats` field) rather than
+    // .alive so a mid-respawn ship doesn't briefly read as "vacant"
+    // and demote the transport badge to "connecting" or "relay".
     if (!mySeat || !lastState) return false;
     if (mySeat === 'p1') {
       let anyOther = false;
       for (let i = 1; i < SEATS.length; i++) {
-        if (!lastState.players[i]?.alive) continue;
+        if (!seatOccupied(i)) continue;
         anyOther = true;
         if (!peerConnectedTo(SEATS[i])) return false;
       }
@@ -765,6 +788,7 @@
 
   const transportEl = document.getElementById('transport');
   function setTransport(state) {
+    currentTransport = state;
     transportEl.classList.remove('p2p', 'connecting');
     if (state === 'p2p')             { transportEl.textContent = 'P2P';  transportEl.classList.add('p2p'); }
     else if (state === 'connecting') { transportEl.textContent = 'P2P…'; transportEl.classList.add('connecting'); }
@@ -867,6 +891,15 @@
   // Idempotent — call from state handler / on demand. Host (P1)
   // creates one peer per other occupied seat; clients create exactly
   // one peer to P1 once P1 shows alive in the snapshot.
+  // Prefer the wire `seats` map (authoritative connected-or-not, set
+  // by the transport layer) over `players[i].alive` (which now flips
+  // false during mid-respawn windows too). Falls back to `alive` for
+  // pre-Phase-D snapshots that lack the field.
+  function seatOccupied(i) {
+    if (!lastState) return false;
+    if (lastState.seats) return !!lastState.seats[SEATS[i]];
+    return !!lastState.players[i]?.alive;
+  }
   function maybeCreatePeers() {
     if (typeof SimplePeer === 'undefined') return;
     if (!mySeat || !lastState) return;
@@ -874,11 +907,11 @@
       for (let i = 1; i < SEATS.length; i++) {
         const other = SEATS[i];
         if (peers.has(other)) continue;
-        if (lastState.players[i]?.alive) makePeerTo(other);
+        if (seatOccupied(i)) makePeerTo(other);
       }
     } else {
       if (peers.has('p1')) return;
-      if (lastState.players[0]?.alive) makePeerTo('p1');
+      if (seatOccupied(0)) makePeerTo('p1');
     }
   }
 
@@ -1011,6 +1044,13 @@
         if (msg.status === 'gameover' && prev.status !== 'gameover' && !msg.won) {
           Arcade.Audio.play('sfx-lose', 0.6);
         }
+        if (typeof msg.lives === 'number' && typeof prev.lives === 'number'
+            && msg.lives < prev.lives) {
+          // Shared-pool tick: brief flash + "-1" popup near the LIVES
+          // HUD so the whole team can see "we just lost one" instead
+          // of having to spot a quiet number change while shooting.
+          livesFlashUntil = performance.now() + LIVES_FLASH_MS;
+        }
       }
       lastState = msg;
       snapBuffer.push(msg);
@@ -1050,15 +1090,11 @@
       const slot = playerSlotEls[i];
       if (!slot) continue;
       const p = lastState.players[i];
-      // alive doubles as the occupancy mask the server applies before
-      // broadcasting (initState marks every fresh ship alive; the
-      // broadcast loop overwrites alive=false for any seat with no
-      // socket). Caveat: during 'gameover' a player who actually died
-      // also reads as alive=false here, so their slot briefly shows
-      // empty until Start triggers a fresh initState. Pragmatic for
-      // the spike; if it bites we'll add a dedicated `seats` field
-      // to the wire.
-      const occupied = !!p?.alive;
+      // Prefer the authoritative `seats` map (added in Phase D) over
+      // `players[i].alive` — once respawns landed, alive can be false
+      // for a connected seat that's mid-respawn or just died at end
+      // of a round. Falls back to alive for pre-Phase-D snapshots.
+      const occupied = seatOccupied(i);
       slot.classList.toggle('is-active', occupied);
       slot.classList.toggle('is-empty', !occupied);
       const nameEl = slot.querySelector('.ps-name');
@@ -1085,11 +1121,11 @@
   function refreshLobby() {
     if (!lastState) return;
     const s = lastState.status;
-    // The server masks unoccupied seats as alive:false on the wire,
-    // so a non-running game's player.alive count is a clean occupancy
-    // proxy. During a running game players may legitimately be dead
-    // — the count still reads as "currently active".
-    const occupied = lastState.players.filter(p => p && p.alive).length;
+    // Use the authoritative `seats` map (added in Phase D) — true
+    // occupancy regardless of alive/respawn state. Pre-Phase-D
+    // snapshots fall back to the alive proxy via seatOccupied().
+    let occupied = 0;
+    for (let i = 0; i < MAX_SEATS; i++) if (seatOccupied(i)) occupied++;
     // Reveal the cabinet (canvas visible + prescreen faded) once the
     // countdown begins, so the 3-2-1 → ATTACK overlay paints on a
     // visible canvas. Goes back to the prescreen on waiting/ready (no
@@ -1205,7 +1241,7 @@
     // a small slack so the canvas doesn't touch the rounded-glass
     // corners.
     //
-    // Use the largest scale that preserves the 240:280 aspect. We
+    // Use the largest scale that preserves the 260:280 aspect. We
     // *don't* floor to integers: on a laptop the available scale is
     // ~3.6× and on an iPhone portrait it's ~1.6×, both of which round
     // down to 3 and 1 — wasting ~25% of the playfield area in either
@@ -1438,18 +1474,96 @@
       drawCenteredOverlay('ATTACK!', `rgba(255, 58, 161, ${alpha.toFixed(2)})`, 22);
     }
 
-    // Score HUD — top-left corner, in-canvas so it lives inside the
-    // cabinet's CRT/scanlines instead of bleeding outside the tube.
-    // SP draws labels above values on two lines; we do the same so a
-    // running score doesn't push the label off-screen as digits grow.
+    // HUD — three SP-style columns across the top of the canvas:
+    // SCORE (local player only, in their seat colour) | STAGE (real
+    // progression lands in Phase G) | LIVES (shared respawn pool).
+    // Two-line layout (label above value) so growing digits don't
+    // push the label off screen.
     if (latestSnap.status === 'running' || latestSnap.status === 'gameover') {
-      ctx.fillStyle = '#ffffff';
       ctx.font = '6px "Press Start 2P", monospace';
-      ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
+
+      // SCORE — local player only. Friends' scores were cluttering
+      // the HUD; each player sees their own score in their own
+      // colour. Spectators (no assigned seat) get a neutral white
+      // "0000" fallback.
+      const seatIdx = mySeat ? SEATS.indexOf(mySeat) : -1;
+      const me = seatIdx >= 0 ? latestSnap.players[seatIdx] : null;
+      const myScore = (me && me.score) || 0;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffffff';
       ctx.fillText('SCORE', 6, 4);
+      ctx.fillStyle = seatIdx >= 0 ? SHIP_COLORS[seatIdx] : '#ffffff';
+      ctx.fillText(String(myScore).padStart(4, '0'), 6, 12);
+
+      // STAGE — centred. Placeholder "1-1" until Phase G.
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('STAGE', PF_W / 2, 4);
       ctx.fillStyle = '#ffd84a';
-      ctx.fillText(String(latestSnap.score).padStart(4, '0'), 6, 12);
+      ctx.fillText('1-1', PF_W / 2, 12);
+
+      // LIVES — shared respawn-pool counter, right-aligned. "—" if
+      // an older snapshot omits the field. The value flashes brighter
+      // (yellow→white) and a floating "-1" rises and fades for
+      // LIVES_FLASH_MS after the pool decrements, so the whole team
+      // sees the loss instead of having to spot a quiet tick.
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('LIVES', PF_W - 6, 4);
+      const lives = (latestSnap.lives != null) ? String(latestSnap.lives) : '—';
+      const flashFor = Math.max(0, livesFlashUntil - performance.now());
+      if (flashFor > 0) {
+        // t: 1 at flash start, 0 at end. Brighten yellow towards white
+        // by lifting green + blue channels.
+        const t = flashFor / LIVES_FLASH_MS;
+        const g = Math.round(216 + (255 - 216) * t);
+        const b = Math.round(74  + (255 - 74)  * t);
+        ctx.fillStyle = `rgb(255, ${g}, ${b})`;
+      } else {
+        ctx.fillStyle = '#ffd84a';
+      }
+      ctx.fillText(lives, PF_W - 6, 12);
+
+      // Floating "-1" — animates up from just below the LIVES value
+      // and fades as t→0. Only rendered while flashFor > 0.
+      if (flashFor > 0) {
+        const t = flashFor / LIVES_FLASH_MS;
+        ctx.save();
+        ctx.globalAlpha = t;
+        ctx.fillStyle = '#ff6666';
+        ctx.font = '7px "Press Start 2P", monospace';
+        ctx.fillText('-1', PF_W - 6, 22 - 10 * (1 - t));
+        ctx.restore();
+      }
+
+      // Transport + ping indicator — tucked into the bottom-left
+      // corner of the canvas (below the ship row, mirrors SCORE's
+      // top-left position). Out of the HUD strip so it doesn't
+      // compete with the gameplay numbers. Single colour-coded line
+      // (green/yellow/red on the ping bucket — the alarming bit);
+      // transport label drawn muted alongside as context. Hidden
+      // in kid view (?clean).
+      if (!isClean) {
+        const labelMap = { p2p: 'P2P', connecting: 'P2P…', relay: 'RELAY' };
+        const label = labelMap[currentTransport] || 'RELAY';
+        let color = '#777777';                                   // unknown ping → muted
+        if (lastRTT != null) {
+          if      (lastRTT < 80)   color = '#6bff8c';            // green — snappy
+          else if (lastRTT < 180)  color = '#ffd84a';            // yellow — playable
+          else                     color = '#ff6666';            // red — laggy
+        }
+        const pingStr = lastRTT != null ? `${lastRTT}ms` : '—';
+        ctx.font = '5px "Press Start 2P", monospace';
+        ctx.textAlign = 'left';
+        // Transport label muted; ping coloured. Tiny gap between
+        // them so the colour-coded number reads as the headline.
+        ctx.fillStyle = '#777777';
+        ctx.fillText(label, 6, PF_H - 6);
+        const gap = ctx.measureText(label + ' ').width;
+        ctx.fillStyle = color;
+        ctx.fillText(pingStr, 6 + gap, PF_H - 6);
+      }
     }
   }
 
@@ -1457,6 +1571,18 @@
   let attackOverlayUntil = 0;
   let nameFadeStartAt = 0;
   const NAME_FADE_MS = 800;
+  // Lives-decrement HUD flash. Set when a snapshot diff sees lives go
+  // down; the HUD renderer brightens the LIVES value and floats a
+  // "-1" popup above it until this clock passes.
+  let livesFlashUntil = 0;
+  const LIVES_FLASH_MS = 600;
+  // Latest measured RTT (ms) + current transport state. Mirrored to
+  // the prescreen meta DOM by applyPong/setTransport AND read by the
+  // in-canvas HUD so lag/transport are visible during gameplay too,
+  // not just in the lobby. Henry called out a "laggy" round with no
+  // visible evidence — this surfaces both at a glance.
+  let lastRTT = null;
+  let currentTransport = 'relay';
   function drawCenteredOverlay(text, color, sizePx) {
     ctx.save();
     ctx.font = sizePx + 'px "Press Start 2P", monospace';

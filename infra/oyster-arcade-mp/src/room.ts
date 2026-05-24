@@ -89,7 +89,14 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //        (3) handleStart now runs a 3 s countdown — game state goes
 //        ready/waiting/gameover → 'countdown' → 'running', with the
 //        end time on the wire so the client can render 3/2/1/ATTACK.
-const NETCODE_VERSION = 20;
+// v21 — Phase D: PF_W widened to 260 with an 11-column invader grid.
+//        Per-player score (players[i].score) replaces the old top-level
+//        state.score (kept on the wire as the sum for back-compat).
+//        Shared lives pool: state.lives, decremented on each death;
+//        ship.respawnIn + ship.invulnFor drive the 2 s respawn + 1 s
+//        invulnerability grace window. Row-tiered kill points
+//        (30/20/20/10/10 top→bottom) instead of flat 10.
+const NETCODE_VERSION = 21;
 
 type ClientMessage =
   | { type: 'ping';   t: number }
@@ -409,10 +416,17 @@ export class InvadersRoom {
     // doesn't paint a sitting-duck ghost while waiting for other
     // players. The server-side ship stays alive in the simulation;
     // it just can't take damage or contribute to the wipe check.
+    // Also build a `seats` map so the client can distinguish
+    // "connected but dead/respawning" from "vacant seat" — `alive`
+    // alone became ambiguous once respawns landed in Phase D.
+    const seats = {} as Record<Seat, boolean>;
     for (let i = 0; i < MAX_SEATS; i++) {
-      if (!this.sockets.has(SEATS[i])) snap.players[i].alive = false;
+      const s = SEATS[i];
+      const here = this.sockets.has(s);
+      seats[s] = here;
+      if (!here) snap.players[i].alive = false;
     }
-    const msg = JSON.stringify({ type: 'state', t: Date.now(), ...snap });
+    const msg = JSON.stringify({ type: 'state', t: Date.now(), ...snap, seats });
     for (const ws of this.sockets.values()) {
       try { ws.send(msg); }
       catch { /* socket dying; close handler will clean up */ }
