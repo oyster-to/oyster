@@ -429,10 +429,10 @@ export async function runOutputBackfill(deps: SweepDeps): Promise<{ events: numb
 
   for (;;) {
     const rows = deps.db.prepare(
-      `SELECT id, session_id, raw FROM session_events
+      `SELECT id, session_id, ts, raw FROM session_events
         WHERE id < ? AND raw IS NOT NULL AND role IN ('assistant','tool')
         ORDER BY id DESC LIMIT ?`,
-    ).all(cursor, BATCH) as { id: number; session_id: string; raw: string }[];
+    ).all(cursor, BATCH) as { id: number; session_id: string; ts: string; raw: string }[];
     if (rows.length === 0) break;
 
     for (const row of rows) {
@@ -446,7 +446,7 @@ export async function runOutputBackfill(deps: SweepDeps): Promise<{ events: numb
       // Job B: register + link touched outputs.
       const content = parsed?.message?.content;
       if (!Array.isArray(content)) continue;
-      const whenAt = typeof parsed.timestamp === "string" ? parsed.timestamp : new Date().toISOString();
+      const whenAt = row.ts; // session_events.ts — the event timestamp, set at ingest from ev.timestamp
       for (const block of content) {
         const t = artifactTouchFromToolUse(block);
         if (!t) continue;
@@ -471,7 +471,7 @@ function countLinks(db: Database.Database): number {
 }
 ```
 
-> `parsed.timestamp` — **confirm the JSONL event timestamp field name** (Claude Code events carry a `timestamp`; verify against a real `raw` row and adjust). The `countLinks` per-touch is O(touches) COUNT queries — fine for a one-time background pass; optimise only if measured slow.
+> `when_at` uses `session_events.ts` (the event timestamp column, populated at ingest from `ev.timestamp` — confirmed present and ISO-8601 on the live DB), so no `raw` re-parse for the timestamp. The `countLinks` per-touch is O(touches) COUNT queries — fine for a one-time background pass; optimise only if measured slow.
 
 - [ ] **Step 4: Run** the test → pass (incl. idempotency, resume, and FTS search). **Commit** — `git commit -m "feat(registration): one-time historical sweep (Job A re-render + Job B register/link), resumable cursor"`
 
