@@ -222,3 +222,5 @@ export function snapshotForClient(state: GameState): WireSnapshot;
 export function encodeShields(bits: Uint8Array): string;
 export function decodeShields(b64: string): Uint8Array;
 export function shieldOffsets(): number[];
+/** Debug skip — kill current grid (→ boss) or current boss (→ next set / cutscene). No-op outside 'running'. */
+export function cheatSkip(state: GameState): void;

@@ -941,6 +941,29 @@ function overlap(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
 
+// === Debug cheats ===
+
+// Server-authoritative skip — mirrors SP's B-key cheat. One call =
+// one threat skipped:
+//   grid:     kill every live invader and snap stageNum to
+//             STAGES_PER_SET so the next checkStageClear tick spawns
+//             the set's boss instead of another normal wave.
+//   boss:     set boss.hp to 0 so the next checkStageClear tick
+//             advances to the next set's wave or fires the win
+//             cutscene if this was the JADE SKULL.
+//   cutscene: no-op — don't shortcut the win celebration.
+// Called from room.ts (cloud mode) or hostReceive (host mode) on
+// receipt of a {type:'cheat'} message. No-op outside 'running'.
+export function cheatSkip(state) {
+  if (state.status !== 'running') return;
+  if (state.phase === 'grid') {
+    for (const inv of state.invaders) inv.alive = false;
+    state.stageNum = STAGES_PER_SET;
+  } else if (state.phase === 'boss' && state.boss) {
+    state.boss.hp = 0;
+  }
+}
+
 // === Snapshot for the wire ===
 
 function round(n) { return Math.round(n * 10) / 10; }

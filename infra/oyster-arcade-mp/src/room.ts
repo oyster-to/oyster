@@ -19,6 +19,7 @@ import {
   snapshotForClient,
   step,
   zeroInput,
+  cheatSkip,
   PF_W,
   SHIP_W,
   SEATS,
@@ -133,7 +134,12 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //        triggers a 5-second win cutscene — phase 'cutscene', then
 //        status → 'gameover' with won=true. New wire fields:
 //        boss.type / cutsceneIn / phase adds 'cutscene' variant.
-const NETCODE_VERSION = 26;
+// v27 — Debug: 'cheat' client→server message that triggers
+//        engine.cheatSkip (kill current grid → boss spawn, or kill
+//        current boss → next set / cutscene). Bound to the B key in
+//        the client. Backwards-compatible — older servers silently
+//        ignore the unknown message type.
+const NETCODE_VERSION = 27;
 
 type ClientMessage =
   | { type: 'ping';   t: number }
@@ -142,7 +148,8 @@ type ClientMessage =
   | { type: 'start' }
   | { type: 'name';   name: unknown }
   // `to` is untrusted wire data — narrowed by isSeat() in relaySignal.
-  | { type: 'signal'; to: unknown; payload: unknown };
+  | { type: 'signal'; to: unknown; payload: unknown }
+  | { type: 'cheat' };
 
 // 3-2-1-ATTACK countdown duration. status flips to 'running' when the
 // server clock catches up to game.countdownEndMs.
@@ -315,6 +322,13 @@ export class InvadersRoom {
         return;
       case 'start':
         this.handleStart();
+        return;
+      case 'cheat':
+        // Debug-only: any seat can press B to skip the current threat.
+        // No auth — cloud mode is co-op, cheating among friends is on
+        // the honour system (and the score line is going to look
+        // ridiculous either way).
+        cheatSkip(this.game);
         return;
     }
   }
