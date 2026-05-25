@@ -1,11 +1,32 @@
 # Reactive session-output registration + path-indexed search
 
-**Date:** 2026-05-24
-**Status:** Draft — pending Matthew's review
+**Date:** 2026-05-24 (amended 2026-05-25, after the prerequisite model fix shipped)
+**Status:** Draft — prerequisite landed (v0.10.0); ready for implementation planning
 **Author:** Matthew Slight + Claude
 **Driver:** Sessions-first 1.0 (#551) shipped FULL-view artifact chips that render empty for ~75% of an active user's sessions and 100% of a new user's. Diagnostic + design session 2026-05-24.
 
-> **Naming note:** the branch is `artifact-scanner` for continuity with the handover, but there is **no disk scanner** in this design. Registration is reactive (driven by session history), not a filesystem crawl. The doc name reflects the real shape.
+> **Naming note:** branch is `session-output-registration`. There is **no disk scanner** in this design — registration is reactive (driven by session history), not a filesystem crawl.
+
+---
+
+## Context & lineage — why this exists, and the detour that preceded it
+
+**Why it came about.** Sessions-first 1.0 (#551) gave each session a FULL view with an artifact **chip** line — "these are the docs we produced." Dogfooding showed the chips render empty for ~75% of an active user's sessions and **100% of a brand-new user's**, because artifact registration depends on a dormant path: files an agent writes are never auto-registered, so the watcher's session→artefact linking almost never fires, and search can't find a touched file by name.
+
+**Purpose.** Make artefacts **populate themselves** from what the agent actually did — so the surface feels alive on day one — without polluting the curated grid or making the user register anything by hand.
+
+**Goal — three distinct layers** (conflating them caused earlier over-building):
+1. **Chips** = curated *useful outputs* only (reports, decks, apps, invoices, notable `.md`/`.html`). Not `.ts`/`.js` churn.
+2. **Search** finds any source file the agent touched, by name (e.g. `App.jsx`), even though it's never a chip.
+3. **Grid** stays clean — source files are never artefacts.
+
+Guiding line: **record everything for search, present only useful outputs as artefacts.**
+
+**The last deviation — the prerequisite, now shipped as v0.10.0.** Planning this feature surfaced a hard blocker: a brand-new user has **zero spaces**, but `artifacts.space_id` was `NOT NULL` — so reactive registration literally *could not create an artefact* for the very user it targets. Root cause was a 0.4/0.5-era model where an artefact's parent was its **space**. We paused this work and fixed the model first:
+
+> **An artefact's home is now its `project`; its space is *derived* via `artifact → project → space`.** The `space_id` column was dropped, a boot migration backfills `project_id` (longest-prefix `project_paths`; native workspace folders became projects bound to their space), and all readers derive space at the store boundary.
+
+That landed as **PR #581 → released in v0.10.0 (2026-05-25)**, verified on the live DB (325 artefacts backfilled, 0 orphaned, model corrections applied). **Net effect for this spec:** reactive outputs are parented to a **project**, never a space — and a fresh user with no spaces is no longer a blocker. See *Job B → Registration* below for the one concrete change this imposes.
 
 ---
 
@@ -135,8 +156,9 @@ The rule, stated once: **register only known useful output types, unless the pat
 
 ### Registration is idempotent via `getByPath`
 
-For each qualifying touch: `getByPath(absPath)` — reuse the existing artefact if present (including the legacy 506 `'discovered'` ones still on disk), else `insert` a new one with:
+For each qualifying touch: `getByPath(absPath)` — reuse the existing artefact if present (including the legacy `'discovered'` ones still on disk), else `insert` a new one with:
 
+- **`project_id`: the touching session's `project_id`** — the post-v0.10.0 model. The output was produced in that session's project, so that is its home; its **space derives** from the project (`artifact → project → space`). There is **no `space_id` to set** — `registerArtifact` no longer accepts one (it takes `project_id`, resolving from the file path via `lookupProject` when not supplied). If the session has no project, the artefact is parented to none and shows *unsorted* until that project is organised into a space — consistent with how the model fix already treats space-less projects. (This bullet is the single change v0.10.0 imposes on the original design.)
 - `source_origin: 'discovered'` (reuse existing enum value; no migration. A semantically-purer `'session'` value is deferred unless the UI needs to distinguish them.)
 - `label`: filename stem (the inferred default; a richer label is a later UX concern, out of scope).
 - `artifact_kind`: from the allow-list table.
@@ -205,9 +227,12 @@ Per project preference (prove before/after with **parity tests, not timing asser
 
 ## Key files
 
-- `server/src/watchers/claude-code.ts` — `renderEvent` (`:1041`), `artifactTouchFromToolUse` (`:1106`), ingestion loops (`backfillRange` `:422`, `consumeOnce` `:680`). Job A + Job B hook here.
-- `server/src/artifact-service.ts` — `registerArtifact` (insert at `:363`), retire/replace `backfillTouchesForNewArtefact` (`:407`).
-- `server/src/db.ts` — `session_artifacts` schema (`:307`), FTS triggers (`:753-779`), migration site.
-- `server/src/session-store.ts` — `searchSessions`/`searchEvents` (`:569`, `:628`) — no change needed; they read FTS.
-- `shared/types.ts` — `Artifact` / `ArtifactSourceOrigin` (`:20`).
+> Line numbers below predate **v0.10.0** (which reworked `artifact-store`/`artifact-service`/`db.ts`); re-confirm them when writing the implementation plan. `claude-code.ts` was not touched by v0.10.0, so its references should still hold.
+
+- `server/src/watchers/claude-code.ts` — `renderEvent` (`~:1041`), `artifactTouchFromToolUse` (`~:1106`), ingestion loops (`backfillRange`, `consumeOnce`). Job A + Job B hook here.
+- `server/src/artifact-service.ts` — `registerArtifact` **now takes `project_id` (not `space_id`)** and resolves it via `lookupProject(dirname(path))` when absent (v0.10.0); reactive registration passes the **session's** `project_id`. Retire/replace `backfillTouchesForNewArtefact`.
+- `server/src/native-project.ts` (new in v0.10.0) — `ensureNativeProject`; relevant if a touched output lives under `~/Oyster/spaces/<id>/`.
+- `server/src/db.ts` — `session_artifacts` schema + the still-needed `UNIQUE(session_id, artifact_id, role)` migration; FTS triggers; the v0.10.0 migration block is the model for where the historical sweep + high-water mark wire in.
+- `server/src/session-store.ts` — `searchSessions`/`searchEvents` — no change needed; they read FTS.
+- `shared/types.ts` — `Artifact.spaceId` is now **derived** (via project), not stored; `ArtifactSourceOrigin` unchanged.
 - `web/src/components/Home/SessionRow.tsx` — chip rendering, already wired; no change.
