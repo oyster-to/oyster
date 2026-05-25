@@ -415,6 +415,34 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
     `);
   }
 
+  // ── session_artifacts UNIQUE(session_id, artifact_id, role) ──
+  // Prevents duplicate touches from the watcher and backfill writing the
+  // same (session, artifact, role) triple. Must run AFTER the
+  // state-rename rebuild above — that block drops + recreates
+  // session_artifacts, which would silently drop any index we created
+  // before it. Positioned here so the table is in its final form.
+  //
+  // De-dup first (keeping the row with the highest surrogate id, i.e.
+  // the most recently inserted), then create the UNIQUE index. Both
+  // steps are idempotent: the DELETE is a no-op when there are no
+  // duplicates; CREATE UNIQUE INDEX IF NOT EXISTS skips gracefully
+  // when the index already exists.
+  const hasSessionArtifactsUq = db.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type='index' AND name='session_artifacts_uq'"
+  ).get();
+  if (!hasSessionArtifactsUq) {
+    // First boot on this version: collapse any pre-constraint duplicates,
+    // keeping the newest (MAX surrogate id) per (session,artifact,role), before
+    // the UNIQUE index is created (CREATE UNIQUE INDEX fails if dups exist).
+    db.exec(`
+      DELETE FROM session_artifacts WHERE id NOT IN (
+        SELECT MAX(id) FROM session_artifacts GROUP BY session_id, artifact_id, role
+      );
+    `);
+  }
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS session_artifacts_uq
+             ON session_artifacts(session_id, artifact_id, role)`);
+
   // source_id added so sessions can be grouped by project (sub-folder
   // within a space), not just by space. Lets us render an "Active
   // projects" section on Home without needing a separate join table.

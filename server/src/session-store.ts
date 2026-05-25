@@ -170,6 +170,8 @@ export interface InsertSessionArtifact {
   session_id: string;
   artifact_id: string;
   role: SessionArtifactRole;
+  /** ISO-8601 timestamp for the touch. Defaults to now() when omitted. */
+  when_at?: string;
 }
 
 // ── Store interface ──
@@ -370,8 +372,8 @@ export class SqliteSessionStore implements SessionStore {
         "SELECT * FROM session_events WHERE session_id = ? AND id = ? LIMIT 1"
       ),
       insertArtifactTouch: db.prepare(`
-        INSERT INTO session_artifacts (session_id, artifact_id, role)
-        VALUES (@session_id, @artifact_id, @role)
+        INSERT OR IGNORE INTO session_artifacts (session_id, artifact_id, role, when_at)
+        VALUES (@session_id, @artifact_id, @role, COALESCE(@when_at, datetime('now')))
       `),
       getArtifactsBySession: db.prepare(
         "SELECT * FROM session_artifacts WHERE session_id = ? ORDER BY when_at"
@@ -546,7 +548,7 @@ export class SqliteSessionStore implements SessionStore {
   }
 
   insertArtifactTouch(row: InsertSessionArtifact): void {
-    this.stmts.insertArtifactTouch.run(row);
+    this.stmts.insertArtifactTouch.run({ when_at: null, ...row });
   }
 
   getArtifactsBySession(sessionId: string): SessionArtifactRow[] {
