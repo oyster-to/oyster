@@ -1954,6 +1954,11 @@
     '.....//.........',
   ];
   function drawPixelEarth(cx, cy, radius) {
+    // Round once — fractional radius makes the dx/dy loops below
+    // iterate at fractional steps, drawing 1×1 rects at subpixel
+    // positions that anti-alias into a blurry, jittery planet.
+    // Integer radius gives crisp 1-pixel growth steps.
+    radius = Math.round(radius);
     const r2 = radius * radius;
     const bmW = EARTH_BITMAP[0].length;
     const bmH = EARTH_BITMAP.length;
@@ -2011,9 +2016,11 @@
     const radius = 3 + growT * 43;
     drawPixelEarth(cx, cy, radius);
 
-    // Ship orbits — starts at t≈2.8 s, ~1.5 laps over 4 s. 8×6 PF
-    // sprite mirroring the in-game silhouette so it reads at this
-    // zoom. Cyan thrust trail trails the ship by 3 PF stride.
+    // Ship orbits — starts at t≈2.8 s and keeps orbiting at a
+    // constant rate (~1.5 laps per 4 s; orbitT is unbounded by
+    // design, the cutscene ends after ~9.5 s = ~2.5 laps total).
+    // 8×6 PF sprite mirroring the in-game silhouette so it reads
+    // at this zoom. Cyan thrust trail trails the ship by 3 PF stride.
     if (tMs > 2800) {
       const orbitT = (tMs - 2800) / 4000;
       const angle  = orbitT * Math.PI * 3 - Math.PI / 2;

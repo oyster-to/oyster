@@ -76,9 +76,10 @@ export function paintShip(ctx, x, shipY, shipW, color) {
 }
 
 // Boss sprite roster (Phase H/2). 4 types — one per set — ported
-// from SP's BOSS_TYPES. Each entry: two 8×8 frames + a 3-band colour
-// gradient (hi → mid → shadow, applied to rows 0-2, 3-4, 5-7).
-// Painted at scale 5 → 40×40 PF; 2-frame anim toggles every ~300 ms.
+// from SP's BOSS_TYPES. Each entry: two 8×8 frames + a 3-colour
+// palette used by paintBoss to pick a SINGLE body colour based on
+// HP (>66% → bands[0], >33% → bands[1], lower → bands[2]). Painted
+// at scale 5 → 40×40 PF; 2-frame anim toggles every ~300 ms.
 //
 // Set rotation: stageSet 1 → CRIMSON OCTOPUS, 2 → VIOLET CRAB,
 // 3 → AZURE SQUID, 4 → JADE SKULL. Defeating the JADE SKULL boss
