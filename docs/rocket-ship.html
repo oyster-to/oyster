@@ -18,6 +18,7 @@
 </script>
 <link rel="stylesheet" href="arcade/shared/pixel-font.css">
 <link rel="stylesheet" href="arcade/shared/cabinet.css">
+<link rel="stylesheet" href="arcade/shared/touch.css">
 <style>
   /* pixel-font.css (shared) provides the Press Start 2P @font-face, the *
      reset, and the body/canvas gesture + selection lock. */
@@ -30,50 +31,9 @@
   /* On-screen touch controls — only on coarse-pointer devices and only once
      the splash dismisses (tube.is-ready). Two thumb clusters: turn-pair in
      the bottom-left, thrust in the bottom-right. */
-  .touch-controls {
-    position: absolute;
-    inset: auto 0 0 0;
-    display: none;
-    justify-content: space-between;
-    align-items: flex-end;
-    padding: clamp(14px, 3vw, 28px);
-    pointer-events: none;
-    z-index: 6;
-  }
-  .tube.is-ready .touch-controls { display: flex; }
-  @media (hover: hover) and (pointer: fine) {
-    .touch-controls { display: none !important; }
-  }
-  .touch-controls .tc-group {
-    display: flex;
-    gap: clamp(10px, 2vw, 16px);
-    pointer-events: none;
-  }
-  .touch-controls .tc-btn {
-    pointer-events: auto;
-    width: clamp(56px, 11vw, 80px);
-    height: clamp(56px, 11vw, 80px);
-    border-radius: 12px;
-    border: 2px solid rgba(45, 212, 255, 0.6);
-    background: rgba(0, 0, 0, 0.35);
-    color: #2dd4ff;
-    font-family: 'Press Start 2P', ui-monospace, monospace;
-    font-size: clamp(20px, 4vw, 30px);
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    user-select: none;
-    transition: background 0.08s, border-color 0.08s;
-  }
-  .touch-controls .tc-btn:active,
-  .touch-controls .tc-btn.is-pressed {
-    background: rgba(45, 212, 255, 0.25);
-    border-color: #2dd4ff;
-    color: #fff;
-  }
+  /* touch.css (shared) provides the .touch-controls layout container, the
+     .tc-btn base + pressed state, and the .key-only/.touch-only utility.
+     Only rocket-ship's bigger orange thrust button stays game-specific. */
   .touch-controls .tc-thrust {
     width: clamp(72px, 14vw, 100px);
     height: clamp(72px, 14vw, 100px);
@@ -87,16 +47,8 @@
     color: #fff;
   }
 
-  /* Show keyboard hints by default; swap to touch labels on coarse
-     pointers. display:revert lets each element fall back to its natural
-     display value (div → block, span → inline) so the utility works in
-     both block and inline contexts. */
-  .touch-only { display: none; }
-  @media (pointer: coarse) {
-    .key-only { display: none; }
-    .touch-only { display: revert; }
-    /* cabinet.css drops the bezel + tube radius edge-to-edge on coarse pointers. */
-  }
+  /* .key-only / .touch-only show-on-coarse utility now from touch.css;
+     the coarse bezel/tube edge-to-edge tweak from cabinet.css. */
 
 
   /* Retro arcade splash — boot sequence, then INSERT COIN screen */
