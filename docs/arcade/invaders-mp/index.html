@@ -1019,7 +1019,17 @@
       // DataChannel. In the common path (P2P up *before* first
       // Start) the DO never enters its running state at all, so this
       // guard is a no-op.
-      if (hostEngaged && msg && msg.type === 'state') return;
+      if (hostEngaged && msg && msg.type === 'state') {
+        // Solo-host: ignore the DO's gameplay state for rendering (our
+        // local hostState is authoritative) but still propagate seat
+        // occupancy so refreshLobby + maybeCreatePeers fire when a
+        // friend joins via the DO. Without this, the WebRTC handshake
+        // never starts and the joiner sits in 'waiting' forever.
+        lastState = msg;
+        refreshLobby();
+        maybeCreatePeers();
+        return;
+      }
       handle(msg);
     });
   }
