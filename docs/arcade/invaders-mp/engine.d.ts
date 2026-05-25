@@ -63,6 +63,22 @@ export interface Ufo {
   dir: 1 | -1;
 }
 
+export interface BossAdd {
+  /** Resting position the minion swoops away from + returns to. */
+  baseX: number;
+  baseY: number;
+  /** Live position. Computed each tick from baseX/baseY + phase. */
+  x: number;
+  y: number;
+  alive: boolean;
+  /** 0..1 swoop cycle position; advances by dt * phaseSpeed each tick. */
+  phase: number;
+  /** 1 / swoop-period (seconds). Randomised per minion at spawn. */
+  phaseSpeed: number;
+  /** Seconds until the minion respawns at base; 0 while alive. */
+  respawnIn: number;
+}
+
 export interface Boss {
   /** Index into sprites.js BOSS_TYPES (0..BOSS_TYPE_COUNT-1). */
   type: number;
@@ -73,6 +89,8 @@ export interface Boss {
   speed: number;
   fireAccum: number;
   fireInterval: number;
+  /** Swooping minion adds — 2 + (setNum-1) per boss. */
+  adds: BossAdd[];
 }
 
 export interface GameState {
@@ -159,8 +177,14 @@ export interface WireSnapshot {
    * 'cutscene' for the win celebration before status → 'gameover'.
    */
   phase: 'grid' | 'boss' | 'cutscene';
-  /** Active boss for the renderer; null between bosses. `type` indexes sprites.js BOSS_TYPES. */
-  boss: { x: number; hp: number; hpMax: number; type: number } | null;
+  /** Active boss for the renderer; null between bosses. `type` indexes sprites.js BOSS_TYPES, `adds` is the live minion positions. */
+  boss: {
+    x: number;
+    hp: number;
+    hpMax: number;
+    type: number;
+    adds: Array<{ x: number; y: number; a: boolean }>;
+  } | null;
   /** Seconds left on the win cutscene; 0 outside phase === 'cutscene'. */
   cutsceneIn: number;
   /**
@@ -203,6 +227,8 @@ export const UFO_Y_EXPORT: number;
 export const BOSS_W: number;
 export const BOSS_H: number;
 export const BOSS_Y: number;
+export const BOSS_ADD_W: number;
+export const BOSS_ADD_H: number;
 export const BOSS_TYPE_COUNT: number;
 export const CUTSCENE_SEC: number;
 export function comboMultiplier(count: number): number;

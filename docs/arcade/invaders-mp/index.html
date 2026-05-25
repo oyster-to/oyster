@@ -427,7 +427,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 27;
+  const NETCODE_VERSION = 28;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -1641,6 +1641,25 @@
       ctx.fillRect(latestSnap.boss.x, barY, BOSS_W, 2);
       ctx.fillStyle = ratio > 0.6 ? '#6bff8c' : ratio > 0.3 ? '#ffd84a' : '#ff6666';
       ctx.fillRect(latestSnap.boss.x, barY, BOSS_W * ratio, 2);
+
+      // Boss minion adds — small swooping crabs that shield the boss.
+      // Server-authoritative positions arrive in boss.adds; we just
+      // paint them at scale 1.5 (matching grid invader scale) using
+      // the CRAB sprite. Pulse the colour white ↔ pink at ~12.5 Hz
+      // so they read as "flashing minion" not "tiny ordinary
+      // invader". Frame toggle uses the same 300 ms cadence as the
+      // grid for visual consistency.
+      const adds = latestSnap.boss.adds || [];
+      if (adds.length) {
+        const renderNow = performance.now();
+        const flash = Math.floor(renderNow / 80) % 2 === 0 ? '#ffffff' : ROW_COLORS[1];
+        const addFrame = Math.floor(renderNow / 300) & 1;
+        const { frames: addFrames } = spriteForRow(1);
+        for (const ad of adds) {
+          if (!ad.a) continue;
+          paintPixels(ctx, Math.round(ad.x), Math.round(ad.y), addFrames[addFrame], 1.5, flash);
+        }
+      }
     }
 
     // UFO bonus enemy — saucer silhouette ported from SP's drawUfo.
