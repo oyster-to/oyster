@@ -585,14 +585,16 @@ Then in the route: group the (now read-inclusive) `touchRows` by `sessionId` int
 
 ## Task 7: Live ingestion hook
 
-**Files:** Modify `server/src/watchers/claude-code.ts` (`consumeOnce`); Test extends the sweep test or a new watcher test.
+**Files:** Modify `server/src/watchers/claude-code.ts` (BOTH `backfillRange` and `consumeOnce`) + `ClaudeCodeWatcherDeps`; wire deps at `server/src/index.ts`. Test: a new watcher test.
 
-Currently `consumeOnce` ingests new events and (post-v0.10.0) only links touches whose file is *already* a registered artefact. Replace that gate: for each touch in a newly-ingested event, call `registerTouchedOutput` (which registers the output if it qualifies, else no-ops) — so new outputs self-register live, and the search text already carries paths (Task 2 made `renderEvent` embed them on ingest).
+**TWO loops, not one.** The identical touch-gate lives in **both** `backfillRange` (~`:484`, ingests a session's existing JSONL when first seen) and `consumeOnce` (~`:832`, live tail). Both currently (post-v0.10.0) only link touches whose file is *already* a registered artefact, and both add space guards (`if (!spaceId) continue;` + `if (artifact.space_id !== spaceId) continue;`). **Both** must switch to `registerTouchedOutput` — otherwise a session discovered *after* the one-time sweep (`done=1`) never registers the outputs in its initial history (only post-discovery live touches would). On boot the overlap with the sweep is harmless (registration is idempotent).
+
+**Remove the space guards.** `!spaceId` would skip exactly the fresh/homeless-user sessions this feature targets; the cross-space `artifact.space_id !== spaceId` skip belonged to the old "link only same-space pre-registered artefacts" model. The new model parents by path and records all touches (matching the sweep, which has no space guard). If an existing test asserts the old skip, update it to the new design and report the change — don't weaken silently.
 
 - [ ] **Step 1: Write the failing test** — feed a synthetic appended JSONL event that writes `/repo/new-report.md` (create the real file) in a session with project `p`; after `consumeOnce`, assert the artefact is registered (project resolved from path) and linked. (Mirror the watcher test harness in `server/test/watchers-cwd.test.ts`.)
 - [ ] **Step 2: Run, verify fails** (the old gate skips unregistered files).
-- [ ] **Step 3: Implement** — in `consumeOnce`'s touch loop (~`claude-code.ts:835`), replace the `getByPath ... continue` gate with a call to `registerTouchedOutput(this.deps.sweepDeps, { sessionId, path: touch.path, role: touch.role, whenAt })`. Thread the `SweepDeps` (service + sessionStore + db) into the watcher's deps (they already hold `artifactStore`; add `service`/`sessionStore` if not present — confirm what the watcher already has). Keep ingestion non-blocking; `registerTouchedOutput` is fast (one path lookup + maybe one insert).
-- [ ] **Step 4: Run** + full suite. **Commit** — `git commit -m "feat(registration): live ingestion self-registers touched outputs"`
+- [ ] **Step 3: Implement** — add `service: ArtifactService` and `db: Database.Database` to `ClaudeCodeWatcherDeps` (it already has `sessionStore`); pass them at the construction site in `index.ts` (`artifactService` + `db` are in scope, `:301`). In BOTH touch loops, replace the `getByPath`/space-guard block with `await registerTouchedOutput({ db, service, sessionStore }, { sessionId, path: touch.path, role: touch.role, whenAt: ev.timestamp })` (build `SweepDeps` once, e.g. a cached field). Both loops are already `async`. `registerTouchedOutput` returns `{ registered, linked }` — ignore it here. Drop the now-unused `spaceId` computation if nothing else uses it.
+- [ ] **Step 4: Run** + full suite (update any test encoding the old space-skip, noting why). **Commit** — `git commit -m "feat(registration): live ingestion self-registers touched outputs"`
 
 ---
 
