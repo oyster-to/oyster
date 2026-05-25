@@ -118,14 +118,18 @@ export const BOSS_TYPES = [
   },
 ];
 
-// Paint a boss frame at (x, y) PF coords. `type` is an index into
+// Paint a boss frame at (x, y) PF coords using a SINGLE body color.
+// SP matches its boss palette to HP — healthy → bands[0], hurt →
+// bands[1], near-dead → bands[2] — so the caller picks the band
+// index from boss.hp / boss.hpMax. `type` is an index into
 // BOSS_TYPES; out-of-range defensively falls back to the first.
-export function paintBoss(ctx, x, y, scale, frame, type) {
+// (Earlier H/2 builds applied a 3-row hi/mid/shadow gradient — but
+// SP never did that; it's a single-colour silhouette.)
+export function paintBoss(ctx, x, y, scale, frame, type, bandIndex) {
   const def = BOSS_TYPES[type | 0] || BOSS_TYPES[0];
   const px = def.frames[frame & 1];
+  ctx.fillStyle = def.bands[Math.max(0, Math.min(2, bandIndex | 0))];
   for (let row = 0; row < px.length; row++) {
-    const band = row < 3 ? 0 : (row < 5 ? 1 : 2);
-    ctx.fillStyle = def.bands[band];
     const cells = px[row];
     const py = y + row * scale;
     for (let col = 0; col < cells.length; col++) {

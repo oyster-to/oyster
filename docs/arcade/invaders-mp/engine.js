@@ -154,8 +154,10 @@ export const BOSS_Y = 24;                        // sits where the top invader r
 // BOSS_TYPE_COUNT'th boss triggers the win cutscene → game over.
 export const BOSS_TYPE_COUNT = 4;
 // Length of the win cutscene before status flips to 'gameover'.
-// Short enough to feel like a beat, long enough for kids to whoop.
-export const CUTSCENE_SEC = 5;
+// Matches SP's CUTSCENE_MS (9.5 s) so the full pixel-Earth-grows /
+// ship-orbits / flag-plants / starburst / EARTH-IS-SAFE animation
+// has time to play through.
+export const CUTSCENE_SEC = 9.5;
 const BOSS_BASE_HP = 30;                         // ~10 charged hits or 30 normal at set 1
 const BOSS_HP_PER_SET = 15;                      // +15 HP per set
 const BOSS_BASE_SPEED = 38;                      // PF/sec at set 1
