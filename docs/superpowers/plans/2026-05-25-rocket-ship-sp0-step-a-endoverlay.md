@@ -19,6 +19,10 @@
 - **Modify** `docs/rocket-ship.html` only:
   - the shared-script include block (~734–739): add `end-overlay.js`
   - the game-over IIFE (~1710–1801): rewrite to drive `Arcade.EndOverlay`
+  - `restartGame()` (~1180): the raw `ov.classList.remove('is-visible')` that hid
+    the overlay on restart now calls `Arcade.EndOverlay.hide()` so the module's
+    grace/pending state resets on a new game (third overlay touch-point, found
+    during execution — keeps the adoption complete).
 
 `triggerGameOver()` (~1123–1156) and `showCelebration()` (~1565–1592) are **not** changed — they already call `window.__rocketShowGameOver(score)` / accept an `onAdvance` callback, which is the seam we keep.
 

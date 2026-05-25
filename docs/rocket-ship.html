@@ -736,6 +736,7 @@
 <script src="arcade/shared/leaderboard.js"></script>
 <script src="arcade/shared/splash.js"></script>
 <script src="arcade/shared/initials.js"></script>
+<script src="arcade/shared/end-overlay.js"></script>
 <script src="arcade/shared/iframe-host.js"></script>
 <div class="screen">
   <div class="tube">
@@ -1176,8 +1177,7 @@ function restartGame() {
   hasMoved = false;
   movedAt = 0;
   update.lastThrusting = false;
-  const ov = document.getElementById('gameover');
-  if (ov) ov.classList.remove('is-visible');
+  Arcade.EndOverlay.hide();
   const bgmGame = document.getElementById('bgm-game');
   if (bgmGame) { bgmGame.currentTime = 0; bgmGame.play().catch(() => {}); }
 }
@@ -1710,21 +1710,24 @@ paintLeaderboard();
 (function () {
   const ov = document.getElementById('gameover');
   if (!ov) return;
-  const initialsBox   = document.getElementById('go-initials');
-  const promptEl      = document.getElementById('go-prompt');
-  const hiscoreLineEl = document.getElementById('go-hiscore');
 
   let pendingScore = 0;
 
+  // The overlay's show/hide, the input grace window, and the score/hi-score
+  // text are owned by shared/end-overlay.js (its default selectors match this
+  // page's #gameover / #go-* DOM). The game still decides WHEN to celebrate,
+  // open initials, or just prompt.
+  Arcade.EndOverlay.mount();
+
   // Initials state machine + listeners are owned by shared/initials.js.
-  // Rocket Ship uses ▲ as the SELECT button during initials. onSubmit kicks
-  // back into attract-mode after writing the score.
+  // Rocket Ship uses ▲ as the SELECT button during initials. onSubmit writes
+  // the score, hides the overlay, and kicks back into attract-mode.
   Arcade.Initials.mount({
     fireButton: '#tc-thrust',
     fireLabel:  { idle: '▲', select: '✓' },
     onSubmit: (initials) => {
       addToLeaderboard(pendingScore, initials);
-      ov.classList.remove('is-visible');
+      Arcade.EndOverlay.hide();
       Arcade.Splash.enterAttract();
     },
   });
@@ -1734,70 +1737,57 @@ paintLeaderboard();
     if (!list.length) return score > 0;
     return score > list[0].score;   // strictly beat current top
   }
+
+  // Show the overlay for the just-ended run. Rocket Ship's hi-score line is
+  // bespoke in both branches, so pass it explicitly. A qualifying score opens
+  // initials immediately (Rocket Ship's long-standing behaviour — no "press a
+  // key to enter initials" step); Initials.open() hides the prompt and shows
+  // the slots. graceMs makes a held death-key no longer blow past the overlay.
+  function showOverlay(beat) {
+    const hs = getHighScore();
+    const hiscoreText = beat
+      ? `RANK ON THE LEADERBOARD — TOP ${LB_SIZE}`
+      : `HIGH SCORE ${String(hs.score).padStart(3, '0')} ${hs.initials}`;
+    Arcade.EndOverlay.show({ score: pendingScore, qualifies: beat, hiscoreText, graceMs: 600 });
+    if (beat) Arcade.Initials.open();
+    else      Arcade.Initials.close();   // ensure the slots are hidden / prompt shown
+  }
   function showGameOverWith(score) {
     pendingScore = score;
     const beat = qualifiesForLeaderboard(score);
-    // New #1 → flag goes up first; initials prompt appears on dismissal.
-    if (beat && isNewBest(score)) {
-      showCelebration(() => paintGameOverOverlay(true));
-    } else {
-      paintGameOverOverlay(beat);
-    }
-  }
-  function paintGameOverOverlay(beat) {
-    ov.classList.add('is-visible');
-    const hs = getHighScore();
-    if (beat) {
-      hiscoreLineEl.textContent = `RANK ON THE LEADERBOARD — TOP ${LB_SIZE}`;
-      Arcade.Initials.open();
-    } else {
-      hiscoreLineEl.textContent = `HIGH SCORE ${String(hs.score).padStart(3,'0')} ${hs.initials}`;
-      initialsBox.hidden = true;
-      promptEl.hidden    = false;
-    }
+    // New #1 → flag goes up first; overlay + initials appear on its dismissal.
+    if (beat && isNewBest(score)) showCelebration(() => showOverlay(true));
+    else                          showOverlay(beat);
   }
 
   // Expose for triggerGameOver -> setTimeout fade-in
   window.__rocketShowGameOver = showGameOverWith;
 
-  // Touch routing for the game-over overlay. Returns true if the action was
-  // consumed so the touch-button bindings know to suppress their game
-  // (rotate/thrust) side-effects. ◀/▶ cycle the active letter, ▲ advances /
-  // saves on the last slot — handled by Arcade.Initials.action() while
-  // entering initials, dismiss-to-attract-mode otherwise.
-  window.__rocketGameOverTouch = function (action) {
-    if (!ov.classList.contains('is-visible')) return false;
-    if (Arcade.Initials.isActive()) {
-      Arcade.Initials.action(action);
-      return true;
-    }
-    // Non-initials game-over: any touch button dismisses.
-    ov.classList.remove('is-visible');
+  // Dismiss the overlay (back to attract) when NOT entering initials, and only
+  // once the grace window has elapsed. shared/initials.js owns the keyboard
+  // while initials is active.
+  function dismiss() {
+    if (!Arcade.EndOverlay.isVisible()) return;
+    if (!Arcade.EndOverlay.acceptsInput()) return;   // grace window
+    if (Arcade.Initials.isActive()) return;
+    Arcade.EndOverlay.hide();
     Arcade.Splash.enterAttract();
+  }
+
+  // Touch routing for the on-screen buttons during game-over. Returns true if
+  // consumed so the touch bindings suppress their game (rotate/thrust) side
+  // effects. ◀/▶/▲ drive initials while active; otherwise any button dismisses.
+  window.__rocketGameOverTouch = function (action) {
+    if (!Arcade.EndOverlay.isVisible()) return false;
+    if (Arcade.Initials.isActive()) { Arcade.Initials.action(action); return true; }
+    dismiss();
     return true;
   };
 
-  // Click on the gameover overlay dismisses when not entering initials.
-  // Direct-on-element click is reliable on iOS inside iframes where the
-  // older window.touchstart pattern was flaky. Initials entry uses the
-  // dedicated on-screen buttons instead (handled by shared/initials.js).
-  ov.addEventListener('click', () => {
-    if (!ov.classList.contains('is-visible')) return;
-    if (Arcade.Initials.isActive()) return;
-    ov.classList.remove('is-visible');
-    Arcade.Splash.enterAttract();
-  });
-
-  // Non-initials dismiss path — shared/initials.js handles the keyboard
-  // while it's active, so we only handle the "no initials, any key
-  // dismisses to attract mode" case here.
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') return;
-    if (!ov.classList.contains('is-visible')) return;
-    if (Arcade.Initials.isActive()) return;
-    ov.classList.remove('is-visible');
-    Arcade.Splash.enterAttract();
-  });
+  // Direct-on-element click is reliable on iOS inside iframes where the older
+  // window.touchstart pattern was flaky.
+  ov.addEventListener('click', dismiss);
+  window.addEventListener('keydown', (e) => { if (e.key !== 'Escape') dismiss(); });
 })();
 </script>
 </body>
