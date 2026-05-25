@@ -158,6 +158,20 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
     )
   `);
 
+  // Output backfill state — single-row table that tracks the one-time
+  // historical sweep over session_events (Job A re-render + Job B register).
+  // low_water_id is the lowest session_events.id processed so far, used to
+  // resume a crashed pass from where it left off. done=1 means the sweep
+  // finished; runOutputBackfill is a no-op once done=1.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS output_backfill_state (
+      id           INTEGER PRIMARY KEY CHECK (id = 1),
+      done         INTEGER NOT NULL DEFAULT 0,
+      low_water_id INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT OR IGNORE INTO output_backfill_state (id, done, low_water_id) VALUES (1, 0, 0);
+  `);
+
   // Cross-device session metadata mirror (#322 PR 2). Populated by
   // SessionSyncService.pull() from the cloud worker's GET
   // /api/sessions/metadata. Kept in a SEPARATE table from `sessions` so
