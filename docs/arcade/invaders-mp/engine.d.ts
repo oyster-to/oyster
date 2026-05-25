@@ -135,6 +135,8 @@ export interface GameState {
   names: Record<Seat, string>;
   /** Server-clock ms; only meaningful while status === 'countdown'. */
   countdownEndMs: number;
+  /** True after any B-press this match — disqualifies all per-player scores from the leaderboard. */
+  cheated: boolean;
 }
 
 export interface WireSnapshot {
@@ -187,6 +189,8 @@ export interface WireSnapshot {
   } | null;
   /** Seconds left on the win cutscene; 0 outside phase === 'cutscene'. */
   cutsceneIn: number;
+  /** True after any B-press this match — clients gate leaderboard submission on this. */
+  cheated: boolean;
   /**
    * Per-seat occupancy. Set by the transport layer (room.ts on the
    * server, hostTick on the client) after snapshotForClient returns,

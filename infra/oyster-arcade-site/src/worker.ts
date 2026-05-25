@@ -45,6 +45,19 @@ export default {
       return Response.redirect(new URL(dest + url.search, req.url).toString(), 301);
     }
 
+    // Phase J — MP is now feature-complete (lives, supers, bosses,
+    // cutscene, leaderboard) and inherits SP's 'invaders' hi-score
+    // table. Redirect /invaders/* → /invaders-mp/ so the canonical
+    // URL for the game is the multiplayer build. Asset paths under
+    // /invaders/ (sfx-shoot.mp3, sfx-kill.wav) are exempt — MP still
+    // references them via ../invaders/. Bookmarks land on the lobby.
+    if (url.pathname === '/invaders' ||
+        (url.pathname.startsWith('/invaders/') && !/\.[a-z0-9]+$/i.test(url.pathname))) {
+      const tail = url.pathname.slice('/invaders'.length); // '' or '/...'
+      const dest = '/invaders-mp' + (tail || '/');
+      return Response.redirect(new URL(dest + url.search, req.url).toString(), 301);
+    }
+
     return env.ASSETS.fetch(req);
   },
 };

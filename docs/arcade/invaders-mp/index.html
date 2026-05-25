@@ -246,6 +246,36 @@
     letter-spacing: 0.08em;
   }
 
+  /* Initials entry — shown on gameover when this player qualifies.
+     Three slots side-by-side; the active slot pulses gold. The
+     prompt sits above. The shared Arcade.Initials state machine
+     toggles `hidden` on #go-initials and #go-prompt. */
+  #go-initials {
+    margin-top: 12px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  #go-prompt {
+    font-size: 9px; letter-spacing: 0.1em; color: #ffd84a; text-align: center;
+  }
+  #go-initials .go-slot-row {
+    display: flex; gap: 12px; justify-content: center;
+  }
+  #go-initials .go-slot {
+    display: inline-block;
+    min-width: 24px; padding: 6px 8px;
+    font-size: 22px; letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.45);
+    border-bottom: 2px solid rgba(255, 216, 74, 0.25);
+  }
+  #go-initials .go-slot.is-active {
+    color: #ffd84a;
+    border-bottom-color: #ffd84a;
+    animation: go-slot-pulse 0.9s ease-in-out infinite;
+  }
+  @keyframes go-slot-pulse {
+    50% { color: #ffffff; border-bottom-color: #ffffff; }
+  }
+
   /* Debug-mode bottom row: meta + Retry P2P. Only shown when
      body.is-debug (set when URL has ?debug). */
   #prescreen .meta {
@@ -336,6 +366,21 @@
 
       <div id="status">Connecting…</div>
 
+      <!-- Initials entry — shown on gameover when this player's
+           personal score qualifies for the leaderboard. The shared
+           Arcade.Initials state machine drives slot/letter selection
+           via keyboard + the FIRE touch button (which gets re-labelled
+           SELECT while active). Hidden by default; opens via
+           Arcade.Initials.open(). -->
+      <div id="go-initials" hidden>
+        <div id="go-prompt">NEW HI-SCORE — ENTER INITIALS</div>
+        <div class="go-slot-row">
+          <span class="go-slot is-active" data-slot="0">A</span>
+          <span class="go-slot"           data-slot="1">A</span>
+          <span class="go-slot"           data-slot="2">A</span>
+        </div>
+      </div>
+
       <!-- Diagnostic line + dev controls; only visible when the URL
            has ?debug (CSS hides .meta + #retryBtn unless body.is-debug). -->
       <div class="meta">
@@ -357,6 +402,8 @@
 <audio id="sfx-lose"      src="../shared/sfx-lose.mp3"      preload="auto"></audio>
 
 <script src="../shared/audio.js"></script>
+<script src="../shared/leaderboard.js"></script>
+<script src="../shared/initials.js"></script>
 <script src="./simple-peer.min.js"></script>
 <!-- Kazuhiko Arase's qrcode-generator (MIT) — used to draw the
      join-link QR in the prescreen lobby. Vendored locally so the
@@ -413,6 +460,12 @@
     mutedKey:  'oyster-arcade-sfx-muted',
   });
 
+  // Leaderboard — same `'invaders'` game key as SP so MP per-player
+  // scores share one hi-score table with any legacy SP scores. Top
+  // 10 displayed. `qualifies()` reads the local mirror; `submit()`
+  // posts to /api/leaderboard.
+  Arcade.Leaderboard.init({ game: 'invaders', max: 10 });
+
   // Per-seat colours for the canvas. Indexed by seat position so the
   // same player reads as the same colour on every viewer's screen.
   // Previously every viewer drew themselves in cyan, which collided
@@ -427,7 +480,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 28;
+  const NETCODE_VERSION = 29;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -1171,6 +1224,9 @@
   function refreshLobby() {
     if (!lastState) return;
     const s = lastState.status;
+    // Reset the leaderboard-prompt dedupe when leaving gameover so a
+    // fresh round can submit too.
+    if (s !== 'gameover') promptedInGameover = false;
     // Use the authoritative `seats` map (added in Phase D) — true
     // occupancy regardless of alive/respawn state. Pre-Phase-D
     // snapshots fall back to the alive proxy via seatOccupied().
@@ -1200,12 +1256,53 @@
       setStatus('');
       startBtn.disabled = true;
     } else if (s === 'gameover') {
-      setStatus(lastState.won
-        ? `Earth is safe! Score: ${lastState.score}`
-        : `Game over • Score: ${lastState.score}`);
+      // Per-player score line — same model as Sackboy: each device
+      // sees its own final, and the leaderboard prompt below uses
+      // *their* score, not the team total.
+      const myIdx = mySeat ? SEATS.indexOf(mySeat) : -1;
+      const myFinal = (myIdx >= 0 && lastState.players[myIdx])
+        ? (lastState.players[myIdx].score | 0)
+        : 0;
+      const headline = lastState.won ? 'Earth is safe!' : 'Game over';
+      setStatus(`${headline} • Your score: ${myFinal}`);
       startBtn.disabled = false;
+      maybePromptInitials(myFinal);
     }
   }
+
+  // Per-player leaderboard submission. Called on the gameover
+  // transition with this device's final score. Suppressed when the
+  // match was cheated (B-key) so a single skip doesn't pollute the
+  // hi-score table for the whole team. `promptedInGameover` gates
+  // re-prompting on repeated 'gameover' snapshots — reset whenever
+  // status leaves 'gameover' so a second run can also submit.
+  let promptedInGameover = false;
+  function maybePromptInitials(myFinal) {
+    if (promptedInGameover) return;
+    promptedInGameover = true;
+    if (lastState.cheated) return;          // disqualified — silent
+    if (myFinal <= 0) return;                // nothing to submit
+    if (!Arcade.Leaderboard.qualifies(myFinal)) return;
+    Arcade.Initials.open();
+  }
+
+  // Wire the shared initials state machine. onSubmit posts to the
+  // leaderboard and closes the entry UI; the player can then tap
+  // START to play again. The fire button gets re-labelled SELECT
+  // while initials are active so the touch flow is obvious.
+  Arcade.Initials.mount({
+    fireButton: '#tc-fire',
+    fireLabel:  { idle: 'FIRE', select: 'SELECT' },
+    onSubmit: (initials) => {
+      const myIdx = mySeat ? SEATS.indexOf(mySeat) : -1;
+      const myFinal = (myIdx >= 0 && lastState && lastState.players[myIdx])
+        ? (lastState.players[myIdx].score | 0)
+        : 0;
+      Arcade.Leaderboard.submit(myFinal, initials).then(res => {
+        if (!res.ok) console.warn('[leaderboard] submit failed:', res.error);
+      });
+    },
+  });
 
   startBtn.addEventListener('click', () => {
     // iOS needs the AudioContext created/resumed inside a real user
@@ -1270,9 +1367,11 @@
       // cutscene). Server gates by status/phase so spamming B during
       // the lobby or cutscene is a no-op. Skipped when focus is in a
       // text field (e.g. the name input) so typing a 'b' in your name
-      // doesn't blast the swarm.
+      // doesn't blast the swarm. Also skipped while typing initials
+      // so the 'B' letter selection doesn't trigger a cheat call.
       const t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (Arcade.Initials.isActive()) return;
       sendToServer({ type: 'cheat' });
     }
   });

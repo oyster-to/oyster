@@ -143,7 +143,12 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //        swooping minions that catch player bullets before the boss
 //        (charged pierces, normal consumed). Worth +50; respawn 5 s
 //        after kill. New wire field: boss.adds[].
-const NETCODE_VERSION = 28;
+// v29 — Phase J: leaderboard. New wire field state.cheated flips
+//        true on any B-press this match so clients disqualify their
+//        per-player scores from submission. Also fixes the charged-
+//        bullet-vs-boss bug (boss now consumes bullets on hit like
+//        SP — was dealing ~24 dmg per hold-release).
+const NETCODE_VERSION = 29;
 
 type ClientMessage =
   | { type: 'ping';   t: number }
