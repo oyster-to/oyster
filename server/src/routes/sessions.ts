@@ -166,17 +166,49 @@ export interface MergedSessionPayload {
   terminalId: string | null;
   /** Count of currently-attached WS clients on the linked terminal. */
   terminalAttachedClients: number;
-  /** Recent create/modify artifact touches, capped to 3,
-   *  ordered by whenAt DESC. Populated for local sessions only.
-   *  Deduped by artifactId: if the same artifact has both create and
-   *  modify rows, the create wins (more interesting attribution). */
+  /** Recent artifact touches for this session, curated and ranked, capped to 5.
+   *  Ordered by role (create > modify > read) → recency → kind.
+   *  Read touches are included only when the session produced nothing (create/modify).
+   *  Populated for local sessions only; absent for remote sessions. */
   recentArtifacts?: Array<{
     artifactId: string;
     label: string;
-    role: "create" | "modify";
+    role: "create" | "modify" | "read";
     whenAt: string;
   }>;
 }
+
+// ---------------------------------------------------------------------------
+// Chip ranking helper — pure, exported for unit tests
+// ---------------------------------------------------------------------------
+
+type ChipRole = "create" | "modify" | "read";
+export interface SessionChip { artifactId: string; label: string; role: ChipRole; whenAt: string; kind: string; }
+const ROLE_RANK: Record<ChipRole, number> = { create: 0, modify: 1, read: 2 };
+const KIND_RANK: Record<string, number> = { deck: 0, wireframe: 0, table: 0, diagram: 0, notes: 1 };
+
+/** Curate a session's touch rows into a small ranked chip set: dedupe by artifact
+ *  (strongest role wins, newest within a role); drop reads entirely if the session
+ *  produced anything; sort role → recency → kind; cap. */
+export function rankSessionChips(rows: SessionChip[], cap = 5): SessionChip[] {
+  const byArtifact = new Map<string, SessionChip>();
+  for (const r of rows) {
+    const cur = byArtifact.get(r.artifactId);
+    if (!cur || ROLE_RANK[r.role] < ROLE_RANK[cur.role] ||
+        (r.role === cur.role && r.whenAt > cur.whenAt)) byArtifact.set(r.artifactId, r);
+  }
+  let chips = [...byArtifact.values()];
+  const produced = chips.filter((c) => c.role !== "read");
+  if (produced.length > 0) chips = produced;          // reads only when nothing produced
+  chips.sort((a, b) =>
+    ROLE_RANK[a.role] - ROLE_RANK[b.role] ||
+    (a.whenAt < b.whenAt ? 1 : a.whenAt > b.whenAt ? -1 : 0) ||
+    (KIND_RANK[a.kind] ?? 1) - (KIND_RANK[b.kind] ?? 1),
+  );
+  return chips.slice(0, cap);
+}
+
+// ---------------------------------------------------------------------------
 
 /** Map a local sessions row to the wire payload shape.
  *  Exported so unit tests can exercise the mapping without spinning up HTTP. */
@@ -256,63 +288,45 @@ export async function tryHandleSessionRoute(
       mapSessionRow(row),
     );
 
-    // Attach recent create/modify artifact touches to each local session.
+    // Attach ranked artifact touches to each local session as chips.
     // Single batched query keyed on the local session ids — no N+1. Remote
     // sessions are skipped (cross-device attribution isn't modeled yet;
-    // their session_artifacts rows live on the origin device). Deduped by
-    // artifact_id BEFORE the cap-of-3: if a session both created and
-    // modified the same artifact, the create wins. Then top-3 by whenAt.
+    // their session_artifacts rows live on the origin device).
+    // Ranking delegated to rankSessionChips: dedupes by artifact, drops reads
+    // when the session produced anything, sorts role→recency→kind, caps at 5.
     if (rows.length > 0) {
       const placeholders = rows.map(() => "?").join(",");
       const touchRows = db.prepare(
-        `SELECT sa.session_id    AS sessionId,
-                sa.role          AS role,
-                sa.when_at       AS whenAt,
-                a.id             AS artifactId,
-                a.label          AS label
+        `SELECT sa.session_id      AS sessionId,
+                sa.role            AS role,
+                sa.when_at         AS whenAt,
+                a.id               AS artifactId,
+                a.label            AS label,
+                a.artifact_kind    AS kind
            FROM session_artifacts sa
            JOIN artifacts a ON a.id = sa.artifact_id
-          WHERE sa.role IN ('create', 'modify')
+          WHERE sa.role IN ('create', 'modify', 'read')
             AND sa.session_id IN (${placeholders})
           ORDER BY sa.when_at DESC`,
-      ).all(...rows.map((r) => r.id)) as Array<{
-        sessionId: string;
-        role: "create" | "modify";
-        whenAt: string;
-        artifactId: string;
-        label: string;
-      }>;
-      type Entry = { artifactId: string; label: string; role: "create" | "modify"; whenAt: string };
-      const bySession = new Map<string, Map<string, Entry>>();
+      ).all(...rows.map((r) => r.id)) as Array<SessionChip & { sessionId: string }>;
+      const bySession = new Map<string, SessionChip[]>();
       for (const t of touchRows) {
-        let byArtifact = bySession.get(t.sessionId);
-        if (!byArtifact) {
-          byArtifact = new Map<string, Entry>();
-          bySession.set(t.sessionId, byArtifact);
-        }
-        const existing = byArtifact.get(t.artifactId);
-        const incoming: Entry = {
-          artifactId: t.artifactId,
-          label: t.label,
-          role: t.role,
-          whenAt: t.whenAt,
-        };
-        // Prefer create over modify; otherwise keep existing (which is
-        // most-recent because the SQL is ORDER BY when_at DESC and we hit
-        // existing first for the newer row).
-        if (!existing) {
-          byArtifact.set(t.artifactId, incoming);
-        } else if (existing.role === "modify" && incoming.role === "create") {
-          byArtifact.set(t.artifactId, incoming);
-        }
+        let list = bySession.get(t.sessionId);
+        if (!list) { list = []; bySession.set(t.sessionId, list); }
+        list.push({ artifactId: t.artifactId, label: t.label, role: t.role, whenAt: t.whenAt, kind: t.kind });
       }
       for (const entry of localPayload) {
-        const byArtifact = bySession.get(entry.id);
-        if (!byArtifact || byArtifact.size === 0) continue;
-        const list = [...byArtifact.values()]
-          .sort((a, b) => (a.whenAt < b.whenAt ? 1 : a.whenAt > b.whenAt ? -1 : 0))
-          .slice(0, 3);
-        if (list.length > 0) entry.recentArtifacts = list;
+        const rawChips = bySession.get(entry.id);
+        if (!rawChips || rawChips.length === 0) continue;
+        const chips = rankSessionChips(rawChips);
+        if (chips.length > 0) {
+          entry.recentArtifacts = chips.map((c) => ({
+            artifactId: c.artifactId,
+            label: c.label,
+            role: c.role,
+            whenAt: c.whenAt,
+          }));
+        }
       }
     }
 

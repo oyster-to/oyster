@@ -46,7 +46,7 @@ function makeDb(): Database.Database {
       label TEXT NOT NULL
     );
     CREATE TABLE artifacts (
-      id TEXT PRIMARY KEY, label TEXT NOT NULL
+      id TEXT PRIMARY KEY, label TEXT NOT NULL, artifact_kind TEXT NOT NULL DEFAULT 'notes'
     );
     CREATE TABLE session_artifacts (
       session_id TEXT NOT NULL, artifact_id TEXT NOT NULL,
