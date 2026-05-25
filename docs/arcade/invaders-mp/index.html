@@ -1132,7 +1132,13 @@
       const prev = lastState;
       const seatIdx = mySeat ? SEATS.indexOf(mySeat) : -1;
       if (prev) {
-        if (msg.score > prev.score) Arcade.Audio.play('sfx-kill', 0.5);
+        // "Any kill happened this tick" = sum of all per-player
+        // scores increased. Derived locally now that the team-score
+        // wire field is gone (per-player only — Sackboy model).
+        let prevSum = 0, nextSum = 0;
+        for (let i = 0; i < prev.players.length; i++) prevSum += (prev.players[i]?.score | 0);
+        for (let i = 0; i < msg.players.length;  i++) nextSum += (msg.players[i]?.score  | 0);
+        if (nextSum > prevSum) Arcade.Audio.play('sfx-kill', 0.5);
         if (seatIdx >= 0
             && prev.players[seatIdx]?.alive
             && !msg.players[seatIdx]?.alive

@@ -1138,16 +1138,9 @@ export function shieldOffsets() {
 }
 
 export function snapshotForClient(state) {
-  let teamScore = 0;
-  for (const s of SEATS) teamScore += state.ships[s].score | 0;
   return {
     status: state.status,
     won: state.won,
-    // Team score = sum of per-player scores. Kept on the wire because
-    // the gameover/lobby copy ("Earth is safe! Score: 250") reads
-    // cleanly as one team number, and external bits (sfx-kill diff)
-    // can just watch this for "any kill happened".
-    score: teamScore,
     // Shared respawn-pool counter. Decremented each time a ship dies
     // (down to 0). Renderer shows it as the LIVES HUD value.
     lives: state.lives,

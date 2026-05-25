@@ -142,8 +142,6 @@ export interface GameState {
 export interface WireSnapshot {
   status: Status;
   won: boolean;
-  /** Sum of all per-player scores; convenience for HUD/team copy. */
-  score: number;
   /** Shared respawn pool. */
   lives: number;
   countdownEndMs: number;
