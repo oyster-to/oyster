@@ -34,6 +34,8 @@ interface SessionRowProps {
   onTerminalRestore?: (sessionId: string, terminalId: string) => void;
   /** Resume a non-live session (spawns `claude --resume <id>`). */
   onResume?: (sessionId: string) => void;
+  /** Open an artefact (by id) in the viewer — backs the artefact chips. */
+  onOpenArtifact?: (artifactId: string) => void;
 }
 
 export function SessionRow({
@@ -46,6 +48,7 @@ export function SessionRow({
   onTerminalFocus,
   onTerminalRestore,
   onResume,
+  onOpenArtifact,
 }: SessionRowProps) {
   const time = formatRelative(session.lastEventAt) ?? "—";
   const hasTitle = !!session.title;
@@ -152,12 +155,15 @@ export function SessionRow({
       {hasExtra && (
         <div className="sr-extra">
           {session.recentArtifacts!.map((a) => (
-            <span
+            <button
               key={a.artifactId}
+              type="button"
               className="sr-artifact-chip"
+              onClick={(e) => { e.stopPropagation(); onOpenArtifact?.(a.artifactId); }}
+              title={`Open ${a.label}`}
             >
-              <span className="sr-artifact-chip-glyph">¶</span>{a.label}
-            </span>
+              {a.label}
+            </button>
           ))}
         </div>
       )}

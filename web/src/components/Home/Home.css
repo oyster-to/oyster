@@ -1946,14 +1946,21 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  font-family: inherit;
   font-size: 10.5px;
   color: var(--home-accent-bright);
   background: rgba(124, 107, 255, 0.08);
   border: 1px solid rgba(124, 107, 255, 0.18);
   border-radius: 999px;
-  padding: 1px 8px 1px 7px;
+  padding: 1px 8px;
+  margin: 0;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
-.sr-artifact-chip-glyph { font-size: 9px; opacity: 0.8; }
+.sr-artifact-chip:hover {
+  background: rgba(124, 107, 255, 0.16);
+  border-color: rgba(124, 107, 255, 0.35);
+}
 
 /* ── Full/Compact toggle (text pills) ── */
 .view-toggle-text {

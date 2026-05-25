@@ -1,8 +1,9 @@
 import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import chokidar, { type FSWatcher } from "chokidar";
-import type { ArtifactStore } from "../artifact-store.js";
+import type Database from "better-sqlite3";
+import type { ArtifactService } from "../artifact-service.js";
 import type {
   InsertSessionEvent,
   SessionArtifactRole,
@@ -18,6 +19,7 @@ import {
   type DeriveStateInput,
   type ProbeSignal,
 } from "../session-state.js";
+import { registerTouchedOutput } from "../session-output-sweep.js";
 
 // Re-export so existing watcher consumers can keep their imports stable
 // during the relocation. New callers should import from session-state.js
@@ -57,7 +59,8 @@ const TITLE_MAX = 80;
 
 export interface ClaudeCodeWatcherDeps {
   sessionStore: SessionStore;
-  artifactStore: ArtifactStore;
+  service: ArtifactService;
+  db: Database.Database;
   /** Resolve a cwd → `{ projectId, spaceId }` via `<cwd>/.oyster/id`. */
   lookupProject: (cwd: string | null) => { projectId: string | null; spaceId: string | null };
   /** Called whenever a session row is inserted/updated, for SSE broadcast. */
@@ -446,7 +449,7 @@ export class ClaudeCodeWatcher {
     // append.
     if (lines.length > 0) lines.pop();
 
-    const spaceId = this.deps.lookupProject(cwd).spaceId;
+    const sweepDeps = { db: this.deps.db, service: this.deps.service, sessionStore: this.deps.sessionStore };
     const events: InsertSessionEvent[] = [];
 
     for (const line of lines) {
@@ -462,7 +465,7 @@ export class ClaudeCodeWatcher {
       // and persist every assistant `stop_reason` we see.
       captureEvidence(ev, sessionId, this.deps.sessionStore);
 
-      const rendered = renderEvent(ev);
+      const rendered = renderEvent(ev, cwd);
       if (rendered) {
         const text = rendered.text.slice(0, TEXT_PREVIEW_MAX);
         events.push({
@@ -475,20 +478,23 @@ export class ClaudeCodeWatcher {
         });
       }
 
-      // Same orphan-skip rule as consumeOnce: don't attribute touches when
-      // we can't anchor them to a space.
-      if (ev.type === "assistant" && Array.isArray(ev.message?.content) && spaceId) {
+      if (ev.type === "assistant" && Array.isArray(ev.message?.content)) {
         for (const block of ev.message.content) {
           const touch = artifactTouchFromToolUse(block);
           if (!touch) continue;
-          const artifact = this.deps.artifactStore.getByPath(touch.path);
-          if (!artifact) continue;
-          if (artifact.space_id !== spaceId) continue;
-          this.deps.sessionStore.insertArtifactTouch({
-            session_id: sessionId,
-            artifact_id: artifact.id,
-            role: touch.role,
-          });
+          const whenAt = typeof ev.timestamp === "string"
+            ? ev.timestamp
+            : this.now().toISOString();
+          try {
+            await registerTouchedOutput(sweepDeps, {
+              sessionId,
+              path: touch.path,
+              role: touch.role,
+              whenAt,
+            });
+          } catch (err) {
+            console.warn("[live-ingest] touch registration failed", touch.path, err);
+          }
         }
       }
     }
@@ -722,6 +728,7 @@ export class ClaudeCodeWatcher {
     // the local device match this encoding. Hoisted out of the loop since
     // it's the same for every line.
     const parentDir = basename(dirname(filePath));
+    const sweepDeps = { db: this.deps.db, service: this.deps.service, sessionStore: this.deps.sessionStore };
 
     for (const line of lines) {
       if (!line) continue;
@@ -803,7 +810,7 @@ export class ClaudeCodeWatcher {
         captureEvidence(ev, tracker.sessionId, this.deps.sessionStore);
       }
 
-      const rendered = renderEvent(ev);
+      const rendered = renderEvent(ev, tracker.cwd);
       if (rendered && tracker.sessionId) {
         const text = rendered.text.slice(0, TEXT_PREVIEW_MAX);
         events.push({
@@ -819,24 +826,22 @@ export class ClaudeCodeWatcher {
 
       // Artifact touches from tool_use blocks.
       if (ev.type === "assistant" && Array.isArray(ev.message?.content) && tracker.sessionId) {
-        const spaceId = this.deps.lookupProject(tracker.cwd).spaceId;
-        // Skip touch attribution entirely for orphan sessions (cwd not
-        // mapped to any space). Without a session→space link we can't
-        // tell whether the touch belongs here or is bleed-through from a
-        // tool reading across spaces, so creating provenance edges from a
-        // homeless session into other spaces would be misleading.
-        if (!spaceId) continue;
         for (const block of ev.message.content) {
           const touch = artifactTouchFromToolUse(block);
           if (!touch) continue;
-          const artifact = this.deps.artifactStore.getByPath(touch.path);
-          if (!artifact) continue;
-          if (artifact.space_id !== spaceId) continue;
-          this.deps.sessionStore.insertArtifactTouch({
-            session_id: tracker.sessionId,
-            artifact_id: artifact.id,
-            role: touch.role,
-          });
+          const whenAt = typeof ev.timestamp === "string"
+            ? ev.timestamp
+            : this.now().toISOString();
+          try {
+            await registerTouchedOutput(sweepDeps, {
+              sessionId: tracker.sessionId,
+              path: touch.path,
+              role: touch.role,
+              whenAt,
+            });
+          } catch (err) {
+            console.warn("[live-ingest] touch registration failed", touch.path, err);
+          }
         }
       }
     }
@@ -1035,10 +1040,26 @@ interface RenderedEvent {
   text: string;
 }
 
+/** Display form for a touched file path: relative to the session cwd when
+ *  under it; else ~-collapsed; else absolute. */
+export function displayTouchPath(filePath: string, cwd: string | null | undefined): string {
+  if (cwd) {
+    const rel = relative(cwd, filePath);
+    if (rel && !rel.startsWith("..") && !isAbsolute(rel)) return rel;
+  }
+  const home = process.env.HOME ?? process.env.USERPROFILE;
+  if (home) {
+    const fp = filePath.replace(/\\/g, "/");
+    const h = home.replace(/\\/g, "/");
+    if (fp === h || fp.startsWith(h + "/")) return "~" + fp.slice(h.length);
+  }
+  return filePath;
+}
+
 // Map a raw JSONL event to a (role, text) pair the home feed can render.
 // Returns null for events we deliberately skip (file-history-snapshot,
 // last-prompt, attachment metadata, etc — useful in `raw` only).
-export function renderEvent(ev: Record<string, any>): RenderedEvent | null {
+export function renderEvent(ev: Record<string, any>, cwd?: string | null): RenderedEvent | null {
   switch (ev.type) {
     case "user": {
       const content = ev.message?.content;
@@ -1067,20 +1088,35 @@ export function renderEvent(ev: Record<string, any>): RenderedEvent | null {
       const hasText = blocks.some(
         (b: any) => b?.type === "text" && typeof b.text === "string" && b.text.trim() !== "",
       );
-      const toolNames = blocks
-        .filter((b: any) => b?.type === "tool_use" && typeof b.name === "string")
-        .map((b: any) => b.name as string);
+      const hasToolUse = blocks.some((b: any) => b?.type === "tool_use" && typeof b.name === "string");
       // Pure tool-call turns (no text blocks, only tool_use) are tool calls
       // semantically — the "ASSISTANT [Bash]" rendering was misleading. Mark
       // them as `tool` so the inspector renders them as collapsible tool
       // turns, matching tool_result on the other side.
-      if (!hasText && toolNames.length > 0) {
-        return { role: "tool", text: toolNames.map((n) => `[${n}]`).join(" ") };
+      if (!hasText && hasToolUse) {
+        const toolTexts = blocks
+          .filter((b: any) => b?.type === "tool_use" && typeof b.name === "string")
+          .map((b: any) => {
+            const filePath = typeof b.input?.file_path === "string"
+              ? b.input.file_path
+              : typeof b.input?.notebook_path === "string"
+                ? b.input.notebook_path
+                : null;
+            return filePath ? `[${b.name} ${displayTouchPath(filePath, cwd)}]` : `[${b.name}]`;
+          });
+        return { role: "tool", text: toolTexts.join(" ") };
       }
       const text = blocks
         .map((b: any) => {
           if (b?.type === "text" && typeof b.text === "string") return b.text;
-          if (b?.type === "tool_use" && typeof b.name === "string") return `[${b.name}]`;
+          if (b?.type === "tool_use" && typeof b.name === "string") {
+            const filePath = typeof b.input?.file_path === "string"
+              ? b.input.file_path
+              : typeof b.input?.notebook_path === "string"
+                ? b.input.notebook_path
+                : null;
+            return filePath ? `[${b.name} ${displayTouchPath(filePath, cwd)}]` : `[${b.name}]`;
+          }
           return "";
         })
         .filter(Boolean)
@@ -1108,7 +1144,11 @@ export function artifactTouchFromToolUse(
 ): { path: string; role: SessionArtifactRole } | null {
   if (!block || block.type !== "tool_use") return null;
   const name = typeof block.name === "string" ? block.name : null;
-  const filePath = typeof block.input?.file_path === "string" ? block.input.file_path : null;
+  const filePath = typeof block.input?.file_path === "string"
+    ? block.input.file_path
+    : typeof block.input?.notebook_path === "string"
+      ? block.input.notebook_path
+      : null;
   if (!name || !filePath) return null;
   switch (name) {
     case "Read":
@@ -1116,6 +1156,8 @@ export function artifactTouchFromToolUse(
     case "Write":
       return { path: filePath, role: "create" };
     case "Edit":
+    case "MultiEdit":
+    case "NotebookEdit":
       return { path: filePath, role: "modify" };
     default:
       return null;

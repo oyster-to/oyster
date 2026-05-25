@@ -74,6 +74,7 @@ import { tryHandleTerminalRoute } from "./routes/terminals.js";
 import { SqliteFtsMemoryProvider } from "./memory-store.js";
 import { AuthService } from "./auth-service.js";
 import { bootMark, bootTime, bootTimeAsync } from "./boot-timer.js";
+import { runOutputBackfill } from "./session-output-sweep.js";
 
 bootMark("imports loaded");
 
@@ -1130,6 +1131,19 @@ httpServer.listen(port, "127.0.0.1", () => {
     catch (err) { console.warn("[fts] health check failed (non-fatal):", err); }
   });
 
+  // One-time historical output backfill (Job A: re-render event text with file
+  // paths for search; Job B: register touched file-outputs + link them to the
+  // sessions that produced them). ~5s after boot so the UI is already responsive;
+  // background + non-blocking. Self-skips once done; resumes from its cursor
+  // otherwise. Ends with an FTS rebuild to restore snippet() consistency.
+  setTimeout(() => {
+    runOutputBackfill({ db, service: artifactService, sessionStore })
+      .then((r) =>
+        console.log(`[output-backfill] re-rendered ${r.events} events, registered ${r.registered} outputs, ${r.links} session links`),
+      )
+      .catch((err) => console.warn("[output-backfill] failed (non-fatal):", err));
+  }, 5000);
+
   // Spawn OpenCode AFTER server is listening so MCP connection succeeds
   spawnOpenCodeServe(OPENCODE_BIN, OPENCODE_PORT, USERLAND_DIR, cleanEnv);
 
@@ -1185,7 +1199,8 @@ httpServer.listen(port, "127.0.0.1", () => {
 
   const claudeCodeWatcher = new ClaudeCodeWatcher({
     sessionStore,
-    artifactStore: store,
+    service: artifactService,
+    db,
     lookupProject: (cwd) => lookupProject(db, cwd, cwd ? (c) => projectService.getOrCreateByCwd(c) : undefined),
     emitSessionChanged: (id) => {
       broadcastUiEvent({ version: 1, command: "session_changed", payload: { id } });
