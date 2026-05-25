@@ -77,6 +77,28 @@ export function ArtefactInspector({ artifact, onSwitchTo, onClose, onOpen }: Pro
         </div>
       </header>
       <div className="inspector-body">
+        {(artifact.sourceOrigin || artifact.path || artifact.createdAt) && (
+          <div className="artefact-meta-block">
+            {artifact.sourceOrigin && (
+              <div className="artefact-meta-row">
+                <span className="artefact-meta-key">Origin</span>
+                <span className="artefact-meta-val">{artifact.sourceOrigin}</span>
+              </div>
+            )}
+            {artifact.path && (
+              <div className="artefact-meta-row">
+                <span className="artefact-meta-key">Path</span>
+                <span className="artefact-meta-val artefact-meta-path">{artifact.path}</span>
+              </div>
+            )}
+            {artifact.createdAt && (
+              <div className="artefact-meta-row">
+                <span className="artefact-meta-key">Registered</span>
+                <span className="artefact-meta-val">{formatRel(artifact.createdAt)}</span>
+              </div>
+            )}
+          </div>
+        )}
         <div className="inspector-section-label" style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--accent-bright)", marginBottom: 12 }}>
           Sessions that touched this
         </div>

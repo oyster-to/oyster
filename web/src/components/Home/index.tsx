@@ -1322,8 +1322,9 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                     window.open(a.url, "_blank", "noopener,noreferrer");
                     return;
                   }
-                  setActivePanel({ kind: "artefact", id: a.id });
+                  desktopProps.onArtifactClick(a);
                 }}
+                  onArtifactInspect={(a) => setActivePanel({ kind: "artefact", id: a.id })}
                 />
               </div>
               {artefactsLimit < filteredArtefactsTotal && (
@@ -1346,7 +1347,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                     window.open(a.url, "_blank", "noopener,noreferrer");
                     return;
                   }
-                  setActivePanel({ kind: "artefact", id: a.id });
+                  desktopProps.onArtifactClick(a);
                 }}
                 onArtifactPublish={desktopProps.onArtifactPublish}
                 onArtifactUpdate={desktopProps.onArtifactUpdate}

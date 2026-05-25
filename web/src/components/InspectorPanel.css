@@ -738,65 +738,35 @@ button.link-row:focus-visible {
   color: var(--text-dim);
 }
 
-/* ── Details panel (#details) ── */
-.details-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 24px;
-  font-size: 13px;
+/* ── Artefact inspector metadata block ── */
+.artefact-meta-block {
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 16px;
 }
-.details-table th {
-  width: 90px;
-  padding: 6px 12px 6px 0;
-  font-size: 11px;
+.artefact-meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+.artefact-meta-key {
+  flex-shrink: 0;
+  width: 72px;
+  font-size: 10px;
   font-family: var(--font-mono);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-dim);
   font-weight: 500;
-  text-align: left;
-  vertical-align: top;
-  white-space: nowrap;
 }
-.details-table td {
-  padding: 6px 0;
+.artefact-meta-val {
   color: var(--text);
-  word-break: break-all;
-  vertical-align: top;
-}
-.details-path {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text);
-  word-break: break-all;
-}
-.details-section-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--accent-bright);
-  margin-bottom: 10px;
-}
-.details-session-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  font-size: 12px;
-}
-.details-session-row:last-child { border-bottom: none; }
-.details-session-title {
-  flex: 1;
   min-width: 0;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.details-session-when {
+.artefact-meta-path {
+  font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--text-dim);
-  white-space: nowrap;
+  word-break: break-all;
 }

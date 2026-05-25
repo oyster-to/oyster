@@ -8,7 +8,6 @@ import { ArtifactIcon } from "./ArtifactIcon";
 import { ConfirmModal } from "./ConfirmModal";
 import { PromptModal } from "./PromptModal";
 import { GroupIcon } from "./GroupIcon";
-import { DetailsPanel } from "./DetailsPanel";
 
 interface Props {
   space: string;
@@ -32,13 +31,14 @@ interface Props {
    *  bucketing by source-folder hides the result the user just asked for. */
   flatten?: boolean;
   onArtifactPublish?: (artifact: Artifact) => void;
+  onArtifactInspect?: (artifact: Artifact) => void;
 }
 
 type DisplayItem =
   | { type: "group"; key: string; name: string; artifacts: Artifact[] }
   | { type: "artifact"; key: string; artifact: Artifact };
 
-export function Desktop({ space, spaces, artifacts, isHero, onArtifactClick, onArtifactStop, onGroupClick, onSpaceChange, onConvertToSpace, onRefresh, onArtifactUpdate, onArtifactRemove, revealId, isArchivedView, showMeta, flatten, onArtifactPublish }: Props) {
+export function Desktop({ space, spaces, artifacts, isHero, onArtifactClick, onArtifactStop, onGroupClick, onSpaceChange, onConvertToSpace, onRefresh, onArtifactUpdate, onArtifactRemove, revealId, isArchivedView, showMeta, flatten, onArtifactPublish, onArtifactInspect }: Props) {
   const isAllSpace = space === "__all__";
   // Meta-spaces span multiple real spaces, so groupName is no longer unique —
   // `notes` from space A would merge with `notes` from space B into a single
@@ -69,9 +69,6 @@ export function Desktop({ space, spaces, artifacts, isHero, onArtifactClick, onA
     window.addEventListener("mousedown", handleClick);
     return () => window.removeEventListener("mousedown", handleClick);
   }, [artifactCtx]);
-
-  // ── Details panel ──
-  const [detailsArtifact, setDetailsArtifact] = useState<Artifact | null>(null);
 
   // ── Inline rename ──
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -354,7 +351,7 @@ export function Desktop({ space, spaces, artifacts, isHero, onArtifactClick, onA
             </button>
           ) : (
             <>
-              <button className="space-ctx-item" onClick={() => { setDetailsArtifact(artifactCtx.artifact); setArtifactCtx(null); }}>Details</button>
+              <button className="space-ctx-item" onClick={() => { onArtifactInspect?.(artifactCtx.artifact); setArtifactCtx(null); }}>Inspect</button>
               <div className="space-ctx-sep" />
               <button className="space-ctx-item" onClick={() => handleRenameArtifact(artifactCtx.artifact)}>Rename</button>
               {!isArchivedView && artifactCtx.artifact.status !== "generating" && (
@@ -473,7 +470,6 @@ export function Desktop({ space, spaces, artifacts, isHero, onArtifactClick, onA
         </button>
       )}
 
-      <DetailsPanel artifact={detailsArtifact} onClose={() => setDetailsArtifact(null)} />
     </div>
   );
 }
