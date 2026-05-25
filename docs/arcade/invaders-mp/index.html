@@ -292,8 +292,42 @@
     color: rgba(255, 255, 255, 0.45);
     margin-top: 6px;
   }
-  #endscreen .es-saved {
+  #endscreen .es-lb-msg {
     font-size: 9px; letter-spacing: 0.12em;
+    color: #6bff8c;
+    min-height: 1.2em;
+  }
+  #endscreen .es-lb-msg.is-warn {
+    color: #ffd84a;
+  }
+
+  /* Top-10 leaderboard table. Tight 3-column grid (rank · initials
+     · score) so 10 rows fit even on iPhone-SE width. Player's own
+     row highlighted when it appears (matches submitted initials).  */
+  #endscreen .es-leaderboard {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    font-size: 8px; letter-spacing: 0.12em;
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 4px;
+  }
+  #endscreen .es-leaderboard[hidden] { display: none; }
+  #endscreen .es-lb-label {
+    color: #ffd84a;
+  }
+  #endscreen .es-lb-list {
+    list-style: none; margin: 0; padding: 0;
+    display: grid;
+    grid-template-columns: max-content max-content max-content;
+    column-gap: 14px; row-gap: 3px;
+    align-items: baseline;
+  }
+  #endscreen .es-lb-list li { display: contents; }
+  #endscreen .es-lb-list .rank     { color: rgba(255,255,255,0.4); text-align: right; }
+  #endscreen .es-lb-list .initials { color: #ffffff; text-align: left; }
+  #endscreen .es-lb-list .score    { color: #ffd84a; text-align: right; }
+  #endscreen .es-lb-list li.is-mine .rank,
+  #endscreen .es-lb-list li.is-mine .initials,
+  #endscreen .es-lb-list li.is-mine .score {
     color: #6bff8c;
   }
 
@@ -454,11 +488,22 @@
         <div class="es-hint">USE KEYBOARD OR ← → BUTTONS · FIRE/SELECT TO ADVANCE</div>
       </div>
 
-      <!-- "Submitted" confirmation — visible only after a successful
-           leaderboard submit. Holds briefly, then the overlay auto-
-           returns to the title screen (matches arcade convention:
-           game over → score → high-score entry → back to attract). -->
-      <div id="es-saved" class="es-saved" hidden></div>
+      <!-- Single-line leaderboard status. One of:
+           - "TEST RUN — SCORE NOT SAVED" (cheated)
+           - "BEAT 2710 TO MAKE THE LEADERBOARD" (non-qualifying)
+           - "SCORE SAVED AS DAD" (after successful submit)
+           - hidden (while initials block is open and prompting). -->
+      <div id="es-lb-msg" class="es-lb-msg" hidden></div>
+
+      <!-- Top-10 leaderboard. Always visible on the endscreen so the
+           player has context for "did I make it?" (and a target if
+           they didn't). Populated from Arcade.Leaderboard.read()
+           which is kept in sync by the refresh() call on init + the
+           submit() responses. -->
+      <div id="es-leaderboard" class="es-leaderboard" hidden>
+        <div class="es-lb-label">TOP SCORES</div>
+        <ol class="es-lb-list"></ol>
+      </div>
 
       <!-- Tap hint — same auto-dismiss as the timer, but tells the
            user the overlay will go away on its own + that they can
@@ -539,8 +584,12 @@
   // Leaderboard — same `'invaders'` game key as SP so MP per-player
   // scores share one hi-score table with any legacy SP scores. Top
   // 10 displayed. `qualifies()` reads the local mirror; `submit()`
-  // posts to /api/leaderboard.
+  // posts to /api/leaderboard. refresh() pulls the latest list from
+  // the worker into the local mirror so `qualifies()` is correct
+  // for first-time visitors (otherwise an empty localStorage would
+  // accept any positive score as a hi-score).
   Arcade.Leaderboard.init({ game: 'invaders', max: 10 });
+  Arcade.Leaderboard.refresh();
 
   // Per-seat colours for the canvas. Indexed by seat position so the
   // same player reads as the same colour on every viewer's screen.
@@ -1373,17 +1422,42 @@
   const endscreen      = document.getElementById('endscreen');
   const esHeadline     = document.getElementById('es-headline');
   const esScore        = document.getElementById('es-score');
-  const esSaved        = document.getElementById('es-saved');
+  const esLbMsg        = document.getElementById('es-lb-msg');
+  const esLeaderboardEl = document.getElementById('es-leaderboard');
+  const esLbList       = esLeaderboardEl.querySelector('.es-lb-list');
   const esDismissHint  = document.getElementById('es-dismiss-hint');
   const goInitialsEl   = document.getElementById('go-initials');
   let endscreenShown = false;
   let endscreenDismissAt = 0;         // performance.now() ms — 0 = no timer
-  const ENDSCREEN_LINGER_NO_INITIALS_MS = 4500;
-  const ENDSCREEN_LINGER_AFTER_SUBMIT_MS = 1800;
+  const ENDSCREEN_LINGER_NO_INITIALS_MS = 6000;
+  const ENDSCREEN_LINGER_AFTER_SUBMIT_MS = 2500;
 
   function scheduleEndscreenDismiss(ms) {
     endscreenDismissAt = performance.now() + ms;
     esDismissHint.hidden = false;
+  }
+  // Render the top-10 leaderboard inside the endscreen. `highlightInitials`
+  // (if provided) marks the row in green so the player can see where
+  // they just landed after a successful submit.
+  function paintLeaderboard(highlightInitials) {
+    const list = Arcade.Leaderboard.read();
+    if (!list.length) {
+      esLeaderboardEl.hidden = true;
+      return;
+    }
+    esLbList.innerHTML = '';
+    list.forEach((entry, i) => {
+      const li = document.createElement('li');
+      if (highlightInitials && entry.initials === highlightInitials) {
+        li.classList.add('is-mine');
+      }
+      const r   = document.createElement('span'); r.className = 'rank';     r.textContent = `${i + 1}.`;
+      const ini = document.createElement('span'); ini.className = 'initials'; ini.textContent = entry.initials;
+      const sc  = document.createElement('span'); sc.className = 'score';    sc.textContent = String(entry.score);
+      li.appendChild(r); li.appendChild(ini); li.appendChild(sc);
+      esLbList.appendChild(li);
+    });
+    esLeaderboardEl.hidden = false;
   }
   function showEndscreen() {
     if (endscreenShown) return;
@@ -1395,13 +1469,36 @@
     esHeadline.textContent = lastState.won ? 'EARTH IS SAFE' : 'GAME OVER';
     esHeadline.classList.toggle('is-loss', !lastState.won);
     esScore.textContent = String(myFinal);
-    esSaved.hidden = true;
     const shouldPromptInitials =
       !lastState.cheated &&
       myFinal > 0 &&
       Arcade.Leaderboard.qualifies(myFinal);
     goInitialsEl.hidden = !shouldPromptInitials;
     esDismissHint.hidden = true;
+    paintLeaderboard();
+    // Single-line status that explains the leaderboard state — the
+    // big missing piece in the earlier flow ("got 2000 points, why
+    // no prompt?"). Different message per path, hidden during
+    // initials entry (the initials block carries the message there).
+    esLbMsg.classList.remove('is-warn');
+    if (shouldPromptInitials) {
+      esLbMsg.hidden = true;
+    } else if (lastState.cheated) {
+      esLbMsg.textContent = 'TEST RUN — SCORE NOT SAVED';
+      esLbMsg.classList.add('is-warn');
+      esLbMsg.hidden = false;
+    } else {
+      // Real run that didn't qualify — show the cutoff so the player
+      // knows what to beat. If localStorage hasn't synced yet (rare)
+      // fall back to a generic "didn't make it" line.
+      const lbList = Arcade.Leaderboard.read();
+      const cutoff = (lbList.length >= 10) ? lbList[lbList.length - 1].score : 0;
+      esLbMsg.textContent = cutoff > 0
+        ? `BEAT ${cutoff} TO MAKE THE LEADERBOARD`
+        : 'NOT ON THE LEADERBOARD';
+      esLbMsg.classList.add('is-warn');
+      esLbMsg.hidden = false;
+    }
     endscreen.hidden = false;
     if (shouldPromptInitials) {
       // Drop focus from the name input so window keydown events
@@ -1458,19 +1555,29 @@
       const myFinal = (myIdx >= 0 && lastState && lastState.players[myIdx])
         ? (lastState.players[myIdx].score | 0)
         : 0;
-      // Endscreen swap: initials block → "SAVED AS ABC" confirmation,
-      // then auto-return to the title screen after a brief linger so
-      // the player sees their entry landed. Matches arcade
-      // convention: game over → score → high-score entry → back to
-      // attract / title. Submit fires async; if the POST fails the
-      // local mirror still has the entry from the submit() call.
+      // Endscreen swap: initials block → "SAVED AS ABC" confirmation
+      // + leaderboard re-paints with the new entry highlighted in
+      // green. Auto-returns to the title screen after a brief linger
+      // so the player sees their entry landed. Submit fires async;
+      // if the POST fails the local mirror still has the entry from
+      // the optimistic submit() call below.
       goInitialsEl.hidden = true;
-      esSaved.textContent = `SCORE SAVED AS ${initials}`;
-      esSaved.hidden = false;
-      scheduleEndscreenDismiss(ENDSCREEN_LINGER_AFTER_SUBMIT_MS);
+      esLbMsg.textContent = `SCORE SAVED AS ${initials}`;
+      esLbMsg.classList.remove('is-warn');
+      esLbMsg.hidden = false;
       Arcade.Leaderboard.submit(myFinal, initials).then(res => {
-        if (!res.ok) console.warn('[leaderboard] submit failed:', res.error);
+        if (!res.ok) {
+          console.warn('[leaderboard] submit failed:', res.error);
+          return;
+        }
+        // Re-paint with the fresh server-confirmed list so the row
+        // ordering / cutoff matches reality, then highlight ours.
+        paintLeaderboard(initials);
       });
+      // Optimistic local paint so the highlight shows even if the
+      // POST hasn't returned by the time the linger expires.
+      paintLeaderboard(initials);
+      scheduleEndscreenDismiss(ENDSCREEN_LINGER_AFTER_SUBMIT_MS);
     },
   });
 
