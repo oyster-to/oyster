@@ -66,6 +66,8 @@ You have MCP tools (the `oyster` server) for managing the desktop surface direct
 | `register_artifact` | Register a file that **already exists on disk** as a desktop artifact. Only for pre-existing files — for new content, use `create_artifact`. |
 | `open_artifact` | Open an artifact in the user's viewer window by exact ID. Use `list_artifacts(search: ...)` first to find the right ID. |
 | `switch_space` | Switch the user's desktop to a different space by exact ID. Use `list_spaces` first if you need to find available spaces. |
+| `list_sessions` | List recent sessions (most-recent first), optionally scoped to a space. Slim metadata only — no transcript text. Use it to find a session to open. |
+| `open_session` | Open a past session in the inspector by exact ID — transcript, artefacts, memory. Get the id from `recall_transcripts` or `list_sessions`; pass `event_id` to land on a specific turn. |
 | `remember` | Store a memory. Only when the user explicitly asks or shares a durable fact. |
 | `recall` | Search memories by natural language query. Use at session start for relevant context. |
 | `forget` | Remove a memory from active recall by ID. |
@@ -81,6 +83,7 @@ You have MCP tools (the `oyster` server) for managing the desktop surface direct
 - **Reorganising**: use `update_artifact(id, { space_id, group_name, label })` to move between spaces or groups.
 - Always call `list_spaces` and `list_artifacts` first to understand what exists before creating or modifying.
 - **"Show me X" / "open X"** → call `list_artifacts(search: "...")` to find matching artifacts, then `open_artifact(id)` with the exact ID to open it in the viewer.
+- **"Show me / open this session"** → `open_session(session_id)` with the id from a `recall_transcripts` hit or `list_sessions`. Pass the hit's `event_id` to jump to the exact turn. Treat it as an instant navigation command like `open_artifact` — call it immediately, one-line confirmation after.
 - **"Switch to Y" / "go to Y"** → call `switch_space(id)` directly if you already know the space ID from context. Only call `list_spaces` first if you're unsure what spaces exist.
 - `create_artifact` kind determines file extension: `notes`→`.md`, `diagram`→`.mmd`, all others→`.html`
 - New artifacts appear immediately on the desktop after creation.
