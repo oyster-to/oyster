@@ -522,7 +522,7 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
   db.exec(`
     CREATE TABLE IF NOT EXISTS projects (
       id          TEXT PRIMARY KEY,
-      space_id    TEXT NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+      space_id    TEXT REFERENCES spaces(id) ON DELETE CASCADE,
       name        TEXT NOT NULL,
       created_at  TEXT NOT NULL DEFAULT (datetime('now')),
       removed_at  TEXT
@@ -537,6 +537,37 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
     );
     CREATE INDEX IF NOT EXISTS project_paths_path ON project_paths(path);
   `);
+
+  // ── projects.space_id NOT NULL → nullable ──
+  // A project can now be "removed from its space" (space_id = NULL → shows
+  // under Unassigned) without being deleted. SQLite can't drop a NOT NULL
+  // constraint in place, so rebuild via the 12-step pattern when an existing
+  // DB still has the old NOT NULL column. Fresh installs get the nullable
+  // shape from CREATE TABLE above, so this won't fire for them. Inbound FKs
+  // (sessions/artifacts/project_paths → projects) reference the table by name
+  // and keep resolving after the drop+rename; FK off prevents cascade fallout.
+  const projectsSpaceNotNull = (db.prepare("PRAGMA table_info(projects)").all() as { name: string; notnull: number }[])
+    .some((c) => c.name === "space_id" && c.notnull === 1);
+  if (projectsSpaceNotNull) {
+    db.exec(`
+      PRAGMA foreign_keys = OFF;
+      BEGIN TRANSACTION;
+      CREATE TABLE _projects_new (
+        id          TEXT PRIMARY KEY,
+        space_id    TEXT REFERENCES spaces(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+        removed_at  TEXT
+      );
+      INSERT INTO _projects_new (id, space_id, name, created_at, removed_at)
+        SELECT id, space_id, name, created_at, removed_at FROM projects;
+      DROP TABLE projects;
+      ALTER TABLE _projects_new RENAME TO projects;
+      CREATE INDEX IF NOT EXISTS projects_space_id ON projects(space_id) WHERE removed_at IS NULL;
+      COMMIT;
+      PRAGMA foreign_keys = ON;
+    `);
+  }
 
   try { db.exec("ALTER TABLE sessions ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL"); }
   catch { /* already exists */ }
