@@ -142,13 +142,20 @@ const STAGES_PER_SET = 3;
 const STAGE_ANNOUNCE_SEC = 2;
 
 // === Boss ===
-// Single boss type for Phase H (a chunky 8×8 octopus scaled 5× to
-// 40 PF). Multiple boss types + minion adds + win cutscene deferred
-// to a follow-up. HP, speed, and fire interval all ramp per set so
-// later bosses feel progressively scarier.
+// Phase H/2: four boss types (one per set) plus a win cutscene
+// after the final boss falls. Sprite roster lives in sprites.js as
+// BOSS_TYPES; the engine just stores a `type` index on state.boss.
+// HP, speed, and fire interval all ramp per set so later bosses
+// feel progressively scarier. Minion adds are still deferred.
 export const BOSS_W = 40;
 export const BOSS_H = 40;
 export const BOSS_Y = 24;                        // sits where the top invader row would
+// Kept in sync with sprites.js BOSS_TYPES.length. Defeating the
+// BOSS_TYPE_COUNT'th boss triggers the win cutscene → game over.
+export const BOSS_TYPE_COUNT = 4;
+// Length of the win cutscene before status flips to 'gameover'.
+// Short enough to feel like a beat, long enough for kids to whoop.
+export const CUTSCENE_SEC = 5;
 const BOSS_BASE_HP = 30;                         // ~10 charged hits or 30 normal at set 1
 const BOSS_HP_PER_SET = 15;                      // +15 HP per set
 const BOSS_BASE_SPEED = 38;                      // PF/sec at set 1
@@ -297,8 +304,15 @@ export function initState() {
     stageSet: 1,
     stageNum: 1,
     stageAnnounceIn: 0,
-    phase: 'grid',                        // 'grid' | 'boss'
+    // 'grid' = normal wave, 'boss' = boss fight, 'cutscene' = win
+    // celebration playing between the final boss death and status
+    // flipping to 'gameover' (won=true).
+    phase: 'grid',
     boss: null,
+    // Counts down during phase==='cutscene'. When it hits 0 the
+    // engine flips status='gameover', won=true. 0 outside the
+    // cutscene window.
+    cutsceneIn: 0,
     // UFO bonus enemy. ufo is null when off-screen; ufoNextSec ticks
     // down the time until the next spawn (randomised on each despawn).
     ufo: null,
@@ -349,6 +363,19 @@ const ALL_OCCUPIED = Object.freeze(
 
 export function step(state, inputs, dt, occupied = ALL_OCCUPIED) {
   if (state.status !== 'running') return;
+  // Cutscene short-circuit: gameplay frozen, only the cutscene timer
+  // and the popups (so the "+500" from the final blow can finish its
+  // float) keep ticking. When the timer hits 0, status flips to
+  // 'gameover' with won=true and the room broadcasts the lobby state.
+  if (state.phase === 'cutscene') {
+    state.cutsceneIn = Math.max(0, state.cutsceneIn - dt);
+    stepPopups(state, dt);
+    if (state.cutsceneIn === 0) {
+      state.status = 'gameover';
+      state.won = true;
+    }
+    return;
+  }
   tickRespawnAndInvuln(state, dt);
   tickStageAnnounce(state, dt);
   stepShips(state, inputs, dt, occupied);
@@ -405,6 +432,11 @@ function stepPopups(state, dt) {
 function spawnBoss(setNum) {
   const hp = BOSS_BASE_HP + (setNum - 1) * BOSS_HP_PER_SET;
   return {
+    // setNum is 1-indexed; (setNum - 1) % BOSS_TYPE_COUNT cycles
+    // 0..3 over sets 1..4 and rolls over thereafter (defensive — in
+    // practice the cutscene fires on set BOSS_TYPE_COUNT so this
+    // never wraps in a real game).
+    type: (setNum - 1) % BOSS_TYPE_COUNT,
     x: PF_W / 2 - BOSS_W / 2,
     hp,
     hpMax: hp,
@@ -453,6 +485,23 @@ function stepBoss(state, dt) {
 function checkStageClear(state) {
   if (state.phase === 'boss') {
     if (!state.boss || state.boss.hp > 0) return;
+    // Final boss defeated → start the win cutscene instead of
+    // looping to set BOSS_TYPE_COUNT+1. The cutscene tick in step()
+    // flips status to 'gameover' with won=true when the timer ends.
+    if (state.stageSet >= BOSS_TYPE_COUNT) {
+      state.phase = 'cutscene';
+      state.boss = null;
+      state.cutsceneIn = CUTSCENE_SEC;
+      state.invaderBullets = [];
+      state.bullets = [];
+      // Clear any in-flight "STAGE n-BOSS" announce — step() short-
+      // circuits during the cutscene so tickStageAnnounce wouldn't
+      // drain it, and the renderer's phase-aware label would read
+      // the meaningless "STAGE 4-4" once phase flipped away from
+      // 'boss'. Leave only the cutscene overlay on screen.
+      state.stageAnnounceIn = 0;
+      return;
+    }
     state.phase = 'grid';
     state.boss = null;
     state.stageSet += 1;
@@ -996,14 +1045,19 @@ export function snapshotForClient(state) {
     popups:         state.popups.map(p => ({
       x: round(p.x), y: round(p.y), t: p.text, c: p.col, l: round(p.life),
     })),
-    // Phase H: boss waves. phase 'grid' for normal stages, 'boss'
-    // while a boss is on-screen. boss carries x + hp + hpMax for the
-    // renderer's sprite + health bar. null between bosses.
+    // Phase H/2: boss waves + win cutscene. phase 'grid' for normal
+    // stages, 'boss' while a boss is on-screen, 'cutscene' between
+    // the final boss death and the lobby return. boss carries x +
+    // hp + hpMax + type (index into sprites.js BOSS_TYPES). null
+    // between bosses or during cutscene. cutsceneIn is the seconds
+    // remaining on the win cutscene (0 outside that window).
     phase:          state.phase,
     boss:           state.boss ? {
       x:    round(state.boss.x),
       hp:   state.boss.hp,
       hpMax: state.boss.hpMax,
+      type: state.boss.type | 0,
     } : null,
+    cutsceneIn:     round(state.cutsceneIn),
   };
 }
