@@ -826,11 +826,17 @@
     transportEl.classList.remove('p2p', 'connecting');
     if (state === 'p2p')             { transportEl.textContent = 'P2P';  transportEl.classList.add('p2p'); }
     else if (state === 'connecting') { transportEl.textContent = 'P2P…'; transportEl.classList.add('connecting'); }
+    else if (state === 'solo')       { transportEl.textContent = 'SOLO'; transportEl.classList.add('p2p'); }
     else                              { transportEl.textContent = 'relay'; }
   }
   function refreshTransport() {
+    // SOLO takes precedence over RELAY when we're host-engaged with no
+    // peers — gameplay is running locally so labelling it "relay"
+    // would be a lie (and would let a confusing 365 ms DO ping read
+    // as a perf problem when it's irrelevant to actual input latency).
     if (allOccupiedPeersConnected()) setTransport('p2p');
     else if (peers.size > 0)         setTransport('connecting');
+    else if (hostEngaged)            setTransport('solo');
     else                             setTransport('relay');
   }
 
@@ -1195,12 +1201,23 @@
     // iOS needs the AudioContext created/resumed inside a real user
     // gesture. Start is the first guaranteed tap, so do it here.
     Arcade.Audio.ensureCtx();
-    // Engage host mode on Start if at least one peer is up (host can
-    // serve them; later joiners get added to the peer pool as their
-    // WebRTC handshakes complete). Otherwise fall back to cloud relay.
-    if (mySeat === 'p1' && anyPeerConnected()) {
+    // p1 engages host mode on Start whenever the DO round trip is
+    // skippable — either P2P peers are already connected (host serves
+    // them via DC) OR no other seats are occupied (pure solo, runs
+    // local-only with the DO connection idling for late joins). Solo
+    // was the 95% case and was paying 100-365 ms per input by round-
+    // tripping through the DO; this drops it to one frame.
+    //
+    // If a friend joins mid-solo session their first ~3 s of "waiting"
+    // (the DO stays in 'waiting' since we never sent it 'start')
+    // resolves when WebRTC handshake delivers our live state via DC.
+    const otherSeatsOccupied = SEATS.some((_s, i) => i > 0 && seatOccupied(i));
+    if (mySeat === 'p1' && (anyPeerConnected() || !otherSeatsOccupied)) {
       hostEngaged = true;
       startHost();
+      // Badge follows hostEngaged for the SOLO case (peer events drive
+      // the P2P/connecting transitions on their own).
+      refreshTransport();
       return;
     }
     if (mySeat !== 'p1' && peerConnectedTo('p1')) {
@@ -1831,15 +1848,20 @@
       // transport label drawn muted alongside as context. Hidden
       // in kid view (?clean).
       if (!isClean) {
-        const labelMap = { p2p: 'P2P', connecting: 'P2P…', relay: 'RELAY' };
+        const labelMap = { p2p: 'P2P', connecting: 'P2P…', solo: 'SOLO', relay: 'RELAY' };
         const label = labelMap[currentTransport] || 'RELAY';
+        // SOLO renders a synthetic 0 ms — gameplay is one local frame,
+        // not the DO RTT (which would mislead since the DO isn't in
+        // the input path). Other modes still surface lastRTT.
+        const isSolo = currentTransport === 'solo';
         let color = '#777777';                                   // unknown ping → muted
-        if (lastRTT != null) {
+        if (isSolo)                color = '#6bff8c';            // green — local sim
+        else if (lastRTT != null) {
           if      (lastRTT < 80)   color = '#6bff8c';            // green — snappy
           else if (lastRTT < 180)  color = '#ffd84a';            // yellow — playable
           else                     color = '#ff6666';            // red — laggy
         }
-        const pingStr = lastRTT != null ? `${lastRTT}ms` : '—';
+        const pingStr = isSolo ? '0ms' : (lastRTT != null ? `${lastRTT}ms` : '—');
         ctx.font = '5px "Press Start 2P", monospace';
         ctx.textAlign = 'left';
         // Transport label muted; ping coloured. Tiny gap between
