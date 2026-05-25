@@ -419,7 +419,7 @@ export class ProjectService {
   // this one never undeletes and validates the destination.
   moveProjectToSpace(projectId: string, spaceId: string | null): Project {
     if (spaceId !== null) {
-      const space = this.db.prepare("SELECT id FROM spaces WHERE id = ?").get(spaceId);
+      const space = this.db.prepare("SELECT id FROM spaces WHERE id = ? AND deleted_at IS NULL").get(spaceId);
       if (!space) throw new Error(`Space "${spaceId}" not found`);
     }
     this.db.transaction(() => {

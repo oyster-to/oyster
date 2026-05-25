@@ -778,6 +778,12 @@ describe("ProjectService.moveProjectToSpace", () => {
     expect(() => service.moveProjectToSpace(p.id, "ghost")).toThrow(/not found/);
   });
 
+  it("rejects a soft-deleted destination space", () => {
+    const p = service.createProject({ spaceId: "work", name: "Proj" });
+    db.prepare("UPDATE spaces SET deleted_at = ? WHERE id = 'home'").run(Date.now());
+    expect(() => service.moveProjectToSpace(p.id, "home")).toThrow(/not found/);
+  });
+
   it("throws when the project doesn't exist or is soft-deleted", () => {
     expect(() => service.moveProjectToSpace("nope", "home")).toThrow(/not found/);
     const p = service.createProject({ spaceId: "work", name: "Gone" });
