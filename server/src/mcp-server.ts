@@ -737,6 +737,52 @@ export function createMcpServer(deps: McpDeps): McpServer {
     },
   );
 
+  // ── list_sessions ──
+
+  tool(
+    "list_sessions",
+    "List recent sessions for discovery — most-recently-active first, optionally scoped to a space by id. Returns slim metadata only (no transcript text). Use recall_transcripts to search session content, or open_session to surface a session in the inspector.",
+    {
+      space_id: z.string().optional().describe("Scope to a single space id (omit for all spaces). Unknown id returns an empty list."),
+      limit: z.number().int().positive().optional().describe("Max sessions to return. Defaults to 20, capped at 100."),
+    },
+    async ({ space_id, limit }) => {
+      const rows = deps.sessionStore.listRecent({ spaceId: space_id, limit });
+      return rows.map((s) => ({
+        id: s.id,
+        title: s.title,
+        space_id: s.space_id,
+        agent: s.agent,
+        state: s.state,
+        started_at: s.started_at,
+        last_event_at: s.last_event_at,
+        ended_at: s.ended_at,
+      }));
+    },
+  );
+
+  // ── open_session ──
+
+  tool(
+    "open_session",
+    "Open a past session in the user's session inspector by exact ID — shows its transcript, artefacts, and memory. The inspector opens immediately over the current surface. Find the id with recall_transcripts or list_sessions. Pass event_id (from a recall_transcripts hit) to land on that exact transcript turn, and query to pre-fill the in-transcript find bar.",
+    {
+      session_id: z.string().describe("ID of the session to open"),
+      event_id: z.number().int().optional().describe("Transcript event id from a recall_transcripts hit to scroll to and highlight. Best-effort: a stale/missing id still opens the session."),
+      query: z.string().optional().describe("Text to pre-fill the in-transcript find bar (e.g. the phrase recall_transcripts matched)."),
+    },
+    async ({ session_id, event_id, query }) => {
+      const session = deps.sessionStore.getById(session_id);
+      if (!session) throw new Error(`Session "${session_id}" not found. Use list_sessions or recall_transcripts to find a session id.`);
+      deps.broadcastUiEvent({
+        version: 1,
+        command: "open_session",
+        payload: { sessionId: session.id, eventId: event_id, query },
+      });
+      return `Opened session "${session.title ?? session.id}"`;
+    },
+  );
+
   // ── switch_space ──
 
   tool(
