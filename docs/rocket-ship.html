@@ -17,49 +17,15 @@
   }
 </script>
 <link rel="stylesheet" href="arcade/shared/pixel-font.css">
+<link rel="stylesheet" href="arcade/shared/cabinet.css">
 <style>
   /* pixel-font.css (shared) provides the Press Start 2P @font-face, the *
      reset, and the body/canvas gesture + selection lock. */
 
   /* Screen container — old CRT bezel (warm-gray molded plastic) */
-  .screen {
-    position: relative;
-    width: 100vw;
-    height: 100vh;     /* fallback */
-    height: 100svh;    /* clip to visible viewport on iOS Safari/Chrome */
-    overflow: hidden;
-    /* Bezel: dark gradient simulating molded plastic frame, with
-       a soft inner shadow giving the bezel depth. */
-    background:
-      linear-gradient(180deg, #2a2724 0%, #1a1815 50%, #100e0c 100%);
-    padding: 22px;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.06),
-      inset 0 -2px 6px rgba(0, 0, 0, 0.6);
-  }
-
-  /* The tube — inset darker than the bezel, pronounced rounded glass corners
-     for that bulbous old-CRT look. */
-  .tube {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background: #000;
-    border-radius: 36px;
-    box-shadow:
-      /* deep inner shadow makes the bezel look thick around the tube */
-      inset 0 0 0 1px rgba(0, 0, 0, 0.9),
-      inset 0 0 40px rgba(0, 0, 0, 0.85),
-      0 0 0 2px rgba(0, 0, 0, 0.7);
-  }
-
-  canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
-    filter: contrast(1.02) brightness(1.18) saturate(1.3);
-  }
+  /* cabinet.css (shared) provides .screen (bezel), .tube, canvas filter,
+     .overlay (CRT scanlines), .vignette, crt-shake, splash-poweron + arcade-blink
+     keyframes, and the coarse-pointer edge-to-edge tweak. */
 
   /* On-screen touch controls — only on coarse-pointer devices and only once
      the splash dismisses (tube.is-ready). Two thumb clusters: turn-pair in
@@ -129,76 +95,9 @@
   @media (pointer: coarse) {
     .key-only { display: none; }
     .touch-only { display: revert; }
-    /* Touch devices — drop the cabinet bezel + rounded tube edges so
-       the splash + playfield go edge-to-edge. Phones and tablets
-       don't have screen real estate to spare for chrome. */
-    .screen { padding: 0; background: #000; }
-    .tube   { border-radius: 0; box-shadow: none; }
+    /* cabinet.css drops the bezel + tube radius edge-to-edge on coarse pointers. */
   }
 
-  /* CRT scanlines + RGB sub-pixel overlay */
-  /* CRT layers sit ABOVE the splash/gameover/celebrate panels so the scanlines
-     + vignette read on every screen, not just gameplay. pointer-events:none
-     means they don't intercept input from the panels below. */
-  .overlay {
-    height: 100%;
-    left: 0;
-    position: absolute;
-    top: 0;
-    width: 100%;
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-  }
-  .overlay::after {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-image: url('assets/crt.png');
-    background-repeat: no-repeat;
-    background-size: 100% 100%;
-    content: "";
-    opacity: 0.55;
-  }
-  /* Softer vignette — corners fade toward the bezel, never fully black */
-  .vignette {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: radial-gradient(ellipse at center,
-      transparent 55%,
-      rgba(0, 0, 0, 0.22) 80%,
-      rgba(0, 0, 0, 0.45) 100%);
-    pointer-events: none;
-    z-index: 11;
-    border-radius: 36px;
-  }
-
-  /* Hide the game canvas until the title splash is dismissed.
-     The tube reveals the canvas once .ready is on the tube. */
-  .tube canvas { visibility: hidden; }
-  .tube.is-ready canvas { visibility: visible; }
-
-  /* Crash shake — applied to .tube briefly when the rocket dies */
-  @keyframes crt-shake {
-    0%, 100% { transform: translate(0, 0) rotate(0); }
-    10% { transform: translate(-3px,  2px) rotate(-0.4deg); }
-    20% { transform: translate( 4px, -2px) rotate( 0.3deg); }
-    30% { transform: translate(-3px,  3px) rotate(-0.3deg); }
-    40% { transform: translate( 3px,  2px) rotate( 0.4deg); }
-    50% { transform: translate(-3px, -3px) rotate(-0.3deg); }
-    60% { transform: translate( 2px, -3px) rotate( 0.2deg); }
-    70% { transform: translate(-2px,  2px) rotate(-0.1deg); }
-    80% { transform: translate( 1px, -1px) rotate( 0.1deg); }
-    90% { transform: translate(-1px,  1px) rotate(0); }
-  }
-  .tube.is-shaking { animation: crt-shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
 
   /* Retro arcade splash — boot sequence, then INSERT COIN screen */
   .splash {
@@ -216,15 +115,6 @@
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.25s ease;
-  }
-  /* @keyframes splash-poweron — inline here because rocket-ship.html is a
-     standalone page that doesn't load shared/cabinet.css (it predates the
-     shared cabinet styles + has its own .tube/.overlay setup inline). */
-  @keyframes splash-poweron {
-    0%   { transform: scale(1, 0.005); filter: brightness(3.5); }
-    55%  { transform: scale(1, 0.005); filter: brightness(3.5); }
-    80%  { transform: scale(1, 1); filter: brightness(2); }
-    100% { transform: scale(1, 1); filter: brightness(1); }
   }
 
   /* SYSTEM BOOT — easter-egg-only intro on direct visits (not embedded
@@ -350,12 +240,6 @@
     letter-spacing: 0.16em;
     color: #fff;
     animation: arcade-blink 1s steps(1) infinite;
-  }
-  /* @keyframes arcade-blink — inline for the same reason as splash-poweron
-     above (rocket-ship.html doesn't load shared/cabinet.css). */
-  @keyframes arcade-blink {
-    0%, 50% { opacity: 1; }
-    51%, 100% { opacity: 0; }
   }
   .splash .controls {
     display: grid;
@@ -668,28 +552,6 @@
   @media (prefers-reduced-motion: reduce) {
     .celebrate { animation: none; }
     .celebrate-text, .celebrate-sub, .celebrate-flag .flag-cloth { animation: none; }
-  }
-  .overlay::before {
-    position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    right: 0;
-    content: " ";
-    background:
-      linear-gradient(
-        rgba(18, 16, 16, 0) 50%,
-        rgba(0, 0, 0, 0.35) 50%
-      ),
-      linear-gradient(
-        90deg,
-        rgba(255, 0, 0, 0.1),
-        rgba(0, 255, 0, 0.04),
-        rgba(0, 0, 255, 0.1)
-      );
-    z-index: 2;
-    background-size: 100% 3px, 3px 100%;
-    pointer-events: none;
   }
 </style>
 </head>
