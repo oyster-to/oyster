@@ -143,7 +143,7 @@
       <div class="go-title" id="go-title">GAME OVER</div>
       <div class="go-score">SCORE <span id="go-score-val">0</span></div>
       <div class="go-hiscore" id="go-hiscore"></div>
-      <div class="go-prompt" id="go-prompt"><span class="key-only">PRESS ANY KEY TO RESTART</span><span class="touch-only">TAP TO RESTART</span></div>
+      <div class="go-prompt" id="go-prompt"><span class="key-only">PRESS ANY KEY TO CONTINUE</span><span class="touch-only">TAP TO CONTINUE</span></div>
       <div class="go-initials" id="go-initials" hidden>
         <div class="go-initials-label">NEW HIGH SCORE — ENTER INITIALS</div>
         <div class="go-initials-slots">
@@ -222,8 +222,6 @@ function resize() {
 resize();
 window.addEventListener('resize', resize);
 
-const splashEl = document.getElementById('splash');
-
 // Register SFX samples with Arcade.Audio so play() uses the WebAudio buffer
 // path (no decode-on-retrigger hitch on repeated shoots).
 Arcade.Audio.init({
@@ -259,19 +257,20 @@ function stopBgm()  { playBgm('none'); }
 Arcade.Leaderboard.init({ game: 'invaders', max: 10 });
 
 // Initials entry — keyboard + touch state machine lives in shared/initials.js.
-// onSubmit handles the per-game UX (SCORE SAVED text, restart grace, server
-// submit + splash repaint).
+// onSubmit submits the score, repaints the splash boards, and bows out to
+// attract mode (back to the splash on the leaderboard view).
 Arcade.Initials.mount({
   fireButton: '#tc-fire',
   fireLabel:  { idle: 'FIRE', select: 'SELECT' },
   onSubmit: (initials) => {
-    const goHi = document.getElementById('go-hiscore');
-    if (goHi) goHi.textContent = `SCORE SAVED · ${initials}`;
-    Arcade.EndOverlay.extendGrace(400);
+    hideEndOverlay();
     Arcade.Leaderboard.submit(score, initials).then(res => {
       if (!res.ok) console.warn('leaderboard submit failed:', res.error);
       paintSplashHiScore();
+      paintLeaderboard();
     });
+    // Back to attract — opens on the leaderboard so the saved score shows.
+    Arcade.Splash.enterAttract();
   },
 });
 
@@ -293,20 +292,24 @@ function paintLeaderboard() {
 // each refresh.
 paintSplashHiScore();
 paintLeaderboard();
-Arcade.Splash.startCycle({
-  onShow(view) {
-    if (view.classList.contains('leaderboard')) paintLeaderboard();
-  },
-});
 Arcade.Leaderboard.refresh().then(() => {
   paintSplashHiScore();
   paintLeaderboard();
 });
 
-// Title theme — tries to play right away (works if the page already has a
-// gesture from the cabinet launch). If browsers block it, the first
-// keydown/pointerdown on the splash will trigger it (see dismissSplashAndStart).
-playBgm('title');
+// Splash + attract-mode lifecycle (shared/splash.js). Boots straight to the
+// title (no boot animation), cycles title↔leaderboard, and returns to attract
+// after a game instead of restarting instantly. The title theme plays from
+// onTitle (and unlocks on the first gesture if autoplay was blocked).
+Arcade.Splash.mount({
+  views: '#splash .splash-view',
+  bootMs: 0,
+  isBusy: () => Arcade.Initials.isActive(),
+  onTitle() { playBgm('title'); },
+  onPlay()  { Arcade.Audio.ensureCtx(); synth.ensure(); hideEndOverlay(); startRun(); },
+  onLeaderboardShow() { paintLeaderboard(); },
+  unlockAudio() { Arcade.Audio.ensureCtx(); synth.ensure(); },
+});
 
 // ============================================
 // SYNTH SFX — square-wave blips for the classic 1978 sounds. Reads the
@@ -728,25 +731,13 @@ function startRun() {
   startBgm();
 }
 
-// Unified restart handler — covers splash dismiss AND post-game-over keypress.
-function dismissSplashAndStart() {
-  Arcade.Splash.stopCycle();
-  splashEl.classList.add('is-hidden');
-  document.querySelector('.tube').classList.add('is-ready');
-  Arcade.Audio.ensureCtx();
-  synth.ensure();
+// Title→play ("tap to start") is owned by Arcade.Splash.mount() (onPlay).
+// Post-game-over input lands here: the first one opens initials if the score
+// qualifies; otherwise we bow out to attract mode (back to the splash).
+function gameOverInput() {
+  if (Arcade.EndOverlay.consumePending()) { Arcade.Initials.open(); return; }
   hideEndOverlay();
-  startRun();
-}
-
-// Post-game-over: if the score qualifies, the first key/tap opens initials
-// entry; the next one restarts. Falls through to splash-dismiss otherwise.
-function consumePendingOrRestart() {
-  if (Arcade.EndOverlay.consumePending()) {
-    Arcade.Initials.open();
-    return;
-  }
-  dismissSplashAndStart();
+  Arcade.Splash.enterAttract();
 }
 
 window.addEventListener('keydown', e => {
@@ -761,17 +752,17 @@ window.addEventListener('keydown', e => {
     return;
   }
   if (running) return;
-  // Overlay grace prevents the same key that lost the run from restarting it.
+  // On the splash/attract screen, Arcade.Splash.mount() owns "tap to start" —
+  // only act here once a run has ended (game-over overlay showing).
+  if (!Arcade.Splash.isPlaying()) return;
+  // Overlay grace prevents the same key that lost the run from acting.
   if (!Arcade.EndOverlay.acceptsInput()) return;
-  consumePendingOrRestart();
-  // Halt subsequent same-event handlers (notably the gameplay input listener
-  // below) so the key that STARTS the run doesn't also land in keys[] after
-  // startRun cleared it — otherwise pressing ArrowLeft to start makes the
-  // ship drift, and pressing Space starts charging instantly.
+  gameOverInput();
   e.stopImmediatePropagation();
 });
 
-// Pointer-tap restart (covers splash dismiss AND post-game-over taps).
+// Post-game-over tap (title→play is owned by Arcade.Splash.mount(); this only
+// handles the cutscene handoff and the game-over overlay step).
 document.addEventListener('pointerdown', e => {
   if (Arcade.Initials.isActive()) return;
   if (e.target.closest('.arcade-pause')) return;
@@ -782,8 +773,9 @@ document.addEventListener('pointerdown', e => {
     return;
   }
   if (running) return;
+  if (!Arcade.Splash.isPlaying()) return;   // mount() owns title→play
   if (!Arcade.EndOverlay.acceptsInput()) return;
-  consumePendingOrRestart();
+  gameOverInput();
 });
 
 // Don't allow pause from non-running states (splash, game-over, initials).
@@ -1083,8 +1075,8 @@ function update(dt) {
     updateBossAdds(performance.now());
   } else if (phase === 'cutscene') {
     // Win cutscene: animation runs to CUTSCENE_MS, then we hold on the
-    // EARTH IS SAFE pose and wait for a key/tap (see consumePendingOrRestart
-    // / the cutscene-aware listener below).
+    // EARTH IS SAFE pose and wait for a key/tap (the cutscene-aware listener
+    // below hands off to endRun(true)).
     if (!cutsceneWaiting && performance.now() - cutsceneStart >= CUTSCENE_MS) {
       cutsceneWaiting = true;
     }
