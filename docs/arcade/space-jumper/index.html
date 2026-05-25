@@ -266,6 +266,7 @@
 </head>
 <body>
 <script src="../shared/audio.js"></script>
+<script src="../shared/music.js"></script>
 <script src="../shared/pause.js"></script>
 <script src="../shared/touch.js"></script>
 <script src="../shared/iframe-host.js"></script>
@@ -492,8 +493,8 @@ function playJump()    { Arcade.Audio.play('sfx-jump',     0.4); }
 function playThrust()  { Arcade.Audio.play('sfx-thruster', 0.45); }
 // BGM controls — paused at end-of-run (win or final death) so the
 // jingle plays cleanly, resumed on restart.
-function pauseBgm()  { const a = document.getElementById('bgm'); if (a) a.pause(); }
-function resumeBgm() { const a = document.getElementById('bgm'); if (a) { a.currentTime = 0; a.play().catch(() => {}); } }
+function pauseBgm()  { Arcade.Music.pause(); }
+function resumeBgm() { Arcade.Music.play('bgm', { gain: 0.35 }); }
 
 // ============================================
 // LEADERBOARD — local mirror in localStorage, cloud source-of-truth via
@@ -625,7 +626,6 @@ function hideEndOverlay() {
 // Splash + attract-mode lifecycle (shared/splash.js). Boots to the title,
 // cycles title ↔ leaderboard, and returns to attract after a game (see the
 // enterAttract() calls below). Replaces the old one-shot startGame() latch.
-const _bgm      = () => document.getElementById('bgm');        // level music
 const _bgmTheme = () => document.getElementById('bgm-theme');  // title theme
 
 // (Re)start the title intro animation in lockstep with the theme. The track
@@ -646,20 +646,19 @@ Arcade.Splash.mount({
   ignore: '.sound-controls',                 // taps on the sound toggles don't start
   isBusy: () => Arcade.Initials.isActive(),  // never start/advance mid-initials
   onTitle() {
-    const b = _bgm();      if (b) { b.pause(); b.currentTime = 0; }
-    const t = _bgmTheme(); if (t) { t.volume = 0.4; t.currentTime = 0; t.play().catch(() => {}); }
+    Arcade.Music.play('bgm-theme', { gain: 0.4 });   // pauses + resets level music
     runTitleSequence();   // start Rogers' entrance in time with the theme's intro
   },
   onPlay() {
-    const t = _bgmTheme(); if (t) { t.pause(); t.currentTime = 0; }
-    const b = _bgm();      if (b) b.volume = 0.35;
+    Arcade.Music.stop();                     // stop + reset the title theme
     Arcade.Audio.ensureCtx();
-    resetRun();                              // resumeBgm() runs inside (now 'playing')
+    resetRun();                              // resumeBgm() -> Music.play('bgm') starts level music
   },
   onLeaderboardShow: () => refreshLeaderboard(),
   unlockAudio() {                            // iOS: first title gesture unlocks audio
     Arcade.Audio.ensureCtx();
-    const t = _bgmTheme(); if (t && t.paused) { t.volume = 0.4; t.play().catch(() => {}); runTitleSequence(); }
+    const t = _bgmTheme();
+    if (t && t.paused) { Arcade.Music.play('bgm-theme', { gain: 0.4 }); runTitleSequence(); }
   },
 });
 
@@ -834,8 +833,7 @@ function advanceLevel() {
 
   // If loadLevel switched the track, kick playback.
   if (level.bgm !== prevBgm) {
-    const bgmEl = document.getElementById('bgm');
-    if (bgmEl) bgmEl.play().catch(() => {});
+    Arcade.Music.play('bgm', { gain: 0.35 });
   }
   return true;
 }
