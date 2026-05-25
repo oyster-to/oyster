@@ -4,6 +4,10 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **Ask to see a past session, and Oyster opens it.** Say "show me the session about X" and the agent finds it and opens it in the inspector — jumping straight to the relevant moment when it can. It can also list your recent sessions on request.
+
 ## [0.10.0] - 2026-05-24
 
 ### Added
