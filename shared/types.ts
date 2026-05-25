@@ -58,6 +58,8 @@ export interface Artifact {
    *  others in the active scope, most-recent first. Filters still apply —
    *  pinning doesn't override filter visibility. */
   pinnedAt?: number | null;
+  /** Filesystem path of the backing file (filesystem artefacts only). */
+  path?: string;
 }
 
 export interface ArtefactPublication {

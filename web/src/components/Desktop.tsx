@@ -8,6 +8,7 @@ import { ArtifactIcon } from "./ArtifactIcon";
 import { ConfirmModal } from "./ConfirmModal";
 import { PromptModal } from "./PromptModal";
 import { GroupIcon } from "./GroupIcon";
+import { DetailsPanel } from "./DetailsPanel";
 
 interface Props {
   space: string;
@@ -68,6 +69,9 @@ export function Desktop({ space, spaces, artifacts, isHero, onArtifactClick, onA
     window.addEventListener("mousedown", handleClick);
     return () => window.removeEventListener("mousedown", handleClick);
   }, [artifactCtx]);
+
+  // ── Details panel ──
+  const [detailsArtifact, setDetailsArtifact] = useState<Artifact | null>(null);
 
   // ── Inline rename ──
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -350,6 +354,8 @@ export function Desktop({ space, spaces, artifacts, isHero, onArtifactClick, onA
             </button>
           ) : (
             <>
+              <button className="space-ctx-item" onClick={() => { setDetailsArtifact(artifactCtx.artifact); setArtifactCtx(null); }}>Details</button>
+              <div className="space-ctx-sep" />
               <button className="space-ctx-item" onClick={() => handleRenameArtifact(artifactCtx.artifact)}>Rename</button>
               {!isArchivedView && artifactCtx.artifact.status !== "generating" && (
                 artifactCtx.artifact.pinnedAt != null ? (
@@ -466,6 +472,8 @@ export function Desktop({ space, spaces, artifacts, isHero, onArtifactClick, onA
           <Archive size={20} strokeWidth={1.75} />
         </button>
       )}
+
+      <DetailsPanel artifact={detailsArtifact} onClose={() => setDetailsArtifact(null)} />
     </div>
   );
 }

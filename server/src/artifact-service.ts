@@ -707,6 +707,8 @@ export class ArtifactService {
         }
       : undefined;
 
+    const fsPath = storagePathOf(row);
+
     if (row.runtime_kind === "local_process") {
       const port = (runtimeConfig.port as number) || 0;
       const portOpen = await isPortOpen(port);
@@ -737,6 +739,7 @@ export class ArtifactService {
         ...this.resolveIcon(row),
         ...(publication ? { publication } : {}),
         ...(row.pinned_at != null ? { pinnedAt: row.pinned_at } : {}),
+        ...(fsPath !== undefined ? { path: fsPath } : {}),
       };
     }
 
@@ -764,6 +767,7 @@ export class ArtifactService {
       ...this.resolveIcon(row),
       ...(publication ? { publication } : {}),
       ...(row.pinned_at != null ? { pinnedAt: row.pinned_at } : {}),
+      ...(fsPath !== undefined ? { path: fsPath } : {}),
     };
   }
 
