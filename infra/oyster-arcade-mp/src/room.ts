@@ -139,7 +139,11 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //        current boss → next set / cutscene). Bound to the B key in
 //        the client. Backwards-compatible — older servers silently
 //        ignore the unknown message type.
-const NETCODE_VERSION = 27;
+// v28 — Boss minion adds. Each boss spawns with 2 + (setNum-1)
+//        swooping minions that catch player bullets before the boss
+//        (charged pierces, normal consumed). Worth +50; respawn 5 s
+//        after kill. New wire field: boss.adds[].
+const NETCODE_VERSION = 28;
 
 type ClientMessage =
   | { type: 'ping';   t: number }

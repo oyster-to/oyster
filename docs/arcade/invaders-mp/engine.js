@@ -146,7 +146,7 @@ const STAGE_ANNOUNCE_SEC = 2;
 // after the final boss falls. Sprite roster lives in sprites.js as
 // BOSS_TYPES; the engine just stores a `type` index on state.boss.
 // HP, speed, and fire interval all ramp per set so later bosses
-// feel progressively scarier. Minion adds are still deferred.
+// feel progressively scarier. Minion adds land in this PR.
 export const BOSS_W = 40;
 export const BOSS_H = 40;
 export const BOSS_Y = 24;                        // sits where the top invader row would
@@ -165,6 +165,30 @@ const BOSS_FIRE_INTERVAL_MIN = 0.38;             // floor — fastest possible
 const BOSS_FIRE_INTERVAL_STEP = 0.2;             // shrinks per set
 const BOSS_HIT_SCORE = 50;                       // points per damaging hit
 const BOSS_DEFEAT_SCORE = 500;                   // bonus on kill
+
+// === Boss minion adds ===
+// Small swooping minions that escort the boss. Count scales 2/3/4/5
+// across the 4 sets — set N has BOSS_ADD_COUNT_BASE + (N-1) minions.
+// They sit just below the boss at BOSS_ADD_Y, swoop down-and-back
+// on a cosine ease with a horizontal sin-wiggle (period randomised
+// 4.5–6 s per minion at spawn). Catch player bullets before the boss
+// reaches them — charged shots pierce (consistent with grid pierce),
+// normal shots are consumed. Killed minions respawn at base position
+// BOSS_ADD_RESPAWN_SEC later. Don't fire; they're a damage sponge,
+// not a threat in their own right.
+const BOSS_ADD_COUNT_BASE = 2;
+const BOSS_ADD_RESPAWN_SEC = 5;
+const BOSS_ADD_SCORE = 50;
+const BOSS_ADD_Y = BOSS_Y + BOSS_H + 24;         // sits just under the boss
+const BOSS_ADD_SWOOP_MIN_SEC = 4.5;
+const BOSS_ADD_SWOOP_MAX_SEC = 6;
+const BOSS_ADD_SWOOP_AMOUNT = 80;                // peak dy of the dive in PF
+const BOSS_ADD_WIGGLE_AMOUNT = 22;               // peak |dx| of the horizontal wiggle
+// Use the existing grid cell box for collision so a charged shot
+// piercing a minion uses the same overlap geometry as piercing an
+// invader. Sprite paints inside this box at scale 1.5 (SP parity).
+export const BOSS_ADD_W = INV_W;
+export const BOSS_ADD_H = INV_H;
 
 // === UFO ===
 // Bonus enemy that flies across the top of the playfield occasionally.
@@ -447,12 +471,73 @@ function spawnBoss(setNum) {
       BOSS_FIRE_INTERVAL_MIN,
       BOSS_FIRE_INTERVAL_BASE - (setNum - 1) * BOSS_FIRE_INTERVAL_STEP,
     ),
+    adds: spawnBossAdds(setNum),
   };
 }
 
-// Boss tick: horizontal bounce + periodic fire from centre-bottom.
-// No vertical descent — the boss stays parked at BOSS_Y and applies
-// pressure via bullets instead of swarm-pushdown.
+// 2/3/4/5 minions across sets 1/2/3/4, evenly spaced across the
+// playfield below the boss. Phases staggered by 0.15 per minion so
+// they don't all peak at the same instant. Per-minion swoop period
+// randomised inside [MIN, MAX] for organic variation. Math.random
+// is the same seed source as UFO/firing — divergence between client
+// host-mode and DO server-mode is already accepted (snapshots are
+// authoritative).
+function spawnBossAdds(setNum) {
+  const count = BOSS_ADD_COUNT_BASE + (setNum - 1);
+  const adds = [];
+  const totalW = PF_W - 60;
+  const step = totalW / (count + 1);
+  for (let i = 0; i < count; i++) {
+    const baseX = 30 + step * (i + 1) - BOSS_ADD_W / 2;
+    const period = BOSS_ADD_SWOOP_MIN_SEC + Math.random() * (BOSS_ADD_SWOOP_MAX_SEC - BOSS_ADD_SWOOP_MIN_SEC);
+    adds.push({
+      baseX,
+      baseY: BOSS_ADD_Y,
+      x: baseX,
+      y: BOSS_ADD_Y,
+      alive: true,
+      phase: (i * 0.15) % 1,          // staggered initial phase
+      phaseSpeed: 1 / period,         // 1/sec → full cycle per `period`
+      respawnIn: 0,                   // 0 while alive
+    });
+  }
+  return adds;
+}
+
+// Advance one minion's swoop animation. Pure function — caller is
+// responsible for the alive/respawn gating. Cosine ease 0→1→0 over
+// the cycle drives both the dive depth and the wiggle amplitude
+// (so the horizontal wiggle is biggest at peak dive and zero at
+// the rest position — feels purposeful, not jittery).
+function tickBossAdd(a, dt) {
+  a.phase = (a.phase + dt * a.phaseSpeed) % 1;
+  const easeV = 0.5 - 0.5 * Math.cos(a.phase * Math.PI * 2);
+  const dy = easeV * BOSS_ADD_SWOOP_AMOUNT;
+  const dx = Math.sin(a.phase * Math.PI * 4) * BOSS_ADD_WIGGLE_AMOUNT * easeV;
+  a.x = a.baseX + dx;
+  a.y = a.baseY + dy;
+}
+
+function stepBossAdds(state, dt) {
+  if (!state.boss || !state.boss.adds) return;
+  for (const a of state.boss.adds) {
+    if (a.alive) {
+      tickBossAdd(a, dt);
+    } else {
+      a.respawnIn = Math.max(0, a.respawnIn - dt);
+      if (a.respawnIn === 0) {
+        a.alive = true;
+        a.phase = 0;
+        a.x = a.baseX;
+        a.y = a.baseY;
+      }
+    }
+  }
+}
+
+// Boss tick: horizontal bounce + periodic fire from centre-bottom +
+// minion swoop animation. No vertical descent — the boss stays parked
+// at BOSS_Y and applies pressure via bullets + minion shielding.
 function stepBoss(state, dt) {
   if (state.phase !== 'boss' || !state.boss) return;
   const b = state.boss;
@@ -470,6 +555,7 @@ function stepBoss(state, dt) {
       owner: null,
     });
   }
+  stepBossAdds(state, dt);
 }
 
 // Called after resolveCollisions. Two clear paths:
@@ -789,6 +875,40 @@ function resolveCollisions(state, occupied) {
     }
   }
 
+  // Player bullets vs boss minions. Minions catch bullets BEFORE the
+  // boss (their whole purpose — shield it). Normal bullets are
+  // consumed on first contact; charged bullets pierce (consistent
+  // with the grid pierce rule). Each kill → +BOSS_ADD_SCORE to the
+  // owner, popup, 5-second respawn timer. Skipped when the boss is
+  // dead so the closing tick doesn't strip minion bullets after the
+  // win.
+  if (state.phase === 'boss' && state.boss && state.boss.hp > 0 && state.boss.adds) {
+    for (const b of state.bullets) {
+      const bw = b.charged ? CHARGED_BULLET_W : BULLET_W;
+      const bh = b.charged ? CHARGED_BULLET_H : BULLET_H;
+      if (b.y < -bh) continue;
+      for (const a of state.boss.adds) {
+        if (!a.alive) continue;
+        if (!overlap(b.x, b.y, bw, bh, a.x, a.y, BOSS_ADD_W, BOSS_ADD_H)) continue;
+        a.alive = false;
+        a.respawnIn = BOSS_ADD_RESPAWN_SEC;
+        const owner = b.owner && state.ships[b.owner];
+        if (owner) {
+          owner.score += BOSS_ADD_SCORE;
+          state.popups.push({
+            x: a.x + BOSS_ADD_W / 2,
+            y: a.y,
+            text: `+${BOSS_ADD_SCORE}`,
+            col: '#ffffff',
+            life: POPUP_LIFE_SEC,
+          });
+        }
+        if (!b.charged) { b.y = -999; break; }
+        // charged: keep checking other minions this tick
+      }
+    }
+  }
+
   // Player bullets vs boss. Damage = 1 (normal) or 3 (charged).
   // Charged bullets still tunnel (don't get consumed) so a sustained
   // hold of FIRE while standing under the boss can grind it down
@@ -1071,7 +1191,8 @@ export function snapshotForClient(state) {
     // Phase H/2: boss waves + win cutscene. phase 'grid' for normal
     // stages, 'boss' while a boss is on-screen, 'cutscene' between
     // the final boss death and the lobby return. boss carries x +
-    // hp + hpMax + type (index into sprites.js BOSS_TYPES). null
+    // hp + hpMax + type (index into sprites.js BOSS_TYPES) + adds
+    // (current minion positions, count = 2 + (setNum - 1)). null
     // between bosses or during cutscene. cutsceneIn is the seconds
     // remaining on the win cutscene (0 outside that window).
     phase:          state.phase,
@@ -1080,6 +1201,7 @@ export function snapshotForClient(state) {
       hp:   state.boss.hp,
       hpMax: state.boss.hpMax,
       type: state.boss.type | 0,
+      adds: (state.boss.adds || []).map(a => ({ x: round(a.x), y: round(a.y), a: a.alive })),
     } : null,
     cutsceneIn:     round(state.cutsceneIn),
   };
