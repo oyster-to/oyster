@@ -1683,7 +1683,12 @@
     if ((latestSnap.stageAnnounceIn || 0) > 0) {
       const STAGE_ANNOUNCE_TOTAL = 2;
       const t = Math.min(1, (latestSnap.stageAnnounceIn || 0) / STAGE_ANNOUNCE_TOTAL);
-      const label = 'STAGE ' + (latestSnap.stageSet ?? 1) + '-' + (latestSnap.stageNum ?? 1);
+      // Use the same phase-aware label as the HUD column — otherwise
+      // the overlay reads "STAGE 1-4" while STAGE column shows
+      // "STAGE 1-BOSS" because stageNum is at its sentinel value.
+      const setN = latestSnap.stageSet ?? 1;
+      const numN = latestSnap.stageNum ?? 1;
+      const label = 'STAGE ' + (latestSnap.phase === 'boss' ? setN + '-BOSS' : setN + '-' + numN);
       drawCenteredOverlay(label, `rgba(255, 216, 74, ${t.toFixed(2)})`, 18);
     }
 

@@ -287,12 +287,13 @@ export function initState() {
     // SHIELD_COUNT bunkers. Bullets chip cells to 0; renderer reads
     // the bitmap directly.
     shields: makeShields(),
-    // Stage progression (Phase G). stageSet 1..∞, stageNum 1..3,
-    // labelled "1-1" / "1-2" / ... by the renderer. announceIn counts
-    // down a brief "STAGE n-m" / "STAGE n-BOSS" overlay fade after
-    // each wave clear. phase distinguishes the normal grid wave from
-    // a boss interrupt — boss waves spawn after STAGES_PER_SET normal
-    // stages clear. state.boss is null between bosses.
+    // Stage progression. stageSet 1..∞. stageNum runs 1..STAGES_PER_SET
+    // for normal waves; it gets bumped to STAGES_PER_SET + 1 as a
+    // sentinel when phase flips to 'boss' (the renderer reads `phase`
+    // for the label, not stageNum, but the bump keeps the counter
+    // monotonic). announceIn counts down a brief "STAGE n-m" /
+    // "STAGE n-BOSS" overlay fade after each wave clear. state.boss
+    // is null between bosses.
     stageSet: 1,
     stageNum: 1,
     stageAnnounceIn: 0,
@@ -747,6 +748,9 @@ function resolveCollisions(state, occupied) {
   if (state.phase === 'boss' && state.boss && state.boss.hp > 0) {
     const bs = state.boss;
     for (const b of state.bullets) {
+      // Stop accepting hits as soon as the boss dies this tick — no
+      // double-kill bonus, no extra popups.
+      if (bs.hp === 0) break;
       const bw = b.charged ? CHARGED_BULLET_W : BULLET_W;
       const bh = b.charged ? CHARGED_BULLET_H : BULLET_H;
       if (b.y < -bh) continue;
@@ -774,9 +778,11 @@ function resolveCollisions(state, occupied) {
           });
         }
       }
-      if (!b.charged) { b.y = -999; break; }
-      // charged: keep tunneling — already inflicted damage this tick
-      if (bs.hp === 0) break;
+      // Mark normal bullets consumed; charged tunnel through and stay
+      // alive for further targets. Either way: keep iterating other
+      // bullets so multiple players' shots can damage the boss in
+      // the same tick.
+      if (!b.charged) b.y = -999;
     }
   }
 
