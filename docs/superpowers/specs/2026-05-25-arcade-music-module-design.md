@@ -35,9 +35,11 @@ A small `window.Arcade.Music` module operating on the existing
 elements, no build step — matches the other `shared/*.js` modules.
 
 ```
-Arcade.Music.play(id, { gain, loop = true, restart = true })
+Arcade.Music.play(id, { gain, loop, restart = true })
   - pause + (if restart) reset currentTime on every OTHER bgm track
-  - play `id`; set volume = gain if gain != null; loop per arg
+  - play `id`; set volume = gain if gain != null
+  - loop: leaves the element's authored <audio loop> untouched unless { loop }
+    is given (so a one-shot track, e.g. a win jingle, is not forced to loop)
   - if play() rejects (iOS autoplay block) → remember `id` as pending
 
 Arcade.Music.pause()         // pause the current track (no reset)
