@@ -494,6 +494,12 @@ function checkStageClear(state) {
       state.cutsceneIn = CUTSCENE_SEC;
       state.invaderBullets = [];
       state.bullets = [];
+      // Clear any in-flight "STAGE n-BOSS" announce — step() short-
+      // circuits during the cutscene so tickStageAnnounce wouldn't
+      // drain it, and the renderer's phase-aware label would read
+      // the meaningless "STAGE 4-4" once phase flipped away from
+      // 'boss'. Leave only the cutscene overlay on screen.
+      state.stageAnnounceIn = 0;
       return;
     }
     state.phase = 'grid';
