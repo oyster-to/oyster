@@ -561,6 +561,11 @@ export class ArtifactService {
     }
   }
 
+  /** Active artefact registered at this absolute path, if any. */
+  getByPath(absPath: string) {
+    return this.store.getByPath(absPath);
+  }
+
   // Exposed so callers running a reconcile pass can query once. Cached
   // in-memory and invalidated whenever a mutation touches removed_at.
   getArchivedFilePaths(): Set<string> {
