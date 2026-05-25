@@ -38,7 +38,6 @@ function makeEnv(): Env {
   const service = new ArtifactService(db, artifactStore, "https://oyster.to", "https://share.oyster.to", dbDir);
   const watcher = new ClaudeCodeWatcher({
     sessionStore: store,
-    artifactStore,
     service,
     db,
     lookupProject: () => ({ projectId: null, spaceId: null }),

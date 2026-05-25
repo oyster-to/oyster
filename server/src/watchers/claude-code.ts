@@ -3,7 +3,6 @@ import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import chokidar, { type FSWatcher } from "chokidar";
 import type Database from "better-sqlite3";
-import type { ArtifactStore } from "../artifact-store.js";
 import type { ArtifactService } from "../artifact-service.js";
 import type {
   InsertSessionEvent,
@@ -60,7 +59,6 @@ const TITLE_MAX = 80;
 
 export interface ClaudeCodeWatcherDeps {
   sessionStore: SessionStore;
-  artifactStore: ArtifactStore;
   service: ArtifactService;
   db: Database.Database;
   /** Resolve a cwd → `{ projectId, spaceId }` via `<cwd>/.oyster/id`. */

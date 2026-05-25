@@ -82,7 +82,6 @@ function makeEnv(): Env {
 
   const watcher = new ClaudeCodeWatcher({
     sessionStore,
-    artifactStore,
     service,
     db,
     // lookupProject returns no spaceId — tests the "homeless" path that the

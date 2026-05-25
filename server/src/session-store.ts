@@ -372,8 +372,11 @@ export class SqliteSessionStore implements SessionStore {
         "SELECT * FROM session_events WHERE session_id = ? AND id = ? LIMIT 1"
       ),
       insertArtifactTouch: db.prepare(`
-        INSERT OR IGNORE INTO session_artifacts (session_id, artifact_id, role, when_at)
+        INSERT INTO session_artifacts (session_id, artifact_id, role, when_at)
         VALUES (@session_id, @artifact_id, @role, COALESCE(@when_at, datetime('now')))
+        ON CONFLICT(session_id, artifact_id, role)
+          DO UPDATE SET when_at = excluded.when_at
+          WHERE excluded.when_at > session_artifacts.when_at
       `),
       getArtifactsBySession: db.prepare(
         "SELECT * FROM session_artifacts WHERE session_id = ? ORDER BY when_at"

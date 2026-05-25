@@ -20,7 +20,6 @@ function makeWatcher(root: string) {
   const service = new ArtifactService(db, artifactStore, "https://oyster.to", "https://share.oyster.to", dir);
   const watcher = new ClaudeCodeWatcher({
     sessionStore,
-    artifactStore,
     service,
     db,
     lookupProject: () => ({ projectId: null, spaceId: null }),
