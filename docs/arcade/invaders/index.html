@@ -110,6 +110,7 @@
 </head>
 <body>
 <script src="../shared/audio.js"></script>
+<script src="../shared/music.js"></script>
 <script src="../shared/pause.js"></script>
 <script src="../shared/touch.js"></script>
 <script src="../shared/iframe-host.js"></script>
@@ -239,16 +240,10 @@ Arcade.Audio.init({
 // shared/pause.js applies the cabinet MUSIC slider to any <audio id^="bgm">
 // so all three follow the same volume.
 const BGM_IDS = { main: 'bgm', title: 'bgm-title', boss: 'bgm-boss', win: 'bgm-win' };
-function playBgm(which /* 'main' | 'boss' | 'win' | 'none' */) {
-  for (const [k, id] of Object.entries(BGM_IDS)) {
-    const a = document.getElementById(id);
-    if (!a) continue;
-    if (k === which) {
-      try { a.currentTime = 0; a.play().catch(() => {}); } catch (_) {}
-    } else {
-      try { a.pause(); } catch (_) {}
-    }
-  }
+function playBgm(which /* 'main' | 'title' | 'boss' | 'win' | 'none' */) {
+  if (which === 'none') { Arcade.Music.stop(); return; }
+  const id = BGM_IDS[which];
+  if (id) Arcade.Music.play(id);   // no gain — pause.js owns the music volume
 }
 function startBgm() { playBgm('main'); }
 function stopBgm()  { playBgm('none'); }
