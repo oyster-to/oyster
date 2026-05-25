@@ -158,6 +158,20 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
     )
   `);
 
+  // Output backfill state — single-row table that tracks the one-time
+  // historical sweep over session_events (Job A re-render + Job B register).
+  // low_water_id is the lowest session_events.id processed so far, used to
+  // resume a crashed pass from where it left off. done=1 means the sweep
+  // finished; runOutputBackfill is a no-op once done=1.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS output_backfill_state (
+      id           INTEGER PRIMARY KEY CHECK (id = 1),
+      done         INTEGER NOT NULL DEFAULT 0,
+      low_water_id INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT OR IGNORE INTO output_backfill_state (id, done, low_water_id) VALUES (1, 0, 0);
+  `);
+
   // Cross-device session metadata mirror (#322 PR 2). Populated by
   // SessionSyncService.pull() from the cloud worker's GET
   // /api/sessions/metadata. Kept in a SEPARATE table from `sessions` so
@@ -414,6 +428,45 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
       PRAGMA foreign_keys = ON;
     `);
   }
+
+  // ── session_artifacts UNIQUE(session_id, artifact_id, role) ──
+  // Prevents duplicate touches from the watcher and backfill writing the
+  // same (session, artifact, role) triple. Must run AFTER the
+  // state-rename rebuild above — that block drops + recreates
+  // session_artifacts, which would silently drop any index we created
+  // before it. Positioned here so the table is in its final form.
+  //
+  // De-dup first (keeping the row with the highest surrogate id, i.e.
+  // the most recently inserted), then create the UNIQUE index. Both
+  // steps are idempotent: the DELETE is a no-op when there are no
+  // duplicates; CREATE UNIQUE INDEX IF NOT EXISTS skips gracefully
+  // when the index already exists.
+  const hasSessionArtifactsUq = db.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type='index' AND name='session_artifacts_uq'"
+  ).get();
+  if (!hasSessionArtifactsUq) {
+    // First boot on this version: collapse any pre-constraint duplicates,
+    // keeping the newest (MAX surrogate id) per (session,artifact,role), before
+    // the UNIQUE index is created (CREATE UNIQUE INDEX fails if dups exist).
+    db.exec(`
+      DELETE FROM session_artifacts WHERE id NOT IN (
+        SELECT MAX(id) FROM session_artifacts GROUP BY session_id, artifact_id, role
+      );
+    `);
+  }
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS session_artifacts_uq
+             ON session_artifacts(session_id, artifact_id, role)`);
+
+  // Normalize legacy space-format when_at timestamps ('YYYY-MM-DD HH:MM:SS')
+  // to ISO-8601 ('YYYY-MM-DDTHH:MM:SSZ'). One-shot: the WHERE clause only
+  // matches the old format (no 'T'), so after conversion the rows won't
+  // re-match — idempotent on every boot. The replace+||'Z' is an exact
+  // inverse of the old datetime('now') format SQLite writes in UTC.
+  db.exec(`
+    UPDATE session_artifacts
+       SET when_at = replace(when_at, ' ', 'T') || 'Z'
+     WHERE when_at LIKE '____-__-__ __:__:__'
+  `);
 
   // source_id added so sessions can be grouped by project (sub-folder
   // within a space), not just by space. Lets us render an "Active
@@ -969,21 +1022,32 @@ export function runDeferredMigrations(db: Database.Database): void {
   }
 }
 
-/**
- * Out-of-band FTS health check + repair. Invoked after the HTTP server is
- * listening so a multi-GB transcript index can never block boot. Strategy:
- * sample the 50 most-recent indexable session_events rows and look each one
- * up by rowid in session_events_fts. If most are missing, the index is
- * genuinely broken (typical cause: dev hot-reload that left INSERT triggers
- * half-applied) and we rebuild. Otherwise we leave it alone.
- *
- * Replaces an earlier heuristic that counted FTS hits for the token 'a'
- * and compared against the total indexable row count. Both queries were
- * full-table scans on session_events (no covering index), and the 'a'
- * threshold false-positived on transcripts dominated by short tool markers
- * like "[Bash]" / "[Edit]" — triggering a synchronous multi-second rebuild
- * on every boot of a healthy index.
- */
+/** Unconditionally re-index session_events_fts from the content table in one
+ *  transaction. 'rebuild' re-indexes from the content table; protocol-artefact
+ *  rows bypass the gated triggers during rebuild, so we sweep them back out
+ *  explicitly afterwards. Rebuild + sweep commit together — otherwise an
+ *  interrupt between them leaves artefact rows in the index that the gated
+ *  triggers won't clean up later. Also called by the one-time output sweep
+ *  (runOutputBackfill) after its in-place UPDATEs leave snippet() in a corrupt
+ *  state. */
+export function rebuildSessionEventsFts(db: Database.Database): void {
+  db.transaction(() => {
+    db.exec(`
+      INSERT INTO session_events_fts(session_events_fts) VALUES('rebuild');
+      INSERT INTO session_events_fts(session_events_fts, rowid, text)
+        SELECT 'delete', id, text
+          FROM session_events
+         WHERE is_protocol_artifact = 1;
+    `);
+  })();
+}
+
+/** Out-of-band FTS health check + conditional repair. Invoked after the HTTP
+ *  server is listening so a multi-GB transcript index can never block boot.
+ *  Samples the 50 most-recent indexable session_events rows and looks each one
+ *  up by rowid in session_events_fts. If most are missing the index is genuinely
+ *  broken (typical cause: dev hot-reload that left INSERT triggers half-applied)
+ *  and calls rebuildSessionEventsFts. Otherwise leaves the index untouched. */
 export function repairFtsIfUnhealthy(db: Database.Database): void {
   const t0 = performance.now();
   const recent = db.prepare(
@@ -1011,20 +1075,6 @@ export function repairFtsIfUnhealthy(db: Database.Database): void {
 
   console.warn(`[fts] ${missing}/${recent.length} recent rows missing from search index — rebuilding (search may be degraded until this completes)`);
   const rebuildT0 = performance.now();
-  // 'rebuild' re-indexes from the content table; protocol-artefact rows
-  // bypass the gated triggers during rebuild, so we sweep them back out
-  // explicitly afterwards. Rebuild + sweep commit together — otherwise an
-  // interrupt between them leaves artefact rows in the index that the
-  // gated triggers won't clean up later, and the next boot's health check
-  // may pass and never re-clean.
-  db.transaction(() => {
-    db.exec(`
-      INSERT INTO session_events_fts(session_events_fts) VALUES('rebuild');
-      INSERT INTO session_events_fts(session_events_fts, rowid, text)
-        SELECT 'delete', id, text
-          FROM session_events
-         WHERE is_protocol_artifact = 1;
-    `);
-  })();
+  rebuildSessionEventsFts(db);
   console.log(`[fts] rebuild complete in ${Math.round(performance.now() - rebuildT0)}ms`);
 }

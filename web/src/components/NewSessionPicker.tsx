@@ -41,7 +41,7 @@ export interface NewSessionPickerProps {
 
 interface Row {
   project: Project;
-  spaceName: string;
+  spaceName: string | null;
   group: "recent" | "all";
   disabled: boolean;
 }
@@ -181,7 +181,7 @@ export function NewSessionPicker({
       if (!q) return true;
       const name = p.name.toLowerCase();
       const path = (p.recentPath ?? "").toLowerCase();
-      const space = (spaceNameById.get(p.spaceId ?? "") ?? "").toLowerCase();
+      const space = (p.spaceId ? spaceNameById.get(p.spaceId) ?? "" : "").toLowerCase();
       return name.includes(q) || path.includes(q) || space.includes(q);
     };
 
@@ -194,7 +194,7 @@ export function NewSessionPicker({
 
     const toRow = (p: Project, group: "recent" | "all"): Row => ({
       project: p,
-      spaceName: spaceNameById.get(p.spaceId ?? "") ?? p.spaceId ?? "",
+      spaceName: p.spaceId ? spaceNameById.get(p.spaceId) ?? p.spaceId : null,
       group,
       disabled: p.hasLivePath === false,
     });
@@ -370,7 +370,8 @@ function RowView({ row, highlighted, onClick }: {
   onClick: () => void;
 }) {
   const path = row.project.recentPath ?? "";
-  const meta = row.disabled ? `${row.spaceName} · no folder` : `${row.spaceName} · ${path}`;
+  const tail = row.disabled ? "no folder" : path;
+  const meta = row.spaceName ? `${row.spaceName} · ${tail}` : tail;
   return (
     <div
       className={[

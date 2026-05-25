@@ -31,13 +31,14 @@ interface Props {
    *  bucketing by source-folder hides the result the user just asked for. */
   flatten?: boolean;
   onArtifactPublish?: (artifact: Artifact) => void;
+  onArtifactInspect?: (artifact: Artifact) => void;
 }
 
 type DisplayItem =
   | { type: "group"; key: string; name: string; artifacts: Artifact[] }
   | { type: "artifact"; key: string; artifact: Artifact };
 
-export function Desktop({ space, spaces, artifacts, isHero, onArtifactClick, onArtifactStop, onGroupClick, onSpaceChange, onConvertToSpace, onRefresh, onArtifactUpdate, onArtifactRemove, revealId, isArchivedView, showMeta, flatten, onArtifactPublish }: Props) {
+export function Desktop({ space, spaces, artifacts, isHero, onArtifactClick, onArtifactStop, onGroupClick, onSpaceChange, onConvertToSpace, onRefresh, onArtifactUpdate, onArtifactRemove, revealId, isArchivedView, showMeta, flatten, onArtifactPublish, onArtifactInspect }: Props) {
   const isAllSpace = space === "__all__";
   // Meta-spaces span multiple real spaces, so groupName is no longer unique —
   // `notes` from space A would merge with `notes` from space B into a single
@@ -350,6 +351,8 @@ export function Desktop({ space, spaces, artifacts, isHero, onArtifactClick, onA
             </button>
           ) : (
             <>
+              <button className="space-ctx-item" onClick={() => { onArtifactInspect?.(artifactCtx.artifact); setArtifactCtx(null); }}>Inspect</button>
+              <div className="space-ctx-sep" />
               <button className="space-ctx-item" onClick={() => handleRenameArtifact(artifactCtx.artifact)}>Rename</button>
               {!isArchivedView && artifactCtx.artifact.status !== "generating" && (
                 artifactCtx.artifact.pinnedAt != null ? (
@@ -466,6 +469,7 @@ export function Desktop({ space, spaces, artifacts, isHero, onArtifactClick, onA
           <Archive size={20} strokeWidth={1.75} />
         </button>
       )}
+
     </div>
   );
 }
