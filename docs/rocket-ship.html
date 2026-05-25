@@ -737,6 +737,7 @@
 <script src="arcade/shared/splash.js"></script>
 <script src="arcade/shared/initials.js"></script>
 <script src="arcade/shared/end-overlay.js"></script>
+<script src="arcade/shared/pause.js"></script>
 <script src="arcade/shared/iframe-host.js"></script>
 <div class="screen">
   <div class="tube">
@@ -1183,6 +1184,8 @@ function restartGame() {
 }
 
 function update() {
+  // Paused → hard-freeze everything (the pause overlay sits on top at z 9999).
+  if (Arcade.Pause.isPaused()) return;
   // Splash is up → don't run gameplay (and don't let asteroids creep into
   // the static rocket while user reads the title screen). Particles still
   // animate so the post-explosion debris keeps drifting on the gameover overlay.
@@ -1517,6 +1520,11 @@ Arcade.Audio.init({
   volumeKey: 'oyster-arcade-sfx-volume',
   mutedKey:  'oyster-arcade-sfx-muted',
 });
+
+// Pause (P / ESC) is allowed only during live gameplay — never on the title,
+// attract, or game-over (mirrors the other cabinet games' canPause gate).
+Arcade.Pause.canPause = () => Arcade.Splash.isPlaying() && !gameOver;
+
 function ensureAudioCtx() { return Arcade.Audio.ensureCtx(); }
 function playCoin()  { Arcade.Audio.play('sfx-powerup',   0.55); }
 function playCrash() { Arcade.Audio.play('sfx-explosion', 0.75); }
@@ -1528,27 +1536,20 @@ function playThruster() {
   Arcade.Audio.play('sfx-thruster', 0.4);
 }
 
-// Sound toggle on the splash. Mutes EVERYTHING (BGM + SFX) by flipping both
-// arcade-wide mute keys so the state is shared across rocket-ship and the
-// arcade cabinet games.
+// Sound toggle on the splash — a quick all-mute. Routes through Arcade.Pause so
+// it stays in sync with the pause overlay's MUSIC/SFX sliders (shared volume
+// keys across rocket-ship and the cabinet games).
 (function () {
-  const MUSIC_KEY = 'oyster-arcade-music-muted';
-  const SFX_KEY   = 'oyster-arcade-sfx-muted';
   const btn = document.getElementById('sound-toggle');
   if (!btn) return;
-  function readBool(k) { try { return localStorage.getItem(k) === '1'; } catch (_) { return false; } }
-  function writeBool(k, v) { try { localStorage.setItem(k, v ? '1' : '0'); } catch (_) {} }
-  function applyMusic(m) { document.querySelectorAll('audio[id^="bgm"]').forEach(a => { a.muted = m; }); }
   function setMuted(m) {
-    writeBool(MUSIC_KEY, m);
-    applyMusic(m);
-    Arcade.Audio.setMuted(m);
+    Arcade.Pause.setMusicMuted(m);
+    Arcade.Pause.setSfxMuted(m);
     btn.classList.toggle('is-muted', m);
     btn.setAttribute('aria-pressed', String(m));
   }
-  // Both flags must be consistent — if a sister cabinet game set only one,
-  // treat the splash button as muted (safer) and re-sync.
-  setMuted(readBool(MUSIC_KEY) || readBool(SFX_KEY));
+  // Reflect shared state — either channel at volume 0 reads as muted.
+  setMuted(Arcade.Pause.isMusicMuted() || Arcade.Pause.isSfxMuted());
   // Stop pointer events from bubbling to the splash's global dismiss listener.
   ['mousedown', 'touchstart', 'pointerdown'].forEach(ev => {
     btn.addEventListener(ev, e => e.stopPropagation(), { passive: true });
@@ -1696,12 +1697,9 @@ paintLeaderboard();
     },
   });
 
-  // ESC inside the iframe -> ask the parent to close (keyboard events don't
-  // bubble out of the iframe; shared/splash.js deliberately ignores ESC).
-  window.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    try { window.parent.postMessage({ type: 'oyster-rocket-close' }, '*'); } catch (_) {}
-  });
+  // ESC is owned by shared/pause.js (toggles the pause overlay). The hosts
+  // handle closing the cabinet: the arcade frame has its own × + message
+  // listener, and the oyster.to easter-egg host has its own parent-level ESC.
 })();
 
 // ============================================
