@@ -67,6 +67,8 @@ interface Props {
   onTerminalRestore?: (sessionId: string, terminalId: string) => void;
   /** Running-terminals pill: stop (DELETE) a running terminal. */
   onTerminalStop?: (terminalId: string) => Promise<void>;
+  /** Open an artefact (by id) in the viewer — backs session-row artefact chips. */
+  onOpenArtifact?: (artifactId: string) => void;
   /** Sessions feed — hoisted to App to avoid duplicate SSE-triggered refetches. */
   sessions: Session[];
   sessionsLoading?: boolean;
@@ -160,7 +162,7 @@ const FILTER_LABELS: Record<StateFilter, string> = {
   all: "all",
 };
 
-export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount }: Props) {
+export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenArtifact, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount }: Props) {
   const presence = useTerminalPresence(sessions, terminalWindows ?? []);
   const signedIn = useAuthSignedIn();
   const myDevice = useMyDeviceId();
@@ -1188,6 +1190,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                       onTerminalFocus={onTerminalFocus}
                       onTerminalRestore={onTerminalRestore}
                       onResume={onLaunchClaudeFromSession}
+                      onOpenArtifact={onOpenArtifact}
                     />
                   ))}
                 </div>

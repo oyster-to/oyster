@@ -604,6 +604,10 @@ export default function App() {
         onLaunchClaude={handleLaunchClaudeFromProject}
         onLaunchClaudeFromSession={handleLaunchClaudeFromSession}
         onOpenRemoteInOyster={handleOpenRemoteInOyster}
+        onOpenArtifact={(id) => {
+          const artifact = artifacts.find((a) => a.id === id);
+          if (artifact) void handleArtifactClick(artifact);
+        }}
         sessions={allSessions}
         sessionsLoading={sessionsLoading}
         sessionsError={sessionsError}
