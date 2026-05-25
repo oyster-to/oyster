@@ -148,7 +148,18 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //        per-player scores from submission. Also fixes the charged-
 //        bullet-vs-boss bug (boss now consumes bullets on hit like
 //        SP — was dealing ~24 dmg per hold-release).
-const NETCODE_VERSION = 29;
+// v30 — "Game feels alive" bundle (SP-parity polish):
+//        - Marked invader: one random invader periodically breaks
+//          formation, loop-de-loops toward the player + returns;
+//          kill for flat +200 bonus. New wire field state.marked
+//          { i, dx, dy } | null.
+//        - Boss descent: state.boss now has `y` (was a constant);
+//          drops slowly toward the shield row during the fight.
+//          New wire field boss.y.
+//        - Invader fire interval shrinks per set (1.4 → 0.55 s)
+//          so endgame stages feel urgent.
+//        - Client-only: march-heartbeat synth + UFO warble synth.
+const NETCODE_VERSION = 30;
 
 type ClientMessage =
   | { type: 'ping';   t: number }

@@ -581,6 +581,60 @@
     mutedKey:  'oyster-arcade-sfx-muted',
   });
 
+  // Synth — small WebAudio helper for the iconic Invaders sounds
+  // that aren't MP3-sampled: the march heartbeat (4-note loop that
+  // speeds up with the swarm) and the UFO warble. Ported verbatim
+  // from SP's `synth` IIFE (sp index.html ~L313). Uses the shared
+  // Arcade.Audio master volume so the cabinet's mute switch works.
+  const synth = (function () {
+    let actx = null;
+    function ensure() {
+      if (actx) { if (actx.state === 'suspended') actx.resume().catch(()=>{}); return actx; }
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        actx = new Ctx();
+      } catch (_) { return null; }
+      return actx;
+    }
+    function masterVol() {
+      return (window.Arcade && Arcade.Audio && Arcade.Audio.getVolume) ? Arcade.Audio.getVolume() : 1;
+    }
+    function blip(freqStart, freqEnd, durMs, gain, type) {
+      const c = ensure(); if (!c) return;
+      const v = masterVol() * (gain || 0.25);
+      if (v <= 0) return;
+      const t = c.currentTime;
+      const dur = durMs / 1000;
+      const osc = c.createOscillator();
+      osc.type = type || 'square';
+      osc.frequency.setValueAtTime(freqStart, t);
+      osc.frequency.linearRampToValueAtTime(freqEnd, t + dur);
+      const g = c.createGain();
+      g.gain.setValueAtTime(v, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(g).connect(c.destination);
+      osc.start(t);
+      osc.stop(t + dur);
+    }
+    // March heartbeat — four notes E2, D2, C2, B1 looped, advancing
+    // by one beat each call. Caller schedules calls at the march
+    // tempo (sped up by the swarm thinning).
+    const MARCH_NOTES = [82.41, 73.42, 65.41, 61.74];
+    let marchIdx = 0;
+    function march() { blip(MARCH_NOTES[marchIdx % 4], MARCH_NOTES[marchIdx % 4], 110, 0.18, 'square'); marchIdx++; }
+    function marchReset() { marchIdx = 0; }
+    // UFO siren — sine sweep up-down, called every ~100 ms while
+    // a UFO is on screen. `t` is the UFO's progress across the
+    // playfield (0..1) — drives a subtle pitch wobble on top of
+    // the carrier wobble inside.
+    function ufoWarble(t) {
+      const f = 480 + Math.sin(t * Math.PI * 8) * 90;
+      blip(f, f, 100, 0.13, 'sine');
+    }
+    return { ensure, march, marchReset, ufoWarble };
+  })();
+
   // Leaderboard — same `'invaders'` game key as SP so MP per-player
   // scores share one hi-score table with any legacy SP scores. Top
   // 10 displayed. `qualifies()` reads the local mirror; `submit()`
@@ -605,7 +659,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 29;
+  const NETCODE_VERSION = 30;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -1285,6 +1339,19 @@
           // of having to spot a quiet number change while shooting.
           livesFlashUntil = performance.now() + LIVES_FLASH_MS;
         }
+        // March heartbeat — fires on each authoritative shuffle-frame
+        // flip, so the iconic 4-note loop speeds up exactly when the
+        // swarm does (engine's iFrame advances by horizontal distance
+        // travelled). Only during grid phase + actually running.
+        if (msg.status === 'running' && msg.phase === 'grid'
+            && typeof msg.iFrame === 'number' && msg.iFrame !== prev.iFrame) {
+          synth.march();
+        }
+        // Restart of a new run — reset the march sequence so it
+        // always opens on the E2 (the canonical first beat).
+        if (msg.status === 'running' && prev.status !== 'running') {
+          synth.marchReset();
+        }
       }
       lastState = msg;
       snapBuffer.push(msg);
@@ -1583,8 +1650,12 @@
 
   startBtn.addEventListener('click', () => {
     // iOS needs the AudioContext created/resumed inside a real user
-    // gesture. Start is the first guaranteed tap, so do it here.
+    // gesture. Start is the first guaranteed tap, so do it here for
+    // both the shared Arcade.Audio (sfx-* samples) AND our local
+    // WebAudio synth (march heartbeat + UFO warble). Each owns its
+    // own AudioContext under the hood.
     Arcade.Audio.ensureCtx();
+    synth.ensure();
     // Block restart while initials are open — otherwise tapping
     // START mid-submission loses the score without writing it to
     // the leaderboard. The player can either finish entering
@@ -1993,15 +2064,31 @@
     // 6 PF right-padding gap; squid (9 PF wide) gets the SP-style
     // +2 PF rightward nudge to align columns under the wider rows.
     const SPRITE_SCALE = 1.5;
+    // Marked-invader swoop offset — if any invader is the marked one,
+    // its render position is the grid slot PLUS the server-computed
+    // swoop offset (dx/dy). Pulse colour white ↔ row palette at
+    // ~12.5 Hz so it reads as "this one is special". Server flips
+    // the mark to null on kill / expiry, so this branch quietly
+    // turns off when there's nothing to swoop.
+    const marked = latestSnap.marked || null;
+    const markedFlashWhite = marked
+      ? (Math.floor(performance.now() / 80) % 2 === 0)
+      : false;
     for (let i = 0; i < n; i++) {
       const ia = a.invaders[i], ib = b.invaders[i];
       if (!ib.a || !ia.a) continue;            // dead either side → hide
       const row = Math.floor(i / SPRITE_COLS);
       const { frames, w } = spriteForRow(row);
       const ox = row === 0 ? 2 : 0;
-      const cellX = Math.round(lerp(ia.x, ib.x) + ox);
-      const cellY = Math.round(lerp(ia.y, ib.y));
-      paintPixels(ctx, cellX, cellY, frames[frame], SPRITE_SCALE, ROW_COLORS[row] || '#ffffff');
+      const isMarked = marked && marked.i === i;
+      const dx = isMarked ? (marked.dx || 0) : 0;
+      const dy = isMarked ? (marked.dy || 0) : 0;
+      const cellX = Math.round(lerp(ia.x, ib.x) + ox + dx);
+      const cellY = Math.round(lerp(ia.y, ib.y) + dy);
+      const colour = (isMarked && markedFlashWhite)
+        ? '#ffffff'
+        : (ROW_COLORS[row] || '#ffffff');
+      paintPixels(ctx, cellX, cellY, frames[frame], SPRITE_SCALE, colour);
     }
 
     // Shields — decode the packed bitmap from the snapshot once when
@@ -2040,8 +2127,12 @@
       const ratio = Math.max(0, Math.min(1, hp / hpMax));
       // Body colour darkens as the boss bleeds — SP's 3-step palette.
       const bandIndex = ratio > 0.66 ? 0 : ratio > 0.33 ? 1 : 2;
-      paintBoss(ctx, latestSnap.boss.x, BOSS_Y, 5, bf, latestSnap.boss.type || 0, bandIndex);
-      const barY = BOSS_Y - 4;
+      // v30: boss descends — y is server-authoritative now. Fall
+      // back to the old BOSS_Y constant for pre-v30 snapshots so
+      // a mid-deploy client doesn't render the boss at (x, undef).
+      const bossY = (latestSnap.boss.y != null) ? latestSnap.boss.y : BOSS_Y;
+      paintBoss(ctx, latestSnap.boss.x, bossY, 5, bf, latestSnap.boss.type || 0, bandIndex);
+      const barY = bossY - 4;
       ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
       ctx.fillRect(latestSnap.boss.x, barY, BOSS_W, 2);
       ctx.fillStyle = ratio > 0.6 ? '#6bff8c' : ratio > 0.3 ? '#ffd84a' : '#ff6666';
@@ -2494,9 +2585,27 @@
     }
   }
 
+  // UFO warble — fires every UFO_WARBLE_MS while a UFO is on-screen.
+  // Tracked client-side (server doesn't drive audio) so each device
+  // hears its own warble in time. Reset accumulator when no UFO so a
+  // fresh spawn starts on the first frame.
+  const UFO_WARBLE_MS = 100;
+  let ufoWarbleAt = 0;
+  function tickUfoWarble(now) {
+    const snap = snapBuffer[snapBuffer.length - 1];
+    if (!snap || !snap.ufo) { ufoWarbleAt = 0; return; }
+    if (now >= ufoWarbleAt) {
+      const progress = Math.max(0, Math.min(1, snap.ufo.x / PF_W));
+      synth.ufoWarble(progress);
+      ufoWarbleAt = now + UFO_WARBLE_MS;
+    }
+  }
+
   function rafLoop(now) {
-    stepLocal(now || performance.now());
+    const t = now || performance.now();
+    stepLocal(t);
     renderInterpolated();
+    tickUfoWarble(t);
     requestAnimationFrame(rafLoop);
   }
   requestAnimationFrame(rafLoop);

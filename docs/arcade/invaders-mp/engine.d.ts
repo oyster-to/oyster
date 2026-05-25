@@ -63,6 +63,16 @@ export interface Ufo {
   dir: 1 | -1;
 }
 
+export interface MarkedInvader {
+  /** Index into state.invaders — the one currently swooping. */
+  idx: number;
+  /** Seconds remaining before snap-back to the grid slot. */
+  untilSec: number;
+  /** Live swoop offsets added to inv.x / inv.y (NOT absolute). */
+  swoopDX: number;
+  swoopDY: number;
+}
+
 export interface BossAdd {
   /** Resting position the minion swoops away from + returns to. */
   baseX: number;
@@ -83,10 +93,14 @@ export interface Boss {
   /** Index into sprites.js BOSS_TYPES (0..BOSS_TYPE_COUNT-1). */
   type: number;
   x: number;
+  /** Vertical position — descends slowly during the fight. */
+  y: number;
   hp: number;
   hpMax: number;
   dir: 1 | -1;
   speed: number;
+  /** PF/sec downward creep rate. Scales with set number. */
+  descent: number;
   fireAccum: number;
   fireInterval: number;
   /** Swooping minion adds — 2 + (setNum-1) per boss. */
@@ -137,6 +151,10 @@ export interface GameState {
   countdownEndMs: number;
   /** True after any B-press this match — disqualifies all per-player scores from the leaderboard. */
   cheated: boolean;
+  /** Currently-swooping marked invader, or null. Reset between stages. */
+  marked: MarkedInvader | null;
+  /** Seconds until the next mark-spawn attempt while none is active. */
+  markedSpawnIn: number;
 }
 
 export interface WireSnapshot {
@@ -177,9 +195,10 @@ export interface WireSnapshot {
    * 'cutscene' for the win celebration before status → 'gameover'.
    */
   phase: 'grid' | 'boss' | 'cutscene';
-  /** Active boss for the renderer; null between bosses. `type` indexes sprites.js BOSS_TYPES, `adds` is the live minion positions. */
+  /** Active boss for the renderer; null between bosses. `type` indexes sprites.js BOSS_TYPES, `adds` is the live minion positions, `y` descends during the fight. */
   boss: {
     x: number;
+    y: number;
     hp: number;
     hpMax: number;
     type: number;
@@ -189,6 +208,8 @@ export interface WireSnapshot {
   cutsceneIn: number;
   /** True after any B-press this match — clients gate leaderboard submission on this. */
   cheated: boolean;
+  /** Currently-swooping marked invader, or null. `i` indexes the invaders array; dx/dy are swoop offsets added to the invader's grid position. */
+  marked: { i: number; dx: number; dy: number } | null;
   /**
    * Per-seat occupancy. Set by the transport layer (room.ts on the
    * server, hostTick on the client) after snapshotForClient returns,
