@@ -178,6 +178,11 @@ export interface SessionStore {
   // sessions
   getAll(): SessionRow[];
   getById(id: string): SessionRow | undefined;
+  /** Recent sessions for discovery (the list_sessions MCP tool). Recency-
+   *  ordered (last_event_at desc, then started_at, then id), optionally
+   *  scoped to a space. Excludes empty stubs (no title AND no events).
+   *  Limit defaults to 20 and is capped at 100. */
+  listRecent(opts?: { spaceId?: string | null; limit?: number }): SessionRow[];
   /** Most-recently-active session for the given agent (R6 attribution). */
   getMostRecentActiveByAgent(agent: SessionAgent): SessionRow | undefined;
   insertSession(row: InsertSession): void;
@@ -240,6 +245,7 @@ export class SqliteSessionStore implements SessionStore {
   private stmts: {
     getAll: Database.Statement;
     getById: Database.Statement;
+    listRecent: Database.Statement;
     getMostRecentActiveByAgent: Database.Statement;
     insertSession: Database.Statement;
     upsertSession: Database.Statement;
@@ -268,6 +274,18 @@ export class SqliteSessionStore implements SessionStore {
     this.stmts = {
       getAll: db.prepare("SELECT * FROM sessions ORDER BY last_event_at DESC"),
       getById: db.prepare("SELECT * FROM sessions WHERE id = ?"),
+      // Discovery query for list_sessions. @spaceId null = all spaces.
+      // last_event_at is NOT NULL today, so COALESCE is defensive only;
+      // the started_at/id tie-breakers give a stable order for equal
+      // timestamps. Empty stubs (no title AND no events) are filtered out.
+      listRecent: db.prepare(`
+        SELECT * FROM sessions
+        WHERE (@spaceId IS NULL OR space_id = @spaceId)
+          AND ( (title IS NOT NULL AND title <> '')
+                OR EXISTS (SELECT 1 FROM session_events e WHERE e.session_id = sessions.id) )
+        ORDER BY COALESCE(last_event_at, started_at) DESC, started_at DESC, id DESC
+        LIMIT @limit
+      `),
       // R6 (#310): attribute MCP writes to the most recent active session of
       // the calling agent. Falls through 'active' → 'waiting' so a session
       // that's been quiet for a few seconds still gets the credit; 'done' /
@@ -429,6 +447,11 @@ export class SqliteSessionStore implements SessionStore {
 
   getById(id: string): SessionRow | undefined {
     return this.stmts.getById.get(id) as SessionRow | undefined;
+  }
+
+  listRecent(opts?: { spaceId?: string | null; limit?: number }): SessionRow[] {
+    const limit = Math.min(Math.max(1, Math.trunc(opts?.limit ?? 20)), 100);
+    return this.stmts.listRecent.all({ spaceId: opts?.spaceId ?? null, limit }) as SessionRow[];
   }
 
   getMostRecentActiveByAgent(agent: SessionAgent): SessionRow | undefined {
