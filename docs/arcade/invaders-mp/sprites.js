@@ -74,3 +74,27 @@ export function paintShip(ctx, x, shipY, shipW, color) {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(x + shipW/2 - 2, shipY - 4,     4,             2); // turret tip
 }
+
+// Boss sprite (Phase H — single CRIMSON OCTOPUS type for now).
+// 8×8 source painted at scale 5 → 40×40 PF. Two-frame animation
+// toggles every ~300 ms in the renderer. Body uses a 3-band gradient
+// (top=highlight, middle=mid red, bottom=deep red) so the chunky
+// silhouette reads with some depth instead of as a flat blob.
+export const BOSS_FRAMES = [
+  ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '..X..X..', '.X.XX.X.', 'X.X..X.X'],
+  ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '...XX...', '..X..X..', '.X....X.'],
+];
+const BOSS_BAND_COLORS = ['#ff7a7a', '#e05050', '#c0303a'];   // hi / mid / shadow
+
+export function paintBoss(ctx, x, y, scale, frame) {
+  const px = BOSS_FRAMES[frame & 1];
+  for (let row = 0; row < px.length; row++) {
+    const band = row < 3 ? 0 : (row < 5 ? 1 : 2);
+    ctx.fillStyle = BOSS_BAND_COLORS[band];
+    const cells = px[row];
+    const py = y + row * scale;
+    for (let col = 0; col < cells.length; col++) {
+      if (cells[col] === 'X') ctx.fillRect(x + col * scale, py, scale, scale);
+    }
+  }
+}

@@ -63,6 +63,16 @@ export interface Ufo {
   dir: 1 | -1;
 }
 
+export interface Boss {
+  x: number;
+  hp: number;
+  hpMax: number;
+  dir: 1 | -1;
+  speed: number;
+  fireAccum: number;
+  fireInterval: number;
+}
+
 export interface GameState {
   status: Status;
   won: boolean;
@@ -74,12 +84,16 @@ export interface GameState {
   invaders: Invader[];
   /** Flat shared shield bitmap; 1 = solid, 0 = chipped. Length = SHIELD_COUNT * SHIELD_W * SHIELD_H. */
   shields: Uint8Array;
-  /** Stage label set (1, 2, 3, …) — boss interrupt arrives in Phase H. */
+  /** Stage label set (1, 2, 3, …). */
   stageSet: number;
-  /** Stage label number within the set (1..STAGES_PER_SET). */
+  /** Stage label number within the set (1..STAGES_PER_SET; sentinel value above means boss wave). */
   stageNum: number;
-  /** Seconds remaining of the "STAGE n-m" overlay between waves. */
+  /** Seconds remaining of the "STAGE n-m" / "STAGE n-BOSS" overlay between waves. */
   stageAnnounceIn: number;
+  /** 'grid' during normal waves; 'boss' during a boss interrupt. */
+  phase: 'grid' | 'boss';
+  /** Active boss entity while phase === 'boss'; null otherwise. */
+  boss: Boss | null;
   /** Bonus UFO when on-screen; null when between spawns. */
   ufo: Ufo | null;
   /** Seconds until the next UFO spawns. */
@@ -133,6 +147,10 @@ export interface WireSnapshot {
   ufo: { x: number; d: 1 | -1 } | null;
   /** Floating score popups; client renders + fades by `l` / POPUP_LIFE_SEC. */
   popups: Array<{ x: number; y: number; t: string; c: string; l: number }>;
+  /** 'grid' during normal waves; 'boss' during a boss interrupt. */
+  phase: 'grid' | 'boss';
+  /** Active boss for the renderer; null between bosses. */
+  boss: { x: number; hp: number; hpMax: number } | null;
   /**
    * Per-seat occupancy. Set by the transport layer (room.ts on the
    * server, hostTick on the client) after snapshotForClient returns,
@@ -170,6 +188,9 @@ export const CHARGED_BULLET_SPEED: number;
 export const UFO_W_EXPORT: number;
 export const UFO_H_EXPORT: number;
 export const UFO_Y_EXPORT: number;
+export const BOSS_W: number;
+export const BOSS_H: number;
+export const BOSS_Y: number;
 export function comboMultiplier(count: number): number;
 
 export const SEATS: readonly Seat[];
