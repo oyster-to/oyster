@@ -53,16 +53,28 @@ listRecent(opts?: { spaceId?: string; limit?: number }): SessionRow[];
 SQL:
 
 ```sql
+-- Illustrative; bind via better-sqlite3 named params (@spaceId, @limit).
+-- @spaceId is null when the caller omits space_id.
 SELECT * FROM sessions
-[WHERE space_id = ?]
-ORDER BY COALESCE(last_event_at, started_at) DESC
-LIMIT ?
+WHERE (@spaceId IS NULL OR space_id = @spaceId)
+  -- Drop genuine empty stubs: no title AND no transcript events. Keeps every
+  -- titled session and every session that has any events.
+  AND ( (title IS NOT NULL AND title <> '')
+        OR EXISTS (SELECT 1 FROM session_events e WHERE e.session_id = sessions.id) )
+ORDER BY COALESCE(last_event_at, started_at) DESC, started_at DESC, id DESC
+LIMIT @limit
 ```
 
 - `COALESCE(last_event_at, started_at)` guards against null/stale `last_event_at`
-  on stub sessions.
+  on stub sessions; the `started_at DESC, id DESC` tie-breakers stop equal-
+  timestamp rows from re-ordering between calls.
+- Empty-stub filter is **always on** for this tool — `list_sessions` is agent-
+  facing discovery, so it should never expose contentless rows. It does **not**
+  gate `open_session`, which takes an explicit id and opens any session.
 - An unknown `spaceId` simply yields zero rows — no error (the WHERE clause just
   doesn't match).
+- The `EXISTS` subquery is correlated but bounded by `LIMIT`; trivial at the
+  session-table scale.
 
 ### 2. MCP tools — `server/src/mcp-server.ts`
 
@@ -78,20 +90,29 @@ Placed beside `open_artifact`.
 **`open_session`** — dumb broadcaster. Does **not** navigate routes or set space
 itself; it only emits the command and lets the web app react.
 
-- Params: `session_id: string` (required), `event_id?: number` (optional).
+- Params: `session_id: string` (required), `event_id?: number` (optional),
+  `query?: string` (optional).
 - Look up `sessionStore.getById(session_id)`. If missing → throw with a hint to
   use `list_sessions` / `recall_transcripts`.
-- `event_id` is **best-effort and NOT validated** here — pass it straight
-  through. If the event is missing, deleted, or belongs to another session, the
-  inspector still opens (falls back to the latest tail); the open never fails on
-  a bad `event_id`.
+- `event_id` is the **globally-unique `session_events.id`** (`INTEGER PRIMARY
+  KEY`) — the exact value `recall_transcripts` returns as `event_id`. It is
+  **best-effort and MUST NOT be validated or bounds-checked** here. It is a row
+  id, not a within-transcript position. If the event is missing, deleted, or
+  belongs to another session, pass it through anyway — the inspector falls back
+  to the latest tail and the open never fails on a bad `event_id`.
+- `query` is an optional search/highlight string, threaded purely because the
+  existing `oyster:open-session` event already accepts it (`{ id, eventId?,
+  query? }`). When `recall_transcripts` matched a session on, say, "PR 593", the
+  agent can pass that text so the inspector pre-fills its find bar. Optional and
+  best-effort; unused-but-present is fine and keeps the wire shape aligned with
+  the event the web side already consumes.
 - Broadcast with the **canonical payload shape**:
 
   ```ts
   deps.broadcastUiEvent({
     version: 1,
     command: "open_session",
-    payload: { sessionId: session.id, eventId: event_id },
+    payload: { sessionId: session.id, eventId: event_id, query },
   });
   ```
 
@@ -103,18 +124,21 @@ In the existing SSE `useEffect` (alongside `open_artifact`, `switch_space`):
 
 ```ts
 if (event.command === "open_session") {
-  const { sessionId, eventId } = event.payload as { sessionId: string; eventId?: number };
+  const { sessionId, eventId, query } = event.payload as {
+    sessionId: string; eventId?: number; query?: string;
+  };
   window.dispatchEvent(new CustomEvent("oyster:open-session", {
-    detail: { id: sessionId, eventId },
+    detail: { id: sessionId, eventId, query },
   }));
 }
 ```
 
-Payload→detail mapping is the one rename point: `{ sessionId, eventId }` (wire) →
-`{ id, eventId }` (the shape `Home`'s `oyster:open-session` handler already
-reads, where `eventId` becomes `focusEventId`). No route push — `Home` is always
-mounted, so the event opens the inspector from any space. Mirrors Spotlight
-exactly.
+Payload→detail mapping is the one rename point: `{ sessionId, eventId, query }`
+(wire) → `{ id, eventId, query }` (the shape `Home`'s `oyster:open-session`
+handler already reads, where `eventId` becomes `focusEventId` and `query`
+becomes `initialSearchQuery`). No route push — `Home` is always mounted
+(`App.tsx:597`, base surface layer), so the event opens the inspector from any
+space. Mirrors Spotlight exactly.
 
 ### 4. Agent guidance — `.opencode/agents/oyster.md`
 
@@ -136,37 +160,53 @@ exactly.
 
 ```
 user: "show me this session"
-  → agent: open_session(session_id, event_id?)
+  → agent: open_session(session_id, event_id?, query?)
       → sessionStore.getById  (404 if unknown)
-      → broadcastUiEvent { command:"open_session", payload:{ sessionId, eventId } }
+      → broadcastUiEvent { command:"open_session", payload:{ sessionId, eventId, query } }
           → SSE /api/ui/events
-              → App.tsx: dispatch CustomEvent "oyster:open-session" { id, eventId }
-                  → Home: setActivePanel({ kind:"session", id, focusEventId })
+              → App.tsx: dispatch CustomEvent "oyster:open-session" { id, eventId, query }
+                  → Home: setActivePanel({ kind:"session", id, focusEventId, initialSearchQuery })
                       → SessionInspector renders (tolerates a missing focusEventId)
 ```
 
 ## Footguns addressed (from review)
 
 1. `open_session` stays dumb — broadcast only, no direct routing.
-2. Single canonical payload shape `{ sessionId, eventId }`; web maps to `{ id, eventId }`.
+2. Single canonical payload shape `{ sessionId, eventId, query }`; web maps to `{ id, eventId, query }`.
 3. `event_id` optional + best-effort; a bad/missing event never fails the open.
-4. `list_sessions` is discovery-only — no transcript snippets.
-5. `limit` default 20 / max 100 so a client can't dump everything.
-6. Ordering uses `COALESCE(last_event_at, started_at)` for null/stale stubs.
-7. `space_id` optional; unknown space → empty list, not an error.
-8. Tool-count copy reworded to avoid drift.
+   It is the global `session_events.id` row id, **not** a transcript position —
+   the spec forbids bounds-validating it to prevent a future "hardening" regression.
+4. `query?` threaded now to match the existing event shape `{ id, eventId?, query? }`,
+   so transcript-match highlight works without a later wire change.
+5. `list_sessions` is discovery-only — no transcript snippets.
+6. `limit` default 20 / max 100 so a client can't dump everything.
+7. Ordering `COALESCE(last_event_at, started_at) DESC, started_at DESC, id DESC` —
+   the tie-breakers stop equal-timestamp stub rows from jumping between calls.
+8. `space_id` optional; unknown space → empty list, not an error.
+9. Empty-stub filter (no title AND no events) keeps session-store mess out of
+   the agent-facing list; `open_session` is unaffected (explicit id).
+10. Tool-count copy reworded to avoid drift.
 
 ## Testing
 
 - **Store:** `listRecent` returns recency order, respects `limit`, empty on
-  unknown `spaceId`, and sorts a null-`last_event_at` row by its `started_at`.
-- **MCP:** `open_session` 404s on unknown id; broadcasts the canonical payload;
-  passes `event_id` through untouched and still succeeds when it's bogus.
-  `list_sessions` clamps the limit and omits transcript text.
-- **Manual:** in the running app, ask the agent "show me this session" after a
-  `recall_transcripts` hit → inspector opens on the right session; with an
-  `event_id` it lands on the matching turn; with a stale `event_id` it still
-  opens.
+  unknown `spaceId`, sorts a null-`last_event_at` row by its `started_at`,
+  keeps equal-timestamp rows in stable `id` order, and excludes a no-title /
+  no-event stub while keeping a titled-but-eventless row and an untitled-but-
+  has-events row.
+- **MCP:** `open_session` 404s on unknown id; broadcasts the canonical payload
+  `{ sessionId, eventId, query }`; passes `event_id` through untouched and still
+  succeeds when it's bogus (no validation). `list_sessions` clamps the limit to
+  100, defaults to 20, and omits transcript text.
+- **Manual — happy path:** in the running app, ask the agent "show me this
+  session" after a `recall_transcripts` hit → inspector opens on the right
+  session; with an `event_id` it lands on the matching turn; with a stale
+  `event_id` it still opens.
+- **Manual — protect the "Home always mounted" assumption:** trigger
+  `open_session` while the surface is on a non-default route/view (e.g. an
+  artifact viewer open, or a deep-linked `/s/<space>/a/<id>` URL) and confirm the
+  inspector still opens. If a future refactor unmounts `Home` behind another
+  view, this is where it breaks — the test makes that regression visible.
 
 ## Files touched
 
