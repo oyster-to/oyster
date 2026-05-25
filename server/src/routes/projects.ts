@@ -9,7 +9,9 @@
 //                                          name? } — writes .oyster/id, claims
 //                                          orphans, undeletes a soft-deleted
 //                                          project whose UUID is on disk
-//   PATCH /api/projects/:id               rename
+//   PATCH /api/projects/:id               rename ({ name }) OR move/detach
+//                                          ({ space_id: <id> | null } — null
+//                                          removes the project from its space)
 //   DELETE /api/projects/:id              soft-delete
 
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -120,9 +122,21 @@ export async function tryHandleProjectsRoute(
         sendJson({ ok: true });
       } else {
         const body = await readJsonBody();
-        const updated = projectService.updateProject(projectId, {
-          name: typeof body.name === "string" ? body.name : undefined,
-        });
+        // `space_id` present (incl. explicit null) → move/detach the project.
+        // Distinguish "move to null" from "name-only PATCH" via key presence.
+        let updated;
+        if ("space_id" in body) {
+          const raw = body.space_id;
+          if (raw !== null && typeof raw !== "string") {
+            sendJson({ error: "space_id must be a string or null" }, 400);
+            return true;
+          }
+          updated = projectService.moveProjectToSpace(projectId, raw);
+        } else {
+          updated = projectService.updateProject(projectId, {
+            name: typeof body.name === "string" ? body.name : undefined,
+          });
+        }
         broadcastUiEvent({ version: 1, command: "session_changed", payload: { id: "" } });
         sendJson(updated);
       }

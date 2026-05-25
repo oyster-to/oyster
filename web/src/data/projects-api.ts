@@ -66,6 +66,13 @@ export async function renameProject(projectId: string, name: string): Promise<Pr
   return patchJson<Project>(`/api/projects/${encodeURIComponent(projectId)}`, { name });
 }
 
+// Move a project to another space, or detach it (spaceId = null →
+// "unassigned"). The project's sessions follow it server-side. Returns the
+// updated project (with its new spaceId).
+export async function moveProject(projectId: string, spaceId: string | null): Promise<Project> {
+  return patchJson<Project>(`/api/projects/${encodeURIComponent(projectId)}`, { space_id: spaceId });
+}
+
 export async function deleteProject(projectId: string): Promise<void> {
   await del(`/api/projects/${encodeURIComponent(projectId)}`);
 }

@@ -151,14 +151,19 @@ function allDone(state: OnboardingState): boolean {
 
 interface OnboardingDockProps {
   /** Count of user-defined spaces (excludes home / __all__ / __archived__).
-   *  Drives the bidirectional auto-tick on the required Spaces item: any
+   *  Drives the bidirectional auto-tick on the (optional) Spaces item: any
    *  space exists → ticked; deletes back to zero → un-ticked. */
   userSpaceCount?: number;
+  /** Count of live publications across all spaces. Drives the bidirectional
+   *  auto-tick on the Publish item: ≥1 published → ticked; back to zero →
+   *  un-ticked. Honest reflection of "have you published anything", not a
+   *  manual flag the user can leave stuck on. */
+  publishedCount?: number;
 }
 
 type View = "checklist" | { kind: "step"; key: Exclude<ItemKey, "spaces"> };
 
-export function OnboardingDock({ userSpaceCount = 0 }: OnboardingDockProps = {}) {
+export function OnboardingDock({ userSpaceCount = 0, publishedCount = 0 }: OnboardingDockProps = {}) {
   const [state, setState] = useState<OnboardingState>(loadState);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [view, setView] = useState<View>("checklist");
@@ -198,6 +203,14 @@ export function OnboardingDock({ userSpaceCount = 0 }: OnboardingDockProps = {})
     const shouldBe = userSpaceCount > 0;
     setState((s) => (s.spacesComplete === shouldBe ? s : { ...s, spacesComplete: shouldBe }));
   }, [userSpaceCount]);
+
+  // Publish auto-tick: bidirectional, same contract as spaces. A live
+  // publication exists → ticked; unpublish back to zero → un-ticked. This
+  // is the real signal, so the item can't sit on DONE while "0 published".
+  useEffect(() => {
+    const shouldBe = publishedCount > 0;
+    setState((s) => (s.publishComplete === shouldBe ? s : { ...s, publishComplete: shouldBe }));
+  }, [publishedCount]);
 
   // Click outside the popover closes it
   useEffect(() => {
@@ -253,13 +266,19 @@ export function OnboardingDock({ userSpaceCount = 0 }: OnboardingDockProps = {})
     // The [userSpaceCount] auto-derive effect won't re-fire if the count
     // hasn't changed, so we'd otherwise leave a user with existing spaces
     // stuck on an un-ticked required item.
-    setState({ ...defaultState, spacesComplete: userSpaceCount > 0 });
+    setState({ ...defaultState, spacesComplete: userSpaceCount > 0, publishComplete: publishedCount > 0 });
     setView("checklist");
     setPopoverOpen(true);
-  }, [userSpaceCount]);
+  }, [userSpaceCount, publishedCount]);
 
   const done = allDone(state);
   const requiredDone = state.mcpComplete;
+  // Dock glyph reflects progress: a circle that fills as items complete,
+  // turning into the 🦪 only once everything's ticked. Fraction over all
+  // four items (the same set allDone() checks).
+  const completedCount = [state.mcpComplete, state.spacesComplete, state.publishComplete, state.memoriesComplete]
+    .filter(Boolean).length;
+  const progressPct = Math.round((completedCount / 4) * 100);
 
   return (
     <div className="onboarding-dock-wrap">
@@ -271,13 +290,25 @@ export function OnboardingDock({ userSpaceCount = 0 }: OnboardingDockProps = {})
         aria-expanded={popoverOpen}
         aria-label="Onboarding checklist"
       >
-        {/* Neutralised pill. No amber pulse, no "Set up Oyster" label, no
-            state cue — just a quiet 🦪 icon that opens the checklist. The
-            items themselves (spaces, publish, MCP, memories) stay in the
-            popover; the pill stops shouting to discover them. */}
-        <span className="onboarding-dock-check" role="img" aria-hidden="true">
-          🦪
-        </span>
+        {/* The glyph is the onboarding status: a gold progress circle that
+            fills as items complete, with a "Finish setup" nudge beside it.
+            Once everything's ticked it collapses to a quiet 🦪 with no label.
+            The items (spaces, publish, MCP, memories) live in the popover. */}
+        {done ? (
+          <span className="onboarding-dock-check" role="img" aria-label="Onboarding complete">
+            🦪
+          </span>
+        ) : (
+          <>
+            <span
+              className="onboarding-dock-progress"
+              style={{ "--pct": `${progressPct}%` } as React.CSSProperties}
+              role="img"
+              aria-label={`Onboarding ${progressPct}% complete`}
+            />
+            <span className="onboarding-dock-label">Finish setup</span>
+          </>
+        )}
       </button>
 
       {popoverOpen && (
@@ -297,7 +328,6 @@ export function OnboardingDock({ userSpaceCount = 0 }: OnboardingDockProps = {})
           ) : view.kind === "step" && view.key === "publish" ? (
             <PublishGuide
               onBack={() => setView("checklist")}
-              onMarkDone={() => { markDone("publish"); setView("checklist"); }}
               done={state.publishComplete}
             />
           ) : view.kind === "step" && view.key === "mcp" ? (
@@ -346,11 +376,11 @@ function Checklist({ state, requiredDone, done, onSetUpSpaces, onShowStep, onTog
           : item.required
             ? "required"
             : "optional";
-        // Click-to-tick for optionals — MCP (required) auto-derives from the
-        // SSE listener + API check; spaces auto-derives from userSpaceCount.
-        // Both would fight a manual toggle, so non-required items are the only
-        // ones the user can tick directly.
-        const canToggle = !item.required;
+        // Click-to-tick is only for items with no real signal to derive from.
+        // MCP auto-derives (SSE + API), spaces from userSpaceCount, publish
+        // from publishedCount — a manual toggle would fight those derives.
+        // Memories is the lone item without a signal, so it stays user-driven.
+        const canToggle = item.key === "memories";
         const iconClass = `onboarding-item-icon onboarding-item-icon--${tag}${canToggle ? " onboarding-item-icon--clickable" : ""}`;
         return (
           <div key={item.key} className={`onboarding-item${itemDone ? " onboarding-item--done" : ""}`}>
@@ -416,7 +446,7 @@ function BackBar({ onBack }: { onBack: () => void }) {
   );
 }
 
-function PublishGuide({ onBack, onMarkDone, done }: { onBack: () => void; onMarkDone: () => void; done: boolean }) {
+function PublishGuide({ onBack, done }: { onBack: () => void; done: boolean }) {
   return (
     <div className="onboarding-step">
       <BackBar onBack={onBack} />
@@ -429,12 +459,12 @@ function PublishGuide({ onBack, onMarkDone, done }: { onBack: () => void; onMark
       <div className="onboarding-disclaimer">
         Free includes 5 published artefacts; Oyster Pro lifts the cap.
       </div>
+      {/* No "I've done this" — the tick auto-derives from your real
+          publication count, so it can't be faked or left stuck on. */}
       <div className="onboarding-step-actions">
-        {done ? (
-          <button type="button" className="onboarding-btn-ghost" onClick={onBack}>Done</button>
-        ) : (
-          <button type="button" className="onboarding-btn-ghost" onClick={onMarkDone}>I've done this</button>
-        )}
+        <button type="button" className="onboarding-btn-ghost" onClick={onBack}>
+          {done ? "Done" : "Got it"}
+        </button>
       </div>
     </div>
   );

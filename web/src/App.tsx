@@ -649,6 +649,7 @@ export default function App() {
         onOpenNewSession={handleOpenNewSession}
         onConnectSession={handleConnectSession}
         userSpaceCount={FORCE_ONBOARDING ? 0 : spaces.filter((s) => s.id !== "home" && s.id !== "__all__" && s.id !== "__archived__").length}
+        publishedCount={FORCE_ONBOARDING ? 0 : artifacts.filter((a) => a.publication != null && a.publication.unpublishedAt == null).length}
         desktopProps={{
           space: activeSpace,
           spaces: spaces.map((s) => s.id),

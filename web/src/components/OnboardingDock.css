@@ -30,6 +30,23 @@
   line-height: 1;
 }
 
+/* Progress glyph shown until onboarding is fully done — a gold circle that
+   fills clockwise by --pct. Swapped for the 🦪 at 100%. */
+.onboarding-dock-progress {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: conic-gradient(#fbbf24 var(--pct, 0%), rgba(251, 191, 36, 0.25) 0);
+}
+
+/* "Finish setup" nudge beside the progress circle (incomplete state only). */
+.onboarding-dock-label {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+}
+
 /* Wrapper — positioning context so the popover anchors to the chip
    instead of the viewport (the chip floats around as the breadcrumb
    wraps / max-width clamps, so fixed-position lost alignment). */

@@ -1112,23 +1112,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  width: calc(100% - 16px);
-  margin: 0 8px 8px;
+  gap: 6px;
+  width: fit-content;
+  margin: 0 14px 12px;
   font-family: var(--font-body);
   font-size: 12px;
   font-weight: 500;
-  color: var(--home-accent-bright);
-  background: rgba(124, 107, 255, 0.10);
-  border: 1px solid rgba(124, 107, 255, 0.28);
-  border-radius: 7px;
-  padding: 6px 10px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 4px 11px;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 .home-project-tile-newsession:hover {
-  background: rgba(124, 107, 255, 0.22);
-  border-color: rgba(124, 107, 255, 0.5);
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 .home-project-tile-newsession:disabled {
   opacity: 0.4;

@@ -716,3 +716,78 @@ describe("ProjectService.attachFolder", () => {
     rmSync(folder, { recursive: true, force: true });
   });
 });
+
+describe("ProjectService.moveProjectToSpace", () => {
+  let dir: string;
+  let db: Database.Database;
+  let service: ProjectService;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "oyster-ps-move-"));
+    db = initDb(dir);
+    db.exec(`
+      INSERT INTO spaces (id, display_name, color, scan_status) VALUES ('work', 'Work', '#000', 'none');
+      INSERT INTO spaces (id, display_name, color, scan_status) VALUES ('home', 'Home', '#111', 'none');
+    `);
+    service = new ProjectService(db);
+  });
+  afterEach(() => { db.close(); rmSync(dir, { recursive: true, force: true }); });
+
+  function insertSession(id: string, projectId: string, spaceId: string | null) {
+    db.prepare(
+      "INSERT INTO sessions (id, agent, state, cwd, project_id, space_id) VALUES (?, 'claude-code', 'done', '/x', ?, ?)",
+    ).run(id, projectId, spaceId);
+  }
+
+  it("moves a project to another space and cascades its sessions", () => {
+    const p = service.createProject({ spaceId: "work", name: "Proj" });
+    insertSession("s1", p.id, "work");
+
+    const moved = service.moveProjectToSpace(p.id, "home");
+    expect(moved.spaceId).toBe("home");
+    expect(service.listForSpace("home").map((x) => x.id)).toContain(p.id);
+    expect(service.listForSpace("work").map((x) => x.id)).not.toContain(p.id);
+    const sess = db.prepare("SELECT space_id FROM sessions WHERE id = 's1'").get() as { space_id: string };
+    expect(sess.space_id).toBe("home");
+  });
+
+  it("removes a project from its space (spaceId = null → unassigned); sessions follow", () => {
+    const p = service.createProject({ spaceId: "work", name: "Proj" });
+    insertSession("s1", p.id, "work");
+
+    const moved = service.moveProjectToSpace(p.id, null);
+    expect(moved.spaceId).toBeNull();
+    // Gone from the work space's list…
+    expect(service.listForSpace("work").map((x) => x.id)).not.toContain(p.id);
+    // …but still a live project in the global pool (Home all-projects strip).
+    expect(service.listAll().map((x) => x.id)).toContain(p.id);
+    const sess = db.prepare("SELECT space_id FROM sessions WHERE id = 's1'").get() as { space_id: string | null };
+    expect(sess.space_id).toBeNull();
+  });
+
+  it("re-files an unassigned project back into a space", () => {
+    const p = service.createProject({ spaceId: "work", name: "Proj" });
+    service.moveProjectToSpace(p.id, null);
+    const back = service.moveProjectToSpace(p.id, "home");
+    expect(back.spaceId).toBe("home");
+    expect(service.listForSpace("home").map((x) => x.id)).toContain(p.id);
+  });
+
+  it("throws when the destination space doesn't exist", () => {
+    const p = service.createProject({ spaceId: "work", name: "Proj" });
+    expect(() => service.moveProjectToSpace(p.id, "ghost")).toThrow(/not found/);
+  });
+
+  it("rejects a soft-deleted destination space", () => {
+    const p = service.createProject({ spaceId: "work", name: "Proj" });
+    db.prepare("UPDATE spaces SET deleted_at = ? WHERE id = 'home'").run(Date.now());
+    expect(() => service.moveProjectToSpace(p.id, "home")).toThrow(/not found/);
+  });
+
+  it("throws when the project doesn't exist or is soft-deleted", () => {
+    expect(() => service.moveProjectToSpace("nope", "home")).toThrow(/not found/);
+    const p = service.createProject({ spaceId: "work", name: "Gone" });
+    service.deleteProject(p.id);
+    expect(() => service.moveProjectToSpace(p.id, "home")).toThrow(/not found/);
+  });
+});

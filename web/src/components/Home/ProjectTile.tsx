@@ -1,16 +1,17 @@
-// Single project tile in a space view. Two actions: rename + delete.
+// Single project tile in a space view. Actions: rename, merge, move to
+// another space / remove from space, delete.
 // Projects don't have a path field — identity lives in `.oyster/id` inside
 // the folder, so renames + moves are invisible to Oyster.
 import { useEffect, useState } from "react";
 import { GitBranch } from "lucide-react";
 import type { Project } from "../../data/projects-api";
-import { renameProject, deleteProject, absorbProject } from "../../data/projects-api";
+import { renameProject, deleteProject, absorbProject, moveProject } from "../../data/projects-api";
 import { ConfirmModal } from "../ConfirmModal";
 import { PromptModal } from "../PromptModal";
 
 export function ProjectTile({
   project, artefactCount, sessionCounts, selected, onSelect, onChanged,
-  isLastProject, spaceTotalSessions, onSpaceDelete, otherProjects,
+  isLastProject, spaceTotalSessions, onSpaceDelete, otherProjects, spaces,
   onLaunchClaude,
 }: {
   project: Project;
@@ -25,6 +26,10 @@ export function ProjectTile({
   onSpaceDelete?: (spaceId: string) => Promise<void> | void;
   /** Other projects in the same space — populates the "Merge into…" picker. */
   otherProjects: Project[];
+  /** Real, user-facing spaces — populates the "Move to space…" picker. The
+   *  project's current space is filtered out at render. Empty = no other
+   *  spaces to move into (the picker then offers only "Remove from space"). */
+  spaces: { id: string; name: string }[];
   /** Spawn a Claude PTY in this project's folder. Disabled when the
    *  project has no live path. */
   onLaunchClaude?: (projectId: string) => void;
@@ -33,7 +38,14 @@ export function ProjectTile({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [mergePickerOpen, setMergePickerOpen] = useState(false);
+  const [movePickerOpen, setMovePickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // Candidate destinations exclude the project's own current space.
+  const moveTargets = spaces.filter((s) => s.id !== project.spaceId);
+  // Show "Move to space…" when there's somewhere to go: another space to
+  // move into, or (if currently filed) the option to detach to no space.
+  const canMove = moveTargets.length > 0 || project.spaceId != null;
 
   // Removing the only project from a real space implicitly demotes the space.
   const willCollapseSpace = isLastProject && Boolean(onSpaceDelete);
@@ -47,6 +59,12 @@ export function ProjectTile({
     };
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
+  }, [menuOpen]);
+
+  // Reset picker sub-views whenever the menu closes, so the next ⋯ open lands
+  // on the default menu rather than a stale merge/move picker.
+  useEffect(() => {
+    if (!menuOpen) { setMergePickerOpen(false); setMovePickerOpen(false); }
   }, [menuOpen]);
 
   async function performDelete() {
@@ -72,6 +90,20 @@ export function ProjectTile({
       setMergePickerOpen(false);
     } catch (err) {
       alert(`Couldn't merge: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function performMove(spaceId: string | null) {
+    setBusy(true);
+    try {
+      await moveProject(project.id, spaceId);
+      onChanged();
+      setMovePickerOpen(false);
+      setMenuOpen(false);
+    } catch (err) {
+      alert(`Couldn't move: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
     }
@@ -164,7 +196,7 @@ export function ProjectTile({
         >
           ⋯
         </button>
-        {menuOpen && !mergePickerOpen && (
+        {menuOpen && !mergePickerOpen && !movePickerOpen && (
           <div className="home-project-tile-menu" role="menu">
             {onLaunchClaude && (
               <>
@@ -200,12 +232,60 @@ export function ProjectTile({
                 Merge into…
               </button>
             )}
+            {canMove && (
+              <button
+                type="button"
+                className="home-project-tile-menu-item"
+                onClick={() => setMovePickerOpen(true)}
+                title="Move this project (and its sessions) to another space, or remove it from its space."
+              >
+                Move to space…
+              </button>
+            )}
             <button
               type="button"
               className="home-project-tile-menu-item danger"
               onClick={() => { setMenuOpen(false); setConfirmOpen(true); }}
             >
               Delete project…
+            </button>
+          </div>
+        )}
+        {menuOpen && movePickerOpen && (
+          <div className="home-project-tile-menu" role="menu">
+            <div className="home-project-tile-menu-header" style={{ padding: "8px 12px 4px", fontSize: 11, color: "var(--text-dim)" }}>
+              Move <strong>{project.name}</strong> to:
+            </div>
+            {project.spaceId != null && (
+              <button
+                type="button"
+                className="home-project-tile-menu-item"
+                disabled={busy}
+                onClick={() => performMove(null)}
+                title="Detach from its space — the project moves to Unassigned."
+              >
+                — Remove from space —
+              </button>
+            )}
+            {moveTargets.map((target) => (
+              <button
+                key={target.id}
+                type="button"
+                className="home-project-tile-menu-item"
+                disabled={busy}
+                onClick={() => performMove(target.id)}
+              >
+                {target.name}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="home-project-tile-menu-item"
+              disabled={busy}
+              onClick={() => setMovePickerOpen(false)}
+              style={{ opacity: 0.7 }}
+            >
+              Cancel
             </button>
           </div>
         )}

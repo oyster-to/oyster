@@ -84,6 +84,11 @@ interface Props {
    *  Spaces-step auto-tick. App owns the FORCE_ONBOARDING dev override
    *  and the meta-space filtering, then passes the number through. */
   userSpaceCount?: number;
+  /** Global count of live publications — drives the OnboardingDock's
+   *  Publish-step auto-tick (bidirectional, like userSpaceCount). App
+   *  computes it from the unscoped artefact pile so a space pill can't
+   *  hide a publication that lives in another space. */
+  publishedCount?: number;
 }
 
 const ARTEFACT_SOURCE_ORDER: ArtefactSource[] = ["all", "manual", "ai_generated", "discovered", "published", "pinned"];
@@ -162,7 +167,7 @@ const FILTER_LABELS: Record<StateFilter, string> = {
   all: "all",
 };
 
-export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenArtifact, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount }: Props) {
+export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenArtifact, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount, publishedCount }: Props) {
   const presence = useTerminalPresence(sessions, terminalWindows ?? []);
   const signedIn = useAuthSignedIn();
   const myDevice = useMyDeviceId();
@@ -319,22 +324,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     if (showElsewhere && isHomeView) return sessions.filter((s) => s.spaceId === null);
     return scopedSpace ? sessions.filter((s) => s.spaceId === scopedSpace) : sessions;
   }, [sessions, scopedSpace, showElsewhere, isHomeView]);
-
-  // Space-wide counts feed the "All" tile in ProjectTileGrid — that
-  // tile is the user's reset button, so its counts must NOT narrow
-  // when a folder is selected. Everything below this point (chips,
-  // list) does narrow.
-  const spaceCounts = useMemo(() => {
-    // `dormant` is a display-time projection of `done` (no first-class
-    // chip in v1) — fold it into `done` so the count chip totals
-    // "nothing to do" sessions regardless of how they got there.
-    const counts: Record<StateFilter, number> & { dormant: number } = { live: 0, "live-terminals": 0, active: 0, waiting: 0, disconnected: 0, done: 0, dormant: 0, all: scopedSessions.length };
-    for (const s of scopedSessions) counts[s.displayState]++;
-    counts.done += counts.disconnected + counts.dormant;
-    counts.disconnected = 0;
-    counts.live = counts.active + counts.waiting;
-    return counts;
-  }, [scopedSessions]);
 
   // Folder-narrowed sessions: when a project tile is selected, sessions
   // filter to that source (or sessions without a source for VAULT, or
@@ -518,6 +507,18 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // pointer to a deleted space). App.tsx hands us all artefacts on home —
   // we narrow them locally so artefacts and sessions tell the same story.
   const realSpaceIds = useMemo(() => new Set(realSpaces.map((s) => s.id)), [realSpaces]);
+  // Destination options for a project tile's "Move to space…" picker.
+  const moveSpaceOptions = useMemo(
+    () => realSpaces.map((s) => ({ id: s.id, name: s.displayName })),
+    [realSpaces],
+  );
+  // Projects detached from every space (space_id = null) — surfaced under the
+  // Unassigned pill so a "removed from space" project stays findable and can
+  // be re-filed from its own Move-to-space menu.
+  const unassignedProjects = useMemo(
+    () => allProjects.filter((p) => p.spaceId == null),
+    [allProjects],
+  );
   const effectiveDesktopProps = useMemo(() => {
     if (showElsewhere && isHomeView) {
       return {
@@ -542,9 +543,25 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     return counts;
   }, [effectiveDesktopProps.artifacts]);
 
-  const PROJECTS_DEFAULT_VISIBLE = 8;
-
   const [projectsExpanded, setProjectsExpanded] = useState(false);
+
+  // Collapsed, the Projects strip shows exactly one row. The grid is
+  // responsive (auto-fill), so the column count varies with width — measure
+  // it from the live grid rather than guessing a fixed number.
+  const [projectColumns, setProjectColumns] = useState(4);
+  const projectsGridObserver = useRef<ResizeObserver | null>(null);
+  const measureProjectColumns = useCallback((el: HTMLDivElement) => {
+    const tracks = getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length;
+    if (tracks > 0) setProjectColumns(tracks);
+  }, []);
+  const projectsGridRef = useCallback((el: HTMLDivElement | null) => {
+    projectsGridObserver.current?.disconnect();
+    if (!el) return;
+    measureProjectColumns(el);
+    const ro = new ResizeObserver(() => measureProjectColumns(el));
+    ro.observe(el);
+    projectsGridObserver.current = ro;
+  }, [measureProjectColumns]);
 
   // Recency per project (max lastEventAt across its sessions).
   const lastActivityByProject = useMemo(() => {
@@ -578,7 +595,10 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         total: sessionTotalsByProject[id] ?? 0,
       };
     };
-    return [...allProjects].sort((a, b) => {
+    // Filed projects only — those detached from every space (space_id null)
+    // live under the Unassigned pill, mirroring how orphan sessions are
+    // segregated out of the Home view.
+    return allProjects.filter((p) => p.spaceId != null).sort((a, b) => {
       const sa = score(a.id);
       const sb = score(b.id);
       if (sa.hasLive !== sb.hasLive) return sb.hasLive - sa.hasLive;
@@ -590,7 +610,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
 
   const visibleProjects = projectsExpanded
     ? sortedProjects
-    : sortedProjects.slice(0, PROJECTS_DEFAULT_VISIBLE);
+    : sortedProjects.slice(0, projectColumns);
 
   const hiddenCount = sortedProjects.length - visibleProjects.length;
 
@@ -870,7 +890,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 <span aria-hidden="true">+</span>
               )}
             </button>
-            {orphanCounts.total > 0 && realSpaces.length > 0 && (
+            {(orphanCounts.total > 0 || unassignedProjects.length > 0) && realSpaces.length > 0 && (
               <button
                 type="button"
                 className={`home-breadcrumb-pill home-breadcrumb-pill--elsewhere${showElsewhere && isHomeView ? " selected" : ""}`}
@@ -881,7 +901,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   orphanCounts.active > 0 && `${orphanCounts.active} active`,
                   orphanCounts.waiting > 0 && `${orphanCounts.waiting} waiting`,
                   orphanCounts.done > 0 && `${orphanCounts.done} done`,
-                ].filter(Boolean).join(" · ") || "Sessions outside any registered space"}
+                ].filter(Boolean).join(" · ") || "Projects and sessions not filed into a space"}
               >
                 {showElsewhere && isHomeView && (
                   <motion.span
@@ -911,7 +931,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               )}
               {onOpenNewSession && <NewSessionPill onClick={onOpenNewSession} />}
             </div>
-            <OnboardingDock userSpaceCount={userSpaceCount} />
+            <OnboardingDock userSpaceCount={userSpaceCount} publishedCount={publishedCount} />
             </LayoutGroup>
           </nav>
 
@@ -922,7 +942,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           {/* Eyebrow dropped — the breadcrumb above already shows the
               active scope, so a separate "HOME" / "OYSTER" label is
               redundant. */}
-          <h1 className="home-title">{isHomeView ? (showElsewhere ? "Unassigned sessions." : "Your work.") : eyebrow}</h1>
+          <h1 className="home-title">{isHomeView ? (showElsewhere ? "Unassigned." : "Your work.") : eyebrow}</h1>
           {error && <div className="home-error">Couldn't load sessions: {error.message}</div>}
         </header>
 
@@ -932,7 +952,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             home-space-card / home-spaces-section CSS is kept around in
             case the cards return as a settings or dashboard surface. */}
 
-        {isHomeView && !showElsewhere && allProjects.length > 0 && (
+        {isHomeView && !showElsewhere && sortedProjects.length > 0 && (
           <div className="home-section home-projects-section">
             <div className="home-section-head">
               <span className="home-section-label">Projects</span>
@@ -946,7 +966,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               </button>
               <span className="home-section-rule" />
             </div>
-            <div className="home-projects-grid">
+            <div className="home-projects-grid" ref={projectsGridRef}>
               {visibleProjects.map((p) => (
                 // onSpaceDelete intentionally omitted — Home strip can't collapse spaces.
                 // isLastProject/spaceTotalSessions are inert here (willCollapseSpace = false).
@@ -962,6 +982,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   spaceTotalSessions={0}
                   // otherProjects intentionally empty — Home strip can't merge across spaces
                   otherProjects={[]}
+                  spaces={moveSpaceOptions}
                   onLaunchClaude={onLaunchClaude}
                 />
               ))}
@@ -977,7 +998,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 </button>
               </div>
             )}
-            {projectsExpanded && sortedProjects.length > PROJECTS_DEFAULT_VISIBLE && (
+            {projectsExpanded && sortedProjects.length > projectColumns && (
               <div className="home-projects-footer">
                 <button
                   type="button"
@@ -988,6 +1009,30 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {isHomeView && showElsewhere && unassignedProjects.length > 0 && (
+          <div className="home-section home-projects-section">
+            <div className="home-projects-grid">
+              {unassignedProjects.map((p) => (
+                <ProjectTile
+                  key={p.id}
+                  project={p}
+                  artefactCount={projectArtefactCounts[p.id] ?? 0}
+                  sessionCounts={sessionCountsByProject[p.id]}
+                  selected={selectedProjectId === p.id}
+                  onSelect={() => setSelectedProjectId(selectedProjectId === p.id ? null : p.id)}
+                  onChanged={refreshAllProjects}
+                  isLastProject={false}
+                  spaceTotalSessions={0}
+                  // No merge target across the unassigned pool; move-to-space re-files it.
+                  otherProjects={[]}
+                  spaces={moveSpaceOptions}
+                  onLaunchClaude={onLaunchClaude}
+                />
+              ))}
+            </div>
           </div>
         )}
 
@@ -1106,7 +1151,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               sessionCountsByProject={sessionCountsByProject}
               selectedProjectId={selectedProjectId}
               setSelectedProjectId={setSelectedProjectId}
-              totalCounts={spaceCounts}
+              spaceTotalSessions={scopedSessions.length}
+              spaces={moveSpaceOptions}
               showAttachForm={showAttachForm}
               setShowAttachForm={setShowAttachForm}
               onProjectsChanged={refreshSpaceProjects}

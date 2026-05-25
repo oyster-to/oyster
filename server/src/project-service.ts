@@ -411,4 +411,28 @@ export class ProjectService {
     if (!row) throw new Error(`Project "${projectId}" not found`);
     return rowToProject(row);
   }
+
+  // Move a live project to a different space, or detach it entirely
+  // (spaceId = null → "unassigned", surfaces in the Home all-projects pool).
+  // Cascades to the project's sessions so they don't strand in the old
+  // space's tile. Public sibling of the attach-only relocateProjectToSpace;
+  // this one never undeletes and validates the destination.
+  moveProjectToSpace(projectId: string, spaceId: string | null): Project {
+    if (spaceId !== null) {
+      const space = this.db.prepare("SELECT id FROM spaces WHERE id = ? AND deleted_at IS NULL").get(spaceId);
+      if (!space) throw new Error(`Space "${spaceId}" not found`);
+    }
+    this.db.transaction(() => {
+      const info = this.db
+        .prepare("UPDATE projects SET space_id = ? WHERE id = ? AND removed_at IS NULL")
+        .run(spaceId, projectId);
+      if (info.changes === 0) throw new Error(`Project "${projectId}" not found`);
+      this.db.prepare("UPDATE sessions SET space_id = ? WHERE project_id = ?").run(spaceId, projectId);
+      // artifacts.space_id was dropped; space is derived via project JOIN.
+    })();
+    const row = this.db
+      .prepare("SELECT id, space_id, name, created_at FROM projects WHERE id = ?")
+      .get(projectId) as ProjectRow;
+    return rowToProject(row);
+  }
 }
