@@ -129,13 +129,15 @@
       else if (e.key === 'ArrowRight') act = 'slot-next';
       else if (e.key === 'Enter' || e.key === ' ') act = 'advance';
       // Game-supplied extra bindings (e.g. Space Jumper maps W/S to letter prev/next).
-      else if (opts.extraKeys) {
+      if (!act && opts.extraKeys) {
         for (const [a, keys] of Object.entries(opts.extraKeys)) {
           if (keys.includes(e.key)) { act = a; break; }
         }
       }
-      else if (e.key.length === 1) {
-        // Type-a-letter shortcut — jump to the typed char + auto-advance.
+      // Type-a-letter shortcut — jump to the typed char + auto-advance. Runs as
+      // a fallback AFTER extraKeys (not instead of it), so typing any letter
+      // works even in games that bind W/S to letter prev/next.
+      if (!act && e.key.length === 1) {
         const c = e.key.toUpperCase();
         const idx = opts.charset.indexOf(c);
         if (idx >= 0) {

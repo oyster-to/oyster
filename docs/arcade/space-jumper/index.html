@@ -40,9 +40,184 @@
     line-height: 1.2;
     color: #ffd84a;
     text-shadow:
-      3px 3px 0 #ff3aa1,
-      6px 6px 0 #2dd4ff,
-      0 0 18px rgba(255, 216, 74, 0.45);
+      2px 2px 0 #ff3aa1,
+      4px 4px 0 #2dd4ff,
+      0 0 24px rgba(255, 216, 74, 0.35);
+  }
+  /* Splash leaderboard view (title ↔ leaderboard cycle). Palette matches the
+     title; can move to shared/ once Invaders + Rocket Ship adopt the shared
+     splash lifecycle. */
+  .leaderboard { color: #fff; font-family: 'Press Start 2P', ui-monospace, monospace; }
+  .leaderboard .lb-title {
+    font-size: clamp(16px, 3vw, 28px);
+    color: #ffd84a;
+    letter-spacing: 0.12em;
+    text-shadow: 3px 3px 0 #ff3aa1, 5px 5px 0 #2dd4ff;
+    margin-bottom: clamp(8px, 1.5vw, 16px);
+  }
+  .leaderboard .lb-list {
+    list-style: none; padding: 0; margin: 0;
+    display: grid; grid-template-columns: auto auto auto;
+    gap: 6px 22px;
+    font-size: clamp(10px, 1.5vw, 14px);
+    letter-spacing: 0.14em; align-items: center;
+  }
+  .leaderboard .lb-list li { display: contents; }
+  .leaderboard .lb-rank     { color: #ff3aa1; text-align: right; }
+  .leaderboard .lb-initials { color: #2dd4ff; text-align: left; letter-spacing: 0.2em; }
+  .leaderboard .lb-score    { color: #ffd84a; text-align: right; }
+  .leaderboard .lb-empty {
+    font-size: clamp(10px, 1.4vw, 12px);
+    color: rgba(255, 255, 255, 0.55);
+    grid-column: 1 / -1; text-align: center;
+  }
+  /* ── Title scene: Rogers jetpacking through space ──────────────────────
+     A deep-space backdrop behind the splash — nebula glow, twinkling stars, a
+     planet and floating platforms, with Rogers hovering on his jetpack (flame
+     flickering below). Sits behind .splash-main; only ever visible on the
+     title / leaderboard (the whole splash hides in-game). */
+  /* .splash and .splash-main are already position:absolute/inset:0 from
+     shared/splash.css — just lift the content above the scene with z-index;
+     re-positioning them collapses the full-bleed splash (black screen). */
+  .splash .splash-main { z-index: 1; }
+  .sj-scene {
+    position: absolute; inset: 0; z-index: 0; overflow: hidden;
+    background:
+      radial-gradient(120% 70% at 50% 6%,  rgba(124,58,237,.35), transparent 60%),
+      radial-gradient(90% 60% at 82% 100%, rgba(45,212,255,.16), transparent 55%),
+      linear-gradient(180deg, #120a33 0%, #0a0626 45%, #050313 100%);
+    box-shadow: inset 0 0 24vmin rgba(0,0,0,.55);   /* vignette to frame the scene */
+  }
+  .sj-scene .sj-stars {
+    position: absolute; inset: 0;
+    background-image:
+      radial-gradient(1.5px 1.5px at 18% 22%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 72% 16%, #cfe7ff, transparent),
+      radial-gradient(1px 1px at 41% 38%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 86% 30%, #fff, transparent),
+      radial-gradient(1px 1px at 56% 10%, #aad4ff, transparent),
+      radial-gradient(1px 1px at 9% 46%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 92% 8%, #fff, transparent),
+      radial-gradient(1px 1px at 31% 7%, #cfe7ff, transparent),
+      radial-gradient(1px 1px at 64% 34%, #fff, transparent),
+      radial-gradient(1px 1px at 24% 66%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 78% 58%, #cfe7ff, transparent);
+    animation: sj-twinkle 3.6s ease-in-out infinite;
+  }
+  /* Distant planet, lower-left, partly off-screen. */
+  .sj-scene .sj-planet {
+    position: absolute; left: -8vmin; bottom: -12vmin;
+    width: 40vmin; height: 40vmin; border-radius: 50%; overflow: hidden;
+    background:
+      radial-gradient(circle at 29% 25%, rgba(255,255,255,.6) 0%, rgba(255,255,255,0) 15%),    /* specular glint */
+      radial-gradient(ellipse 30% 22% at 64% 46%, rgba(74,52,120,.55), transparent 70%),         /* continent */
+      radial-gradient(ellipse 26% 20% at 42% 72%, rgba(16,34,82,.55), transparent 70%),          /* dark sea */
+      radial-gradient(ellipse 20% 16% at 80% 34%, rgba(120,235,255,.4), transparent 70%),        /* bright patch */
+      radial-gradient(circle at 34% 30%, #9af1ff 0%, #2dd4ff 26%, #4f7be8 60%, #2a2270 100%);     /* base sphere */
+    box-shadow: 0 0 55px rgba(45,212,255,.28), 0 0 14px rgba(154,241,255,.25);
+  }
+  /* Latitudinal cloud bands. */
+  .sj-scene .sj-planet::before {
+    content: ''; position: absolute; inset: -25%;
+    background: repeating-linear-gradient(7deg,
+      transparent 0 6%, rgba(0,0,0,.16) 6% 8.5%,
+      transparent 8.5% 15%, rgba(255,255,255,.07) 15% 17%);
+    mix-blend-mode: soft-light;
+  }
+  /* Terminator shadow + sunlit rim (lit from upper-left). */
+  .sj-scene .sj-planet::after {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    box-shadow:
+      inset -15px -17px 46px rgba(5,3,20,.66),     /* terminator (unlit, lower-right) */
+      inset 12px 14px 26px rgba(190,245,255,.45),  /* sunlit rim (upper-left) */
+      inset 0 0 18px 5px rgba(45,212,255,.22);     /* atmospheric limb glow */
+  }
+  /* Floating pixel platforms (grass-topped, like the game's tiles). */
+  .sj-scene .sj-plat {
+    position: absolute; height: 3vmin; border-radius: 1px;
+    /* grass crown over a dirt body, like the game's tiles */
+    background: linear-gradient(180deg, #4ade80 0 20%, #16a34a 20% 40%, #3b2f1a 40% 100%);
+    box-shadow: inset 0 -0.5vmin 0 rgba(0,0,0,.35), 0 0.5vmin 0 rgba(0,0,0,.45);
+    animation: sj-float 4.5s ease-in-out infinite;
+  }
+  .sj-scene .sj-plat.p1 { width: 16vmin; left: 11%; top: 32%; }
+  .sj-scene .sj-plat.p2 { width: 11vmin; right: 13%; top: 64%; animation-delay: -2.2s; }
+  /* Alien (the game's green critter) perched on the top-left platform; bobs in
+     sync with platform p1 and blinks its antenna tips. */
+  .sj-scene .sj-alien {
+    position: absolute; left: 14.5%; top: 25.5%;   /* feet on platform p1 */
+    width: min(7vw, 5vh); height: auto;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 2px 0 rgba(0,0,0,.4)) drop-shadow(0 0 6px rgba(74,222,128,.4));
+    animation: sj-float 4.5s ease-in-out infinite;
+  }
+  .sj-scene .sj-alien .tip { animation: sj-blink .5s steps(1) infinite; }
+  /* Rogers hovering on his jetpack — inline-SVG sprite + flame, bobbing. */
+  /* Entrance is split across two wrappers so the arc is one smooth, continuous
+     motion (no waypoint judder): .sj-hero eases horizontally into centre while
+     .sj-hero-y shoots up with a slight overshoot — the differing single-bézier
+     curves trace the arc. Both wait (fill backwards) on the platform until the
+     music's ~2.0s drop, then boost over 1.2s. Resting state = on the platform. */
+  .sj-scene .sj-hero {
+    position: absolute; left: 50%; top: 6%;            /* hovers clear above the logo */
+    transform: translateX(-50%) translateX(30vw);      /* platform X */
+  }
+  .sj-scene .sj-hero-y { transform: translateY(52vh) scale(.32); }   /* platform Y + small (relative to the higher hover spot) */
+  .sj-scene.is-go .sj-hero   { animation: sj-boost-x 1.2s cubic-bezier(.25, .55, .2, 1)  1.1s both; }
+  .sj-scene.is-go .sj-hero-y { animation: sj-boost-y 1.2s cubic-bezier(.2, .8, .2, 1.25) 1.1s both; }
+  .sj-scene .sj-hero-bob { display: flex; flex-direction: column; align-items: center; }
+  .sj-scene.is-go .sj-hero-bob { animation: sj-hover 2.4s ease-in-out 2.3s infinite; }
+  .sj-scene .sj-rogers {
+    width: min(17vw, 12vh); height: auto;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 2px 0 rgba(0,0,0,.4)) drop-shadow(0 0 10px rgba(45,212,255,.35));
+  }
+  /* Jetpack exhaust — a broad orange cone with a bright inner core, each
+     flickering at its own rate so it reads as a live thruster. */
+  .sj-scene .sj-flame { position: relative; width: min(7vw, 4.6vh); height: min(13vw, 8vh); margin-top: -2px; transform-origin: 50% 0; opacity: 0; }
+  .sj-scene.is-go .sj-flame { animation: sj-ignite .5s ease-out 1.1s both; }   /* ignites on the launch */
+  .sj-scene .sj-flame span { position: absolute; left: 50%; top: 0; transform: translateX(-50%); transform-origin: 50% 0; }
+  .sj-scene .sj-flame .f-outer {
+    width: 100%; height: 100%;
+    background: linear-gradient(180deg, #ffd84a 0%, #ff8a3c 45%, rgba(255,58,161,0) 100%);
+    clip-path: polygon(50% 100%, 8% 0, 92% 0);
+    filter: drop-shadow(0 0 9px rgba(255,138,60,.8));
+    animation: sj-flame-o .1s steps(2, jump-none) infinite;
+  }
+  .sj-scene .sj-flame .f-inner {
+    width: 52%; height: 72%;
+    background: linear-gradient(180deg, #fffceb 0%, #fff3a8 42%, #ffd84a 100%);
+    clip-path: polygon(50% 100%, 16% 0, 84% 0);
+    animation: sj-flame-i .08s steps(2, jump-none) infinite;
+  }
+  @keyframes sj-twinkle { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+  @keyframes sj-hover { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.4vh); } }
+  /* Stand on the platform, then swoop up-and-around into the hover spot:
+     launch up the right side, arc up-and-over the top (leaning into it),
+     then settle down into centre. */
+  @keyframes sj-boost-x { to { transform: translateX(-50%) translateX(0); } }
+  @keyframes sj-boost-y { to { transform: translateY(0) scale(1); } }
+  @keyframes sj-ignite { 0% { opacity: 0; transform: scaleY(0); } 100% { opacity: 1; transform: scaleY(1); } }
+  @keyframes sj-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.2vh); } }
+  @keyframes sj-blink { 0%, 49% { fill: #ff3aa1; } 50%, 100% { fill: #7f1d4e; } }
+  @keyframes sj-flame-o { 0% { transform: translateX(-50%) scaleY(1)   scaleX(1);  opacity: 1; }   100% { transform: translateX(-50%) scaleY(.78) scaleX(.86); opacity: .8; } }
+  @keyframes sj-flame-i { 0% { transform: translateX(-50%) scaleY(.92) scaleX(1);  opacity: .95; } 100% { transform: translateX(-50%) scaleY(1.08) scaleX(.88); opacity: 1; } }
+  /* CRT power-on: the title flickers up out of a scanline as the screen lands. */
+  .splash-view.is-active .title { animation: sj-poweron .85s ease-out both; }
+  @keyframes sj-poweron {
+    0%   { opacity: 0; transform: scaleY(.02); filter: brightness(3.5); }
+    45%  { opacity: 1; transform: scaleY(1.1);  filter: brightness(2.4); }
+    65%  { transform: scaleY(.97); }
+    100% { transform: scaleY(1); filter: brightness(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sj-scene .sj-stars, .sj-scene .sj-plat, .sj-scene .sj-alien, .sj-scene .sj-alien .tip,
+    .sj-scene .sj-hero, .sj-scene .sj-hero-y, .sj-scene .sj-hero-bob, .sj-scene .sj-flame, .sj-scene .sj-flame span { animation: none; }
+    /* Skip the entrance — show Rogers already at the hover spot, flame lit. */
+    .sj-scene .sj-hero { transform: translateX(-50%); }
+    .sj-scene .sj-hero-y { transform: none; }
+    .sj-scene .sj-flame { opacity: 1; }
+    .splash-view.is-active .title { animation: none; }
   }
   .splash .sound-controls {
     position: absolute;
@@ -95,6 +270,7 @@
 <script src="../shared/touch.js"></script>
 <script src="../shared/iframe-host.js"></script>
 <script src="../shared/leaderboard.js"></script>
+<script src="../shared/splash.js"></script>
 <script src="../shared/initials.js"></script>
 <script src="../shared/end-overlay.js"></script>
 <audio id="sfx-powerup"   src="../shared/sfx-powerup.mp3"   preload="auto"></audio>
@@ -139,8 +315,58 @@
       </div>
     </div>
     <div class="splash" id="splash">
+      <div class="sj-scene" aria-hidden="true">
+        <div class="sj-stars"></div>
+        <div class="sj-planet"></div>
+        <div class="sj-plat p1"></div>
+        <div class="sj-plat p2"></div>
+        <svg class="sj-alien" viewBox="0 0 10 10" shape-rendering="crispEdges" aria-hidden="true">
+          <rect class="tip" x="1" y="0" width="2" height="1" fill="#ff3aa1"/>
+          <rect class="tip" x="7" y="0" width="2" height="1" fill="#ff3aa1"/>
+          <rect x="2" y="1" width="1" height="2" fill="#22c55e"/>
+          <rect x="7" y="1" width="1" height="2" fill="#22c55e"/>
+          <rect x="2" y="3" width="6" height="1" fill="#4ade80"/>
+          <rect x="1" y="4" width="8" height="3" fill="#4ade80"/>
+          <rect x="1" y="6" width="8" height="1" fill="#16a34a"/>
+          <rect x="2" y="4" width="2" height="2" fill="#0a0a14"/>
+          <rect x="6" y="4" width="2" height="2" fill="#0a0a14"/>
+          <rect x="3" y="4" width="1" height="1" fill="#fff"/>
+          <rect x="7" y="4" width="1" height="1" fill="#fff"/>
+          <rect x="2" y="7" width="6" height="2" fill="#22c55e"/>
+          <rect x="4" y="6" width="2" height="1" fill="#0a0a14"/>
+          <rect x="1" y="9" width="3" height="1" fill="#0f5132"/>
+          <rect x="6" y="9" width="3" height="1" fill="#0f5132"/>
+        </svg>
+        <div class="sj-hero">
+          <div class="sj-hero-y">
+          <div class="sj-hero-bob">
+          <svg class="sj-rogers" viewBox="0 0 10 13" shape-rendering="crispEdges" aria-hidden="true">
+            <rect x="2" y="0" width="6" height="2" fill="#a855f7"/>
+            <rect x="1" y="2" width="8" height="1" fill="#a855f7"/>
+            <rect x="7" y="3" width="2" height="1" fill="#a855f7"/>
+            <rect x="2" y="3" width="6" height="3" fill="#ffd6c8"/>
+            <rect x="6" y="4" width="2" height="1" fill="#0a0a0a"/>
+            <rect x="3" y="6" width="3" height="1" fill="#0a0a0a"/>
+            <rect x="2" y="7" width="6" height="3" fill="#ff3aa1"/>
+            <rect x="2" y="7" width="6" height="1" fill="#c92670"/>
+            <rect x="0" y="7" width="2" height="2" fill="#c92670"/>
+            <rect x="8" y="7" width="2" height="2" fill="#c92670"/>
+            <rect x="0" y="9" width="2" height="1" fill="#ffd6c8"/>
+            <rect x="8" y="9" width="2" height="1" fill="#ffd6c8"/>
+            <rect x="2" y="9" width="6" height="1" fill="#ffd84a"/>
+            <rect x="4" y="9" width="2" height="1" fill="#c79b00"/>
+            <rect x="2" y="10" width="2" height="3" fill="#2dd4ff"/>
+            <rect x="6" y="10" width="2" height="3" fill="#2dd4ff"/>
+            <rect x="1" y="12" width="3" height="1" fill="#0a0a0a"/>
+            <rect x="6" y="12" width="3" height="1" fill="#0a0a0a"/>
+          </svg>
+          <div class="sj-flame"><span class="f-outer"></span><span class="f-inner"></span></div>
+          </div>
+          </div>
+        </div>
+      </div>
       <div class="splash-main">
-        <div class="title-card">
+        <div class="title-card splash-view is-active">
           <div class="title">SPACE JUMPER</div>
           <div class="start"><span class="key-only">INSERT COIN TO PLAY</span><span class="touch-only">TAP TO PLAY</span></div>
           <div class="controls">
@@ -148,6 +374,11 @@
             <div class="key key-only">SPACE</div><div class="key touch-only">TAP JUMP</div><div class="desc">JUMP</div>
           </div>
           <div class="hiscore-row" id="hiscore-row" hidden>HIGH SCORE <span class="hs-val" id="hs-val-splash">000</span> <span class="hs-initials" id="hs-initials-splash">---</span></div>
+          <div class="credit">© OYSTER 2026 — <span class="key-only">PRESS ANY KEY</span><span class="touch-only">TAP TO PLAY</span></div>
+        </div>
+        <div class="leaderboard splash-view">
+          <div class="lb-title">HIGH SCORES</div>
+          <ol class="lb-list" id="lb-list"></ol>
           <div class="credit">© OYSTER 2026 — <span class="key-only">PRESS ANY KEY</span><span class="touch-only">TAP TO PLAY</span></div>
         </div>
       </div>
@@ -281,13 +512,14 @@ Arcade.Initials.mount({
   fireLabel:  { idle: 'JUMP', select: 'SELECT' },
   extraKeys:  { 'letter-prev': ['w', 'W'], 'letter-next': ['s', 'S'] },
   onSubmit: (initials) => {
-    const goHi = document.getElementById('go-hiscore');
-    if (goHi) goHi.textContent = `SCORE SAVED · ${initials}`;
-    Arcade.EndOverlay.extendGrace(400);
+    hideEndOverlay();
     Arcade.Leaderboard.submit(score, initials).then(res => {
       if (!res.ok) console.warn('leaderboard submit failed:', res.error);
-      paintSplashHiScore();
+      refreshLeaderboard(true);   // pull fresh so the just-saved score shows
     });
+    // Back to attract mode — opens on the leaderboard so the new score shows,
+    // then cycles to the title card; a tap there starts a fresh run.
+    Arcade.Splash.enterAttract();
   },
 });
 function paintSplashHiScore() {
@@ -302,9 +534,22 @@ function paintSplashHiScore() {
     hideWhenEmpty: true,
   });
 }
+// Top-10 list for the splash's leaderboard view (3-digit pad, legacy from
+// when scores capped at 999).
+function paintLeaderboard() {
+  Arcade.Leaderboard.paintList({ listSelector: '#lb-list', pad: 3 });
+}
+// Pull live scores from the DB whenever the board is shown — so the splash
+// stays current (including the score you just saved), not just at boot.
+// Throttled so the 5.5s title↔leaderboard cycle doesn't hammer the worker.
+let _lbRefreshAt = 0;
+function refreshLeaderboard(force) {
+  if (!force && Date.now() - _lbRefreshAt < 8000) { paintLeaderboard(); return; }
+  _lbRefreshAt = Date.now();
+  Arcade.Leaderboard.refresh().then(() => { paintSplashHiScore(); paintLeaderboard(); });
+}
 paintSplashHiScore();
-// Fire-and-forget cloud refresh; repaint when it lands.
-Arcade.Leaderboard.refresh().then(paintSplashHiScore);
+refreshLeaderboard(true);
 
 // (Initials state machine + listeners now live in shared/initials.js — see
 // the Arcade.Initials.mount(...) call above for the per-game config.)
@@ -377,52 +622,45 @@ function hideEndOverlay() {
 // ============================================
 // SPLASH — dismiss on any input, unlock audio on same gesture.
 // ============================================
-const splash = document.getElementById('splash');
-const tube = document.querySelector('.tube');
-let started = false;
-function startGame() {
-  if (started) return;
-  started = true;
-  Arcade.Audio.ensureCtx();
-  splash.classList.add('is-hidden');
-  if (tube) tube.classList.add('is-ready');
-  document.body.classList.add('is-ingame');
-  // Cross-fade from the title theme to the level-1 music. Same user
-  // gesture also unlocks audio on iOS — if the theme failed to autoplay
-  // earlier (cross-origin / direct visit), .play() here is what
-  // actually unlocks the audio system for the bgm track too.
-  const bgmTheme = document.getElementById('bgm-theme');
-  if (bgmTheme) { bgmTheme.pause(); bgmTheme.currentTime = 0; }
-  const bgm = document.getElementById('bgm');
-  if (bgm) {
-    bgm.volume = 0.35;
-    bgm.currentTime = 0;
-    bgm.play().catch(() => {});
-  }
+// Splash + attract-mode lifecycle (shared/splash.js). Boots to the title,
+// cycles title ↔ leaderboard, and returns to attract after a game (see the
+// enterAttract() calls below). Replaces the old one-shot startGame() latch.
+const _bgm      = () => document.getElementById('bgm');        // level music
+const _bgmTheme = () => document.getElementById('bgm-theme');  // title theme
+
+// (Re)start the title intro animation in lockstep with the theme. The track
+// fades in over its first ~2s then explodes into the main hook at ~2.0s, so
+// the CSS entrance (.is-go) holds Rogers on the platform until then and boosts
+// on the drop. Called from onTitle right beside play() so the two start
+// together; the class toggle + reflow restarts the keyframes on attract re-entry.
+function runTitleSequence() {
+  const s = document.querySelector('.sj-scene');
+  if (!s) return;
+  s.classList.remove('is-go');
+  void s.offsetWidth;
+  s.classList.add('is-go');
 }
 
-// Title theme — try to autoplay on page load so visitors hear something
-// while reading the title. Browsers block autoplay without a user
-// gesture; if rejected here, the same media starts inside startGame()
-// via its first-tap gesture (then immediately pauses for level-1 BGM).
-// The arcade iframe sets `allow="autoplay"` so launches from the
-// cabinet bypass the block.
-(function () {
-  // Belt + braces: make absolutely sure the level music isn't already
-  // playing at title-screen time (defends against any stray autoplay
-  // path from older deployed JS / cached state).
-  const bgm = document.getElementById('bgm');
-  if (bgm) { bgm.pause(); bgm.currentTime = 0; }
-  const bgmTheme = document.getElementById('bgm-theme');
-  if (!bgmTheme) return;
-  bgmTheme.volume = 0.4;
-  bgmTheme.play().catch(() => {});
-})();
-window.addEventListener('keydown', e => { if (e.key !== 'Escape') startGame(); });
-splash.addEventListener('pointerdown', e => {
-  // Ignore taps on the sound toggle.
-  if (e.target.closest('.sound-toggle')) return;
-  startGame();
+Arcade.Splash.mount({
+  views:  '#splash .splash-view',
+  ignore: '.sound-controls',                 // taps on the sound toggles don't start
+  isBusy: () => Arcade.Initials.isActive(),  // never start/advance mid-initials
+  onTitle() {
+    const b = _bgm();      if (b) { b.pause(); b.currentTime = 0; }
+    const t = _bgmTheme(); if (t) { t.volume = 0.4; t.currentTime = 0; t.play().catch(() => {}); }
+    runTitleSequence();   // start Rogers' entrance in time with the theme's intro
+  },
+  onPlay() {
+    const t = _bgmTheme(); if (t) { t.pause(); t.currentTime = 0; }
+    const b = _bgm();      if (b) b.volume = 0.35;
+    Arcade.Audio.ensureCtx();
+    resetRun();                              // resumeBgm() runs inside (now 'playing')
+  },
+  onLeaderboardShow: () => refreshLeaderboard(),
+  unlockAudio() {                            // iOS: first title gesture unlocks audio
+    Arcade.Audio.ensureCtx();
+    const t = _bgmTheme(); if (t && t.paused) { t.volume = 0.4; t.play().catch(() => {}); runTitleSequence(); }
+  },
 });
 
 // ============================================
@@ -757,12 +995,10 @@ function resetRun() {
   hideEndOverlay();
   initEnemies();
   resetPlayer();
-  // Only kick the level BGM if the game has been started at least once.
-  // The initial call (script bootstrap) leaves the level music silent so
-  // the title-theme IIFE owns the title screen alone — psykick starts
-  // when the level actually begins (first startGame, or restart after
-  // game-over / level-complete, both of which happen after `started`).
-  if (started) resumeBgm();
+  // Only kick the level BGM once we're actually playing. The bootstrap call
+  // leaves it silent so the title theme owns the title screen; onPlay flips
+  // the phase to 'playing' before calling resetRun(), so this fires then.
+  if (Arcade.Splash.isPlaying()) resumeBgm();
 }
 
 // Lose a life but keep score and coin progress. If lives drop to 0 the
@@ -949,7 +1185,10 @@ function update() {
         Arcade.Initials.open();
         return;
       }
-      resetRun();
+      // GAME OVER / GAME COMPLETE → bow out to the attract screen instead of
+      // restarting immediately: the leaderboard shows, then a tap plays again.
+      hideEndOverlay();
+      Arcade.Splash.enterAttract();
     }
     return;
   }
@@ -2724,7 +2963,7 @@ function drawLivesScreen() {
 }
 
 function loop() {
-  if (started) {
+  if (Arcade.Splash.isPlaying()) {
     update();
     draw();
   }
