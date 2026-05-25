@@ -76,9 +76,10 @@ export function paintShip(ctx, x, shipY, shipW, color) {
 }
 
 // Boss sprite roster (Phase H/2). 4 types — one per set — ported
-// from SP's BOSS_TYPES. Each entry: two 8×8 frames + a 3-band colour
-// gradient (hi → mid → shadow, applied to rows 0-2, 3-4, 5-7).
-// Painted at scale 5 → 40×40 PF; 2-frame anim toggles every ~300 ms.
+// from SP's BOSS_TYPES. Each entry: two 8×8 frames + a 3-colour
+// palette used by paintBoss to pick a SINGLE body colour based on
+// HP (>66% → bands[0], >33% → bands[1], lower → bands[2]). Painted
+// at scale 5 → 40×40 PF; 2-frame anim toggles every ~300 ms.
 //
 // Set rotation: stageSet 1 → CRIMSON OCTOPUS, 2 → VIOLET CRAB,
 // 3 → AZURE SQUID, 4 → JADE SKULL. Defeating the JADE SKULL boss
@@ -118,14 +119,18 @@ export const BOSS_TYPES = [
   },
 ];
 
-// Paint a boss frame at (x, y) PF coords. `type` is an index into
+// Paint a boss frame at (x, y) PF coords using a SINGLE body color.
+// SP matches its boss palette to HP — healthy → bands[0], hurt →
+// bands[1], near-dead → bands[2] — so the caller picks the band
+// index from boss.hp / boss.hpMax. `type` is an index into
 // BOSS_TYPES; out-of-range defensively falls back to the first.
-export function paintBoss(ctx, x, y, scale, frame, type) {
+// (Earlier H/2 builds applied a 3-row hi/mid/shadow gradient — but
+// SP never did that; it's a single-colour silhouette.)
+export function paintBoss(ctx, x, y, scale, frame, type, bandIndex) {
   const def = BOSS_TYPES[type | 0] || BOSS_TYPES[0];
   const px = def.frames[frame & 1];
+  ctx.fillStyle = def.bands[Math.max(0, Math.min(2, bandIndex | 0))];
   for (let row = 0; row < px.length; row++) {
-    const band = row < 3 ? 0 : (row < 5 ? 1 : 2);
-    ctx.fillStyle = def.bands[band];
     const cells = px[row];
     const py = y + row * scale;
     for (let col = 0; col < cells.length; col++) {

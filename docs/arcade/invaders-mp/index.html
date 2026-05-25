@@ -1632,10 +1632,12 @@
     // bar fill colour for a quick-glance read.
     if (latestSnap.phase === 'boss' && latestSnap.boss) {
       const bf = Math.floor(performance.now() / 300) & 1;
-      paintBoss(ctx, latestSnap.boss.x, BOSS_Y, 5, bf, latestSnap.boss.type || 0);
       const hp = latestSnap.boss.hp;
       const hpMax = latestSnap.boss.hpMax || 1;
       const ratio = Math.max(0, Math.min(1, hp / hpMax));
+      // Body colour darkens as the boss bleeds — SP's 3-step palette.
+      const bandIndex = ratio > 0.66 ? 0 : ratio > 0.33 ? 1 : 2;
+      paintBoss(ctx, latestSnap.boss.x, BOSS_Y, 5, bf, latestSnap.boss.type || 0, bandIndex);
       const barY = BOSS_Y - 4;
       ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
       ctx.fillRect(latestSnap.boss.x, barY, BOSS_W, 2);
@@ -1754,22 +1756,14 @@
       drawCenteredOverlay(label, `rgba(255, 216, 74, ${t.toFixed(2)})`, 18);
     }
 
-    // Win cutscene — plays for CUTSCENE_SEC after the final boss
-    // falls, before status flips to 'gameover'. Two stacked lines:
-    // a big gold "EARTH IS SAFE" headline and the team score below.
-    // No fade — the cutscene is short enough that a steady reveal
-    // reads cleaner than a wobbly alpha ramp.
+    // Win cutscene — pixel Earth grows, ship orbits + plants a flag,
+    // starburst, EARTH IS SAFE banner. Local clock so the animation
+    // stays smooth regardless of snapshot stutter. Reset when leaving
+    // cutscene so a second win restarts the animation cleanly.
     if (latestSnap.phase === 'cutscene') {
-      ctx.save();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = '14px "Press Start 2P", monospace';
-      ctx.fillStyle = '#ffd84a';
-      ctx.fillText('EARTH IS SAFE', PF_W / 2, PF_H / 2 - 12);
-      ctx.font = '8px "Press Start 2P", monospace';
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText('SCORE ' + (latestSnap.score | 0), PF_W / 2, PF_H / 2 + 8);
-      ctx.restore();
+      drawCutscene();
+    } else if (cutsceneStartedAt !== 0) {
+      cutsceneStartedAt = 0;
     }
 
     // Floating score popups — server-spawned on each kill, live for
@@ -1936,6 +1930,165 @@
     ctx.fillStyle = color;
     ctx.fillText(text, PF_W / 2, PF_H / 2);
     ctx.restore();
+  }
+
+  // 16×16 Earth bitmap ported from SP. 'X' = green continent,
+  // '/' = pale ice cap, '.' = ocean. Sampled by drawPixelEarth's
+  // radial mask so we get a circular planet, not a square.
+  const EARTH_BITMAP = [
+    '......//........',
+    '....XX..........',
+    '..XXXXX.XX......',
+    '.XXXXXX.XXXX....',
+    '.XXXXX..XXXXX...',
+    '.XXXXX..XXXXX...',
+    '.XXXX...XXXXX...',
+    '.XXX....XXXX....',
+    '..XX....XXXX....',
+    '..XX....XXX.....',
+    '..XX....XX......',
+    '...X....XX......',
+    '...X....XX......',
+    '...X.....X......',
+    '....X...........',
+    '.....//.........',
+  ];
+  function drawPixelEarth(cx, cy, radius) {
+    // Round once — fractional radius makes the dx/dy loops below
+    // iterate at fractional steps, drawing 1×1 rects at subpixel
+    // positions that anti-alias into a blurry, jittery planet.
+    // Integer radius gives crisp 1-pixel growth steps.
+    radius = Math.round(radius);
+    const r2 = radius * radius;
+    const bmW = EARTH_BITMAP[0].length;
+    const bmH = EARTH_BITMAP.length;
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (dx * dx + dy * dy > r2) continue;
+        const col = Math.floor((dx + radius) / (2 * radius) * bmW);
+        const row = Math.floor((dy + radius) / (2 * radius) * bmH);
+        const ch = EARTH_BITMAP[Math.max(0, Math.min(bmH - 1, row))]
+                              [Math.max(0, Math.min(bmW - 1, col))];
+        ctx.fillStyle = ch === 'X' ? '#4ade80'
+                      : ch === '/' ? '#d0e8ff'
+                                   : '#2080d8';
+        ctx.fillRect(cx + dx, cy + dy, 1, 1);
+      }
+    }
+    // Soft cyan rim on the right for a tiny shadow-side highlight.
+    for (let dy = -radius; dy <= radius; dy++) {
+      const dxEdge = Math.floor(Math.sqrt(Math.max(0, r2 - dy * dy)));
+      if (dxEdge > 0 && Math.abs(dy) < radius - 1) {
+        ctx.fillStyle = 'rgba(120, 200, 255, 0.5)';
+        ctx.fillRect(cx + dxEdge - 1, cy + dy, 1, 1);
+      }
+    }
+  }
+
+  // Local cutscene clock — first frame phase==='cutscene' is the
+  // start instant. Reset on exit so a second win starts the animation
+  // from t=0 again. Animation length is server-controlled via
+  // CUTSCENE_SEC; this just provides per-frame timing for the
+  // animation beats below. Using performance.now() instead of the
+  // wire's cutsceneIn keeps the animation smooth even when snapshot
+  // updates stutter.
+  let cutsceneStartedAt = 0;
+  function drawCutscene() {
+    const now = performance.now();
+    if (cutsceneStartedAt === 0) cutsceneStartedAt = now;
+    const tMs = now - cutsceneStartedAt;
+    const cx = PF_W / 2;
+    const cy = PF_H / 2 - 10;
+
+    // Stable starfield — positions derived from index so they don't
+    // flicker frame-to-frame. A few stars twinkle on a slow cycle.
+    const STAR_COUNT = 70;
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const sx = (i * 73 + 17) % PF_W;
+      const sy = (i * 137 + 41) % PF_H;
+      const twinkles = i % 7 === 0;
+      const lit = twinkles ? (Math.floor(tMs / 350 + i) % 2) === 0 : true;
+      if (lit) { ctx.fillStyle = twinkles ? '#ffd84a' : '#ffffff'; ctx.fillRect(sx, sy, 1, 1); }
+    }
+
+    // Earth grows from a dot to ~46 PF radius over the first 3 s.
+    const growT = Math.min(1, tMs / 3000);
+    const radius = 3 + growT * 43;
+    drawPixelEarth(cx, cy, radius);
+
+    // Ship orbits — starts at t≈2.8 s and keeps orbiting at a
+    // constant rate (~1.5 laps per 4 s; orbitT is unbounded by
+    // design, the cutscene ends after ~9.5 s = ~2.5 laps total).
+    // 8×6 PF sprite mirroring the in-game silhouette so it reads
+    // at this zoom. Cyan thrust trail trails the ship by 3 PF stride.
+    if (tMs > 2800) {
+      const orbitT = (tMs - 2800) / 4000;
+      const angle  = orbitT * Math.PI * 3 - Math.PI / 2;
+      const orbitR = radius + 18;
+      const sx = cx + Math.cos(angle) * orbitR - 4;
+      const sy = cy + Math.sin(angle) * orbitR - 3;
+      ctx.fillStyle = '#ff7ab8';
+      ctx.fillRect(sx,     sy + 4, 8, 2);
+      ctx.fillRect(sx + 2, sy + 2, 4, 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(sx + 3, sy,     2, 2);
+      ctx.fillStyle = '#2dd4ff';
+      ctx.fillRect(sx + 3, sy + 3, 2, 1);
+      const tailAng = angle - Math.PI;
+      for (let k = 1; k <= 3; k++) {
+        ctx.fillStyle = k === 1 ? '#2dd4ff' : 'rgba(45, 212, 255, 0.4)';
+        ctx.fillRect(cx + Math.cos(tailAng) * (orbitR + k * 3) - 1,
+                     cy + Math.sin(tailAng) * (orbitR + k * 3) - 1, 2, 2);
+      }
+    }
+
+    // Flag planted on the north pole around t≈6 s.
+    if (tMs > 6000) {
+      const flagAlpha = Math.min(1, (tMs - 6000) / 600);
+      ctx.save();
+      ctx.globalAlpha = flagAlpha;
+      const fx = cx - 1;
+      const fy = cy - radius - 14;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(fx, fy, 2, 14);                  // pole
+      ctx.fillStyle = '#ffd84a';
+      ctx.fillRect(fx + 2, fy + 1, 9, 6);            // gold cloth
+      ctx.fillStyle = '#ff3aa1';
+      ctx.fillRect(fx + 2, fy + 1, 9, 1);            // pink top stripe
+      ctx.fillRect(fx + 2, fy + 6, 9, 1);            // pink bottom stripe
+      ctx.fillRect(fx + 5, fy + 3, 3, 2);            // pearl in the middle
+      ctx.restore();
+    }
+
+    // Star burst from the planet around t≈5 s.
+    if (tMs > 5000) {
+      const burstT = (tMs - 5000) / 2500;
+      ctx.fillStyle = '#ffd84a';
+      for (let i = 0; i < 20; i++) {
+        const a = (i / 20) * Math.PI * 2;
+        const dist = 8 + burstT * 90;
+        const sx = cx + Math.cos(a) * dist;
+        const sy = cy + Math.sin(a) * dist;
+        if (sx < 0 || sx > PF_W || sy < 0 || sy > PF_H) continue;
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+    }
+
+    // EARTH IS SAFE banner — gold drop-shadow + red main on top,
+    // splash-marquee style.
+    if (tMs > 6800) {
+      const textAlpha = Math.min(1, (tMs - 6800) / 500);
+      ctx.save();
+      ctx.globalAlpha = textAlpha;
+      ctx.font = '12px "Press Start 2P", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffd84a';
+      ctx.fillText('EARTH IS SAFE', PF_W / 2 + 2, PF_H - 30 + 2);
+      ctx.fillStyle = '#ff2020';
+      ctx.fillText('EARTH IS SAFE', PF_W / 2, PF_H - 30);
+      ctx.restore();
+    }
   }
 
   function rafLoop(now) {
