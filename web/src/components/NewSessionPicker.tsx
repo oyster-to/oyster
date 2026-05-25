@@ -181,7 +181,7 @@ export function NewSessionPicker({
       if (!q) return true;
       const name = p.name.toLowerCase();
       const path = (p.recentPath ?? "").toLowerCase();
-      const space = (spaceNameById.get(p.spaceId) ?? "").toLowerCase();
+      const space = (spaceNameById.get(p.spaceId ?? "") ?? "").toLowerCase();
       return name.includes(q) || path.includes(q) || space.includes(q);
     };
 
@@ -194,7 +194,7 @@ export function NewSessionPicker({
 
     const toRow = (p: Project, group: "recent" | "all"): Row => ({
       project: p,
-      spaceName: spaceNameById.get(p.spaceId) ?? p.spaceId,
+      spaceName: spaceNameById.get(p.spaceId ?? "") ?? p.spaceId ?? "",
       group,
       disabled: p.hasLivePath === false,
     });

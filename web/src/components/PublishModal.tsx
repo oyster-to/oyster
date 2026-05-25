@@ -366,7 +366,7 @@ export function PublishModal({ artifact, onClose }: Props) {
                 </div>
                 <div className="publish-modal-meta">
                   Live · published {publication.publishedAt
-                    ? (formatRelative(publication.publishedAt) ?? "just now")
+                    ? (formatRelative(new Date(publication.publishedAt).toISOString()) ?? "just now")
                     : "just now"}
                 </div>
 
