@@ -70,7 +70,40 @@ const INV_SPEED_MIN  = 20;
 // Wall-bounce drop speed. 8 units at 64 u/s = 125 ms — a hop, not a
 // teleport at the current tick rate.
 const INV_DROP_SPEED = 64;
-const INV_FIRE_INTERVAL = 1.4;
+// Base fire interval at stageSet 1; shrinks per set, floored above
+// the boss interval so the grid doesn't out-spam its own boss.
+// Set 1 = 1.4 s → set 4 = 0.65 s. SP achieves the same difficulty
+// curve via a fire-chance ramp; we shrink the interval since MP
+// fires deterministically on the timer.
+const INV_FIRE_INTERVAL_BASE = 1.4;
+const INV_FIRE_INTERVAL_MIN  = 0.55;
+const INV_FIRE_INTERVAL_STEP = 0.25;
+function invFireIntervalFor(setNum) {
+  return Math.max(INV_FIRE_INTERVAL_MIN, INV_FIRE_INTERVAL_BASE - (setNum - 1) * INV_FIRE_INTERVAL_STEP);
+}
+
+// === Marked invader ===
+// One random alive invader per grid breaks formation, swoops down
+// in a loop-de-loop, returns to its slot at expiry. Ported from SP
+// — adds dynamism to the grid phase. Worth MARKED_BONUS to the
+// killing player (flat, NOT combo-scaled). The swarm's normal march
+// still moves the marked invader's base position; the swoop is a
+// relative offset on top.
+const MARKED_BONUS = 200;
+const MARKED_DURATION_SEC = 4;
+const MARKED_GAP_MIN_SEC = 5;
+const MARKED_GAP_MAX_SEC = 15;
+const MARKED_LAST_ONE_MIN_SEC = 0.4;   // last invader panics — short gaps
+const MARKED_LAST_ONE_MAX_SEC = 0.9;
+const MARKED_SWOOP_AMOUNT_MAX = 140;
+const MARKED_SWOOP_GUARD = 36;         // PF gap from the ship row
+const MARKED_WAGGLE_AMP = 30;
+function nextMarkedGap(aliveCount) {
+  if (aliveCount === 1) {
+    return MARKED_LAST_ONE_MIN_SEC + Math.random() * (MARKED_LAST_ONE_MAX_SEC - MARKED_LAST_ONE_MIN_SEC);
+  }
+  return MARKED_GAP_MIN_SEC + Math.random() * (MARKED_GAP_MAX_SEC - MARKED_GAP_MIN_SEC);
+}
 
 // === Shields ===
 // 4 destructible bunkers between the swarm and the ship row, ported
@@ -160,6 +193,13 @@ export const BOSS_TYPE_COUNT = 4;
 export const CUTSCENE_SEC = 9.5;
 const BOSS_BASE_HP = 30;                         // ~10 charged hits or 30 normal at set 1
 const BOSS_HP_PER_SET = 15;                      // +15 HP per set
+// Slow downward creep so the boss fight has urgency. SP value =
+// 1.6 + (setNum-1) * 0.8 px/sec. Boss floors out just above the
+// shield row so it doesn't bypass them. Without this the boss
+// parks at BOSS_Y forever and the fight has no time pressure.
+const BOSS_DESCENT_BASE = 1.6;
+const BOSS_DESCENT_PER_SET = 0.8;
+const BOSS_Y_MAX = SHIELD_Y - BOSS_H - 4;        // stops above shields
 const BOSS_BASE_SPEED = 38;                      // PF/sec at set 1
 const BOSS_SPEED_PER_SET = 12;
 const BOSS_FIRE_INTERVAL_BASE = 1.1;             // seconds at set 1
@@ -350,6 +390,16 @@ export function initState() {
     invaderDir: 1,
     invaderDropRemaining: 0,
     invaderFireAccum: 0,
+    // Marked invader — { idx, untilSec, swoopDX, swoopDY } | null
+    // where idx is the index into state.invaders (so the renderer +
+    // collision can identify which one swoops). swoopDX/Y are the
+    // current relative offsets the swoop adds on top of the invader's
+    // grid x/y. Cleared on kill / expiry / stage change.
+    marked: null,
+    // Seconds until the next mark-spawn attempt. Pre-seeded with a
+    // gap so the first stage gets a few seconds of "normal" before
+    // the first swoop. Updated by stepMarked + nextMarkedGap.
+    markedSpawnIn: MARKED_GAP_MIN_SEC,
     // 2-frame "shuffle" animation. Advances by horizontal distance
     // travelled, mirroring SP's discrete-step flip (~2 units per
     // beat) — so the animation cadence is tied to march speed and
@@ -420,6 +470,7 @@ export function step(state, inputs, dt, occupied = ALL_OCCUPIED) {
   } else {
     stepInvaders(state, dt);
     stepInvaderFire(state, dt);
+    stepMarked(state, dt);
   }
   stepUfo(state, dt);
   stepPopups(state, dt);
@@ -470,10 +521,12 @@ function spawnBoss(setNum) {
     // never wraps in a real game).
     type: (setNum - 1) % BOSS_TYPE_COUNT,
     x: PF_W / 2 - BOSS_W / 2,
+    y: BOSS_Y,                                  // starts where the top invader row would
     hp,
     hpMax: hp,
     dir: 1,
     speed: BOSS_BASE_SPEED + (setNum - 1) * BOSS_SPEED_PER_SET,
+    descent: BOSS_DESCENT_BASE + (setNum - 1) * BOSS_DESCENT_PER_SET,
     fireAccum: 0,
     fireInterval: Math.max(
       BOSS_FIRE_INTERVAL_MIN,
@@ -543,9 +596,11 @@ function stepBossAdds(state, dt) {
   }
 }
 
-// Boss tick: horizontal bounce + periodic fire from centre-bottom +
-// minion swoop animation. No vertical descent — the boss stays parked
-// at BOSS_Y and applies pressure via bullets + minion shielding.
+// Boss tick: horizontal bounce + slow downward descent + periodic
+// fire from centre-bottom + minion swoop animation. Descent floors
+// just above the shield row (BOSS_Y_MAX) so the boss never bypasses
+// shields — pressure comes from time + bullets + minions, not from
+// the boss reaching the player line.
 function stepBoss(state, dt) {
   if (state.phase !== 'boss' || !state.boss) return;
   const b = state.boss;
@@ -554,12 +609,16 @@ function stepBoss(state, dt) {
   // edge-grinding.
   if (b.x < 8)                  { b.x = 8;                  b.dir = 1;  }
   if (b.x > PF_W - 8 - BOSS_W)  { b.x = PF_W - 8 - BOSS_W;  b.dir = -1; }
+  // Slow descent toward the shield row — adds urgency so the fight
+  // can't be ground out indefinitely. Floors out just above the
+  // shields; never bypasses them.
+  b.y = Math.min(BOSS_Y_MAX, b.y + b.descent * dt);
   b.fireAccum += dt;
   if (b.fireAccum >= b.fireInterval) {
     b.fireAccum = 0;
     state.invaderBullets.push({
       x: b.x + BOSS_W / 2 - BULLET_W / 2,
-      y: BOSS_Y + BOSS_H,
+      y: b.y + BOSS_H,
       owner: null,
     });
   }
@@ -605,6 +664,8 @@ function checkStageClear(state) {
     state.invaderDropRemaining = 0;
     state.invaderFireAccum = 0;
     state.invaderBullets = [];
+    state.marked = null;
+    state.markedSpawnIn = MARKED_GAP_MIN_SEC;
     state.stageAnnounceIn = STAGE_ANNOUNCE_SEC;
     return;
   }
@@ -617,6 +678,7 @@ function checkStageClear(state) {
     state.phase = 'boss';
     state.boss = spawnBoss(state.stageSet);
     state.invaderBullets = [];
+    state.marked = null;
     state.stageAnnounceIn = STAGE_ANNOUNCE_SEC;
     return;
   }
@@ -625,6 +687,8 @@ function checkStageClear(state) {
   state.invaderDropRemaining = 0;
   state.invaderFireAccum = 0;
   state.invaderBullets = [];
+  state.marked = null;
+  state.markedSpawnIn = MARKED_GAP_MIN_SEC;
   state.stageAnnounceIn = STAGE_ANNOUNCE_SEC;
 }
 
@@ -766,7 +830,7 @@ function stepInvaders(state, dt) {
 
 function stepInvaderFire(state, dt) {
   state.invaderFireAccum += dt;
-  if (state.invaderFireAccum < INV_FIRE_INTERVAL) return;
+  if (state.invaderFireAccum < invFireIntervalFor(state.stageSet)) return;
   state.invaderFireAccum = 0;
 
   // Pick a random column with at least one live invader, then fire
@@ -788,6 +852,65 @@ function stepInvaderFire(state, dt) {
     y: shooter.y + INV_H,
     owner: null,
   });
+}
+
+// Marked-invader tick. Only runs during phase==='grid' (gameplay
+// keeps the marked entity ticking; boss/cutscene phases clear it
+// via the boss-spawn / cutscene transitions). Two states:
+//   - no current mark → tick markedSpawnIn down, spawn when ≤ 0.
+//   - active mark → tick untilSec down; update swoopDX/DY; expire
+//     when ≤ 0, then schedule the next gap.
+function stepMarked(state, dt) {
+  const aliveIdxs = [];
+  for (let i = 0; i < state.invaders.length; i++) {
+    if (state.invaders[i].alive) aliveIdxs.push(i);
+  }
+  if (aliveIdxs.length === 0) {
+    state.marked = null;                       // grid wiped — drop any in-flight mark
+    return;
+  }
+  if (state.marked) {
+    const m = state.marked;
+    // If the marked invader died via collision in this same tick,
+    // resolveCollisions cleared state.marked already. Defensive
+    // re-check that the index is still alive.
+    if (!state.invaders[m.idx] || !state.invaders[m.idx].alive) {
+      state.marked = null;
+      state.markedSpawnIn = nextMarkedGap(aliveIdxs.length);
+      return;
+    }
+    m.untilSec = Math.max(0, m.untilSec - dt);
+    const t = 1 - (m.untilSec / MARKED_DURATION_SEC);
+    const inv = state.invaders[m.idx];
+    // Vertical: cosine ease 0→1→0 over the duration. Capped so the
+    // swoop doesn't crowd the shield row / collide with the ship at
+    // peak dive (SHIP_Y - INV_H - MARKED_SWOOP_GUARD is the floor).
+    const easeV = 0.5 - 0.5 * Math.cos(t * Math.PI * 2);
+    const swoopAmount = Math.min(
+      MARKED_SWOOP_AMOUNT_MAX,
+      Math.max(0, SHIP_Y - inv.y - INV_H - MARKED_SWOOP_GUARD),
+    );
+    m.swoopDY = easeV * swoopAmount;
+    // Horizontal: 2.5 cycles of sine over the duration → loop-de-loop
+    // shape. Waggle amplitude fades with the same envelope so the
+    // invader sits still at start + end (otherwise the snap-back to
+    // its grid slot would have a visible horizontal jump).
+    m.swoopDX = Math.sin(t * Math.PI * 5) * MARKED_WAGGLE_AMP * easeV;
+    if (m.untilSec === 0) {
+      state.marked = null;
+      state.markedSpawnIn = nextMarkedGap(aliveIdxs.length);
+    }
+    return;
+  }
+  state.markedSpawnIn = Math.max(0, state.markedSpawnIn - dt);
+  if (state.markedSpawnIn === 0) {
+    state.marked = {
+      idx: aliveIdxs[Math.floor(Math.random() * aliveIdxs.length)],
+      untilSec: MARKED_DURATION_SEC,
+      swoopDX: 0,
+      swoopDY: 0,
+    };
+  }
 }
 
 // Chip the shared shield bitmap where a bullet AABB overlaps.
@@ -850,7 +973,13 @@ function resolveCollisions(state, occupied) {
     for (let i = 0; i < state.invaders.length; i++) {
       const inv = state.invaders[i];
       if (!inv.alive) continue;
-      if (!overlap(b.x, b.y, bw, bh, inv.x, inv.y, INV_W, INV_H)) continue;
+      // Marked invader collides at its swoop position, NOT its grid
+      // slot — that's the whole point of the swoop. Compute the
+      // effective hit box for this invader for the overlap test.
+      const isMarked = state.marked && state.marked.idx === i;
+      const ix = isMarked ? inv.x + state.marked.swoopDX : inv.x;
+      const iy = isMarked ? inv.y + state.marked.swoopDY : inv.y;
+      if (!overlap(b.x, b.y, bw, bh, ix, iy, INV_W, INV_H)) continue;
       inv.alive = false;
       const owner = b.owner && state.ships[b.owner];
       if (owner) {
@@ -858,17 +987,21 @@ function resolveCollisions(state, occupied) {
         owner.comboDecayIn = COMBO_WINDOW_SEC;
         const basePts = ROW_POINTS[Math.floor(i / INV_COLS)] || 0;
         const mult = comboMultiplier(owner.combo);
-        const pts = basePts * mult;
+        let pts = basePts * mult;
+        // Marked bonus is FLAT (not combo-scaled — matches SP).
+        // Yellow popup + bigger text to celebrate the rare hit.
+        const markedHit = isMarked;
+        if (markedHit) pts += MARKED_BONUS;
         owner.score += pts;
-        // Floating score popup: "+30" for a vanilla kill, "x3 +60"
-        // when a multiplier's active. Drawn at the killed invader's
-        // position, drifts up and fades.
-        const text = mult > 1 ? `x${mult} +${pts}` : `+${pts}`;
+        let text;
+        if (markedHit)     text = `+${pts}!`;
+        else if (mult > 1) text = `x${mult} +${pts}`;
+        else               text = `+${pts}`;
         state.popups.push({
-          x: inv.x + INV_W / 2,
-          y: inv.y,
+          x: ix + INV_W / 2,
+          y: iy,
           text: text,
-          col: '#ffffff',
+          col: markedHit ? '#ffd84a' : '#ffffff',
           life: POPUP_LIFE_SEC,
         });
         // Earned-ammo threshold crossings — bump the threshold even
@@ -877,6 +1010,19 @@ function resolveCollisions(state, occupied) {
           if (owner.superAmmo < SUPER_SHOT_MAX) owner.superAmmo++;
           owner.nextSuperAt += SUPER_SCORE_INTERVAL;
         }
+      }
+      if (isMarked) {
+        // Clear the mark + schedule the next gap right here. If we
+        // only nulled state.marked, stepMarked would see markedSpawnIn
+        // already at 0 next tick and immediately spawn another mark
+        // — breaking the 5-15s (or 0.4-0.9s last-one) cadence. Count
+        // alive AFTER the kill (this invader's .alive was just set
+        // to false above) so the last-invader path triggers when it
+        // should.
+        state.marked = null;
+        let aliveLeft = 0;
+        for (const ii of state.invaders) if (ii.alive) aliveLeft++;
+        state.markedSpawnIn = nextMarkedGap(aliveLeft);
       }
       if (!b.charged) { b.y = -999; break; }
       // charged: keep checking other invaders this tick
@@ -931,7 +1077,7 @@ function resolveCollisions(state, occupied) {
       const bw = b.charged ? CHARGED_BULLET_W : BULLET_W;
       const bh = b.charged ? CHARGED_BULLET_H : BULLET_H;
       if (b.y < -bh) continue;
-      if (!overlap(b.x, b.y, bw, bh, bs.x, BOSS_Y, BOSS_W, BOSS_H)) continue;
+      if (!overlap(b.x, b.y, bw, bh, bs.x, bs.y, BOSS_W, BOSS_H)) continue;
       const dmg = b.charged ? 3 : 1;
       bs.hp = Math.max(0, bs.hp - dmg);
       const owner = b.owner && state.ships[b.owner];
@@ -939,7 +1085,7 @@ function resolveCollisions(state, occupied) {
         owner.score += BOSS_HIT_SCORE;
         state.popups.push({
           x: bs.x + BOSS_W / 2,
-          y: BOSS_Y,
+          y: bs.y,
           text: `-${dmg}`,
           col: '#ff7a7a',
           life: POPUP_LIFE_SEC,
@@ -948,7 +1094,7 @@ function resolveCollisions(state, occupied) {
           owner.score += BOSS_DEFEAT_SCORE;
           state.popups.push({
             x: bs.x + BOSS_W / 2,
-            y: BOSS_Y + BOSS_H / 2,
+            y: bs.y + BOSS_H / 2,
             text: `+${BOSS_DEFEAT_SCORE}`,
             col: '#ffd84a',
             life: POPUP_LIFE_SEC * 2,
@@ -1206,6 +1352,9 @@ export function snapshotForClient(state) {
     phase:          state.phase,
     boss:           state.boss ? {
       x:    round(state.boss.x),
+      // Descent — `y` is server-authoritative now (was a constant).
+      // Older clients fall back to BOSS_Y if missing.
+      y:    round(state.boss.y),
       hp:   state.boss.hp,
       hpMax: state.boss.hpMax,
       type: state.boss.type | 0,
@@ -1216,5 +1365,14 @@ export function snapshotForClient(state) {
     // gate leaderboard submission so cheated runs don't pollute the
     // hi-score table.
     cheated:        !!state.cheated,
+    // Marked invader — { i, dx, dy } where i is the index into the
+    // invaders array and dx/dy are the swoop offsets (added on top
+    // of the invader's grid position by the renderer + collision).
+    // null when no mark is active.
+    marked:         state.marked ? {
+      i:  state.marked.idx,
+      dx: round(state.marked.swoopDX),
+      dy: round(state.marked.swoopDY),
+    } : null,
   };
 }
