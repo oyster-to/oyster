@@ -65,9 +65,14 @@ ORDER BY COALESCE(last_event_at, started_at) DESC, started_at DESC, id DESC
 LIMIT @limit
 ```
 
-- `COALESCE(last_event_at, started_at)` guards against null/stale `last_event_at`
-  on stub sessions; the `started_at DESC, id DESC` tie-breakers stop equal-
-  timestamp rows from re-ordering between calls.
+- `last_event_at` is `NOT NULL DEFAULT (datetime('now'))`, so the
+  `COALESCE(last_event_at, started_at)` is defensive only (the NULL branch can't
+  occur on a local row today) — kept for future-proofing. The real work is the
+  `started_at DESC, id DESC` tie-breakers, which stop equal-`last_event_at` rows
+  from re-ordering between calls.
+- `listRecent` normalises the limit itself — default **20**, hard cap **100**,
+  floor **1** — so the cap is unit-tested at the store boundary and no caller
+  (MCP tool or otherwise) can dump the whole table.
 - Empty-stub filter is **always on** for this tool — `list_sessions` is agent-
   facing discovery, so it should never expose contentless rows. It does **not**
   gate `open_session`, which takes an explicit id and opens any session.
@@ -82,9 +87,11 @@ Placed beside `open_artifact`.
 
 **`list_sessions`** — discovery only, never returns transcript text.
 
-- Params: `space_id?: string`, `limit?: number` (default **20**, max **100**).
+- Params: `space_id?: string`, `limit?: number` (zod: positive int, optional —
+  the default-20 / cap-100 normalisation lives in `listRecent`).
 - Returns slim rows: `{ id, title, space_id, agent, state, started_at, last_event_at, ended_at }`.
-- Maps `sessionStore.listRecent({ spaceId: space_id, limit })`.
+- Maps `sessionStore.listRecent({ spaceId: space_id, limit })`, then projects to
+  the slim shape (drops `cwd`, `jsonl_path`, exit/terminal facts, etc.).
 - Unknown `space_id` → empty array (not an error).
 
 **`open_session`** — dumb broadcaster. Does **not** navigate routes or set space
@@ -189,11 +196,10 @@ user: "show me this session"
 
 ## Testing
 
-- **Store:** `listRecent` returns recency order, respects `limit`, empty on
-  unknown `spaceId`, sorts a null-`last_event_at` row by its `started_at`,
-  keeps equal-timestamp rows in stable `id` order, and excludes a no-title /
-  no-event stub while keeping a titled-but-eventless row and an untitled-but-
-  has-events row.
+- **Store:** `listRecent` returns recency order, applies the default-20 / cap-100
+  limit, returns empty on an unknown `spaceId`, orders equal-`last_event_at` rows
+  by `started_at DESC` then `id DESC`, and excludes a no-title / no-event stub
+  while keeping a titled-but-eventless row and an untitled-but-has-events row.
 - **MCP:** `open_session` 404s on unknown id; broadcasts the canonical payload
   `{ sessionId, eventId, query }`; passes `event_id` through untouched and still
   succeeds when it's bogus (no validation). `list_sessions` clamps the limit to
