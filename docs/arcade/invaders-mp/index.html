@@ -262,6 +262,12 @@
     padding: 24px;
     text-align: center;
   }
+  /* The explicit display: flex above wins over the default
+     `[hidden] { display: none }`, so without this override the
+     overlay would stay visible on page load (it's hidden by default
+     in the HTML so fresh visitors would see a stale "EARTH IS SAFE"
+     screen they can't dismiss). Same fix for #go-initials below. */
+  #endscreen[hidden] { display: none; }
   #endscreen .es-headline {
     font-size: 16px; letter-spacing: 0.15em;
     color: #ffd84a;
@@ -296,6 +302,7 @@
   #go-initials {
     display: flex; flex-direction: column; align-items: center; gap: 10px;
   }
+  #go-initials[hidden] { display: none; }
   #go-initials .go-initials-label {
     font-size: 9px; letter-spacing: 0.1em; color: #ffd84a;
   }
@@ -1292,11 +1299,20 @@
     }
   }
 
+  // Tracks the prior status across refreshLobby calls so we can
+  // detect a *transition* into gameover (vs. a snapshot from a room
+  // we just joined that was already over). Without this, a fresh
+  // visitor landing on /invaders-mp/<existing-room-code> would see
+  // someone else's stale endscreen they can't dismiss.
+  let prevLobbyStatus = null;
+
   function refreshLobby() {
     if (!lastState) return;
     const s = lastState.status;
-    // Hide the endscreen overlay (and reset its dedupe) when status
-    // leaves 'gameover' so a fresh round starts on the normal lobby.
+    const enteredGameover = s === 'gameover' && prevLobbyStatus === 'running';
+    prevLobbyStatus = s;
+    // Hide the endscreen overlay when status leaves 'gameover' so a
+    // fresh round starts on the normal lobby.
     if (s !== 'gameover') hideEndscreen();
     // Use the authoritative `seats` map (added in Phase D) — true
     // occupancy regardless of alive/respawn state. Pre-Phase-D
@@ -1328,13 +1344,19 @@
       startBtn.disabled = true;
     } else if (s === 'gameover') {
       // Endscreen owns the gameover UI now (headline + score +
-      // initials / PLAY AGAIN). The under-overlay lobby status is
-      // hidden visually but cleared for cleanliness, and the
-      // original START button stays enabled as a fallback in case
-      // the overlay is dismissed some other way.
-      setStatus('');
+      // initials / PLAY AGAIN) — but ONLY for rounds the player
+      // actually participated in (caught by `enteredGameover`).
+      // A fresh visitor landing on a room that was already over
+      // sees the normal lobby with START enabled, so they can
+      // begin a new round instead of being trapped behind a stale
+      // overlay with someone else's score.
       startBtn.disabled = false;
-      showEndscreen();
+      if (enteredGameover) {
+        setStatus('');
+        showEndscreen();
+      } else {
+        setStatus('Tap START — friends can join anytime');
+      }
     }
   }
 
