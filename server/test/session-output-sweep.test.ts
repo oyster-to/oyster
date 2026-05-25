@@ -87,8 +87,8 @@ describe("runOutputBackfill", () => {
     // Insert session_events directly. text is a stale placeholder that Job A
     // should overwrite. raw contains tool_use blocks.
     const insertEvent = db.prepare(
-      `INSERT INTO session_events (session_id, role, text, ts, raw)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO session_events (session_id, role, text, ts, raw, is_protocol_artifact)
+       VALUES (?, ?, ?, ?, ?, 0)`,
     );
     const outputLine = makeWriteEventLine(outputPath);
     const sourceLine = makeWriteEventLine(sourcePath);
@@ -107,36 +107,34 @@ describe("runOutputBackfill", () => {
     expect(artRows[0]!.project_id).toBe("p");
     expect(artRows[0]!.path).toBe(outputPath);
 
-    // 2. session_artifacts link created (with a non-empty when_at).
-    // Note: ArtifactService.backfillTouchesForNewArtefact also inserts a link
-    // (without an explicit when_at) when the artifact is registered, so the
-    // UNIQUE(session_id, artifact_id, role) row already exists before our
-    // insertArtifactTouch call. The INSERT OR IGNORE respects the existing row.
-    // We assert the link exists; the exact when_at format is backfill-dependent.
+    // 2. session_artifacts link created with when_at equal to the event's ts.
+    // With skipTouchBackfill=true the sweep's own insertArtifactTouch is the
+    // sole inserter, so the link carries the real event timestamp (not now()).
     const links = db.prepare(
       "SELECT sa.when_at FROM session_artifacts sa JOIN artifacts a ON a.id = sa.artifact_id WHERE sa.session_id = 'sess'",
     ).all() as Array<{ when_at: string }>;
     expect(links).toHaveLength(1);
-    expect(links[0]!.when_at).toBeTruthy();
+    expect(links[0]!.when_at).toBe(ts);
 
     // 3a. session_events.text for the output row now contains the relative path.
     const evRow = db.prepare("SELECT text FROM session_events WHERE id = ?").get(outId) as { text: string } | undefined;
     expect(evRow?.text).toContain("report.md");
     expect(evRow?.text).not.toBe("[Write]"); // the original placeholder
 
-    // 3b. FTS index has been updated — verify via a raw FTS rowid lookup
-    // (avoiding snippet() which triggers an FTS5 external-content consistency
-    // check that fails on updated rows in SQLite 3.53.1).
-    const ftsHit = db.prepare(
-      "SELECT rowid FROM session_events_fts WHERE session_events_fts MATCH ?",
-    ).get("report*") as { rowid: number } | undefined;
-    expect(ftsHit).toBeDefined();
-    expect(ftsHit!.rowid).toBe(Number(outId));
+    // 3b. FTS index has been updated — verify via the real production API.
+    // "report" is a plain word so searchEvents issues a prefix query "report*"
+    // which matches the filename embedded in the rendered text. If this throws
+    // SQLITE_CORRUPT_VTAB the triggers or is_protocol_artifact gating is broken
+    // (do NOT work around it — report BLOCKED instead).
+    const searchHits = sessionStore.searchEvents("report");
+    expect(searchHits.length).toBeGreaterThan(0);
+    expect(searchHits.some((h) => h.id === Number(outId))).toBe(true);
 
-    // 4. result counters are non-zero.
+    // 4. result counters reflect real work: exactly 1 output registered (report.md),
+    //    source and secret did not qualify. links >= 1 (the output was linked).
     expect(result.events).toBeGreaterThan(0);
-    expect(result.registered).toBeGreaterThanOrEqual(0);
-    expect(result.links).toBeGreaterThan(0);
+    expect(result.registered).toBe(1);
+    expect(result.links).toBeGreaterThanOrEqual(1);
   });
 
   it("is idempotent — second call is a no-op (done=1)", async () => {
@@ -145,7 +143,7 @@ describe("runOutputBackfill", () => {
     const ts = "2024-06-01T11:00:00.000Z";
     const line = makeWriteEventLine(outputPath);
     db.prepare(
-      `INSERT INTO session_events (session_id, role, text, ts, raw) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO session_events (session_id, role, text, ts, raw, is_protocol_artifact) VALUES (?, ?, ?, ?, ?, 0)`,
     ).run("sess", "assistant", "[Write]", ts, line);
 
     await runOutputBackfill(deps);
@@ -169,7 +167,7 @@ describe("runOutputBackfill", () => {
     const ts = "2024-06-01T12:00:00.000Z";
 
     const insert = db.prepare(
-      `INSERT INTO session_events (session_id, role, text, ts, raw) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO session_events (session_id, role, text, ts, raw, is_protocol_artifact) VALUES (?, ?, ?, ?, ?, 0)`,
     );
     const { lastInsertRowid: id1 } = insert.run("sess", "assistant", "[Write]", ts, makeWriteEventLine(path1));
     const { lastInsertRowid: id2 } = insert.run("sess", "assistant", "[Write]", ts, makeWriteEventLine(path2));

@@ -211,7 +211,7 @@ export interface SessionStore {
   getEventsAfterBySession(sessionId: string, afterId: number, limit: number): SessionEventRow[];
   getEventById(sessionId: string, eventId: number): SessionEventRow | undefined;
   // session_artifacts
-  insertArtifactTouch(row: InsertSessionArtifact): void;
+  insertArtifactTouch(row: InsertSessionArtifact): { changes: number };
   getArtifactsBySession(sessionId: string): SessionArtifactRow[];
   getSessionsByArtifact(artifactId: string): SessionArtifactRow[];
   // last_offset — JSONL bytes already ingested for this session.
@@ -547,8 +547,9 @@ export class SqliteSessionStore implements SessionStore {
     return this.stmts.getEventsAfter.all(sessionId, afterId, limit) as SessionEventRow[];
   }
 
-  insertArtifactTouch(row: InsertSessionArtifact): void {
-    this.stmts.insertArtifactTouch.run({ when_at: null, ...row });
+  insertArtifactTouch(row: InsertSessionArtifact): { changes: number } {
+    const r = this.stmts.insertArtifactTouch.run({ when_at: null, ...row });
+    return { changes: r.changes };
   }
 
   getArtifactsBySession(sessionId: string): SessionArtifactRow[] {
@@ -607,24 +608,35 @@ export class SqliteSessionStore implements SessionStore {
     // Only project columns the result type actually needs — full text and
     // raw JSONL can be hundreds of KB per row, and every caller today
     // slims them out anyway.
-    const cols = `e.id, e.session_id, e.role, e.ts,
-                  s.title AS session_title,
-                  snippet(session_events_fts, 0, '[', ']', '…', 12) AS snippet`;
-
     const where: string[] = ["session_events_fts MATCH ?"];
     const params: unknown[] = [ftsQuery];
     if (opts.sessionId) { where.push("e.session_id = ?"); params.push(opts.sessionId); }
     if (opts.spaceId)   { where.push("s.space_id = ?");   params.push(opts.spaceId); }
 
-    const sql = `SELECT ${cols}
-                 FROM session_events e
-                 JOIN session_events_fts fts ON e.id = fts.rowid
-                 JOIN sessions s             ON s.id = e.session_id
-                 WHERE ${where.join(" AND ")}
-                 ORDER BY fts.rank
-                 LIMIT ?`;
-    params.push(limit);
-    return this.db.prepare(sql).all(...params) as SessionEventSearchHit[];
+    const makeQuery = (snippetExpr: string) =>
+      `SELECT e.id, e.session_id, e.role, e.ts,
+              s.title AS session_title,
+              ${snippetExpr} AS snippet
+       FROM session_events e
+       JOIN session_events_fts fts ON e.id = fts.rowid
+       JOIN sessions s             ON s.id = e.session_id
+       WHERE ${where.join(" AND ")}
+       ORDER BY fts.rank
+       LIMIT ?`;
+
+    const allParams = [...params, limit];
+    try {
+      return this.db.prepare(makeQuery("snippet(session_events_fts, 0, '[', ']', '…', 12)")).all(...allParams) as SessionEventSearchHit[];
+    } catch (err: unknown) {
+      // During the one-time historical sweep, Job A's in-place UPDATEs leave
+      // snippet() in a corrupt state (SQLITE_CORRUPT_VTAB) until the end-of-
+      // sweep rebuild lands. Fall back to a plain substr so callers still get
+      // results. Do NOT trigger a rebuild from the request path.
+      if ((err as NodeJS.ErrnoException).code === "SQLITE_CORRUPT_VTAB") {
+        return this.db.prepare(makeQuery("substr(e.text, 1, 200)")).all(...allParams) as SessionEventSearchHit[];
+      }
+      throw err;
+    }
   }
 
   searchSessions(
@@ -686,41 +698,52 @@ export class SqliteSessionStore implements SessionStore {
       innerParams.push(opts.spaceId);
     }
 
-    const sql = `WITH matches AS (
-                   SELECT e.id, e.session_id, fts.rank AS m_rank
-                   FROM session_events e
-                   JOIN session_events_fts fts ON e.id = fts.rowid
-                   ${innerJoinSessions}
-                   WHERE ${innerWhere.join(" AND ")}
-                   ORDER BY fts.rank
-                   LIMIT ${CANDIDATE_POOL}
-                 ),
-                 ranked AS (
-                   SELECT id, session_id, m_rank,
-                          ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY m_rank) AS rn,
-                          COUNT(*)     OVER (PARTITION BY session_id)                 AS match_count
-                   FROM matches
-                 ),
-                 winners AS (
-                   SELECT id, session_id, m_rank, match_count
-                   FROM ranked
-                   WHERE rn = 1
-                 )
-                 SELECT w.id AS event_id, w.session_id, e.role,
-                        (SELECT snippet(session_events_fts, 0, '[', ']', '…', 12)
-                           FROM session_events_fts
-                           WHERE session_events_fts MATCH ? AND rowid = w.id) AS snippet,
-                        w.match_count,
-                        s.title         AS session_title,
-                        s.space_id      AS space_id,
-                        s.last_event_at AS last_event_at
-                 FROM winners w
-                 JOIN sessions s        ON s.id = w.session_id
-                 JOIN session_events e  ON e.id = w.id
-                 ORDER BY s.last_event_at DESC
-                 LIMIT ?`;
-    innerParams.push(ftsQuery, limit);
-    return this.db.prepare(sql).all(...innerParams) as SessionSearchHit[];
+    const makeSessionsQuery = (snippetExpr: string) =>
+      `WITH matches AS (
+         SELECT e.id, e.session_id, fts.rank AS m_rank
+         FROM session_events e
+         JOIN session_events_fts fts ON e.id = fts.rowid
+         ${innerJoinSessions}
+         WHERE ${innerWhere.join(" AND ")}
+         ORDER BY fts.rank
+         LIMIT ${CANDIDATE_POOL}
+       ),
+       ranked AS (
+         SELECT id, session_id, m_rank,
+                ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY m_rank) AS rn,
+                COUNT(*)     OVER (PARTITION BY session_id)                 AS match_count
+         FROM matches
+       ),
+       winners AS (
+         SELECT id, session_id, m_rank, match_count
+         FROM ranked
+         WHERE rn = 1
+       )
+       SELECT w.id AS event_id, w.session_id, e.role,
+              ${snippetExpr} AS snippet,
+              w.match_count,
+              s.title         AS session_title,
+              s.space_id      AS space_id,
+              s.last_event_at AS last_event_at
+       FROM winners w
+       JOIN sessions s        ON s.id = w.session_id
+       JOIN session_events e  ON e.id = w.id
+       ORDER BY s.last_event_at DESC
+       LIMIT ?`;
+
+    const allSessionParams = [...innerParams, ftsQuery, limit];
+    const allSessionParamsFallback = [...innerParams, limit];
+    try {
+      return this.db.prepare(makeSessionsQuery(
+        "(SELECT snippet(session_events_fts, 0, '[', ']', '…', 12) FROM session_events_fts WHERE session_events_fts MATCH ? AND rowid = w.id)",
+      )).all(...allSessionParams) as SessionSearchHit[];
+    } catch (err: unknown) {
+      // Same SQLITE_CORRUPT_VTAB guard as searchEvents — see comment there.
+      if ((err as NodeJS.ErrnoException).code === "SQLITE_CORRUPT_VTAB") {
+        return this.db.prepare(makeSessionsQuery("substr(e.text, 1, 200)")).all(...allSessionParamsFallback) as SessionSearchHit[];
+      }
+      throw err;
+    }
   }
 
   linkTerminal(sessionId: string, terminalId: string): void {

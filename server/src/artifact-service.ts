@@ -304,6 +304,21 @@ export class ArtifactService {
       artifact_kind?: ArtifactKind;
       group_name?: string;
       source_origin?: "manual" | "discovered" | "ai_generated";
+      /**
+       * When true, skip the per-artefact backfill scan that walks session_events
+       * for historical touches. The reactive sweep (runOutputBackfill /
+       * registerTouchedOutput) is itself the comprehensive linker — it walks all
+       * history and calls insertArtifactTouch with the correct event timestamp.
+       * Running backfillTouchesForNewArtefact from within the sweep would be:
+       *   (a) O(N artefacts × M events) — the exact boot cliff the sweep design
+       *       avoids, and
+       *   (b) harmful — it inserts the link with datetime('now') FIRST, so the
+       *       sweep's own insertArtifactTouch (with the real ts) is silently
+       *       dropped by INSERT OR IGNORE on the UNIQUE constraint.
+       * Default false → unchanged behaviour for all existing callers (MCP
+       * create/register, reconcileGeneratedArtifact, createArtifact).
+       */
+      skipTouchBackfill?: boolean;
     },
     approvedRoots: string[],
   ): Promise<Artifact> {
@@ -389,7 +404,10 @@ export class ArtifactService {
     // every session that touched them. Scan recent assistant events for
     // tool_use blocks at this path and create matching session_artifacts
     // rows.
-    this.backfillTouchesForNewArtefact(id, absPath);
+    // Skipped when the caller already owns the linking step (e.g. the
+    // historical sweep), to avoid the O(N×M) scan cliff and timestamp
+    // clobber described in the skipTouchBackfill param JSDoc.
+    if (!params.skipTouchBackfill) this.backfillTouchesForNewArtefact(id, absPath);
 
     return await this.rowToArtifact(this.store.getById(id)!);
   }

@@ -118,11 +118,12 @@ This improves the inspector timeline too — tool turns show *what* was touched,
 
 ### Historical re-index migration
 
-Old events already have `text` without paths. A one-time, batched, background migration re-renders `text` from `raw` for touch-bearing events and `UPDATE`s the row; the existing FTS `UPDATE` triggers (`db.ts:771-779`) propagate to the index.
+Old events already have `text` without paths. A one-time, batched, background migration re-renders `text` from `raw` for touch-bearing events and `UPDATE`s the row; the existing FTS `UPDATE` triggers propagate the new terms to the index.
 
 - Bounded to events that carry a tool_use `file_path` (~249k on the main DB) — no point rewriting prose turns.
-- This is the **write-heaviest** part of the work (UPDATE + trigger per row), heavier than the 38 s read measurement. Batch it (~20k rows), run in background, share the high-water mark with Job B so both jobs advance together in one sweep.
+- This is the **write-heaviest** part of the work (UPDATE + trigger per row), heavier than the 38 s read measurement. Batch it, run in background, share the resume cursor with Job B so both jobs advance together in one sweep.
 - Events with `raw IS NULL` keep their existing text (can't be re-rendered) — acceptable.
+- **FTS rebuild required (implementation finding):** `session_events_fts` is external-content FTS5; on SQLite 3.53.1 an in-place `UPDATE` of indexed text leaves `snippet()` throwing `SQLITE_CORRUPT_VTAB` (plain `MATCH` still works). The sweep therefore ends with a single unconditional FTS **`'rebuild'`** (the mechanism `repairFtsIfUnhealthy` already uses) to restore consistency, and `searchEvents`/`searchSessions` gain a guard that degrades to a snippet-less result if they hit the transient corruption *during* the one-time sweep (never a 500).
 
 ---
 

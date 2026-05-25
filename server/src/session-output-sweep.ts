@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { existsSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import type Database from "better-sqlite3";
+import { rebuildSessionEventsFts } from "./db.js";
 import { classifyOutput } from "./output-classifier.js";
 import { lookupProject } from "./lookup-project.js";
 import type { ArtifactService } from "./artifact-service.js";
@@ -26,21 +27,25 @@ export interface SweepDeps {
  *  project_id only as fallback. No-op for source/unknown/secret paths. Idempotent
  *  (getByPath + INSERT OR IGNORE). Reads never register, but a read of an
  *  already-registered output still links (provenance). */
-export async function registerTouchedOutput(deps: SweepDeps, touch: Touch): Promise<void> {
+export async function registerTouchedOutput(
+  deps: SweepDeps,
+  touch: Touch,
+): Promise<{ registered: boolean; linked: boolean }> {
   const absPath = resolve(touch.path);
 
   // Check whether an artefact is already registered for this path.
   let artifactId = deps.service.getByPath(absPath)?.id;
+  let created = false;
 
   if (!artifactId) {
     // Reads of unknown files do not trigger registration.
-    if (touch.role === "read") return;
+    if (touch.role === "read") return { registered: false, linked: false };
 
     const kind = classifyOutput(absPath);
-    if (!kind) return;
+    if (!kind) return { registered: false, linked: false };
 
     // Skip outputs that have since been deleted — registerArtifact would throw.
-    if (!existsSync(absPath)) return;
+    if (!existsSync(absPath)) return { registered: false, linked: false };
 
     // Project from path first, fall back to the session's own project.
     const projectId =
@@ -58,18 +63,26 @@ export async function registerTouchedOutput(deps: SweepDeps, touch: Touch): Prom
         label: basename(absPath),
         artifact_kind: kind,
         source_origin: "discovered",
+        // The sweep is itself the comprehensive linker — it walks all history
+        // and calls insertArtifactTouch with the real event timestamp below.
+        // Letting registerArtifact run its own backfill would be O(N×M) and
+        // would clobber the correct when_at with datetime('now').
+        skipTouchBackfill: true,
       },
       [], // no approved-root check — paths are from the user's own session history
     );
     artifactId = art.id;
+    created = true;
   }
 
-  deps.sessionStore.insertArtifactTouch({
+  const { changes } = deps.sessionStore.insertArtifactTouch({
     session_id: touch.sessionId,
     artifact_id: artifactId,
     role: touch.role,
     when_at: touch.whenAt,
   });
+
+  return { registered: created, linked: changes > 0 };
 }
 
 function sessionProjectId(db: Database.Database, sessionId: string): string | null {
@@ -113,6 +126,7 @@ export async function runOutputBackfill(deps: SweepDeps): Promise<{ events: numb
       try {
         parsed = JSON.parse(row.raw) as Record<string, unknown>;
       } catch {
+        console.warn("[output-backfill] malformed JSON in event", row.id);
         continue;
       }
       const cwd =
@@ -127,9 +141,9 @@ export async function runOutputBackfill(deps: SweepDeps): Promise<{ events: numb
       for (const block of content) {
         const t = artifactTouchFromToolUse(block);
         if (!t) continue;
-        const before = countLinks(deps.db);
+        let res: { registered: boolean; linked: boolean };
         try {
-          await registerTouchedOutput(deps, {
+          res = await registerTouchedOutput(deps, {
             sessionId: row.session_id,
             path: t.path,
             role: t.role,
@@ -140,16 +154,19 @@ export async function runOutputBackfill(deps: SweepDeps): Promise<{ events: numb
           console.warn("[output-backfill] touch failed", t.path, err);
           continue;
         }
-        if (countLinks(deps.db) > before) report.links++;
+        if (res.registered) report.registered++;
+        if (res.linked) report.links++;
       }
     }
     setLow.run(cursor); // advance resume cursor after each batch
   }
 
+  // Job A's in-place UPDATEs leave external-content snippet() in a corrupt
+  // state (SQLITE_CORRUPT_VTAB) even though rowid lookups still work.
+  // One unconditional rebuild restores consistency. Unconditional because
+  // repairFtsIfUnhealthy's health check sees rows present and would skip it.
+  rebuildSessionEventsFts(deps.db);
+
   deps.db.prepare("UPDATE output_backfill_state SET done = 1 WHERE id = 1").run();
   return report;
-}
-
-function countLinks(db: Database.Database): number {
-  return (db.prepare("SELECT COUNT(*) AS n FROM session_artifacts").get() as { n: number }).n;
 }

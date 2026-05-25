@@ -113,7 +113,8 @@ describe("registerTouchedOutput", () => {
       role: "modify",
       whenAt: "2024-01-01T10:01:00Z",
     };
-    await expect(registerTouchedOutput(deps, touch)).resolves.toBeUndefined();
+    const result = await registerTouchedOutput(deps, touch);
+    expect(result).toEqual({ registered: false, linked: false });
 
     const count = (db.prepare("SELECT COUNT(*) as n FROM artifacts").get()) as { n: number };
     expect(count.n).toBe(0);
@@ -175,14 +176,13 @@ describe("registerTouchedOutput", () => {
     });
 
     // This must NOT throw (would throw if it inferred the same stem-id "report").
-    await expect(
-      registerTouchedOutput(deps, {
-        sessionId: "sess",
-        path: filePath2,
-        role: "create",
-        whenAt: "2024-01-01T10:01:00Z",
-      }),
-    ).resolves.toBeUndefined();
+    const result2 = await registerTouchedOutput(deps, {
+      sessionId: "sess",
+      path: filePath2,
+      role: "create",
+      whenAt: "2024-01-01T10:01:00Z",
+    });
+    expect(result2).toEqual({ registered: true, linked: true });
 
     // Two distinct artefact rows.
     const artCount = (db.prepare(

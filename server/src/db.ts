@@ -1011,21 +1011,32 @@ export function runDeferredMigrations(db: Database.Database): void {
   }
 }
 
-/**
- * Out-of-band FTS health check + repair. Invoked after the HTTP server is
- * listening so a multi-GB transcript index can never block boot. Strategy:
- * sample the 50 most-recent indexable session_events rows and look each one
- * up by rowid in session_events_fts. If most are missing, the index is
- * genuinely broken (typical cause: dev hot-reload that left INSERT triggers
- * half-applied) and we rebuild. Otherwise we leave it alone.
- *
- * Replaces an earlier heuristic that counted FTS hits for the token 'a'
- * and compared against the total indexable row count. Both queries were
- * full-table scans on session_events (no covering index), and the 'a'
- * threshold false-positived on transcripts dominated by short tool markers
- * like "[Bash]" / "[Edit]" — triggering a synchronous multi-second rebuild
- * on every boot of a healthy index.
- */
+/** Unconditionally re-index session_events_fts from the content table in one
+ *  transaction. 'rebuild' re-indexes from the content table; protocol-artefact
+ *  rows bypass the gated triggers during rebuild, so we sweep them back out
+ *  explicitly afterwards. Rebuild + sweep commit together — otherwise an
+ *  interrupt between them leaves artefact rows in the index that the gated
+ *  triggers won't clean up later. Also called by the one-time output sweep
+ *  (runOutputBackfill) after its in-place UPDATEs leave snippet() in a corrupt
+ *  state. */
+export function rebuildSessionEventsFts(db: Database.Database): void {
+  db.transaction(() => {
+    db.exec(`
+      INSERT INTO session_events_fts(session_events_fts) VALUES('rebuild');
+      INSERT INTO session_events_fts(session_events_fts, rowid, text)
+        SELECT 'delete', id, text
+          FROM session_events
+         WHERE is_protocol_artifact = 1;
+    `);
+  })();
+}
+
+/** Out-of-band FTS health check + conditional repair. Invoked after the HTTP
+ *  server is listening so a multi-GB transcript index can never block boot.
+ *  Samples the 50 most-recent indexable session_events rows and looks each one
+ *  up by rowid in session_events_fts. If most are missing the index is genuinely
+ *  broken (typical cause: dev hot-reload that left INSERT triggers half-applied)
+ *  and calls rebuildSessionEventsFts. Otherwise leaves the index untouched. */
 export function repairFtsIfUnhealthy(db: Database.Database): void {
   const t0 = performance.now();
   const recent = db.prepare(
@@ -1053,20 +1064,6 @@ export function repairFtsIfUnhealthy(db: Database.Database): void {
 
   console.warn(`[fts] ${missing}/${recent.length} recent rows missing from search index — rebuilding (search may be degraded until this completes)`);
   const rebuildT0 = performance.now();
-  // 'rebuild' re-indexes from the content table; protocol-artefact rows
-  // bypass the gated triggers during rebuild, so we sweep them back out
-  // explicitly afterwards. Rebuild + sweep commit together — otherwise an
-  // interrupt between them leaves artefact rows in the index that the
-  // gated triggers won't clean up later, and the next boot's health check
-  // may pass and never re-clean.
-  db.transaction(() => {
-    db.exec(`
-      INSERT INTO session_events_fts(session_events_fts) VALUES('rebuild');
-      INSERT INTO session_events_fts(session_events_fts, rowid, text)
-        SELECT 'delete', id, text
-          FROM session_events
-         WHERE is_protocol_artifact = 1;
-    `);
-  })();
+  rebuildSessionEventsFts(db);
   console.log(`[fts] rebuild complete in ${Math.round(performance.now() - rebuildT0)}ms`);
 }

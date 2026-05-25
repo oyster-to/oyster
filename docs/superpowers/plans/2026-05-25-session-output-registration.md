@@ -463,6 +463,14 @@ export async function runOutputBackfill(deps: SweepDeps): Promise<{ events: numb
     }
     setLow.run(cursor);          // advance the resume cursor per committed batch
   }
+  // Job A's in-place UPDATEs to session_events.text leave the external-content
+  // FTS5 index in a state where snippet() throws SQLITE_CORRUPT_VTAB (verified
+  // on SQLite 3.53.1: MATCH still works, but snippet() — used by searchEvents —
+  // corrupts after an UPDATE). A one-time full rebuild from the content table
+  // restores consistency. Same mechanism repairFtsIfUnhealthy uses; we call it
+  // UNCONDITIONALLY here because the health check would see the rows present
+  // (MATCH works) and skip the rebuild we actually need.
+  rebuildSessionEventsFts(deps.db);
   deps.db.prepare("UPDATE output_backfill_state SET done = 1 WHERE id = 1").run();
   return report;
 }
@@ -470,6 +478,13 @@ function countLinks(db: Database.Database): number {
   return (db.prepare("SELECT COUNT(*) AS n FROM session_artifacts").get() as { n: number }).n;
 }
 ```
+
+### FTS consistency (Job A): rebuild after the sweep + a search guard
+
+Two REQUIRED pieces beyond the loop above (discovered during implementation — external-content FTS5 + in-place text UPDATE corrupts `snippet()` until a rebuild):
+
+1. **Extract `rebuildSessionEventsFts(db)`** from `repairFtsIfUnhealthy` (`db.ts` — the `'rebuild'` + protocol-artefact `'delete'` sweep transaction, ~`:1062-1070`) into an exported function; have `repairFtsIfUnhealthy` call it after its health check, and have `runOutputBackfill` call it unconditionally at the end (above). DRY — one rebuild implementation.
+2. **Guard `searchEvents` / `searchSessions`** (`session-store.ts`) against a transient `SQLITE_CORRUPT_VTAB`: during the one-time sweep, already-updated rows' `snippet()` will throw until the end-rebuild lands. Catch that specific error and degrade gracefully (re-run the query without `snippet()`, deriving a plain truncation of `e.text` in JS for the `snippet` field) so a search can never 500 mid-sweep. Do NOT trigger a rebuild from the request path. After the sweep's rebuild (done=1), full snippets return. Add a focused test that a corrupt-index search still returns results (sans rich snippet).
 
 > `when_at` uses `session_events.ts` (the event timestamp column, populated at ingest from `ev.timestamp` — confirmed present and ISO-8601 on the live DB), so no `raw` re-parse for the timestamp. The `countLinks` per-touch is O(touches) COUNT queries — fine for a one-time background pass; optimise only if measured slow.
 
