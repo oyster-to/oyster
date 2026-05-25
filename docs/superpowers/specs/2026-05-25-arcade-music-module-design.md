@@ -40,15 +40,25 @@ Arcade.Music.play(id, { gain, loop = true, restart = true })
   - play `id`; set volume = gain if gain != null; loop per arg
   - if play() rejects (iOS autoplay block) → remember `id` as pending
 
-Arcade.Music.pause()      // pause the current track (no reset)
-Arcade.Music.stop()       // pause + reset the current track
-Arcade.Music.resume()     // retry the pending track; call from splash unlockAudio
-Arcade.Music.current()    // id of the playing track, or null
+Arcade.Music.pause()         // pause the current track (no reset)
+Arcade.Music.stop()          // pause + reset ALL bgm tracks; clear selection
+Arcade.Music.retryPending()  // retry an autoplay-blocked play(); call from splash unlockAudio
+Arcade.Music.current()       // id of the LAST-SELECTED track (may be pending, not audible), or null
 ```
 
 "bgm track" = any `<audio>` whose `id` starts with `bgm` (same selector
 `pause.js` uses). The module discovers them lazily by that prefix, so games
 don't register tracks — they just call `play('bgm-theme')` etc.
+
+**Contract.** `Arcade.Music` owns *which* bgm track is active, pausing/resetting
+the others, and retrying an autoplay-blocked play after a gesture. It does **not**
+own SFX (that's `Arcade.Audio`), the pause overlay UI, the global music-slider
+policy, or crossfades. Two deliberate sharp edges, both documented above:
+`stop()` clears **all** bgm tracks (robust against a stray track from legacy code
+or a race), and `current()` reports the *selected* track, which after an autoplay
+block may not yet be audible until `retryPending()` runs. `retryPending()` is
+named to avoid implying "resume after pause" — it only re-attempts a blocked
+play.
 
 ## Scope discipline — behaviour-preserving
 
@@ -82,9 +92,9 @@ editing the same file and a guaranteed merge conflict. Folding rocket-ship's
 BGM into the SP-0 PR keeps all of rocket-ship's adoption (chrome **and** Music)
 in one reviewable change. **Action:** when SP-0 is planned, flip its "BGM stays
 inline" note to "adopt `Arcade.Music`" (replace `startTitleMusic`/
-`startGameMusic` + the `awaiting` flag with `Music.play(...)` / `Music.resume()`,
-and route the out-of-IIFE `bgm-game` pause/play in the restart/game-over paths
-through `Music` too).
+`startGameMusic` + the `awaiting` flag with `Music.play(...)` /
+`Music.retryPending()`, and route the out-of-IIFE `bgm-game` pause/play in the
+restart/game-over paths through `Music` too).
 
 - **invaders** — `playBgm(which)` → keep the `BGM_IDS` map + the `playBgm`/
   `startBgm`/`stopBgm` wrappers (so all call sites are untouched); reimplement
@@ -107,8 +117,8 @@ other `shared/*.js` includes.
   existing `touch.test.cjs` / `splash.test.cjs` pattern (Node `vm` + fake
   `document`/audio elements). Assert: `play(a)` then `play(b)` pauses `a` and
   resets its `currentTime`; `gain` sets `volume`; a rejected `play()` is retried
-  by `resume()`; `stop()` resets, `pause()` doesn't. This de-risks the
-  three-game migration.
+  by `retryPending()`; `stop()` resets **all** bgm tracks; `pause()` doesn't
+  reset. This de-risks the migration.
 - **Manual:** for each game — title music on the title screen, game music in
   play, clean swap on start and on game-over→attract, and (iOS) music starting
   on the first tap. Confirm the pause MUSIC slider still affects all tracks as

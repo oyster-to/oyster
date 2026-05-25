@@ -14,6 +14,41 @@
 
 ---
 
+## Implementation principle (read first)
+
+**Preserve current game behaviour, do not blindly apply the snippets.** The
+before/after blocks below are the current code *at the time of writing* and are
+reference, not gospel — the files may drift. For each migration: locate the
+game's current BGM helpers and their call sites, then route the internals
+through `Arcade.Music` with **equivalent semantics**, keeping existing call
+sites intact where possible. If a snippet no longer matches the file, adapt —
+the goal is identical audible behaviour, not a literal text replace.
+
+## Module contract
+
+```
+Arcade.Music OWNS:
+  - which bgm track is active
+  - pausing + resetting the other bgm tracks
+  - retrying an autoplay-blocked play() after a user gesture
+
+Arcade.Music does NOT own (now, and not in this PR):
+  - SFX (that's Arcade.Audio)
+  - the pause overlay UI
+  - the global music-volume slider policy (no coordination with pause.js)
+  - crossfades / fades
+```
+
+- **Convention:** a "bgm track" is any `<audio>` whose `id` starts with `bgm`
+  (the same prefix `pause.js` uses for the MUSIC slider). New tracks MUST be
+  named `bgm` / `bgm-*` to be managed.
+- **`gain` is a track's BASE volume** set on play. The module does **not**
+  multiply by or otherwise coordinate with the pause slider — it replicates
+  today's per-game behaviour. Games where the slider should own volume (invaders)
+  pass **no** `gain`. (Slider×gain integration is explicitly deferred.)
+- **`current()` is "selected", not "guaranteed audible"** — after an autoplay
+  block it may name a track that is pending until `retryPending()` runs.
+
 ## File Structure
 
 - **Create** `docs/arcade/shared/music.js` — the module. One responsibility: pick which bgm track plays, survive autoplay block.
@@ -37,7 +72,7 @@ Create `docs/arcade/shared/music.test.cjs`:
 // Tests for Arcade.Music — run with `node music.test.cjs`.
 // Loads the real shared/music.js into a DOM stub with fake <audio> elements,
 // then checks the multiplexer (play one, pause+reset others), the { gain }
-// volume, stop vs pause, and the iOS autoplay-block retry via resume().
+// volume, stop-all vs pause, and the iOS autoplay-block retry via retryPending().
 
 const fs = require('fs');
 const path = require('path');
@@ -113,11 +148,14 @@ const tick = () => Promise.resolve();   // flush one microtask round
   check('no-gain leaves volume untouched', boss.volume, 0.9);
   check('level paused when boss starts', level.paused, true);
 
-  // stop(): pause + reset current, clear current()
+  // stop(): pause + reset ALL bgm tracks (not just current), clear current()
   boss.currentTime = 4;
+  level.paused = false; level.currentTime = 6;   // a stray track still playing
   M.stop();
   check('boss paused after stop', boss.paused, true);
   check('boss reset after stop', boss.currentTime, 0);
+  check('stop() also stopped the stray track', level.paused, true);
+  check('stop() reset the stray track', level.currentTime, 0);
   check('current() null after stop', M.current(), null);
 
   // pause(): pause current WITHOUT resetting
@@ -127,7 +165,7 @@ const tick = () => Promise.resolve();   // flush one microtask round
   check('level paused after pause()', level.paused, true);
   check('pause() does not reset currentTime', level.currentTime, 12);
 
-  // autoplay block: play() rejects, track stays paused, resume() retries
+  // autoplay block: play() rejects, track stays paused, retryPending() retries
   theme._blockPlay = true;
   M.play('bgm-theme', { gain: 0.4 });
   await tick();   // let the rejected play()'s .catch run
@@ -136,15 +174,15 @@ const tick = () => Promise.resolve();   // flush one microtask round
 
   theme._blockPlay = false;        // gesture arrives; autoplay now allowed
   const playsBefore = theme._plays;
-  M.resume();
+  M.retryPending();
   await tick();
-  check('resume() retried the pending track', theme._plays, playsBefore + 1);
-  check('resume() -> theme now playing', theme.paused, false);
+  check('retryPending() retried the pending track', theme._plays, playsBefore + 1);
+  check('retryPending() -> theme now playing', theme.paused, false);
 
-  // resume() with nothing pending is a safe no-op
+  // retryPending() with nothing pending is a safe no-op
   const playsAfter = theme._plays;
-  M.resume();
-  check('resume with nothing pending does not replay', theme._plays, playsAfter);
+  M.retryPending();
+  check('retryPending with nothing pending does not replay', theme._plays, playsAfter);
 
   console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
   process.exit(failures === 0 ? 0 : 1);
@@ -163,28 +201,39 @@ Create `docs/arcade/shared/music.js`:
 ```js
 // Shared BGM control for the arcade games. One track plays at a time; play()
 // pauses + resets the others. Survives the iOS autoplay block: a play() the
-// browser rejects is remembered and retried by resume() (call it from the
+// browser rejects is remembered and retried by retryPending() (call it from the
 // splash's first-gesture unlockAudio hook).
 //
-// Operates on the <audio id^="bgm"> elements already in each game's DOM — the
-// same prefix pause.js uses for the MUSIC volume slider. No registration:
-// games just call Music.play('bgm-theme'), Music.play('bgm'), etc.
+// CONVENTION: a "bgm track" is any <audio> whose id starts with "bgm" — the same
+// prefix pause.js uses for the MUSIC volume slider. New tracks MUST be named
+// bgm / bgm-* to be managed by this module (and by the slider).
 //
-// Volume: pass { gain } to set a track's volume on play (each game keeps its
-// own tuned per-track levels). The module does NOT coordinate with pause.js's
-// music slider — it replicates today's per-game behaviour (set volume on play).
+// Arcade.Music OWNS:         which bgm track is active; pausing + resetting the
+//                            other bgm tracks; retrying an autoplay-blocked
+//                            play() after a user gesture.
+// Arcade.Music does NOT own: SFX (Arcade.Audio); the pause overlay UI; the
+//                            global music-slider policy; crossfades.
+//
+// Volume: { gain } sets a track's BASE volume when play() starts it — each game
+// keeps its own tuned per-track level. The module does NOT multiply by or
+// coordinate with pause.js's music slider; it replicates today's per-game
+// behaviour. Games where the slider owns volume (invaders) pass no gain.
+//
+// current() returns the track we last asked to play. After an autoplay block it
+// may name a track that is pending (not yet audible) until retryPending() runs —
+// it is "selected", not "guaranteed playing".
 //
 // Usage:
 //   Arcade.Music.play('bgm-theme', { gain: 0.4 });   // title theme
 //   Arcade.Music.play('bgm', { gain: 0.35 });        // level music
 //   Arcade.Music.pause();                            // pause current (no reset)
-//   Arcade.Music.stop();                             // pause + reset current
-//   Arcade.Music.resume();                           // retry pending (iOS gesture)
+//   Arcade.Music.stop();                             // pause + reset ALL bgm tracks
+//   Arcade.Music.retryPending();                     // retry an autoplay-blocked play (iOS gesture)
 
 (function () {
   const SELECTOR = 'audio[id^="bgm"]';
   let currentId = null;   // id of the track we last asked to play
-  let pendingId = null;   // a play() the browser rejected, awaiting resume()
+  let pendingId = null;   // a play() the browser rejected, awaiting retryPending()
 
   function bgmEls() {
     try { return Array.prototype.slice.call(document.querySelectorAll(SELECTOR)); }
@@ -192,8 +241,8 @@ Create `docs/arcade/shared/music.js`:
   }
 
   // Start one element. gain null => leave volume as-is. restart false => keep
-  // currentTime (used by resume()). A rejected play() (autoplay block) marks the
-  // track pending for the next resume().
+  // currentTime (used by retryPending()). A rejected play() (autoplay block)
+  // marks the track pending for the next retryPending().
   function start(a, id, gain, loop, restart) {
     try {
       a.loop = loop;
@@ -225,15 +274,15 @@ Create `docs/arcade/shared/music.js`:
     if (a) { try { a.pause(); } catch (_) {} }
   }
 
+  // Stop ALL bgm tracks (not just current) — robust against a stray track left
+  // playing by legacy code or a race — then reset and clear selection.
   function stop() {
-    if (!currentId) return;
-    const a = document.getElementById(currentId);
-    if (a) { try { a.pause(); a.currentTime = 0; } catch (_) {} }
+    bgmEls().forEach(a => { try { a.pause(); a.currentTime = 0; } catch (_) {} });
     currentId = null;
     pendingId = null;
   }
 
-  function resume() {
+  function retryPending() {
     if (!pendingId) return;
     const id = pendingId;
     pendingId = null;
@@ -244,7 +293,7 @@ Create `docs/arcade/shared/music.js`:
   function current() { return currentId; }
 
   window.Arcade = window.Arcade || {};
-  window.Arcade.Music = { play, pause, stop, resume, current };
+  window.Arcade.Music = { play, pause, stop, retryPending, current };
 })();
 ```
 
@@ -414,6 +463,13 @@ Replace with:
   },
 ```
 
+> **Verify before keeping this snippet (footgun):** the `unlockAudio` guard
+> re-runs `runTitleSequence()` only when the theme is *paused* (i.e. autoplay was
+> blocked and this is the first gesture). Confirm `onTitle` doesn't already leave
+> the theme playing in the path that reaches `unlockAudio` — if it does, the
+> animation would restart unexpectedly. Match the *current* observable behaviour;
+> if today's code never double-runs, neither should this.
+
 - [ ] **Step 4: Route the per-level track switch through the module**
 
 Find (~835–839, inside `advanceLevel`):
@@ -433,6 +489,12 @@ Replace with:
 ```
 
 (The `dataset.src`/`src` swap in `loadLevel` ~809–813 is unchanged — it manages the element's source; `Music.play('bgm')` then starts whatever source is loaded.)
+
+> **Verify (footgun):** `loadLevel` runs *before* this kick (it's called at the
+> top of `advanceLevel`), so the new `src` is set by the time `Music.play('bgm')`
+> fires — and `play()` resets `currentTime = 0` after the source change. Confirm
+> on a real level transition that the new track actually starts (browsers load
+> the new `src` lazily; `play()` should still resolve once it can).
 
 - [ ] **Step 5: Remove the now-unused `_bgm` getter**
 
