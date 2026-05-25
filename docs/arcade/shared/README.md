@@ -43,11 +43,17 @@ modules read another's API at call time. Use this order.
 <script src="../shared/initials.js"></script>
 <script src="../shared/end-overlay.js"></script>
 <script src="../shared/splash.js"></script>
-<!-- …then your game's own <script> last -->
 ```
 
 Skip any module you don't need — but mind the noted dependencies (`pause`
 wants `audio` loaded first; `iframe-host` checks for `pause`).
+
+**Your game's own script goes at the *end* of `<body>`, after the markup** — not
+up here with the shared modules. The shared modules just define `window.Arcade.*`
+and do no DOM lookups at load, but your init code calls `Arcade.Splash.mount()` /
+`paintList()` / etc., which need `#splash`, `#lb-list`, `#gameover` … to already
+exist. Run it at body-top and it silently no-ops on the missing elements. (Or
+give your script `defer`, or wrap init in `DOMContentLoaded`.)
 
 ---
 
@@ -84,7 +90,9 @@ SFX/BGM lists, the title art, and the control hints with your own.
 ```html
 <!-- <head>: the six <link>s from "Load order" above -->
 <body>
-  <!-- the nine <script>s from "Load order", then your game script -->
+  <!-- the nine shared <script>s from "Load order" go here at body-top;
+       your game's OWN script goes at the end of <body> (see bottom) -->
+
 
   <!-- SFX: id MUST match the key in Arcade.Audio.init({sfx}) -->
   <audio id="sfx-shoot" src="sfx-shoot.mp3" preload="auto"></audio>
@@ -151,10 +159,14 @@ SFX/BGM lists, the title art, and the control hints with your own.
       </div>
     </div>
   </div>
+
+  <!-- Your game's own script goes HERE — after the markup — so its
+       Arcade.*.mount() / paintList() calls can find the elements above. -->
+  <script src="your-game.js"></script>
 </body>
 ```
 
-### Wiring (in your game's `<script>`, after the shared scripts)
+### Wiring (in your game's `<script>`, placed at the end of `<body>` after the markup)
 
 ```js
 Arcade.Audio.init({ sfx: { 'sfx-shoot': 'sfx-shoot.mp3' }, volumeKey: 'oyster-arcade-sfx-volume' });
