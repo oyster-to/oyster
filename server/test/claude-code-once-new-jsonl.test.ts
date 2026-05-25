@@ -10,15 +10,19 @@ import { ClaudeCodeWatcher } from "../src/watchers/claude-code.js";
 import { initDb } from "../src/db.js";
 import { SqliteSessionStore } from "../src/session-store.js";
 import { SqliteArtifactStore } from "../src/artifact-store.js";
+import { ArtifactService } from "../src/artifact-service.js";
 
 function makeWatcher(root: string) {
   const dir = mkdtempSync(join(tmpdir(), "oyster-once-jsonl-db-"));
   const db = initDb(dir);
   const sessionStore = new SqliteSessionStore(db);
   const artifactStore = new SqliteArtifactStore(db);
+  const service = new ArtifactService(db, artifactStore, "https://oyster.to", "https://share.oyster.to", dir);
   const watcher = new ClaudeCodeWatcher({
     sessionStore,
     artifactStore,
+    service,
+    db,
     lookupProject: () => ({ projectId: null, spaceId: null }),
     projectsRoot: root,
   });

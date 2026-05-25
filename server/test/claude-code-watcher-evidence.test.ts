@@ -13,6 +13,7 @@ import { ClaudeCodeWatcher } from "../src/watchers/claude-code.js";
 import { initDb } from "../src/db.js";
 import { SqliteSessionStore } from "../src/session-store.js";
 import { SqliteArtifactStore } from "../src/artifact-store.js";
+import { ArtifactService } from "../src/artifact-service.js";
 
 // The exact wire shape Claude Code persists when the user invokes `/exit`:
 // the slash command is templated into a wrapper inside `message.content`
@@ -34,9 +35,12 @@ function makeEnv(): Env {
   const db = initDb(dbDir);
   const store = new SqliteSessionStore(db);
   const artifactStore = new SqliteArtifactStore(db);
+  const service = new ArtifactService(db, artifactStore, "https://oyster.to", "https://share.oyster.to", dbDir);
   const watcher = new ClaudeCodeWatcher({
     sessionStore: store,
     artifactStore,
+    service,
+    db,
     lookupProject: () => ({ projectId: null, spaceId: null }),
     projectsRoot: root,
   });

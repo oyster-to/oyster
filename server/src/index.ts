@@ -1186,6 +1186,8 @@ httpServer.listen(port, "127.0.0.1", () => {
   const claudeCodeWatcher = new ClaudeCodeWatcher({
     sessionStore,
     artifactStore: store,
+    service: artifactService,
+    db,
     lookupProject: (cwd) => lookupProject(db, cwd, cwd ? (c) => projectService.getOrCreateByCwd(c) : undefined),
     emitSessionChanged: (id) => {
       broadcastUiEvent({ version: 1, command: "session_changed", payload: { id } });

@@ -2,7 +2,9 @@ import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import chokidar, { type FSWatcher } from "chokidar";
+import type Database from "better-sqlite3";
 import type { ArtifactStore } from "../artifact-store.js";
+import type { ArtifactService } from "../artifact-service.js";
 import type {
   InsertSessionEvent,
   SessionArtifactRole,
@@ -18,6 +20,7 @@ import {
   type DeriveStateInput,
   type ProbeSignal,
 } from "../session-state.js";
+import { registerTouchedOutput } from "../session-output-sweep.js";
 
 // Re-export so existing watcher consumers can keep their imports stable
 // during the relocation. New callers should import from session-state.js
@@ -58,6 +61,8 @@ const TITLE_MAX = 80;
 export interface ClaudeCodeWatcherDeps {
   sessionStore: SessionStore;
   artifactStore: ArtifactStore;
+  service: ArtifactService;
+  db: Database.Database;
   /** Resolve a cwd → `{ projectId, spaceId }` via `<cwd>/.oyster/id`. */
   lookupProject: (cwd: string | null) => { projectId: string | null; spaceId: string | null };
   /** Called whenever a session row is inserted/updated, for SSE broadcast. */
@@ -446,7 +451,7 @@ export class ClaudeCodeWatcher {
     // append.
     if (lines.length > 0) lines.pop();
 
-    const spaceId = this.deps.lookupProject(cwd).spaceId;
+    const sweepDeps = { db: this.deps.db, service: this.deps.service, sessionStore: this.deps.sessionStore };
     const events: InsertSessionEvent[] = [];
 
     for (const line of lines) {
@@ -475,20 +480,23 @@ export class ClaudeCodeWatcher {
         });
       }
 
-      // Same orphan-skip rule as consumeOnce: don't attribute touches when
-      // we can't anchor them to a space.
-      if (ev.type === "assistant" && Array.isArray(ev.message?.content) && spaceId) {
+      if (ev.type === "assistant" && Array.isArray(ev.message?.content)) {
         for (const block of ev.message.content) {
           const touch = artifactTouchFromToolUse(block);
           if (!touch) continue;
-          const artifact = this.deps.artifactStore.getByPath(touch.path);
-          if (!artifact) continue;
-          if (artifact.space_id !== spaceId) continue;
-          this.deps.sessionStore.insertArtifactTouch({
-            session_id: sessionId,
-            artifact_id: artifact.id,
-            role: touch.role,
-          });
+          const whenAt = typeof ev.timestamp === "string"
+            ? ev.timestamp
+            : this.now().toISOString();
+          try {
+            await registerTouchedOutput(sweepDeps, {
+              sessionId,
+              path: touch.path,
+              role: touch.role,
+              whenAt,
+            });
+          } catch (err) {
+            console.warn("[live-ingest] touch registration failed", touch.path, err);
+          }
         }
       }
     }
@@ -722,6 +730,7 @@ export class ClaudeCodeWatcher {
     // the local device match this encoding. Hoisted out of the loop since
     // it's the same for every line.
     const parentDir = basename(dirname(filePath));
+    const sweepDeps = { db: this.deps.db, service: this.deps.service, sessionStore: this.deps.sessionStore };
 
     for (const line of lines) {
       if (!line) continue;
@@ -819,24 +828,22 @@ export class ClaudeCodeWatcher {
 
       // Artifact touches from tool_use blocks.
       if (ev.type === "assistant" && Array.isArray(ev.message?.content) && tracker.sessionId) {
-        const spaceId = this.deps.lookupProject(tracker.cwd).spaceId;
-        // Skip touch attribution entirely for orphan sessions (cwd not
-        // mapped to any space). Without a session→space link we can't
-        // tell whether the touch belongs here or is bleed-through from a
-        // tool reading across spaces, so creating provenance edges from a
-        // homeless session into other spaces would be misleading.
-        if (!spaceId) continue;
         for (const block of ev.message.content) {
           const touch = artifactTouchFromToolUse(block);
           if (!touch) continue;
-          const artifact = this.deps.artifactStore.getByPath(touch.path);
-          if (!artifact) continue;
-          if (artifact.space_id !== spaceId) continue;
-          this.deps.sessionStore.insertArtifactTouch({
-            session_id: tracker.sessionId,
-            artifact_id: artifact.id,
-            role: touch.role,
-          });
+          const whenAt = typeof ev.timestamp === "string"
+            ? ev.timestamp
+            : this.now().toISOString();
+          try {
+            await registerTouchedOutput(sweepDeps, {
+              sessionId: tracker.sessionId,
+              path: touch.path,
+              role: touch.role,
+              whenAt,
+            });
+          } catch (err) {
+            console.warn("[live-ingest] touch registration failed", touch.path, err);
+          }
         }
       }
     }
