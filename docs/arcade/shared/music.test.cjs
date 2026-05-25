@@ -54,12 +54,14 @@ function check(label, got, want) {
 const tick = () => Promise.resolve();   // flush one microtask round
 
 (async () => {
-  // play(): track plays, currentTime reset, gain applied, loops, current() set
+  // play(): track plays, currentTime reset, gain applied, current() set; the
+  // element's authored loop is left untouched (no { loop } override given).
+  theme.loop = true;                 // authored as looping (<audio ... loop>)
   M.play('bgm-theme', { gain: 0.4 });
   check('theme playing', theme.paused, false);
   check('theme reset to 0', theme.currentTime, 0);
   check('theme gain applied', theme.volume, 0.4);
-  check('theme loops by default', theme.loop, true);
+  check('authored loop left untouched', theme.loop, true);
   check('current() is theme', M.current(), 'bgm-theme');
 
   // switch: previous track pauses + resets, new one plays
@@ -81,6 +83,14 @@ const tick = () => Promise.resolve();   // flush one microtask round
   const currentBefore = M.current();
   M.play('bgm-nonexistent');
   check('play unknown id does not change current()', M.current(), currentBefore);
+
+  // loop: NOT forced. A track authored without loop (a one-shot win jingle)
+  // stays non-looping; an explicit { loop } overrides.
+  boss.loop = false;                 // authored one-shot (e.g. <audio id="bgm-win">)
+  M.play('bgm-boss');
+  check('one-shot track not forced to loop', boss.loop, false);
+  M.play('bgm-boss', { loop: true });
+  check('explicit loop:true overrides', boss.loop, true);
 
   // stop(): pause + reset ALL bgm tracks (not just current), clear current()
   boss.currentTime = 4;

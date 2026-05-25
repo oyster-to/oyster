@@ -29,8 +29,10 @@
 //   Arcade.Music.stop();                             // pause + reset ALL bgm tracks
 //   Arcade.Music.retryPending();                     // retry an autoplay-blocked play (iOS gesture)
 //
-// play() also accepts { loop, restart } (both default true): pass loop:false for
-// a one-shot track, restart:false to resume from the current position.
+// play() also accepts { loop, restart }. loop defaults to the element's authored
+// <audio loop> attribute — pass loop:true/false only to override it (so a track
+// authored without `loop`, e.g. a one-shot win jingle, is NOT forced to loop).
+// restart defaults true; pass restart:false to resume from the current position.
 
 (function () {
   const SELECTOR = 'audio[id^="bgm"]';
@@ -47,7 +49,7 @@
   // marks the track pending for the next retryPending().
   function start(a, id, gain, loop, restart) {
     try {
-      a.loop = loop;
+      if (loop != null) a.loop = loop;   // undefined => respect the authored <audio loop>
       if (gain != null) a.volume = gain;
       if (restart) a.currentTime = 0;
       const p = a.play();
@@ -57,7 +59,6 @@
 
   function play(id, opts) {
     opts = opts || {};
-    const loop = opts.loop !== false;        // default true
     const restart = opts.restart !== false;  // default true
     const target = document.getElementById(id);
     if (!target) return;
@@ -67,7 +68,7 @@
     });
     currentId = id;
     pendingId = null;
-    start(target, id, opts.gain, loop, restart);
+    start(target, id, opts.gain, opts.loop, restart);   // opts.loop undefined => keep authored loop
   }
 
   function pause() {
@@ -89,7 +90,7 @@
     const id = pendingId;
     pendingId = null;
     const a = document.getElementById(id);
-    if (a) start(a, id, null, a.loop, false);   // retry: keep volume + position
+    if (a) start(a, id, null, undefined, false);   // retry: keep volume, loop + position
   }
 
   function current() { return currentId; }
