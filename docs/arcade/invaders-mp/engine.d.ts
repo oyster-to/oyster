@@ -64,6 +64,8 @@ export interface Ufo {
 }
 
 export interface Boss {
+  /** Index into sprites.js BOSS_TYPES (0..BOSS_TYPE_COUNT-1). */
+  type: number;
   x: number;
   hp: number;
   hpMax: number;
@@ -90,10 +92,15 @@ export interface GameState {
   stageNum: number;
   /** Seconds remaining of the "STAGE n-m" / "STAGE n-BOSS" overlay between waves. */
   stageAnnounceIn: number;
-  /** 'grid' during normal waves; 'boss' during a boss interrupt. */
-  phase: 'grid' | 'boss';
+  /**
+   * 'grid' during normal waves, 'boss' during a boss interrupt,
+   * 'cutscene' between the final boss death and the gameover lobby.
+   */
+  phase: 'grid' | 'boss' | 'cutscene';
   /** Active boss entity while phase === 'boss'; null otherwise. */
   boss: Boss | null;
+  /** Seconds left on the win cutscene; 0 outside phase === 'cutscene'. */
+  cutsceneIn: number;
   /** Bonus UFO when on-screen; null when between spawns. */
   ufo: Ufo | null;
   /** Seconds until the next UFO spawns. */
@@ -147,10 +154,15 @@ export interface WireSnapshot {
   ufo: { x: number; d: 1 | -1 } | null;
   /** Floating score popups; client renders + fades by `l` / POPUP_LIFE_SEC. */
   popups: Array<{ x: number; y: number; t: string; c: string; l: number }>;
-  /** 'grid' during normal waves; 'boss' during a boss interrupt. */
-  phase: 'grid' | 'boss';
-  /** Active boss for the renderer; null between bosses. */
-  boss: { x: number; hp: number; hpMax: number } | null;
+  /**
+   * 'grid' during normal waves, 'boss' during a boss interrupt,
+   * 'cutscene' for the win celebration before status → 'gameover'.
+   */
+  phase: 'grid' | 'boss' | 'cutscene';
+  /** Active boss for the renderer; null between bosses. `type` indexes sprites.js BOSS_TYPES. */
+  boss: { x: number; hp: number; hpMax: number; type: number } | null;
+  /** Seconds left on the win cutscene; 0 outside phase === 'cutscene'. */
+  cutsceneIn: number;
   /**
    * Per-seat occupancy. Set by the transport layer (room.ts on the
    * server, hostTick on the client) after snapshotForClient returns,
@@ -191,6 +203,8 @@ export const UFO_Y_EXPORT: number;
 export const BOSS_W: number;
 export const BOSS_H: number;
 export const BOSS_Y: number;
+export const BOSS_TYPE_COUNT: number;
+export const CUTSCENE_SEC: number;
 export function comboMultiplier(count: number): number;
 
 export const SEATS: readonly Seat[];

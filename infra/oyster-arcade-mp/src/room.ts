@@ -127,7 +127,13 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //        +1, fresh wave at n-1. STAGE label shows "n-BOSS" during
 //        the fight. Multiple boss types + minion adds + win cutscene
 //        deferred to Phase H/2. New wire fields: phase / boss.
-const NETCODE_VERSION = 25;
+// v26 — Phase H/2: 4 boss types (CRIMSON OCTOPUS / VIOLET CRAB /
+//        AZURE SQUID / JADE SKULL) one per set, indexed via the new
+//        boss.type wire field. Defeating the JADE SKULL (set 4)
+//        triggers a 5-second win cutscene — phase 'cutscene', then
+//        status → 'gameover' with won=true. New wire fields:
+//        boss.type / cutsceneIn / phase adds 'cutscene' variant.
+const NETCODE_VERSION = 26;
 
 type ClientMessage =
   | { type: 'ping';   t: number }

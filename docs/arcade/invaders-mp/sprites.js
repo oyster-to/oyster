@@ -75,22 +75,57 @@ export function paintShip(ctx, x, shipY, shipW, color) {
   ctx.fillRect(x + shipW/2 - 2, shipY - 4,     4,             2); // turret tip
 }
 
-// Boss sprite (Phase H — single CRIMSON OCTOPUS type for now).
-// 8×8 source painted at scale 5 → 40×40 PF. Two-frame animation
-// toggles every ~300 ms in the renderer. Body uses a 3-band gradient
-// (top=highlight, middle=mid red, bottom=deep red) so the chunky
-// silhouette reads with some depth instead of as a flat blob.
-export const BOSS_FRAMES = [
-  ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '..X..X..', '.X.XX.X.', 'X.X..X.X'],
-  ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '...XX...', '..X..X..', '.X....X.'],
+// Boss sprite roster (Phase H/2). 4 types — one per set — ported
+// from SP's BOSS_TYPES. Each entry: two 8×8 frames + a 3-band colour
+// gradient (hi → mid → shadow, applied to rows 0-2, 3-4, 5-7).
+// Painted at scale 5 → 40×40 PF; 2-frame anim toggles every ~300 ms.
+//
+// Set rotation: stageSet 1 → CRIMSON OCTOPUS, 2 → VIOLET CRAB,
+// 3 → AZURE SQUID, 4 → JADE SKULL. Defeating the JADE SKULL boss
+// triggers the win cutscene — the game has a real end.
+export const BOSS_TYPES = [
+  {
+    name: 'CRIMSON OCTOPUS',
+    frames: [
+      ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '..X..X..', '.X.XX.X.', 'X.X..X.X'],
+      ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '...XX...', '..X..X..', '.X....X.'],
+    ],
+    bands: ['#ff7a7a', '#e05050', '#c0303a'],
+  },
+  {
+    name: 'VIOLET CRAB',
+    frames: [
+      ['.X....X.', '..X..X..', '.XXXXXX.', 'XX.XX.XX', 'XXXXXXXX', 'X.XXXX.X', '.X....X.', 'X.X..X.X'],
+      ['X.X..X.X', '.X.XX.X.', 'XXXXXXXX', 'XXX..XXX', 'XXXXXXXX', '.XXXXXX.', 'X......X', '.X....X.'],
+    ],
+    bands: ['#b080f0', '#8050d0', '#5020a0'],
+  },
+  {
+    name: 'AZURE SQUID',
+    frames: [
+      ['...XX...', '..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', '.X....X.', 'X.X..X.X'],
+      ['...XX...', '..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'XX.XX.XX', 'XXXXXXXX', 'X......X', '.X.XX.X.'],
+    ],
+    bands: ['#50d0f0', '#30a0c0', '#1070a0'],
+  },
+  {
+    name: 'JADE SKULL',
+    frames: [
+      ['.XXXXXX.', 'X.XXXX.X', 'XXXXXXXX', 'X.X..X.X', 'XXXXXXXX', 'XX.XX.XX', 'X.XXXX.X', '.X.XX.X.'],
+      ['.XXXXXX.', 'X.XXXX.X', 'XXXXXXXX', 'X.X..X.X', 'XXXXXXXX', 'XXX..XXX', 'X.XXXX.X', '..X..X..'],
+    ],
+    bands: ['#60c060', '#408040', '#205020'],
+  },
 ];
-const BOSS_BAND_COLORS = ['#ff7a7a', '#e05050', '#c0303a'];   // hi / mid / shadow
 
-export function paintBoss(ctx, x, y, scale, frame) {
-  const px = BOSS_FRAMES[frame & 1];
+// Paint a boss frame at (x, y) PF coords. `type` is an index into
+// BOSS_TYPES; out-of-range defensively falls back to the first.
+export function paintBoss(ctx, x, y, scale, frame, type) {
+  const def = BOSS_TYPES[type | 0] || BOSS_TYPES[0];
+  const px = def.frames[frame & 1];
   for (let row = 0; row < px.length; row++) {
     const band = row < 3 ? 0 : (row < 5 ? 1 : 2);
-    ctx.fillStyle = BOSS_BAND_COLORS[band];
+    ctx.fillStyle = def.bands[band];
     const cells = px[row];
     const py = y + row * scale;
     for (let col = 0; col < cells.length; col++) {

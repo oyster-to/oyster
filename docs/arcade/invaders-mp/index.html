@@ -427,7 +427,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 25;
+  const NETCODE_VERSION = 26;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -1583,13 +1583,14 @@
       }
     }
 
-    // Boss — chunky 40×40 octopus + a green→yellow→red HP bar above
-    // it. Same 2-frame animation cadence as the regular swarm (toggle
-    // every 300 ms). HP ratio drives the bar fill colour for a quick
-    // glance read.
+    // Boss — chunky 40×40 sprite + a green→yellow→red HP bar above
+    // it. `type` (0..BOSS_TYPE_COUNT-1) picks the sprite from the
+    // BOSS_TYPES roster in sprites.js. Same 2-frame animation cadence
+    // as the regular swarm (toggle every 300 ms). HP ratio drives the
+    // bar fill colour for a quick-glance read.
     if (latestSnap.phase === 'boss' && latestSnap.boss) {
       const bf = Math.floor(performance.now() / 300) & 1;
-      paintBoss(ctx, latestSnap.boss.x, BOSS_Y, 5, bf);
+      paintBoss(ctx, latestSnap.boss.x, BOSS_Y, 5, bf, latestSnap.boss.type || 0);
       const hp = latestSnap.boss.hp;
       const hpMax = latestSnap.boss.hpMax || 1;
       const ratio = Math.max(0, Math.min(1, hp / hpMax));
@@ -1692,6 +1693,24 @@
       drawCenteredOverlay(label, `rgba(255, 216, 74, ${t.toFixed(2)})`, 18);
     }
 
+    // Win cutscene — plays for CUTSCENE_SEC after the final boss
+    // falls, before status flips to 'gameover'. Two stacked lines:
+    // a big gold "EARTH IS SAFE" headline and the team score below.
+    // No fade — the cutscene is short enough that a steady reveal
+    // reads cleaner than a wobbly alpha ramp.
+    if (latestSnap.phase === 'cutscene') {
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '14px "Press Start 2P", monospace';
+      ctx.fillStyle = '#ffd84a';
+      ctx.fillText('EARTH IS SAFE', PF_W / 2, PF_H / 2 - 12);
+      ctx.font = '8px "Press Start 2P", monospace';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('SCORE ' + (latestSnap.score | 0), PF_W / 2, PF_H / 2 + 8);
+      ctx.restore();
+    }
+
     // Floating score popups — server-spawned on each kill, live for
     // POPUP_LIFE_SEC (0.6 s), drift upward. Each renders centred on
     // its (x, y) with alpha = life / POPUP_LIFE_SEC. Tiny font so
@@ -1749,9 +1768,10 @@
       ctx.fillStyle = '#ffd84a';
       const stageSet = latestSnap.stageSet ?? 1;
       const stageNum = latestSnap.stageNum ?? 1;
-      const stageLabel = latestSnap.phase === 'boss'
-        ? stageSet + '-BOSS'
-        : stageSet + '-' + stageNum;
+      const stageLabel =
+        latestSnap.phase === 'cutscene' ? 'WIN!' :
+        latestSnap.phase === 'boss'     ? stageSet + '-BOSS' :
+                                          stageSet + '-' + stageNum;
       ctx.fillText(stageLabel, PF_W / 2, 12);
 
       // LIVES — shared respawn-pool counter, right-aligned. "—" if
