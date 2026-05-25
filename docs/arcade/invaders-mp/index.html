@@ -254,7 +254,7 @@
     margin-top: 12px;
     display: flex; flex-direction: column; align-items: center; gap: 8px;
   }
-  #go-prompt {
+  #go-initials .go-initials-label {
     font-size: 9px; letter-spacing: 0.1em; color: #ffd84a; text-align: center;
   }
   #go-initials .go-slot-row {
@@ -371,9 +371,12 @@
            Arcade.Initials state machine drives slot/letter selection
            via keyboard + the FIRE touch button (which gets re-labelled
            SELECT while active). Hidden by default; opens via
-           Arcade.Initials.open(). -->
+           Arcade.Initials.open(). The `.go-initials-label` stays
+           visible the whole time as the instruction (we don't use the
+           framework's hidden #go-prompt — it auto-hides on open
+           which would leave the user staring at bare letter slots). -->
       <div id="go-initials" hidden>
-        <div id="go-prompt">NEW HI-SCORE — ENTER INITIALS</div>
+        <div class="go-initials-label">NEW HI-SCORE — ENTER INITIALS</div>
         <div class="go-slot-row">
           <span class="go-slot is-active" data-slot="0">A</span>
           <span class="go-slot"           data-slot="1">A</span>
@@ -1230,9 +1233,12 @@
   function refreshLobby() {
     if (!lastState) return;
     const s = lastState.status;
-    // Reset the leaderboard-prompt dedupe when leaving gameover so a
-    // fresh round can submit too.
-    if (s !== 'gameover') promptedInGameover = false;
+    // Reset the leaderboard-prompt dedupe + saved-initials banner
+    // when leaving gameover so a fresh round can submit too.
+    if (s !== 'gameover') {
+      promptedInGameover = false;
+      submittedInitials = null;
+    }
     // Use the authoritative `seats` map (added in Phase D) — true
     // occupancy regardless of alive/respawn state. Pre-Phase-D
     // snapshots fall back to the alive proxy via seatOccupied().
@@ -1264,13 +1270,19 @@
     } else if (s === 'gameover') {
       // Per-player score line — same model as Sackboy: each device
       // sees its own final, and the leaderboard prompt below uses
-      // *their* score, not the team total.
+      // *their* score, not the team total. After a successful
+      // initials submit, swap to a "Score saved" confirmation so
+      // the player sees their entry actually landed.
       const myIdx = mySeat ? SEATS.indexOf(mySeat) : -1;
       const myFinal = (myIdx >= 0 && lastState.players[myIdx])
         ? (lastState.players[myIdx].score | 0)
         : 0;
-      const headline = lastState.won ? 'Earth is safe!' : 'Game over';
-      setStatus(`${headline} • Your score: ${myFinal}`);
+      if (submittedInitials) {
+        setStatus(`Score ${myFinal} saved as ${submittedInitials}!`);
+      } else {
+        const headline = lastState.won ? 'Earth is safe!' : 'Game over';
+        setStatus(`${headline} • Your score: ${myFinal}`);
+      }
       startBtn.disabled = false;
       maybePromptInitials(myFinal);
     }
@@ -1283,6 +1295,11 @@
   // re-prompting on repeated 'gameover' snapshots — reset whenever
   // status leaves 'gameover' so a second run can also submit.
   let promptedInGameover = false;
+  // After successful submit, holds the chosen initials so refreshLobby
+  // can swap the status copy to "Score saved as ABC!" instead of the
+  // generic "Game over • Your score: X" (otherwise the user has no
+  // feedback that the submission landed).
+  let submittedInitials = null;
   function maybePromptInitials(myFinal) {
     if (promptedInGameover) return;
     promptedInGameover = true;
@@ -1299,11 +1316,18 @@
   Arcade.Initials.mount({
     fireButton: '#tc-fire',
     fireLabel:  { idle: 'FIRE', select: 'SELECT' },
+    // We use a static .go-initials-label inside #go-initials for the
+    // "ENTER INITIALS" instruction — it should stay visible the whole
+    // time. Disabling the framework's prompt selector keeps it from
+    // hiding anything we don't want hidden.
+    promptSelector: null,
     onSubmit: (initials) => {
       const myIdx = mySeat ? SEATS.indexOf(mySeat) : -1;
       const myFinal = (myIdx >= 0 && lastState && lastState.players[myIdx])
         ? (lastState.players[myIdx].score | 0)
         : 0;
+      submittedInitials = initials;
+      refreshLobby();                         // repaint with "Score saved" copy
       Arcade.Leaderboard.submit(myFinal, initials).then(res => {
         if (!res.ok) console.warn('[leaderboard] submit failed:', res.error);
       });
@@ -1314,6 +1338,13 @@
     // iOS needs the AudioContext created/resumed inside a real user
     // gesture. Start is the first guaranteed tap, so do it here.
     Arcade.Audio.ensureCtx();
+    // Block restart while initials are open — otherwise tapping
+    // START mid-submission loses the score without writing it to
+    // the leaderboard. The player can either finish entering
+    // initials (FIRE/SELECT advances + submits on the last slot)
+    // or just sit tight and START becomes responsive again once
+    // submission closes the initials UI.
+    if (Arcade.Initials.isActive()) return;
     // p1 engages host mode on Start whenever the DO round trip is
     // skippable — either P2P peers are already connected (host serves
     // them via DC) OR no other seats are occupied (pure solo, runs
@@ -1391,17 +1422,37 @@
   // works. `is-pressed` matches the shared touch.css convention (the
   // :active pseudo-class alone doesn't cover the "held while finger
   // slides off" case).
-  function bindTouch(elId, field) {
+  //
+  // When Arcade.Initials is active (gameover + qualified for the
+  // leaderboard), the touch buttons route to the initials state
+  // machine instead: left/right cycle letters, fire/SELECT advances
+  // the slot (and submits on the last one). Matches SP's flow.
+  function bindTouch(elId, field, initialsAction) {
     const el = document.getElementById(elId);
-    const down = (e) => { e.preventDefault(); el.classList.add('is-pressed');    setInput(field, true);  };
-    const up   = (e) => { e.preventDefault(); el.classList.remove('is-pressed'); setInput(field, false); };
+    const down = (e) => {
+      e.preventDefault();
+      el.classList.add('is-pressed');
+      if (Arcade.Initials.isActive()) {
+        if (initialsAction) Arcade.Initials.action(initialsAction);
+        return;
+      }
+      setInput(field, true);
+    };
+    const up = (e) => {
+      e.preventDefault();
+      el.classList.remove('is-pressed');
+      // Always clear the input on release, even if initials are
+      // active — otherwise a 'fire' held when the game ended would
+      // stick into the next round.
+      setInput(field, false);
+    };
     el.addEventListener('touchstart',  down, { passive: false });
     el.addEventListener('touchend',    up,   { passive: false });
     el.addEventListener('touchcancel', up,   { passive: false });
   }
-  bindTouch('tc-left',  'left');
-  bindTouch('tc-right', 'right');
-  bindTouch('tc-fire',  'fire');
+  bindTouch('tc-left',  'left',  'letter-prev');
+  bindTouch('tc-right', 'right', 'letter-next');
+  bindTouch('tc-fire',  'fire',  'advance');
 
   // --------------------------------------------------------------------
   // Render — playfield is engine units (PF_W × PF_H). CSS scales the
