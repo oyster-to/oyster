@@ -300,6 +300,7 @@ This is the reusable unit both the historical sweep and live ingestion call. Giv
 
 ```typescript
 // server/src/session-output-sweep.ts (partial — the shared handler)
+import crypto from "node:crypto";
 import { existsSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import type Database from "better-sqlite3";
@@ -344,7 +345,20 @@ export async function registerTouchedOutput(deps: SweepDeps, touch: Touch): Prom
     const projectId =
       lookupProject(deps.db, dirname(absPath)).projectId ?? sessionProjectId(deps.db, touch.sessionId);
     const art = await deps.service.registerArtifact(
-      { path: absPath, project_id: projectId, label: basename(absPath), artifact_kind: kind, source_origin: "discovered" },
+      {
+        path: absPath,
+        // Explicit random id — NOT the inferred filename-stem id. registerArtifact
+        // throws on a duplicate active id, and bulk reactive registration would
+        // collide on every same-named file (report.md, index.html, README.md…).
+        // Per-path idempotency is already guaranteed by the getByPath check above,
+        // so a fresh UUID per *new* registration is correct. Mirrors the existing
+        // "register an existing file" convention (artifact-service.ts:556).
+        id: crypto.randomUUID(),
+        project_id: projectId,
+        label: basename(absPath),
+        artifact_kind: kind,
+        source_origin: "discovered",
+      },
       [], // trusted: paths come from the user's own session history
     );
     artifactId = art.id;
