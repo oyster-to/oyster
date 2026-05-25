@@ -151,7 +151,7 @@ function allDone(state: OnboardingState): boolean {
 
 interface OnboardingDockProps {
   /** Count of user-defined spaces (excludes home / __all__ / __archived__).
-   *  Drives the bidirectional auto-tick on the required Spaces item: any
+   *  Drives the bidirectional auto-tick on the (optional) Spaces item: any
    *  space exists → ticked; deletes back to zero → un-ticked. */
   userSpaceCount?: number;
   /** Count of live publications across all spaces. Drives the bidirectional
@@ -380,7 +380,7 @@ function Checklist({ state, requiredDone, done, onSetUpSpaces, onShowStep, onTog
         // MCP auto-derives (SSE + API), spaces from userSpaceCount, publish
         // from publishedCount — a manual toggle would fight those derives.
         // Memories is the lone item without a signal, so it stays user-driven.
-        const canToggle = !item.required && item.key !== "publish";
+        const canToggle = item.key === "memories";
         const iconClass = `onboarding-item-icon onboarding-item-icon--${tag}${canToggle ? " onboarding-item-icon--clickable" : ""}`;
         return (
           <div key={item.key} className={`onboarding-item${itemDone ? " onboarding-item--done" : ""}`}>

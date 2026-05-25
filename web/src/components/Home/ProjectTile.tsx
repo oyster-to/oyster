@@ -61,6 +61,12 @@ export function ProjectTile({
     return () => document.removeEventListener("click", onDocClick);
   }, [menuOpen]);
 
+  // Reset picker sub-views whenever the menu closes, so the next ⋯ open lands
+  // on the default menu rather than a stale merge/move picker.
+  useEffect(() => {
+    if (!menuOpen) { setMergePickerOpen(false); setMovePickerOpen(false); }
+  }, [menuOpen]);
+
   async function performDelete() {
     setBusy(true);
     try {

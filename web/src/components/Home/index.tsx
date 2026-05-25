@@ -901,7 +901,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   orphanCounts.active > 0 && `${orphanCounts.active} active`,
                   orphanCounts.waiting > 0 && `${orphanCounts.waiting} waiting`,
                   orphanCounts.done > 0 && `${orphanCounts.done} done`,
-                ].filter(Boolean).join(" · ") || "Sessions outside any registered space"}
+                ].filter(Boolean).join(" · ") || "Projects and sessions not filed into a space"}
               >
                 {showElsewhere && isHomeView && (
                   <motion.span
