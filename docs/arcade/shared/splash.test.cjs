@@ -112,7 +112,10 @@ S.stopCycle();
 // Grace window: the input that triggers a transition (and its paired
 // touchstart→click) must NOT immediately dismiss the freshly-shown splash —
 // otherwise saving initials bleeds straight into starting a new game.
-Object.keys(winL).forEach(k => delete winL[k]);   // drop the first mount's listeners
+// Fully reset listeners from the first mount before remounting: window
+// listeners AND the per-view click handlers (else this mount duplicates them).
+Object.keys(winL).forEach(k => delete winL[k]);
+view0._clicks.length = 0; view1._clicks.length = 0;
 S.mount({ cycleMs: 999999, graceMs: 10000, onTitle: () => {}, onPlay: () => {} });
 fireWin('keydown', { key: ' ' });   // arrives within the grace window
 check('grace: input right after a transition is ignored', S.isPlaying(), false);
