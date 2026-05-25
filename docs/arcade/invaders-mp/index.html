@@ -199,7 +199,7 @@
   /* Big-start — the obvious primary action. Drop shadow + idle pulse
      pulls the eye to "tap me". Disabled state is muted grey so it
      doesn't compete for attention while we're still connecting. */
-  #prescreen .big-start {
+  .big-start {
     background: #ff3aa1; color: #fff;
     border: 0; border-radius: 6px;
     padding: 18px 56px; font: inherit; font-size: 22px;
@@ -207,15 +207,15 @@
     box-shadow: 0 4px 0 #b32271, 0 6px 14px rgba(255,58,161,0.4);
     transition: transform 0.08s ease, box-shadow 0.08s ease;
   }
-  #prescreen .big-start:not(:disabled):hover {
+  .big-start:not(:disabled):hover {
     transform: translateY(-1px);
     box-shadow: 0 5px 0 #b32271, 0 8px 18px rgba(255,58,161,0.5);
   }
-  #prescreen .big-start:not(:disabled):active {
+  .big-start:not(:disabled):active {
     transform: translateY(2px);
     box-shadow: 0 2px 0 #b32271, 0 3px 6px rgba(255,58,161,0.3);
   }
-  #prescreen .big-start:disabled {
+  .big-start:disabled {
     background: #2a2a3a; color: rgba(255,255,255,0.4);
     cursor: not-allowed; box-shadow: none;
   }
@@ -223,20 +223,20 @@
     0%, 100% { transform: scale(1); }
     50%      { transform: scale(1.04); }
   }
-  #prescreen .big-start:not(:disabled) {
+  .big-start:not(:disabled) {
     animation: start-pulse 1.8s ease-in-out infinite;
   }
   /* Respect users who've opted out of motion. The pulse and the
      hover/active transform/box-shadow shifts can be vestibular
      triggers; flatten them. */
   @media (prefers-reduced-motion: reduce) {
-    #prescreen .big-start,
-    #prescreen .big-start:not(:disabled) {
+    .big-start,
+    .big-start:not(:disabled) {
       animation: none;
       transition: none;
     }
-    #prescreen .big-start:not(:disabled):hover,
-    #prescreen .big-start:not(:disabled):active {
+    .big-start:not(:disabled):hover,
+    .big-start:not(:disabled):active {
       transform: none;
     }
   }
@@ -246,26 +246,69 @@
     letter-spacing: 0.08em;
   }
 
-  /* Initials entry — shown on gameover when this player qualifies.
-     Three slots side-by-side; the active slot pulses gold. The
-     prompt sits above. The shared Arcade.Initials state machine
-     toggles `hidden` on #go-initials and #go-prompt. */
+  /* End-of-run overlay. Covers the lobby (QR / players / name /
+     START / status / debug bar) with a focused gameover screen:
+     headline, big score, and — if qualifying — initials entry.
+     Positioned absolute over .tube so the prescreen below stays
+     untouched (we just hide it visually). */
+  #endscreen {
+    position: absolute;
+    inset: 0;
+    background: rgba(2, 10, 28, 0.96);     /* near-opaque navy */
+    z-index: 50;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 14px;
+    padding: 24px;
+    text-align: center;
+  }
+  #endscreen .es-headline {
+    font-size: 16px; letter-spacing: 0.15em;
+    color: #ffd84a;
+  }
+  /* Loss variant — red headline. JS toggles `.is-loss` on the
+     headline element. */
+  #endscreen .es-headline.is-loss {
+    color: #ff5050;
+  }
+  #endscreen .es-score-label {
+    font-size: 8px; letter-spacing: 0.2em;
+    color: rgba(255, 255, 255, 0.55);
+    margin-top: 4px;
+  }
+  #endscreen .es-score {
+    font-size: 36px;
+    color: #ffffff;
+    margin-bottom: 8px;
+  }
+  #endscreen .es-hint {
+    font-size: 6px; letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.45);
+    margin-top: 6px;
+  }
+  #endscreen .es-saved {
+    font-size: 9px; letter-spacing: 0.12em;
+    color: #6bff8c;
+  }
+
+  /* Initials entry inside the endscreen. Three slots side-by-side;
+     the active slot pulses gold/white. */
   #go-initials {
-    margin-top: 12px;
-    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
   }
   #go-initials .go-initials-label {
-    font-size: 9px; letter-spacing: 0.1em; color: #ffd84a; text-align: center;
+    font-size: 9px; letter-spacing: 0.1em; color: #ffd84a;
   }
   #go-initials .go-slot-row {
-    display: flex; gap: 12px; justify-content: center;
+    display: flex; gap: 14px; justify-content: center;
   }
   #go-initials .go-slot {
     display: inline-block;
-    min-width: 24px; padding: 6px 8px;
-    font-size: 22px; letter-spacing: 0.1em;
-    color: rgba(255, 255, 255, 0.45);
-    border-bottom: 2px solid rgba(255, 216, 74, 0.25);
+    min-width: 32px; padding: 8px 10px;
+    font-size: 28px; letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.4);
+    border-bottom: 3px solid rgba(255, 216, 74, 0.25);
+    user-select: none;
   }
   #go-initials .go-slot.is-active {
     color: #ffd84a;
@@ -366,24 +409,6 @@
 
       <div id="status">Connecting…</div>
 
-      <!-- Initials entry — shown on gameover when this player's
-           personal score qualifies for the leaderboard. The shared
-           Arcade.Initials state machine drives slot/letter selection
-           via keyboard + the FIRE touch button (which gets re-labelled
-           SELECT while active). Hidden by default; opens via
-           Arcade.Initials.open(). The `.go-initials-label` stays
-           visible the whole time as the instruction (we don't use the
-           framework's hidden #go-prompt — it auto-hides on open
-           which would leave the user staring at bare letter slots). -->
-      <div id="go-initials" hidden>
-        <div class="go-initials-label">NEW HI-SCORE — ENTER INITIALS</div>
-        <div class="go-slot-row">
-          <span class="go-slot is-active" data-slot="0">A</span>
-          <span class="go-slot"           data-slot="1">A</span>
-          <span class="go-slot"           data-slot="2">A</span>
-        </div>
-      </div>
-
       <!-- Diagnostic line + dev controls; only visible when the URL
            has ?debug (CSS hides .meta + #retryBtn unless body.is-debug). -->
       <div class="meta">
@@ -392,6 +417,43 @@
         <span id="transport" class="transport">relay</span>
       </div>
       <button id="retryBtn" title="Force a fresh WebRTC handshake (use if the badge is stuck on relay after a late join)">Retry P2P</button>
+    </div>
+
+    <!-- End-of-run overlay. Covers the lobby on gameover so the
+         focus is the player's own score + (if qualifying) initials
+         entry, instead of competing with the QR / players / name /
+         START / status / debug-meta stack. Sequence:
+            won/lost → endscreen visible with headline + big score
+            qualifies → initials block visible (slots + hint)
+            submit   → "SAVED AS ABC!" + PLAY AGAIN button shown
+            not qualifying → PLAY AGAIN button shown immediately
+         Tap PLAY AGAIN to hide the overlay and start a fresh round. -->
+    <div id="endscreen" hidden>
+      <div id="es-headline" class="es-headline">EARTH IS SAFE</div>
+      <div class="es-score-label">SCORE</div>
+      <div id="es-score" class="es-score">0</div>
+
+      <!-- Initials entry. Hidden until the player's score qualifies.
+           The shared Arcade.Initials state machine drives selection
+           via keyboard or the touch controls (left/right cycle a
+           letter, FIRE/SELECT advances; submits on the last slot). -->
+      <div id="go-initials" hidden>
+        <div class="go-initials-label">NEW HI-SCORE — ENTER INITIALS</div>
+        <div class="go-slot-row">
+          <span class="go-slot is-active" data-slot="0">A</span>
+          <span class="go-slot"           data-slot="1">A</span>
+          <span class="go-slot"           data-slot="2">A</span>
+        </div>
+        <div class="es-hint">USE KEYBOARD OR ← → BUTTONS · FIRE/SELECT TO ADVANCE</div>
+      </div>
+
+      <!-- "Submitted" confirmation — visible only after a successful
+           leaderboard submit. -->
+      <div id="es-saved" class="es-saved" hidden></div>
+
+      <!-- Restart action. Hidden while initials are open so the
+           player can't accidentally start a fresh round mid-entry. -->
+      <button id="es-play-again" class="big-start" hidden>PLAY AGAIN</button>
     </div>
   </div>
 </div>
@@ -1233,12 +1295,9 @@
   function refreshLobby() {
     if (!lastState) return;
     const s = lastState.status;
-    // Reset the leaderboard-prompt dedupe + saved-initials banner
-    // when leaving gameover so a fresh round can submit too.
-    if (s !== 'gameover') {
-      promptedInGameover = false;
-      submittedInitials = null;
-    }
+    // Hide the endscreen overlay (and reset its dedupe) when status
+    // leaves 'gameover' so a fresh round starts on the normal lobby.
+    if (s !== 'gameover') hideEndscreen();
     // Use the authoritative `seats` map (added in Phase D) — true
     // occupancy regardless of alive/respawn state. Pre-Phase-D
     // snapshots fall back to the alive proxy via seatOccupied().
@@ -1268,46 +1327,73 @@
       setStatus('');
       startBtn.disabled = true;
     } else if (s === 'gameover') {
-      // Per-player score line — same model as Sackboy: each device
-      // sees its own final, and the leaderboard prompt below uses
-      // *their* score, not the team total. After a successful
-      // initials submit, swap to a "Score saved" confirmation so
-      // the player sees their entry actually landed.
-      const myIdx = mySeat ? SEATS.indexOf(mySeat) : -1;
-      const myFinal = (myIdx >= 0 && lastState.players[myIdx])
-        ? (lastState.players[myIdx].score | 0)
-        : 0;
-      if (submittedInitials) {
-        setStatus(`Score ${myFinal} saved as ${submittedInitials}!`);
-      } else {
-        const headline = lastState.won ? 'Earth is safe!' : 'Game over';
-        setStatus(`${headline} • Your score: ${myFinal}`);
-      }
+      // Endscreen owns the gameover UI now (headline + score +
+      // initials / PLAY AGAIN). The under-overlay lobby status is
+      // hidden visually but cleared for cleanliness, and the
+      // original START button stays enabled as a fallback in case
+      // the overlay is dismissed some other way.
+      setStatus('');
       startBtn.disabled = false;
-      maybePromptInitials(myFinal);
+      showEndscreen();
     }
   }
 
-  // Per-player leaderboard submission. Called on the gameover
-  // transition with this device's final score. Suppressed when the
-  // match was cheated (B-key) so a single skip doesn't pollute the
-  // hi-score table for the whole team. `promptedInGameover` gates
-  // re-prompting on repeated 'gameover' snapshots — reset whenever
-  // status leaves 'gameover' so a second run can also submit.
-  let promptedInGameover = false;
-  // After successful submit, holds the chosen initials so refreshLobby
-  // can swap the status copy to "Score saved as ABC!" instead of the
-  // generic "Game over • Your score: X" (otherwise the user has no
-  // feedback that the submission landed).
-  let submittedInitials = null;
-  function maybePromptInitials(myFinal) {
-    if (promptedInGameover) return;
-    promptedInGameover = true;
-    if (lastState.cheated) return;          // disqualified — silent
-    if (myFinal <= 0) return;                // nothing to submit
-    if (!Arcade.Leaderboard.qualifies(myFinal)) return;
-    Arcade.Initials.open();
+  // ── Endscreen overlay ───────────────────────────────────────
+  // Dedicated full-screen overlay shown on gameover. Hides the
+  // lobby chrome (QR / players / name / START / status / debug)
+  // and focuses on this player's own final + (if qualifying)
+  // initials entry. Same model as Sackboy: per-device own-score
+  // experience, no team-total visibility.
+  const endscreen      = document.getElementById('endscreen');
+  const esHeadline     = document.getElementById('es-headline');
+  const esScore        = document.getElementById('es-score');
+  const esSaved        = document.getElementById('es-saved');
+  const playAgainBtn   = document.getElementById('es-play-again');
+  const goInitialsEl   = document.getElementById('go-initials');
+  let endscreenShown = false;
+  function showEndscreen() {
+    if (endscreenShown) return;
+    endscreenShown = true;
+    const myIdx = mySeat ? SEATS.indexOf(mySeat) : -1;
+    const myFinal = (myIdx >= 0 && lastState.players[myIdx])
+      ? (lastState.players[myIdx].score | 0)
+      : 0;
+    esHeadline.textContent = lastState.won ? 'EARTH IS SAFE' : 'GAME OVER';
+    esHeadline.classList.toggle('is-loss', !lastState.won);
+    esScore.textContent = String(myFinal);
+    esSaved.hidden = true;
+    const shouldPromptInitials =
+      !lastState.cheated &&
+      myFinal > 0 &&
+      Arcade.Leaderboard.qualifies(myFinal);
+    goInitialsEl.hidden = !shouldPromptInitials;
+    // Hide PLAY AGAIN while initials are open so the player can't
+    // accidentally restart mid-entry. Revealed once submit completes
+    // (or immediately, for non-qualifying / cheated runs).
+    playAgainBtn.hidden = shouldPromptInitials;
+    endscreen.hidden = false;
+    if (shouldPromptInitials) {
+      // Drop focus from the name input so window keydown events
+      // (arrows, letters, enter) reach the initials handler cleanly.
+      if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
+      Arcade.Initials.open();
+    }
   }
+  function hideEndscreen() {
+    endscreen.hidden = true;
+    endscreenShown = false;
+    // Close initials defensively — usually framework already closed
+    // on submit, but PLAY AGAIN can fire mid-entry if user bypasses.
+    if (Arcade.Initials.isActive()) Arcade.Initials.close();
+  }
+  playAgainBtn.addEventListener('click', () => {
+    hideEndscreen();
+    // Replays the existing Start logic (host engagement, cloud-relay
+    // fallback) — same code path as tapping the lobby START button.
+    startBtn.click();
+  });
 
   // Wire the shared initials state machine. onSubmit posts to the
   // leaderboard and closes the entry UI; the player can then tap
@@ -1326,8 +1412,14 @@
       const myFinal = (myIdx >= 0 && lastState && lastState.players[myIdx])
         ? (lastState.players[myIdx].score | 0)
         : 0;
-      submittedInitials = initials;
-      refreshLobby();                         // repaint with "Score saved" copy
+      // Endscreen swap: initials block → "SAVED AS ABC" confirmation
+      // + PLAY AGAIN now active. Submit fires async; if the POST
+      // fails the local mirror still reflects the entry (it was
+      // recorded on qualifies() side via Arcade.Leaderboard.submit).
+      goInitialsEl.hidden = true;
+      esSaved.textContent = `SCORE SAVED AS ${initials}`;
+      esSaved.hidden = false;
+      playAgainBtn.hidden = false;
       Arcade.Leaderboard.submit(myFinal, initials).then(res => {
         if (!res.ok) console.warn('[leaderboard] submit failed:', res.error);
       });
