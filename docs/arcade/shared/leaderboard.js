@@ -89,6 +89,16 @@
 
   async function submit(score, initials) {
     if (!game) return { ok: false, error: 'not_initialised' };
+    // Optimistic local insert — runs synchronously before the cloud round-trip
+    // so the player sees their score (and the UI can highlight it) the instant
+    // the board paints, instead of waiting on / depending on the network. The
+    // cloud stays the source of truth: a successful submit overwrites the mirror
+    // with the canonical list below, and refresh() reconciles on next load.
+    const optimistic = read();
+    optimistic.push({ score, initials, created_at: Date.now() });
+    optimistic.sort((a, b) => b.score - a.score);
+    write(optimistic.slice(0, MAX));
+
     const token = await ensurePlayToken();
     if (!token) return { ok: false, error: 'no_token' };
     try {
@@ -158,8 +168,14 @@
       ol.appendChild(li);
       return;
     }
+    // Optional { score, initials } to flag as the player's just-entered row —
+    // the matching <li> gets an `is-you` class for the game to style/animate.
+    const hl = opts.highlight || null;
     list.forEach((e, i) => {
       const li = document.createElement('li');
+      if (hl && e.score === hl.score && (e.initials || '') === (hl.initials || '')) {
+        li.classList.add('is-you');
+      }
       const cols = [
         ['lb-rank',     String(i + 1).padStart(2, '0') + '.'],
         ['lb-initials', e.initials || '---'],

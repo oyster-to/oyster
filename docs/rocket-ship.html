@@ -19,6 +19,7 @@
 <link rel="stylesheet" href="arcade/shared/pixel-font.css">
 <link rel="stylesheet" href="arcade/shared/cabinet.css">
 <link rel="stylesheet" href="arcade/shared/touch.css">
+<link rel="stylesheet" href="arcade/shared/overlays.css">
 <style>
   /* pixel-font.css (shared) provides the Press Start 2P @font-face, the *
      reset, and the body/canvas gesture + selection lock. */
@@ -321,88 +322,40 @@
     letter-spacing: 0.1em;
     text-align: left;
   }
+  /* The player's just-entered row (paintList({ highlight })). .lb-list li is
+     display:contents — no row box — so light up the cells. A quick flash grabs
+     the eye when the row first lands, then it settles into a cyan->gold pulse
+     so kids can see exactly where they placed. */
+  .leaderboard .lb-list li.is-you span {
+    color: #fff;
+    animation:
+      lb-you-flash 0.2s steps(1) 5,
+      lb-you-glow 0.9s ease-in-out 1s infinite;
+  }
+  @keyframes lb-you-flash {
+    0%, 100% { opacity: 1;   text-shadow: 0 0 18px #fff; }
+    50%      { opacity: 0.2; text-shadow: none; }
+  }
+  @keyframes lb-you-glow {
+    0%, 100% { text-shadow: 0 0 5px rgba(45, 212, 255, 0.6); }
+    50%      { text-shadow: 0 0 16px rgba(255, 216, 74, 0.95); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* No flash/pulse — keep a static glow so the row is still clearly marked. */
+    .leaderboard .lb-list li.is-you span {
+      animation: none;
+      text-shadow: 0 0 10px rgba(45, 212, 255, 0.8);
+    }
+  }
   .leaderboard .lb-empty {
     font-size: clamp(10px, 1.4vw, 12px);
     color: rgba(255, 255, 255, 0.55);
     letter-spacing: 0.14em;
   }
 
-  /* Game over overlay — same arcade vibe */
-  .gameover {
-    position: absolute;
-    inset: 0;
-    z-index: 4;
-    background: rgba(0, 0, 0, 0.88);
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    font-family: 'Press Start 2P', ui-monospace, monospace;
-    color: #fff;
-    gap: clamp(16px, 2.6vw, 26px);
-    padding: 40px 24px;
-    animation: splash-poweron 0.3s ease-out;
-  }
-  .gameover.is-visible { display: flex; }
-  .gameover .go-title {
-    font-size: clamp(28px, 6.5vw, 60px);
-    color: #ff3aa1;
-    text-shadow:
-      3px 3px 0 #2dd4ff,
-      6px 6px 0 #ffd84a,
-      0 0 16px rgba(255, 58, 161, 0.45);
-  }
-  .gameover .go-score {
-    font-size: clamp(14px, 2.2vw, 18px);
-    color: #ffd84a;
-    letter-spacing: 0.18em;
-  }
-  .gameover .go-hiscore {
-    font-size: clamp(9px, 1.3vw, 12px);
-    color: #2dd4ff;
-    letter-spacing: 0.18em;
-    min-height: 14px;
-  }
-  .gameover .go-prompt {
-    font-size: clamp(10px, 1.6vw, 14px);
-    letter-spacing: 0.18em;
-    color: #fff;
-    animation: arcade-blink 1s steps(1) infinite;
-  }
-  .gameover .go-initials {
-    display: flex; flex-direction: column;
-    align-items: center; gap: 12px;
-    margin-top: 8px;
-  }
-  .gameover .go-initials-label {
-    font-size: clamp(10px, 1.5vw, 13px);
-    letter-spacing: 0.2em;
-    color: #ff3aa1;
-  }
-  .gameover .go-initials-slots {
-    display: inline-flex;
-    gap: 18px;
-    font-size: clamp(28px, 5vw, 44px);
-    color: #ffd84a;
-    text-shadow: 2px 2px 0 #ff3aa1, 4px 4px 0 #2dd4ff;
-    letter-spacing: 0.1em;
-  }
-  .gameover .go-slot {
-    display: inline-block;
-    min-width: 1ch;
-    padding: 0 4px;
-    border-bottom: 4px solid rgba(255, 216, 74, 0.3);
-  }
-  .gameover .go-slot.is-active {
-    border-bottom-color: #2dd4ff;
-    animation: arcade-blink 0.6s steps(1) infinite;
-  }
-  .gameover .go-initials-hint {
-    font-size: clamp(8px, 1.1vw, 10px);
-    letter-spacing: 0.16em;
-    color: rgba(255, 255, 255, 0.6);
-  }
+  /* overlays.css (shared) provides the .gameover / .go-* game-over + initials
+     styles. rocket-ship's palette matches the shared defaults exactly, so no
+     --go-* variable overrides are needed. */
 
   /* #1 celebration — pixel flag on a pole. No confetti. */
   .celebrate {
@@ -1443,14 +1396,19 @@ function paintSplashHighScore() {
     pad: 3,
   });
 }
+// The player's most-recently-saved { score, initials }, so the leaderboard can
+// flash the row they just landed on. Null until they enter a qualifying score.
+let lastEntry = null;
 function paintLeaderboard() {
   // Rocket Ship is the only game showing the humanised "since" column on the
   // leaderboard list. Module supports it via showSince + sinceFormatter.
+  // highlight flags the player's just-entered row (.is-you) — see lb-you-glow.
   Arcade.Leaderboard.paintList({
     listSelector:   '#lb-list',
     pad:            3,
     showSince:      true,
     sinceFormatter: sincePhrase,
+    highlight:      lastEntry,
   });
 }
 paintSplashHighScore();
@@ -1514,6 +1472,7 @@ paintLeaderboard();
     fireButton: '#tc-thrust',
     fireLabel:  { idle: '▲', select: '✓' },
     onSubmit: (initials) => {
+      lastEntry = { score: pendingScore, initials };   // flash this row on the board
       addToLeaderboard(pendingScore, initials);
       Arcade.EndOverlay.hide();
       Arcade.Splash.enterAttract();
@@ -1526,17 +1485,20 @@ paintLeaderboard();
     return score > list[0].score;   // strictly beat current top
   }
 
-  // Show the overlay for the just-ended run. Rocket Ship's hi-score line is
-  // bespoke in both branches, so pass it explicitly. A qualifying score opens
-  // initials immediately (Rocket Ship's long-standing behaviour — no "press a
-  // key to enter initials" step); Initials.open() hides the prompt and shows
-  // the slots. graceMs makes a held death-key no longer blow past the overlay.
+  // Show the overlay for the just-ended run. A QUALIFYING score gets the
+  // "RANK — TOP N" line + immediate initials (Rocket Ship's long-standing
+  // behaviour — no "press a key to enter initials" step). A NON-qualifying
+  // score shows ONLY the player's own score — no all-time-high line, which
+  // confused kids into thinking their score WAS the high score. The high-score
+  // table lives in attract mode (the cycling HIGH SCORES scene), like the
+  // classic arcades. graceMs keeps a held death-key from blowing past it.
   function showOverlay(beat) {
-    const hs = getHighScore();
-    const hiscoreText = beat
-      ? `RANK ON THE LEADERBOARD — TOP ${LB_SIZE}`
-      : `HIGH SCORE ${String(hs.score).padStart(3, '0')} ${hs.initials}`;
-    Arcade.EndOverlay.show({ score: pendingScore, qualifies: beat, hiscoreText, graceMs: 600 });
+    Arcade.EndOverlay.show({
+      score: pendingScore,
+      qualifies: beat,
+      hiscoreText: beat ? `RANK ON THE LEADERBOARD — TOP ${LB_SIZE}` : '',
+      graceMs: 600,
+    });
     if (beat) Arcade.Initials.open();
     else      Arcade.Initials.close();   // ensure the slots are hidden / prompt shown
   }

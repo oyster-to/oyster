@@ -96,7 +96,11 @@
   animation: arcade-blink 1s steps(1) infinite;
 }
 
-.gameover .go-initials {
+/* :not([hidden]) so the `hidden` attribute actually hides the slots. A bare
+   `display: flex` (0,2,0) outranks the UA `[hidden] { display: none }` (0,1,0),
+   which left the slots visible on a NON-qualifying game-over — players then
+   tapped/typed into dead slots and got bounced to the title. */
+.gameover .go-initials:not([hidden]) {
   display: flex;
   flex-direction: column;
   align-items: center;
