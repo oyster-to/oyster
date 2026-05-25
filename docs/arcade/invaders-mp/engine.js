@@ -364,6 +364,12 @@ export function initState() {
     // the game transitions from 'countdown' → 'running'. Only meaningful
     // while status === 'countdown'.
     countdownEndMs: 0,
+    // Flips true the first time any seat invokes cheatSkip() (B key)
+    // during this match. Broadcast on the wire so every client can
+    // disqualify its score from the leaderboard — otherwise one
+    // player B-spamming would inflate the whole team's scores.
+    // Resets to false on the next initState (i.e., restart).
+    cheated: false,
   };
 }
 
@@ -949,11 +955,15 @@ function resolveCollisions(state, occupied) {
           });
         }
       }
-      // Mark normal bullets consumed; charged tunnel through and stay
-      // alive for further targets. Either way: keep iterating other
-      // bullets so multiple players' shots can damage the boss in
-      // the same tick.
-      if (!b.charged) b.y = -999;
+      // Boss CONSUMES bullets — both normal and charged. (SP found
+      // the same bug: letting charged pierce here means a 12 PF tall
+      // bullet at 380 PF/s overlaps the boss for ~8 ticks and deals
+      // 24 dmg from a single hold-release, near-one-shotting set 1.
+      // The grid/minion pierce rule doesn't apply: the boss is one
+      // big target, not a stack.) Keep iterating the outer bullet
+      // loop so multiple players' shots can damage the boss in the
+      // same tick.
+      b.y = -999;
     }
   }
 
@@ -1083,7 +1093,10 @@ export function cheatSkip(state) {
     state.stageNum = STAGES_PER_SET;
   } else if (state.phase === 'boss' && state.boss) {
     state.boss.hp = 0;
+  } else {
+    return;  // cutscene → no-op, no cheated flip
   }
+  state.cheated = true;
 }
 
 // === Snapshot for the wire ===
@@ -1125,16 +1138,9 @@ export function shieldOffsets() {
 }
 
 export function snapshotForClient(state) {
-  let teamScore = 0;
-  for (const s of SEATS) teamScore += state.ships[s].score | 0;
   return {
     status: state.status,
     won: state.won,
-    // Team score = sum of per-player scores. Kept on the wire because
-    // the gameover/lobby copy ("Earth is safe! Score: 250") reads
-    // cleanly as one team number, and external bits (sfx-kill diff)
-    // can just watch this for "any kill happened".
-    score: teamScore,
     // Shared respawn-pool counter. Decremented each time a ship dies
     // (down to 0). Renderer shows it as the LIVES HUD value.
     lives: state.lives,
@@ -1206,5 +1212,9 @@ export function snapshotForClient(state) {
       adds: (state.boss.adds || []).map(a => ({ x: round(a.x), y: round(a.y), a: a.alive })),
     } : null,
     cutsceneIn:     round(state.cutsceneIn),
+    // True once the B-key cheat fired this match. Clients use it to
+    // gate leaderboard submission so cheated runs don't pollute the
+    // hi-score table.
+    cheated:        !!state.cheated,
   };
 }
