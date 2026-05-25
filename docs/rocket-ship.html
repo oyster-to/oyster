@@ -734,6 +734,7 @@
 <script src="arcade/shared/audio.js"></script>
 <script src="arcade/shared/touch.js"></script>
 <script src="arcade/shared/leaderboard.js"></script>
+<script src="arcade/shared/splash.js"></script>
 <script src="arcade/shared/initials.js"></script>
 <script src="arcade/shared/iframe-host.js"></script>
 <div class="screen">
@@ -942,7 +943,7 @@ function asteroidInterval() {
 }
 
 let gameOver = false;
-let gameActive = false; // true only while gameplay is running (splash dismissed)
+// (gameplay-running state now derives from Arcade.Splash.isPlaying())
 let score = 0;
 let trail = [];
 // True once the player has provided any thrust/turn input. Drives the in-game
@@ -1185,7 +1186,7 @@ function update() {
   // Splash is up → don't run gameplay (and don't let asteroids creep into
   // the static rocket while user reads the title screen). Particles still
   // animate so the post-explosion debris keeps drifting on the gameover overlay.
-  if (!gameActive || gameOver) {
+  if (!Arcade.Splash.isPlaying() || gameOver) {
     particles.forEach(p => p.update());
     particles = particles.filter(p => p.life > 0);
     return;
@@ -1575,7 +1576,7 @@ function showCelebration(onAdvance) {
     window.removeEventListener('keydown', onKey);
     cel.removeEventListener('click', advance);
     if (typeof onAdvance === 'function') onAdvance();
-    else Splash.enterAttractMode();
+    else Arcade.Splash.enterAttract();
   }
   function onKey(e) { if (e.key !== 'Escape') advance(); }
   // Grace window so the gesture that triggered the flag doesn't also dismiss
@@ -1669,173 +1670,38 @@ paintLeaderboard();
 // ============================================
 // SPLASH controller — handles initial boot AND post-game-over attract-mode
 // ============================================
-const Splash = (function () {
-  const splash = document.getElementById('splash');
-  const tube = document.querySelector('.tube');
-  const bootEl = splash && splash.querySelector('.boot');
-  const mainEl = splash && splash.querySelector('.splash-main');
-  const bgm = document.getElementById('bgm');
-  const bgmGame = document.getElementById('bgm-game');
-  const BOOT_MS = 2750;
+// SPLASH + attract-mode lifecycle now lives in shared/splash.js
+// (Arcade.Splash.mount). This supplies Rocket Ship's per-game hooks: title /
+// game music (with the iOS gesture-unlock retry), leaderboard repaint, and the
+// audio-context kick. enterAttract() (from the game-over paths) re-shows the
+// splash on the leaderboard; the loop reads Arcade.Splash.isPlaying().
+(function () {
+  const bgm = document.getElementById('bgm');           // title music
+  const bgmGame = document.getElementById('bgm-game');  // game music
+  let awaiting = false;   // title music blocked by autoplay policy; retry on first gesture
+  function startTitleMusic() { if (!bgm) return; bgm.currentTime = 0; bgm.play().catch(() => { awaiting = true; }); }
+  function startGameMusic()  { if (!bgmGame) return; bgmGame.volume = 0.4; bgmGame.currentTime = 0; bgmGame.play().catch(() => {}); }
 
-  // Lifecycle: 'booting' → 'title' → 'playing' → 'attract' → 'title' …
-  let phase = 'booting';
-  let cycleTimer = null;
-
-  function setView(idx) {
-    const views = mainEl && mainEl.querySelectorAll('.splash-view');
-    if (!views || !views.length) return;
-    views.forEach((v, i) => v.classList.toggle('is-active', i === idx));
-    if (idx === 1) paintLeaderboard();
-  }
-
-  function startCycle(startIdx) {
-    stopCycle();
-    let idx = startIdx;
-    setView(idx);
-    cycleTimer = setInterval(() => {
-      idx = (idx + 1) % 2;
-      setView(idx);
-    }, 5500);
-  }
-  function stopCycle() { if (cycleTimer) { clearInterval(cycleTimer); cycleTimer = null; } }
-
-  // True while we're waiting for a user gesture to unlock title-music playback.
-  // Every gesture that unlocks audio also fires tryDismiss, so we use the
-  // first gesture to START the music (not dismiss); the user presses again
-  // to actually enter the game.
-  let titleMusicAwaitingGesture = false;
-  function startTitleMusic() {
-    if (!bgm) return;
-    bgm.currentTime = 0;
-    bgm.play().catch(() => { titleMusicAwaitingGesture = true; });
-  }
-  function stopTitleMusic() {
-    if (bgm) bgm.pause();
-    titleMusicAwaitingGesture = false;
-  }
-  function startGameMusic() {
-    if (!bgmGame) return;
-    bgmGame.volume = 0.4;
-    bgmGame.currentTime = 0;
-    bgmGame.play().catch(() => {});
-  }
-
-  function tryDismiss() {
-    if (phase !== 'title') return; // ignore input during boot or active gameplay
-    // Only the title-card view launches gameplay. On the leaderboard view,
-    // a key advances to the title-card (and freezes the cycle so the user
-    // is in control from here on).
-    const views = mainEl && mainEl.querySelectorAll('.splash-view');
-    if (views && views.length === 2 && views[1].classList.contains('is-active')) {
-      stopCycle();
-      setView(0);
-      return;
-    }
-    // If autoplay was blocked, kick bgm.play() during this same gesture
-    // (iOS counts it as the unlock) and fall through to actually dismiss
-    // — no two-tap dance. We don't wait for the play() promise; either the
-    // title music plays briefly before the game music takes over, or it
-    // doesn't, but the user gets to the game on the first tap either way.
-    if (titleMusicAwaitingGesture && bgm) {
-      bgm.play().catch(() => {});
-    }
-    titleMusicAwaitingGesture = false;
-    // Create the SFX AudioContext + kick off decodes on this same gesture
-    // so the buffers are ready by the time the player hits their first
-    // star / fires the thruster.
-    if (typeof ensureAudioCtx === 'function') ensureAudioCtx();
-    phase = 'playing';
-    splash.classList.add('is-hidden');
-    if (tube) tube.classList.add('is-ready');
-    document.body.classList.add('is-ingame');
-    stopCycle();
-    stopTitleMusic();
-    startGameMusic();
-    if (typeof restartGame === 'function') restartGame();
-    gameActive = true; // now the game world is live
-  }
-
-  // First-load: boot ends → title music starts AND title/leaderboard
-  // begin cycling. When embedded inside the arcade cabinet the boot is
-  // hidden via CSS, so wait 0ms — otherwise taps/keys on the visible
-  // title card would be ignored for ~2.75s while phase stays 'booting'.
-  const embedded = document.documentElement.classList.contains('is-arcade-embedded');
-  setTimeout(() => {
-    if (phase !== 'booting') return;
-    phase = 'title';
-    startTitleMusic();
-    startCycle(0);
-  }, embedded ? 0 : BOOT_MS);
-
-  // Global dismiss listener
-  window.addEventListener('keydown', (e) => {
-    // ESC inside the iframe → ask the parent to close. Keyboard events
-    // don't bubble out of an iframe, so without postMessage the outer
-    // ESC-to-shutoff listener never fires while focus is in the game.
-    if (e.key === 'Escape') {
-      // '*' targetOrigin because location.origin is the literal string
-      // "null" on file:// and won't match any real origin, breaking the
-      // close handshake. The parent verifies e.source against its iframe
-      // ref so this still can't be spoofed by a third-party tab.
-      try { window.parent.postMessage({ type: 'oyster-rocket-close' }, '*'); } catch (_) {}
-      return;
-    }
-    tryDismiss();
-  });
-  window.addEventListener('mousedown', tryDismiss);
-  window.addEventListener('touchstart', tryDismiss, { passive: true });
-
-  // Reliable mobile tap path: window-level touchstart inside the iframe
-  // proved unreliable on iOS (the parent's rocket-dot click works fine,
-  // but in-iframe taps on background elements miss the window listener).
-  // Attaching click directly to each splash-view fires consistently —
-  // .splash-view only has pointer-events:auto when .is-active, so each
-  // handler only runs while its view is visible. Single tap on the
-  // title-card both unlocks audio (via the same gesture) and dismisses.
-  const titleCard = mainEl && mainEl.querySelector('.title-card');
-  const leaderboardEl = mainEl && mainEl.querySelector('.leaderboard');
-  if (titleCard) {
-    titleCard.addEventListener('click', () => {
-      if (phase !== 'title') return;
-      if (titleMusicAwaitingGesture && bgm) bgm.play().catch(() => {});
-      titleMusicAwaitingGesture = false;
+  Arcade.Splash.mount({
+    splash: '#splash', tube: '.tube',
+    views: '#splash .splash-main .splash-view', boot: '#splash .boot',
+    titleIndex: 0, leaderboardIndex: 1, cycleMs: 5500, bootMs: 2750,
+    isBusy: () => !!(window.Arcade && Arcade.Initials && Arcade.Initials.isActive && Arcade.Initials.isActive()),
+    onTitle() { if (bgmGame) bgmGame.pause(); startTitleMusic(); },
+    onPlay()  { if (bgm) bgm.pause(); awaiting = false; startGameMusic(); if (typeof restartGame === 'function') restartGame(); },
+    onLeaderboardShow() { paintLeaderboard(); },
+    unlockAudio() {
       if (typeof ensureAudioCtx === 'function') ensureAudioCtx();
-      phase = 'playing';
-      splash.classList.add('is-hidden');
-      if (tube) tube.classList.add('is-ready');
-      document.body.classList.add('is-ingame');
-      stopCycle();
-      stopTitleMusic();
-      startGameMusic();
-      if (typeof restartGame === 'function') restartGame();
-      gameActive = true;
-    });
-  }
-  if (leaderboardEl) {
-    leaderboardEl.addEventListener('click', () => {
-      if (phase !== 'title') return;
-      stopCycle();
-      setView(0);
-    });
-  }
-
-  return {
-    // Re-show splash post-game-over: show leaderboard first, then title.
-    enterAttractMode() {
-      gameActive = false; // freeze the game world while attract is up
-      phase = 'title';
-      splash.classList.remove('is-hidden');
-      if (tube) tube.classList.remove('is-ready');
-      document.body.classList.remove('is-ingame');
-      if (bootEl) bootEl.style.display = 'none';
-      if (mainEl) { mainEl.style.opacity = '1'; mainEl.style.visibility = 'visible'; }
-      startCycle(1); // start on leaderboard, cycle to title
-      stopTitleMusic();
-      startTitleMusic();
-      if (bgmGame) bgmGame.pause();
+      if (awaiting && bgm) { bgm.play().catch(() => {}); awaiting = false; }
     },
-  };
+  });
+
+  // ESC inside the iframe -> ask the parent to close (keyboard events don't
+  // bubble out of the iframe; shared/splash.js deliberately ignores ESC).
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    try { window.parent.postMessage({ type: 'oyster-rocket-close' }, '*'); } catch (_) {}
+  });
 })();
 
 // ============================================
@@ -1859,7 +1725,7 @@ const Splash = (function () {
     onSubmit: (initials) => {
       addToLeaderboard(pendingScore, initials);
       ov.classList.remove('is-visible');
-      Splash.enterAttractMode();
+      Arcade.Splash.enterAttract();
     },
   });
 
@@ -1907,7 +1773,7 @@ const Splash = (function () {
     }
     // Non-initials game-over: any touch button dismisses.
     ov.classList.remove('is-visible');
-    Splash.enterAttractMode();
+    Arcade.Splash.enterAttract();
     return true;
   };
 
@@ -1919,7 +1785,7 @@ const Splash = (function () {
     if (!ov.classList.contains('is-visible')) return;
     if (Arcade.Initials.isActive()) return;
     ov.classList.remove('is-visible');
-    Splash.enterAttractMode();
+    Arcade.Splash.enterAttract();
   });
 
   // Non-initials dismiss path — shared/initials.js handles the keyboard
@@ -1930,7 +1796,7 @@ const Splash = (function () {
     if (!ov.classList.contains('is-visible')) return;
     if (Arcade.Initials.isActive()) return;
     ov.classList.remove('is-visible');
-    Splash.enterAttractMode();
+    Arcade.Splash.enterAttract();
   });
 })();
 </script>
