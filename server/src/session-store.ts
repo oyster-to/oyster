@@ -376,13 +376,13 @@ export class SqliteSessionStore implements SessionStore {
         VALUES (@session_id, @artifact_id, @role, @when_at)
         ON CONFLICT(session_id, artifact_id, role)
           DO UPDATE SET when_at = excluded.when_at
-          WHERE excluded.when_at > session_artifacts.when_at
+          WHERE julianday(excluded.when_at) > julianday(session_artifacts.when_at)
       `),
       getArtifactsBySession: db.prepare(
-        "SELECT * FROM session_artifacts WHERE session_id = ? ORDER BY when_at"
+        "SELECT * FROM session_artifacts WHERE session_id = ? ORDER BY julianday(when_at)"
       ),
       getSessionsByArtifact: db.prepare(
-        "SELECT * FROM session_artifacts WHERE artifact_id = ? ORDER BY when_at DESC"
+        "SELECT * FROM session_artifacts WHERE artifact_id = ? ORDER BY julianday(when_at) DESC"
       ),
       getLastOffset: db.prepare(
         "SELECT last_offset FROM sessions WHERE id = ?"

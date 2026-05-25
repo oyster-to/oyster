@@ -195,14 +195,14 @@ export function rankSessionChips(rows: SessionChip[], cap = 5): SessionChip[] {
   for (const r of rows) {
     const cur = byArtifact.get(r.artifactId);
     if (!cur || ROLE_RANK[r.role] < ROLE_RANK[cur.role] ||
-        (r.role === cur.role && r.whenAt > cur.whenAt)) byArtifact.set(r.artifactId, r);
+        (r.role === cur.role && new Date(r.whenAt).getTime() > new Date(cur.whenAt).getTime())) byArtifact.set(r.artifactId, r);
   }
   let chips = [...byArtifact.values()];
   const produced = chips.filter((c) => c.role !== "read");
   if (produced.length > 0) chips = produced;          // reads only when nothing produced
   chips.sort((a, b) =>
     ROLE_RANK[a.role] - ROLE_RANK[b.role] ||
-    (a.whenAt < b.whenAt ? 1 : a.whenAt > b.whenAt ? -1 : 0) ||
+    new Date(b.whenAt).getTime() - new Date(a.whenAt).getTime() ||
     (KIND_RANK[a.kind] ?? 1) - (KIND_RANK[b.kind] ?? 1),
   );
   return chips.slice(0, cap);
