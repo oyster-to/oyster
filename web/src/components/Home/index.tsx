@@ -507,6 +507,18 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // pointer to a deleted space). App.tsx hands us all artefacts on home —
   // we narrow them locally so artefacts and sessions tell the same story.
   const realSpaceIds = useMemo(() => new Set(realSpaces.map((s) => s.id)), [realSpaces]);
+  // Destination options for a project tile's "Move to space…" picker.
+  const moveSpaceOptions = useMemo(
+    () => realSpaces.map((s) => ({ id: s.id, name: s.displayName })),
+    [realSpaces],
+  );
+  // Projects detached from every space (space_id = null) — surfaced under the
+  // Unassigned pill so a "removed from space" project stays findable and can
+  // be re-filed from its own Move-to-space menu.
+  const unassignedProjects = useMemo(
+    () => allProjects.filter((p) => p.spaceId == null),
+    [allProjects],
+  );
   const effectiveDesktopProps = useMemo(() => {
     if (showElsewhere && isHomeView) {
       return {
@@ -583,7 +595,10 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         total: sessionTotalsByProject[id] ?? 0,
       };
     };
-    return [...allProjects].sort((a, b) => {
+    // Filed projects only — those detached from every space (space_id null)
+    // live under the Unassigned pill, mirroring how orphan sessions are
+    // segregated out of the Home view.
+    return allProjects.filter((p) => p.spaceId != null).sort((a, b) => {
       const sa = score(a.id);
       const sb = score(b.id);
       if (sa.hasLive !== sb.hasLive) return sb.hasLive - sa.hasLive;
@@ -875,7 +890,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 <span aria-hidden="true">+</span>
               )}
             </button>
-            {orphanCounts.total > 0 && realSpaces.length > 0 && (
+            {(orphanCounts.total > 0 || unassignedProjects.length > 0) && realSpaces.length > 0 && (
               <button
                 type="button"
                 className={`home-breadcrumb-pill home-breadcrumb-pill--elsewhere${showElsewhere && isHomeView ? " selected" : ""}`}
@@ -927,7 +942,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           {/* Eyebrow dropped — the breadcrumb above already shows the
               active scope, so a separate "HOME" / "OYSTER" label is
               redundant. */}
-          <h1 className="home-title">{isHomeView ? (showElsewhere ? "Unassigned sessions." : "Your work.") : eyebrow}</h1>
+          <h1 className="home-title">{isHomeView ? (showElsewhere ? "Unassigned." : "Your work.") : eyebrow}</h1>
           {error && <div className="home-error">Couldn't load sessions: {error.message}</div>}
         </header>
 
@@ -937,7 +952,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             home-space-card / home-spaces-section CSS is kept around in
             case the cards return as a settings or dashboard surface. */}
 
-        {isHomeView && !showElsewhere && allProjects.length > 0 && (
+        {isHomeView && !showElsewhere && sortedProjects.length > 0 && (
           <div className="home-section home-projects-section">
             <div className="home-section-head">
               <span className="home-section-label">Projects</span>
@@ -967,6 +982,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   spaceTotalSessions={0}
                   // otherProjects intentionally empty — Home strip can't merge across spaces
                   otherProjects={[]}
+                  spaces={moveSpaceOptions}
                   onLaunchClaude={onLaunchClaude}
                 />
               ))}
@@ -993,6 +1009,30 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {isHomeView && showElsewhere && unassignedProjects.length > 0 && (
+          <div className="home-section home-projects-section">
+            <div className="home-projects-grid">
+              {unassignedProjects.map((p) => (
+                <ProjectTile
+                  key={p.id}
+                  project={p}
+                  artefactCount={projectArtefactCounts[p.id] ?? 0}
+                  sessionCounts={sessionCountsByProject[p.id]}
+                  selected={selectedProjectId === p.id}
+                  onSelect={() => setSelectedProjectId(selectedProjectId === p.id ? null : p.id)}
+                  onChanged={refreshAllProjects}
+                  isLastProject={false}
+                  spaceTotalSessions={0}
+                  // No merge target across the unassigned pool; move-to-space re-files it.
+                  otherProjects={[]}
+                  spaces={moveSpaceOptions}
+                  onLaunchClaude={onLaunchClaude}
+                />
+              ))}
+            </div>
           </div>
         )}
 
@@ -1112,6 +1152,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               selectedProjectId={selectedProjectId}
               setSelectedProjectId={setSelectedProjectId}
               spaceTotalSessions={scopedSessions.length}
+              spaces={moveSpaceOptions}
               showAttachForm={showAttachForm}
               setShowAttachForm={setShowAttachForm}
               onProjectsChanged={refreshSpaceProjects}

@@ -13,7 +13,7 @@ import { VAULT } from "./types";
 export function ProjectTileGrid({
   spaceId, projects, projectArtefactCounts, sessionCountsByProject,
   selectedProjectId, setSelectedProjectId,
-  spaceTotalSessions, showAttachForm, setShowAttachForm, onProjectsChanged, onSpaceDelete,
+  spaceTotalSessions, spaces, showAttachForm, setShowAttachForm, onProjectsChanged, onSpaceDelete,
   onLaunchClaude,
 }: {
   spaceId: string;
@@ -28,6 +28,8 @@ export function ProjectTileGrid({
   // Total sessions in this space — feeds ProjectTile's collapse-confirmation
   // phrase ("N sessions"). Doesn't narrow when a project tile is selected.
   spaceTotalSessions: number;
+  // Real spaces for each tile's "Move to space…" picker.
+  spaces: { id: string; name: string }[];
   showAttachForm: boolean;
   setShowAttachForm: (v: boolean) => void;
   onProjectsChanged: () => void;
@@ -84,6 +86,7 @@ export function ProjectTileGrid({
             spaceTotalSessions={spaceTotalSessions}
             onSpaceDelete={onSpaceDelete}
             otherProjects={sortedProjects.filter((o) => o.id !== p.id)}
+            spaces={spaces}
             onLaunchClaude={onLaunchClaude}
           />
         ))}

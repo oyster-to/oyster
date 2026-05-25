@@ -8,6 +8,7 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 
 - **Sessions show what they produced.** Each session now lists the docs, decks, tables, and diagrams it created or worked on — filled in automatically from your agent's activity, with no manual tagging.
 - **Find sessions by the files they touched.** Search (Cmd+K) now matches a session by any file name your agent read or edited — search `App.jsx` to surface every session that worked on it, even when the name never appears in the conversation.
+- **Move a project between spaces — or out of one.** A project's ⋯ menu now offers "Move to space…": relocate it (and its sessions) to another space, or remove it from its space entirely. Removed projects collect under the Unassigned pill, ready to re-file.
 
 ### Changed
 
