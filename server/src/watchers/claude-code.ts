@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import chokidar, { type FSWatcher } from "chokidar";
 import type { ArtifactStore } from "../artifact-store.js";
 import type {
@@ -462,7 +462,7 @@ export class ClaudeCodeWatcher {
       // and persist every assistant `stop_reason` we see.
       captureEvidence(ev, sessionId, this.deps.sessionStore);
 
-      const rendered = renderEvent(ev);
+      const rendered = renderEvent(ev, cwd);
       if (rendered) {
         const text = rendered.text.slice(0, TEXT_PREVIEW_MAX);
         events.push({
@@ -803,7 +803,7 @@ export class ClaudeCodeWatcher {
         captureEvidence(ev, tracker.sessionId, this.deps.sessionStore);
       }
 
-      const rendered = renderEvent(ev);
+      const rendered = renderEvent(ev, tracker.cwd);
       if (rendered && tracker.sessionId) {
         const text = rendered.text.slice(0, TEXT_PREVIEW_MAX);
         events.push({
@@ -1035,10 +1035,22 @@ interface RenderedEvent {
   text: string;
 }
 
+/** Display form for a touched file path: relative to the session cwd when
+ *  under it; else ~-collapsed; else absolute. */
+export function displayTouchPath(filePath: string, cwd: string | null | undefined): string {
+  if (cwd) {
+    const rel = relative(cwd, filePath);
+    if (rel && !rel.startsWith("..") && !isAbsolute(rel)) return rel;
+  }
+  const home = process.env.HOME;
+  if (home && (filePath === home || filePath.startsWith(home + "/"))) return "~" + filePath.slice(home.length);
+  return filePath;
+}
+
 // Map a raw JSONL event to a (role, text) pair the home feed can render.
 // Returns null for events we deliberately skip (file-history-snapshot,
 // last-prompt, attachment metadata, etc — useful in `raw` only).
-export function renderEvent(ev: Record<string, any>): RenderedEvent | null {
+export function renderEvent(ev: Record<string, any>, cwd?: string | null): RenderedEvent | null {
   switch (ev.type) {
     case "user": {
       const content = ev.message?.content;
@@ -1067,20 +1079,27 @@ export function renderEvent(ev: Record<string, any>): RenderedEvent | null {
       const hasText = blocks.some(
         (b: any) => b?.type === "text" && typeof b.text === "string" && b.text.trim() !== "",
       );
-      const toolNames = blocks
-        .filter((b: any) => b?.type === "tool_use" && typeof b.name === "string")
-        .map((b: any) => b.name as string);
+      const hasToolUse = blocks.some((b: any) => b?.type === "tool_use" && typeof b.name === "string");
       // Pure tool-call turns (no text blocks, only tool_use) are tool calls
       // semantically — the "ASSISTANT [Bash]" rendering was misleading. Mark
       // them as `tool` so the inspector renders them as collapsible tool
       // turns, matching tool_result on the other side.
-      if (!hasText && toolNames.length > 0) {
-        return { role: "tool", text: toolNames.map((n) => `[${n}]`).join(" ") };
+      if (!hasText && hasToolUse) {
+        const toolTexts = blocks
+          .filter((b: any) => b?.type === "tool_use" && typeof b.name === "string")
+          .map((b: any) => {
+            const filePath = typeof b.input?.file_path === "string" ? b.input.file_path : null;
+            return filePath ? `[${b.name} ${displayTouchPath(filePath, cwd)}]` : `[${b.name}]`;
+          });
+        return { role: "tool", text: toolTexts.join(" ") };
       }
       const text = blocks
         .map((b: any) => {
           if (b?.type === "text" && typeof b.text === "string") return b.text;
-          if (b?.type === "tool_use" && typeof b.name === "string") return `[${b.name}]`;
+          if (b?.type === "tool_use" && typeof b.name === "string") {
+            const filePath = typeof b.input?.file_path === "string" ? b.input.file_path : null;
+            return filePath ? `[${b.name} ${displayTouchPath(filePath, cwd)}]` : `[${b.name}]`;
+          }
           return "";
         })
         .filter(Boolean)
