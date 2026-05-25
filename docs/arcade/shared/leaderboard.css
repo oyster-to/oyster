@@ -1,0 +1,39 @@
+/* Shared SPLASH leaderboard view — the title↔leaderboard attract-mode card.
+ * The list DOM is built by shared/leaderboard.js (Arcade.Leaderboard.paintList
+ * / paintHiScoreRow); this styles it. Lifted from the verbatim copies that
+ * lived inline in invaders/ and space-jumper/.
+ *
+ * --lb-title-size tunes just the heading scale (Space Jumper runs a smaller
+ * title than Invaders) — everything else is shared. Override it per game on
+ * the .leaderboard element; it inherits down to .lb-title.
+ */
+.leaderboard {
+  color: #fff;
+  font-family: 'Press Start 2P', ui-monospace, monospace;
+}
+.leaderboard .lb-title {
+  font-size: var(--lb-title-size, clamp(18px, 3.5vw, 32px));
+  color: #ffd84a;
+  letter-spacing: 0.12em;
+  text-shadow: 3px 3px 0 #ff3aa1, 5px 5px 0 #2dd4ff;
+  margin-bottom: clamp(8px, 1.5vw, 16px);
+}
+.leaderboard .lb-list {
+  list-style: none; padding: 0; margin: 0;
+  display: grid;
+  grid-template-columns: auto auto auto;
+  gap: 6px 22px;
+  font-size: clamp(10px, 1.5vw, 14px);
+  letter-spacing: 0.14em;
+  align-items: center;
+}
+.leaderboard .lb-list li { display: contents; }
+.leaderboard .lb-rank     { color: #ff3aa1; text-align: right; }
+.leaderboard .lb-initials { color: #2dd4ff; text-align: left; letter-spacing: 0.2em; }
+.leaderboard .lb-score    { color: #ffd84a; text-align: right; }
+.leaderboard .lb-empty {
+  font-size: clamp(10px, 1.4vw, 12px);
+  color: rgba(255, 255, 255, 0.55);
+  grid-column: 1 / -1;
+  text-align: center;
+}
