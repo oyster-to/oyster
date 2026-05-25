@@ -1097,7 +1097,11 @@ export function renderEvent(ev: Record<string, any>, cwd?: string | null): Rende
         const toolTexts = blocks
           .filter((b: any) => b?.type === "tool_use" && typeof b.name === "string")
           .map((b: any) => {
-            const filePath = typeof b.input?.file_path === "string" ? b.input.file_path : null;
+            const filePath = typeof b.input?.file_path === "string"
+              ? b.input.file_path
+              : typeof b.input?.notebook_path === "string"
+                ? b.input.notebook_path
+                : null;
             return filePath ? `[${b.name} ${displayTouchPath(filePath, cwd)}]` : `[${b.name}]`;
           });
         return { role: "tool", text: toolTexts.join(" ") };
@@ -1106,7 +1110,11 @@ export function renderEvent(ev: Record<string, any>, cwd?: string | null): Rende
         .map((b: any) => {
           if (b?.type === "text" && typeof b.text === "string") return b.text;
           if (b?.type === "tool_use" && typeof b.name === "string") {
-            const filePath = typeof b.input?.file_path === "string" ? b.input.file_path : null;
+            const filePath = typeof b.input?.file_path === "string"
+              ? b.input.file_path
+              : typeof b.input?.notebook_path === "string"
+                ? b.input.notebook_path
+                : null;
             return filePath ? `[${b.name} ${displayTouchPath(filePath, cwd)}]` : `[${b.name}]`;
           }
           return "";
@@ -1136,7 +1144,11 @@ export function artifactTouchFromToolUse(
 ): { path: string; role: SessionArtifactRole } | null {
   if (!block || block.type !== "tool_use") return null;
   const name = typeof block.name === "string" ? block.name : null;
-  const filePath = typeof block.input?.file_path === "string" ? block.input.file_path : null;
+  const filePath = typeof block.input?.file_path === "string"
+    ? block.input.file_path
+    : typeof block.input?.notebook_path === "string"
+      ? block.input.notebook_path
+      : null;
   if (!name || !filePath) return null;
   switch (name) {
     case "Read":
@@ -1144,6 +1156,8 @@ export function artifactTouchFromToolUse(
     case "Write":
       return { path: filePath, role: "create" };
     case "Edit":
+    case "MultiEdit":
+    case "NotebookEdit":
       return { path: filePath, role: "modify" };
     default:
       return null;

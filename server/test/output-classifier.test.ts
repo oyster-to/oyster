@@ -29,6 +29,8 @@ describe("classifyOutput", () => {
     expect(classifyOutput("/tmp/scratch.md")).toBeNull();
     expect(classifyOutput("/r/.git/COMMIT_EDITMSG.md")).toBeNull();
     expect(classifyOutput(process.env.HOME + "/.ssh/notes.md")).toBeNull();
+    // .key is denied by DENY_NAME (private keys); Keynote bundles aren't single files.
+    expect(classifyOutput("/r/presentation.key")).toBeNull();
   });
   it("handles Windows backslash separators correctly", () => {
     // Vendor path with backslashes → denied

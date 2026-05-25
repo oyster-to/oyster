@@ -6,7 +6,7 @@ const KIND_BY_EXT: Record<string, ArtifactKind> = {
   md: "notes", markdown: "notes", txt: "notes", rst: "notes", rtf: "notes",
   docx: "notes", doc: "notes", pages: "notes", odt: "notes",
   csv: "table", tsv: "table", xlsx: "table", xls: "table", ods: "table", numbers: "table", parquet: "table",
-  pdf: "deck", pptx: "deck", key: "deck", odp: "deck",
+  pdf: "deck", pptx: "deck", odp: "deck",
   mmd: "diagram", mermaid: "diagram", dot: "diagram", drawio: "diagram", excalidraw: "diagram",
   html: "wireframe", htm: "wireframe",
   ipynb: "notes", // no "notebook" ArtifactKind — .ipynb renders as notes
