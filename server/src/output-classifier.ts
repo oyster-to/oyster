@@ -27,6 +27,7 @@ function ext(path: string): string {
 /** Returns the artefact kind for a *useful file-output*, or null if the path
  *  is source code, an unknown type, or matches the secret/noise deny-list. */
 export function classifyOutput(path: string): ArtifactKind | null {
-  if (DENY_SEGMENT.test(path) || DENY_NAME.test(path) || HIDDEN_DIR.test(path)) return null;
-  return KIND_BY_EXT[ext(path)] ?? null;
+  const p = path.replace(/\\/g, "/");
+  if (DENY_SEGMENT.test(p) || DENY_NAME.test(p) || HIDDEN_DIR.test(p)) return null;
+  return KIND_BY_EXT[ext(p)] ?? null;
 }

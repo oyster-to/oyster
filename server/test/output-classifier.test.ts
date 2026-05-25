@@ -30,4 +30,10 @@ describe("classifyOutput", () => {
     expect(classifyOutput("/r/.git/COMMIT_EDITMSG.md")).toBeNull();
     expect(classifyOutput(process.env.HOME + "/.ssh/notes.md")).toBeNull();
   });
+  it("handles Windows backslash separators correctly", () => {
+    // Vendor path with backslashes → denied
+    expect(classifyOutput("C:\\repo\\node_modules\\foo\\readme.md")).toBeNull();
+    // Clean output path with backslashes → classified
+    expect(classifyOutput("C:\\repo\\report.md")).toBe("notes");
+  });
 });

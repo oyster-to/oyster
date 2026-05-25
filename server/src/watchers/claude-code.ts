@@ -1047,8 +1047,12 @@ export function displayTouchPath(filePath: string, cwd: string | null | undefine
     const rel = relative(cwd, filePath);
     if (rel && !rel.startsWith("..") && !isAbsolute(rel)) return rel;
   }
-  const home = process.env.HOME;
-  if (home && (filePath === home || filePath.startsWith(home + "/"))) return "~" + filePath.slice(home.length);
+  const home = process.env.HOME ?? process.env.USERPROFILE;
+  if (home) {
+    const fp = filePath.replace(/\\/g, "/");
+    const h = home.replace(/\\/g, "/");
+    if (fp === h || fp.startsWith(h + "/")) return "~" + fp.slice(h.length);
+  }
   return filePath;
 }
 

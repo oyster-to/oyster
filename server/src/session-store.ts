@@ -373,7 +373,7 @@ export class SqliteSessionStore implements SessionStore {
       ),
       insertArtifactTouch: db.prepare(`
         INSERT INTO session_artifacts (session_id, artifact_id, role, when_at)
-        VALUES (@session_id, @artifact_id, @role, COALESCE(@when_at, datetime('now')))
+        VALUES (@session_id, @artifact_id, @role, @when_at)
         ON CONFLICT(session_id, artifact_id, role)
           DO UPDATE SET when_at = excluded.when_at
           WHERE excluded.when_at > session_artifacts.when_at
@@ -551,7 +551,7 @@ export class SqliteSessionStore implements SessionStore {
   }
 
   insertArtifactTouch(row: InsertSessionArtifact): { changes: number } {
-    const r = this.stmts.insertArtifactTouch.run({ when_at: null, ...row });
+    const r = this.stmts.insertArtifactTouch.run({ when_at: new Date().toISOString(), ...row });
     return { changes: r.changes };
   }
 

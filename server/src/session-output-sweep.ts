@@ -159,6 +159,7 @@ export async function runOutputBackfill(deps: SweepDeps): Promise<{ events: numb
       }
     }
     setLow.run(cursor); // advance resume cursor after each batch
+    await new Promise((resolve) => setImmediate(resolve)); // yield to event loop between batches
   }
 
   // Job A's in-place UPDATEs leave external-content snippet() in a corrupt

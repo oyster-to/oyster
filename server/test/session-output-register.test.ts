@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type Database from "better-sqlite3";
 import { initDb } from "../src/db.js";
@@ -26,8 +26,8 @@ describe("registerTouchedOutput", () => {
   let deps: SweepDeps;
 
   beforeEach(() => {
-    userland = mkdtempSync(join(tmpdir(), "oyster-reg-"));
-    repoDir = mkdtempSync(join(tmpdir(), "oyster-repo-"));
+    userland = mkdtempSync(join(homedir(), "oyster-test-"));
+    repoDir = mkdtempSync(join(homedir(), "oyster-test-"));
     db = initDb(userland);
 
     // Seed: space s, project p (space s), project_paths row mapping repoDir → p.

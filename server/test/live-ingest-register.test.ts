@@ -13,7 +13,7 @@ import {
   appendFileSync,
   rmSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type Database from "better-sqlite3";
 import { initDb } from "../src/db.js";
@@ -56,9 +56,9 @@ interface Env {
 }
 
 function makeEnv(): Env {
-  const root = mkdtempSync(join(tmpdir(), "oyster-live-reg-root-"));
-  const repoDir = mkdtempSync(join(tmpdir(), "oyster-live-reg-repo-"));
-  const userland = mkdtempSync(join(tmpdir(), "oyster-live-reg-db-"));
+  const root = mkdtempSync(join(homedir(), "oyster-test-"));
+  const repoDir = mkdtempSync(join(homedir(), "oyster-test-"));
+  const userland = mkdtempSync(join(homedir(), "oyster-test-"));
   const db = initDb(userland);
 
   // Space s → project p → project_paths (repoDir → p).

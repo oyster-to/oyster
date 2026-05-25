@@ -443,7 +443,7 @@ export class ArtifactService {
       .all(absPath) as Array<{ session_id: string; raw: string }>;
     const seen = new Set<string>(); // `${session_id}:${role}` keys already inserted
     const insert = this.db.prepare(
-      "INSERT INTO session_artifacts (session_id, artifact_id, role) VALUES (?, ?, ?)",
+      "INSERT INTO session_artifacts (session_id, artifact_id, role, when_at) VALUES (?, ?, ?, ?)",
     );
     for (const row of events) {
       let parsed: unknown;
@@ -456,7 +456,7 @@ export class ArtifactService {
         const key = `${row.session_id}:${touch.role}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        try { insert.run(row.session_id, artifactId, touch.role); }
+        try { insert.run(row.session_id, artifactId, touch.role, new Date().toISOString()); }
         catch { /* FK to sessions might fail if session was deleted; ignore */ }
       }
     }

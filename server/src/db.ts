@@ -457,6 +457,17 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS session_artifacts_uq
              ON session_artifacts(session_id, artifact_id, role)`);
 
+  // Normalize legacy space-format when_at timestamps ('YYYY-MM-DD HH:MM:SS')
+  // to ISO-8601 ('YYYY-MM-DDTHH:MM:SSZ'). One-shot: the WHERE clause only
+  // matches the old format (no 'T'), so after conversion the rows won't
+  // re-match — idempotent on every boot. The replace+||'Z' is an exact
+  // inverse of the old datetime('now') format SQLite writes in UTC.
+  db.exec(`
+    UPDATE session_artifacts
+       SET when_at = replace(when_at, ' ', 'T') || 'Z'
+     WHERE when_at LIKE '____-__-__ __:__:__'
+  `);
+
   // source_id added so sessions can be grouped by project (sub-folder
   // within a space), not just by space. Lets us render an "Active
   // projects" section on Home without needing a separate join table.

@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type Database from "better-sqlite3";
 import { initDb } from "../src/db.js";
@@ -41,8 +41,8 @@ describe("runOutputBackfill", () => {
   let deps: SweepDeps;
 
   beforeEach(() => {
-    userland = mkdtempSync(join(tmpdir(), "oyster-sweep-"));
-    repoDir = mkdtempSync(join(tmpdir(), "oyster-repo-"));
+    userland = mkdtempSync(join(homedir(), "oyster-test-"));
+    repoDir = mkdtempSync(join(homedir(), "oyster-test-"));
     db = initDb(userland);
 
     // Space s → project p → project_paths (repoDir → p).
