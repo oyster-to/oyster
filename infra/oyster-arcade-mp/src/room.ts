@@ -156,8 +156,9 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //        - Boss descent: state.boss now has `y` (was a constant);
 //          drops slowly toward the shield row during the fight.
 //          New wire field boss.y.
-//        - Invader fire interval shrinks per set (1.4 → 0.55 s)
-//          so endgame stages feel urgent.
+//        - Invader fire interval shrinks per set: set 1 = 1.4 s,
+//          set 4 = 0.65 s (with a 0.55 s floor that the 4-set game
+//          never actually reaches) so endgame stages feel urgent.
 //        - Client-only: march-heartbeat synth + UFO warble synth.
 const NETCODE_VERSION = 30;
 

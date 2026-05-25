@@ -596,9 +596,11 @@ function stepBossAdds(state, dt) {
   }
 }
 
-// Boss tick: horizontal bounce + periodic fire from centre-bottom +
-// minion swoop animation. No vertical descent — the boss stays parked
-// at BOSS_Y and applies pressure via bullets + minion shielding.
+// Boss tick: horizontal bounce + slow downward descent + periodic
+// fire from centre-bottom + minion swoop animation. Descent floors
+// just above the shield row (BOSS_Y_MAX) so the boss never bypasses
+// shields — pressure comes from time + bullets + minions, not from
+// the boss reaching the player line.
 function stepBoss(state, dt) {
   if (state.phase !== 'boss' || !state.boss) return;
   const b = state.boss;
@@ -1010,10 +1012,17 @@ function resolveCollisions(state, occupied) {
         }
       }
       if (isMarked) {
-        // Clear the mark so stepMarked can schedule the next one
-        // next tick. We don't reset markedSpawnIn here — stepMarked
-        // does that with the correct alive-count.
+        // Clear the mark + schedule the next gap right here. If we
+        // only nulled state.marked, stepMarked would see markedSpawnIn
+        // already at 0 next tick and immediately spawn another mark
+        // — breaking the 5-15s (or 0.4-0.9s last-one) cadence. Count
+        // alive AFTER the kill (this invader's .alive was just set
+        // to false above) so the last-invader path triggers when it
+        // should.
         state.marked = null;
+        let aliveLeft = 0;
+        for (const ii of state.invaders) if (ii.alive) aliveLeft++;
+        state.markedSpawnIn = nextMarkedGap(aliveLeft);
       }
       if (!b.charged) { b.y = -999; break; }
       // charged: keep checking other invaders this tick
