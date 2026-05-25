@@ -92,4 +92,17 @@ describe("SqliteSessionStore.listRecent", () => {
     const ids = env.store.listRecent().map((s) => s.id).sort();
     expect(ids).toEqual(["s-evented", "s-titled"]);
   });
+
+  it("treats a protocol-artifact-only session as an empty stub", () => {
+    // Slash-command machinery (is_protocol_artifact = 1) is hidden from the
+    // transcript and excluded from FTS, so it must not count as "has events".
+    insertSession(env.db, "s-protocol-only", { title: null });
+    env.store.insertEvent({
+      session_id: "s-protocol-only",
+      role: "system",
+      text: "<command-name>/exit</command-name>",
+      is_protocol_artifact: 1,
+    });
+    expect(env.store.listRecent().map((s) => s.id)).toEqual([]);
+  });
 });

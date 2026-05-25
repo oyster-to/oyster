@@ -182,7 +182,8 @@ export interface SessionStore {
   getById(id: string): SessionRow | undefined;
   /** Recent sessions for discovery (the list_sessions MCP tool). Recency-
    *  ordered (last_event_at desc, then started_at, then id), optionally
-   *  scoped to a space. Excludes empty stubs (no title AND no events).
+   *  scoped to a space. Excludes empty stubs (no title AND no visible
+   *  transcript events — protocol-artifact rows don't count).
    *  Limit defaults to 20 and is capped at 100. */
   listRecent(opts?: { spaceId?: string | null; limit?: number }): SessionRow[];
   /** Most-recently-active session for the given agent (R6 attribution). */
@@ -279,12 +280,16 @@ export class SqliteSessionStore implements SessionStore {
       // Discovery query for list_sessions. @spaceId null = all spaces.
       // last_event_at is NOT NULL today, so COALESCE is defensive only;
       // the started_at/id tie-breakers give a stable order for equal
-      // timestamps. Empty stubs (no title AND no events) are filtered out.
+      // timestamps. Empty stubs are filtered out: a session needs a title
+      // OR at least one *visible* transcript event (is_protocol_artifact = 0)
+      // — protocol-only rows (slash-command machinery, hidden from the
+      // transcript and FTS) don't count, mirroring the event-read queries.
       listRecent: db.prepare(`
         SELECT * FROM sessions
         WHERE (@spaceId IS NULL OR space_id = @spaceId)
           AND ( (title IS NOT NULL AND title <> '')
-                OR EXISTS (SELECT 1 FROM session_events e WHERE e.session_id = sessions.id) )
+                OR EXISTS (SELECT 1 FROM session_events e
+                           WHERE e.session_id = sessions.id AND e.is_protocol_artifact = 0) )
         ORDER BY COALESCE(last_event_at, started_at) DESC, started_at DESC, id DESC
         LIMIT @limit
       `),
