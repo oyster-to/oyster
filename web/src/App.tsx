@@ -229,6 +229,18 @@ export default function App() {
       const { terminalId, sessionId } = event.payload as { terminalId: string; sessionId: string };
       dispatch({ type: "LINK_TERMINAL_SESSION", terminalId, sessionId });
     }
+    if (event.command === "open_session") {
+      // Mirror Spotlight: re-dispatch as the window event Home already
+      // listens for. No route push — Home is always mounted, so this opens
+      // the inspector from any space. eventId → focusEventId, query →
+      // initialSearchQuery; both best-effort (a stale eventId still opens).
+      const { sessionId, eventId, query } = event.payload as {
+        sessionId: string; eventId?: number; query?: string;
+      };
+      window.dispatchEvent(new CustomEvent("oyster:open-session", {
+        detail: { id: sessionId, eventId, query },
+      }));
+    }
   }), [loadArtifacts]);
 
   // Sync state from browser back/forward

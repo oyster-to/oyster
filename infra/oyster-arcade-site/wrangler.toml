@@ -12,6 +12,15 @@ compatibility_date = "2026-04-01"
 directory = "../../docs/arcade"
 binding = "ASSETS"
 not_found_handling = "404-page"
+# Worker runs FIRST for the SP redirect paths. Without this Cloudflare
+# would serve docs/arcade/invaders/index.html directly (or 307 to add
+# the trailing slash) before our 301 → /invaders-mp/ code ever runs.
+# Other paths keep the default ASSETS-first behaviour for performance.
+run_worker_first = [
+  "/invaders",
+  "/invaders/",
+  "/invaders/index.html",
+]
 
 # Custom Domain (NOT a plain Workers Route): Cloudflare provisions the DNS
 # record AND the TLS cert automatically on first deploy. A plain route

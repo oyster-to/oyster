@@ -199,7 +199,7 @@
   /* Big-start — the obvious primary action. Drop shadow + idle pulse
      pulls the eye to "tap me". Disabled state is muted grey so it
      doesn't compete for attention while we're still connecting. */
-  #prescreen .big-start {
+  .big-start {
     background: #ff3aa1; color: #fff;
     border: 0; border-radius: 6px;
     padding: 18px 56px; font: inherit; font-size: 22px;
@@ -207,15 +207,15 @@
     box-shadow: 0 4px 0 #b32271, 0 6px 14px rgba(255,58,161,0.4);
     transition: transform 0.08s ease, box-shadow 0.08s ease;
   }
-  #prescreen .big-start:not(:disabled):hover {
+  .big-start:not(:disabled):hover {
     transform: translateY(-1px);
     box-shadow: 0 5px 0 #b32271, 0 8px 18px rgba(255,58,161,0.5);
   }
-  #prescreen .big-start:not(:disabled):active {
+  .big-start:not(:disabled):active {
     transform: translateY(2px);
     box-shadow: 0 2px 0 #b32271, 0 3px 6px rgba(255,58,161,0.3);
   }
-  #prescreen .big-start:disabled {
+  .big-start:disabled {
     background: #2a2a3a; color: rgba(255,255,255,0.4);
     cursor: not-allowed; box-shadow: none;
   }
@@ -223,20 +223,20 @@
     0%, 100% { transform: scale(1); }
     50%      { transform: scale(1.04); }
   }
-  #prescreen .big-start:not(:disabled) {
+  .big-start:not(:disabled) {
     animation: start-pulse 1.8s ease-in-out infinite;
   }
   /* Respect users who've opted out of motion. The pulse and the
      hover/active transform/box-shadow shifts can be vestibular
      triggers; flatten them. */
   @media (prefers-reduced-motion: reduce) {
-    #prescreen .big-start,
-    #prescreen .big-start:not(:disabled) {
+    .big-start,
+    .big-start:not(:disabled) {
       animation: none;
       transition: none;
     }
-    #prescreen .big-start:not(:disabled):hover,
-    #prescreen .big-start:not(:disabled):active {
+    .big-start:not(:disabled):hover,
+    .big-start:not(:disabled):active {
       transform: none;
     }
   }
@@ -244,6 +244,120 @@
   #prescreen #status {
     font-size: 11px; color: #ffd84a; min-height: 1.2em;
     letter-spacing: 0.08em;
+  }
+
+  /* End-of-run overlay. Covers the lobby (QR / players / name /
+     START / status / debug bar) with a focused gameover screen:
+     headline, big score, and — if qualifying — initials entry.
+     Positioned absolute over .tube so the prescreen below stays
+     untouched (we just hide it visually). */
+  #endscreen {
+    position: absolute;
+    inset: 0;
+    background: rgba(2, 10, 28, 0.96);     /* near-opaque navy */
+    z-index: 50;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 14px;
+    padding: 24px;
+    text-align: center;
+  }
+  /* The explicit display: flex above wins over the default
+     `[hidden] { display: none }`, so without this override the
+     overlay would stay visible on page load (it's hidden by default
+     in the HTML so fresh visitors would see a stale "EARTH IS SAFE"
+     screen they can't dismiss). Same fix for #go-initials below. */
+  #endscreen[hidden] { display: none; }
+  #endscreen .es-headline {
+    font-size: 16px; letter-spacing: 0.15em;
+    color: #ffd84a;
+  }
+  /* Loss variant — red headline. JS toggles `.is-loss` on the
+     headline element. */
+  #endscreen .es-headline.is-loss {
+    color: #ff5050;
+  }
+  #endscreen .es-score-label {
+    font-size: 8px; letter-spacing: 0.2em;
+    color: rgba(255, 255, 255, 0.55);
+    margin-top: 4px;
+  }
+  #endscreen .es-score {
+    font-size: 36px;
+    color: #ffffff;
+    margin-bottom: 8px;
+  }
+  #endscreen .es-hint {
+    font-size: 6px; letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.45);
+    margin-top: 6px;
+  }
+  #endscreen .es-lb-msg {
+    font-size: 9px; letter-spacing: 0.12em;
+    color: #6bff8c;
+    min-height: 1.2em;
+  }
+  #endscreen .es-lb-msg.is-warn {
+    color: #ffd84a;
+  }
+
+  /* Top-10 leaderboard table. Tight 3-column grid (rank · initials
+     · score) so 10 rows fit even on iPhone-SE width. Player's own
+     row highlighted when it appears (matches submitted initials).  */
+  #endscreen .es-leaderboard {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    font-size: 8px; letter-spacing: 0.12em;
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 4px;
+  }
+  #endscreen .es-leaderboard[hidden] { display: none; }
+  #endscreen .es-lb-label {
+    color: #ffd84a;
+  }
+  #endscreen .es-lb-list {
+    list-style: none; margin: 0; padding: 0;
+    display: grid;
+    grid-template-columns: max-content max-content max-content;
+    column-gap: 14px; row-gap: 3px;
+    align-items: baseline;
+  }
+  #endscreen .es-lb-list li { display: contents; }
+  #endscreen .es-lb-list .rank     { color: rgba(255,255,255,0.4); text-align: right; }
+  #endscreen .es-lb-list .initials { color: #ffffff; text-align: left; }
+  #endscreen .es-lb-list .score    { color: #ffd84a; text-align: right; }
+  #endscreen .es-lb-list li.is-mine .rank,
+  #endscreen .es-lb-list li.is-mine .initials,
+  #endscreen .es-lb-list li.is-mine .score {
+    color: #6bff8c;
+  }
+
+  /* Initials entry inside the endscreen. Three slots side-by-side;
+     the active slot pulses gold/white. */
+  #go-initials {
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  #go-initials[hidden] { display: none; }
+  #go-initials .go-initials-label {
+    font-size: 9px; letter-spacing: 0.1em; color: #ffd84a;
+  }
+  #go-initials .go-slot-row {
+    display: flex; gap: 14px; justify-content: center;
+  }
+  #go-initials .go-slot {
+    display: inline-block;
+    min-width: 32px; padding: 8px 10px;
+    font-size: 28px; letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.4);
+    border-bottom: 3px solid rgba(255, 216, 74, 0.25);
+    user-select: none;
+  }
+  #go-initials .go-slot.is-active {
+    color: #ffd84a;
+    border-bottom-color: #ffd84a;
+    animation: go-slot-pulse 0.9s ease-in-out infinite;
+  }
+  @keyframes go-slot-pulse {
+    50% { color: #ffffff; border-bottom-color: #ffffff; }
   }
 
   /* Debug-mode bottom row: meta + Retry P2P. Only shown when
@@ -345,6 +459,58 @@
       </div>
       <button id="retryBtn" title="Force a fresh WebRTC handshake (use if the badge is stuck on relay after a late join)">Retry P2P</button>
     </div>
+
+    <!-- End-of-run overlay. Covers the lobby on gameover so the
+         focus is the player's own score + (if qualifying) initials
+         entry, instead of competing with the QR / players / name /
+         START / status / debug-meta stack. Sequence:
+            won/lost → endscreen visible with headline + big score
+            qualifies → initials block visible (slots + hint)
+            submit   → "SAVED AS ABC!" + PLAY AGAIN button shown
+            not qualifying → PLAY AGAIN button shown immediately
+         Tap PLAY AGAIN to hide the overlay and start a fresh round. -->
+    <div id="endscreen" hidden>
+      <div id="es-headline" class="es-headline">EARTH IS SAFE</div>
+      <div class="es-score-label">SCORE</div>
+      <div id="es-score" class="es-score">0</div>
+
+      <!-- Initials entry. Hidden until the player's score qualifies.
+           The shared Arcade.Initials state machine drives selection
+           via keyboard or the touch controls (left/right cycle a
+           letter, FIRE/SELECT advances; submits on the last slot). -->
+      <div id="go-initials" hidden>
+        <div class="go-initials-label">NEW HI-SCORE — ENTER INITIALS</div>
+        <div class="go-slot-row">
+          <span class="go-slot is-active" data-slot="0">A</span>
+          <span class="go-slot"           data-slot="1">A</span>
+          <span class="go-slot"           data-slot="2">A</span>
+        </div>
+        <div class="es-hint">USE KEYBOARD OR ← → BUTTONS · FIRE/SELECT TO ADVANCE</div>
+      </div>
+
+      <!-- Single-line leaderboard status. One of:
+           - "TEST RUN — SCORE NOT SAVED" (cheated)
+           - "BEAT 2710 TO MAKE THE LEADERBOARD" (non-qualifying)
+           - "SCORE SAVED AS DAD" (after successful submit)
+           - hidden (while initials block is open and prompting). -->
+      <div id="es-lb-msg" class="es-lb-msg" hidden></div>
+
+      <!-- Top-10 leaderboard. Always visible on the endscreen so the
+           player has context for "did I make it?" (and a target if
+           they didn't). Populated from Arcade.Leaderboard.read()
+           which is kept in sync by the refresh() call on init + the
+           submit() responses. -->
+      <div id="es-leaderboard" class="es-leaderboard" hidden>
+        <div class="es-lb-label">TOP SCORES</div>
+        <ol class="es-lb-list"></ol>
+      </div>
+
+      <!-- Tap hint — same auto-dismiss as the timer, but tells the
+           user the overlay will go away on its own + that they can
+           tap to skip the wait. Hidden during initials entry so it
+           doesn't compete with the slots / instruction. -->
+      <div id="es-dismiss-hint" class="es-hint" hidden>TAP ANYWHERE TO CONTINUE</div>
+    </div>
   </div>
 </div>
 
@@ -357,6 +523,8 @@
 <audio id="sfx-lose"      src="../shared/sfx-lose.mp3"      preload="auto"></audio>
 
 <script src="../shared/audio.js"></script>
+<script src="../shared/leaderboard.js"></script>
+<script src="../shared/initials.js"></script>
 <script src="./simple-peer.min.js"></script>
 <!-- Kazuhiko Arase's qrcode-generator (MIT) — used to draw the
      join-link QR in the prescreen lobby. Vendored locally so the
@@ -413,6 +581,16 @@
     mutedKey:  'oyster-arcade-sfx-muted',
   });
 
+  // Leaderboard — same `'invaders'` game key as SP so MP per-player
+  // scores share one hi-score table with any legacy SP scores. Top
+  // 10 displayed. `qualifies()` reads the local mirror; `submit()`
+  // posts to /api/leaderboard. refresh() pulls the latest list from
+  // the worker into the local mirror so `qualifies()` is correct
+  // for first-time visitors (otherwise an empty localStorage would
+  // accept any positive score as a hi-score).
+  Arcade.Leaderboard.init({ game: 'invaders', max: 10 });
+  Arcade.Leaderboard.refresh();
+
   // Per-seat colours for the canvas. Indexed by seat position so the
   // same player reads as the same colour on every viewer's screen.
   // Previously every viewer drew themselves in cyan, which collided
@@ -427,7 +605,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 28;
+  const NETCODE_VERSION = 29;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -1079,7 +1257,13 @@
       const prev = lastState;
       const seatIdx = mySeat ? SEATS.indexOf(mySeat) : -1;
       if (prev) {
-        if (msg.score > prev.score) Arcade.Audio.play('sfx-kill', 0.5);
+        // "Any kill happened this tick" = sum of all per-player
+        // scores increased. Derived locally now that the team-score
+        // wire field is gone (per-player only — Sackboy model).
+        let prevSum = 0, nextSum = 0;
+        for (let i = 0; i < prev.players.length; i++) prevSum += (prev.players[i]?.score | 0);
+        for (let i = 0; i < msg.players.length;  i++) nextSum += (msg.players[i]?.score  | 0);
+        if (nextSum > prevSum) Arcade.Audio.play('sfx-kill', 0.5);
         if (seatIdx >= 0
             && prev.players[seatIdx]?.alive
             && !msg.players[seatIdx]?.alive
@@ -1168,9 +1352,21 @@
     }
   }
 
+  // Tracks the prior status across refreshLobby calls so we can
+  // detect a *transition* into gameover (vs. a snapshot from a room
+  // we just joined that was already over). Without this, a fresh
+  // visitor landing on /invaders-mp/<existing-room-code> would see
+  // someone else's stale endscreen they can't dismiss.
+  let prevLobbyStatus = null;
+
   function refreshLobby() {
     if (!lastState) return;
     const s = lastState.status;
+    const enteredGameover = s === 'gameover' && prevLobbyStatus === 'running';
+    prevLobbyStatus = s;
+    // Hide the endscreen overlay when status leaves 'gameover' so a
+    // fresh round starts on the normal lobby.
+    if (s !== 'gameover') hideEndscreen();
     // Use the authoritative `seats` map (added in Phase D) — true
     // occupancy regardless of alive/respawn state. Pre-Phase-D
     // snapshots fall back to the alive proxy via seatOccupied().
@@ -1200,17 +1396,202 @@
       setStatus('');
       startBtn.disabled = true;
     } else if (s === 'gameover') {
-      setStatus(lastState.won
-        ? `Earth is safe! Score: ${lastState.score}`
-        : `Game over • Score: ${lastState.score}`);
+      // Endscreen owns the gameover UI now (headline + score +
+      // initials / PLAY AGAIN) — but ONLY for rounds the player
+      // actually participated in (caught by `enteredGameover`).
+      // A fresh visitor landing on a room that was already over
+      // sees the normal lobby with START enabled, so they can
+      // begin a new round instead of being trapped behind a stale
+      // overlay with someone else's score.
       startBtn.disabled = false;
+      if (enteredGameover) {
+        setStatus('');
+        showEndscreen();
+      } else {
+        setStatus('Tap START — friends can join anytime');
+      }
     }
   }
+
+  // ── Endscreen overlay ───────────────────────────────────────
+  // Dedicated full-screen overlay shown on gameover. Hides the
+  // lobby chrome (QR / players / name / START / status / debug)
+  // and focuses on this player's own final + (if qualifying)
+  // initials entry. Same model as Sackboy: per-device own-score
+  // experience, no team-total visibility.
+  const endscreen      = document.getElementById('endscreen');
+  const esHeadline     = document.getElementById('es-headline');
+  const esScore        = document.getElementById('es-score');
+  const esLbMsg        = document.getElementById('es-lb-msg');
+  const esLeaderboardEl = document.getElementById('es-leaderboard');
+  const esLbList       = esLeaderboardEl.querySelector('.es-lb-list');
+  const esDismissHint  = document.getElementById('es-dismiss-hint');
+  const goInitialsEl   = document.getElementById('go-initials');
+  let endscreenShown = false;
+  let endscreenDismissAt = 0;         // performance.now() ms — 0 = no timer
+  const ENDSCREEN_LINGER_NO_INITIALS_MS = 6000;
+  const ENDSCREEN_LINGER_AFTER_SUBMIT_MS = 2500;
+
+  function scheduleEndscreenDismiss(ms) {
+    endscreenDismissAt = performance.now() + ms;
+    esDismissHint.hidden = false;
+  }
+  // Render the top-10 leaderboard inside the endscreen. `highlightInitials`
+  // (if provided) marks the row in green so the player can see where
+  // they just landed after a successful submit.
+  function paintLeaderboard(highlightInitials) {
+    const list = Arcade.Leaderboard.read();
+    if (!list.length) {
+      esLeaderboardEl.hidden = true;
+      return;
+    }
+    esLbList.innerHTML = '';
+    list.forEach((entry, i) => {
+      const li = document.createElement('li');
+      if (highlightInitials && entry.initials === highlightInitials) {
+        li.classList.add('is-mine');
+      }
+      const r   = document.createElement('span'); r.className = 'rank';     r.textContent = `${i + 1}.`;
+      const ini = document.createElement('span'); ini.className = 'initials'; ini.textContent = entry.initials;
+      const sc  = document.createElement('span'); sc.className = 'score';    sc.textContent = String(entry.score);
+      li.appendChild(r); li.appendChild(ini); li.appendChild(sc);
+      esLbList.appendChild(li);
+    });
+    esLeaderboardEl.hidden = false;
+  }
+  function showEndscreen() {
+    if (endscreenShown) return;
+    endscreenShown = true;
+    const myIdx = mySeat ? SEATS.indexOf(mySeat) : -1;
+    const myFinal = (myIdx >= 0 && lastState.players[myIdx])
+      ? (lastState.players[myIdx].score | 0)
+      : 0;
+    esHeadline.textContent = lastState.won ? 'EARTH IS SAFE' : 'GAME OVER';
+    esHeadline.classList.toggle('is-loss', !lastState.won);
+    esScore.textContent = String(myFinal);
+    const shouldPromptInitials =
+      !lastState.cheated &&
+      myFinal > 0 &&
+      Arcade.Leaderboard.qualifies(myFinal);
+    goInitialsEl.hidden = !shouldPromptInitials;
+    esDismissHint.hidden = true;
+    paintLeaderboard();
+    // Single-line status that explains the leaderboard state — the
+    // big missing piece in the earlier flow ("got 2000 points, why
+    // no prompt?"). Different message per path, hidden during
+    // initials entry (the initials block carries the message there).
+    esLbMsg.classList.remove('is-warn');
+    if (shouldPromptInitials) {
+      esLbMsg.hidden = true;
+    } else if (lastState.cheated) {
+      esLbMsg.textContent = 'TEST RUN — SCORE NOT SAVED';
+      esLbMsg.classList.add('is-warn');
+      esLbMsg.hidden = false;
+    } else {
+      // Real run that didn't qualify — show the cutoff so the player
+      // knows what to beat. If localStorage hasn't synced yet (rare)
+      // fall back to a generic "didn't make it" line.
+      const lbList = Arcade.Leaderboard.read();
+      const cutoff = (lbList.length >= 10) ? lbList[lbList.length - 1].score : 0;
+      esLbMsg.textContent = cutoff > 0
+        ? `BEAT ${cutoff} TO MAKE THE LEADERBOARD`
+        : 'NOT ON THE LEADERBOARD';
+      esLbMsg.classList.add('is-warn');
+      esLbMsg.hidden = false;
+    }
+    endscreen.hidden = false;
+    if (shouldPromptInitials) {
+      // Drop focus from the name input so window keydown events
+      // (arrows, letters, enter) reach the initials handler cleanly.
+      if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
+      Arcade.Initials.open();
+      // No auto-dismiss while typing initials — wait for submit.
+    } else {
+      // Nothing to enter; show the score for a beat then auto-return
+      // to the title screen so the player isn't stuck behind a
+      // dead-end overlay.
+      scheduleEndscreenDismiss(ENDSCREEN_LINGER_NO_INITIALS_MS);
+    }
+  }
+  function hideEndscreen() {
+    endscreen.hidden = true;
+    endscreenShown = false;
+    endscreenDismissAt = 0;
+    esDismissHint.hidden = true;
+    if (Arcade.Initials.isActive()) Arcade.Initials.close();
+  }
+  // Tap anywhere on the overlay to skip the auto-dismiss timer.
+  // Only active when the timer is set — during initials entry the
+  // taps should reach the slot rows / drag handlers in initials.js.
+  endscreen.addEventListener('click', () => {
+    if (endscreenDismissAt > 0) hideEndscreen();
+  });
+  // RAF-driven dismiss check. Cheap (one comparison per frame) and
+  // avoids cross-cutting setTimeout state to manage on re-shows.
+  function tickEndscreenDismiss() {
+    if (endscreenDismissAt > 0 && performance.now() >= endscreenDismissAt) {
+      hideEndscreen();
+    }
+    requestAnimationFrame(tickEndscreenDismiss);
+  }
+  requestAnimationFrame(tickEndscreenDismiss);
+
+  // Wire the shared initials state machine. onSubmit posts to the
+  // leaderboard and closes the entry UI; the player can then tap
+  // START to play again. The fire button gets re-labelled SELECT
+  // while initials are active so the touch flow is obvious.
+  Arcade.Initials.mount({
+    fireButton: '#tc-fire',
+    fireLabel:  { idle: 'FIRE', select: 'SELECT' },
+    // We use a static .go-initials-label inside #go-initials for the
+    // "ENTER INITIALS" instruction — it should stay visible the whole
+    // time. Disabling the framework's prompt selector keeps it from
+    // hiding anything we don't want hidden.
+    promptSelector: null,
+    onSubmit: (initials) => {
+      const myIdx = mySeat ? SEATS.indexOf(mySeat) : -1;
+      const myFinal = (myIdx >= 0 && lastState && lastState.players[myIdx])
+        ? (lastState.players[myIdx].score | 0)
+        : 0;
+      // Endscreen swap: initials block → "SAVED AS ABC" confirmation
+      // + leaderboard re-paints with the new entry highlighted in
+      // green. Auto-returns to the title screen after a brief linger
+      // so the player sees their entry landed. Submit fires async;
+      // if the POST fails the local mirror still has the entry from
+      // the optimistic submit() call below.
+      goInitialsEl.hidden = true;
+      esLbMsg.textContent = `SCORE SAVED AS ${initials}`;
+      esLbMsg.classList.remove('is-warn');
+      esLbMsg.hidden = false;
+      Arcade.Leaderboard.submit(myFinal, initials).then(res => {
+        if (!res.ok) {
+          console.warn('[leaderboard] submit failed:', res.error);
+          return;
+        }
+        // Re-paint with the fresh server-confirmed list so the row
+        // ordering / cutoff matches reality, then highlight ours.
+        paintLeaderboard(initials);
+      });
+      // Optimistic local paint so the highlight shows even if the
+      // POST hasn't returned by the time the linger expires.
+      paintLeaderboard(initials);
+      scheduleEndscreenDismiss(ENDSCREEN_LINGER_AFTER_SUBMIT_MS);
+    },
+  });
 
   startBtn.addEventListener('click', () => {
     // iOS needs the AudioContext created/resumed inside a real user
     // gesture. Start is the first guaranteed tap, so do it here.
     Arcade.Audio.ensureCtx();
+    // Block restart while initials are open — otherwise tapping
+    // START mid-submission loses the score without writing it to
+    // the leaderboard. The player can either finish entering
+    // initials (FIRE/SELECT advances + submits on the last slot)
+    // or just sit tight and START becomes responsive again once
+    // submission closes the initials UI.
+    if (Arcade.Initials.isActive()) return;
     // p1 engages host mode on Start whenever the DO round trip is
     // skippable — either P2P peers are already connected (host serves
     // them via DC) OR no other seats are occupied (pure solo, runs
@@ -1270,9 +1651,11 @@
       // cutscene). Server gates by status/phase so spamming B during
       // the lobby or cutscene is a no-op. Skipped when focus is in a
       // text field (e.g. the name input) so typing a 'b' in your name
-      // doesn't blast the swarm.
+      // doesn't blast the swarm. Also skipped while typing initials
+      // so the 'B' letter selection doesn't trigger a cheat call.
       const t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (Arcade.Initials.isActive()) return;
       sendToServer({ type: 'cheat' });
     }
   });
@@ -1286,17 +1669,37 @@
   // works. `is-pressed` matches the shared touch.css convention (the
   // :active pseudo-class alone doesn't cover the "held while finger
   // slides off" case).
-  function bindTouch(elId, field) {
+  //
+  // When Arcade.Initials is active (gameover + qualified for the
+  // leaderboard), the touch buttons route to the initials state
+  // machine instead: left/right cycle letters, fire/SELECT advances
+  // the slot (and submits on the last one). Matches SP's flow.
+  function bindTouch(elId, field, initialsAction) {
     const el = document.getElementById(elId);
-    const down = (e) => { e.preventDefault(); el.classList.add('is-pressed');    setInput(field, true);  };
-    const up   = (e) => { e.preventDefault(); el.classList.remove('is-pressed'); setInput(field, false); };
+    const down = (e) => {
+      e.preventDefault();
+      el.classList.add('is-pressed');
+      if (Arcade.Initials.isActive()) {
+        if (initialsAction) Arcade.Initials.action(initialsAction);
+        return;
+      }
+      setInput(field, true);
+    };
+    const up = (e) => {
+      e.preventDefault();
+      el.classList.remove('is-pressed');
+      // Always clear the input on release, even if initials are
+      // active — otherwise a 'fire' held when the game ended would
+      // stick into the next round.
+      setInput(field, false);
+    };
     el.addEventListener('touchstart',  down, { passive: false });
     el.addEventListener('touchend',    up,   { passive: false });
     el.addEventListener('touchcancel', up,   { passive: false });
   }
-  bindTouch('tc-left',  'left');
-  bindTouch('tc-right', 'right');
-  bindTouch('tc-fire',  'fire');
+  bindTouch('tc-left',  'left',  'letter-prev');
+  bindTouch('tc-right', 'right', 'letter-next');
+  bindTouch('tc-fire',  'fire',  'advance');
 
   // --------------------------------------------------------------------
   // Render — playfield is engine units (PF_W × PF_H). CSS scales the
