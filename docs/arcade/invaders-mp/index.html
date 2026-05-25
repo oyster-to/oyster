@@ -427,7 +427,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 26;
+  const NETCODE_VERSION = 27;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -734,6 +734,10 @@
     } else if (msg.type === 'name') {
       if (typeof msg.name !== 'string') return;
       hostState.names[seat] = msg.name.trim().slice(0, NAME_MAX_CHARS);
+    } else if (msg.type === 'cheat') {
+      // Debug B-key skip — applied to local hostState. Engine helper
+      // gates by status/phase so we don't need to guard here.
+      engine.cheatSkip && engine.cheatSkip(hostState);
     }
   }
 
@@ -1233,6 +1237,17 @@
     if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') setInput('left',  true);
     else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') setInput('right', true);
     else if (e.key === ' ' || e.key === 'Spacebar') { setInput('fire', true); e.preventDefault(); }
+    else if (e.key === 'b' || e.key === 'B') {
+      // Debug skip — mirrors SP's B-key cheat. One press = one threat
+      // skipped (kill grid → boss spawn, or kill boss → next set /
+      // cutscene). Server gates by status/phase so spamming B during
+      // the lobby or cutscene is a no-op. Skipped when focus is in a
+      // text field (e.g. the name input) so typing a 'b' in your name
+      // doesn't blast the swarm.
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      sendToServer({ type: 'cheat' });
+    }
   });
   window.addEventListener('keyup', (e) => {
     if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') setInput('left',  false);
