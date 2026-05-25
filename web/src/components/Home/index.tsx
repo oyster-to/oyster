@@ -84,6 +84,11 @@ interface Props {
    *  Spaces-step auto-tick. App owns the FORCE_ONBOARDING dev override
    *  and the meta-space filtering, then passes the number through. */
   userSpaceCount?: number;
+  /** Global count of live publications — drives the OnboardingDock's
+   *  Publish-step auto-tick (bidirectional, like userSpaceCount). App
+   *  computes it from the unscoped artefact pile so a space pill can't
+   *  hide a publication that lives in another space. */
+  publishedCount?: number;
 }
 
 const ARTEFACT_SOURCE_ORDER: ArtefactSource[] = ["all", "manual", "ai_generated", "discovered", "published", "pinned"];
@@ -162,7 +167,7 @@ const FILTER_LABELS: Record<StateFilter, string> = {
   all: "all",
 };
 
-export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenArtifact, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount }: Props) {
+export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenArtifact, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount, publishedCount }: Props) {
   const presence = useTerminalPresence(sessions, terminalWindows ?? []);
   const signedIn = useAuthSignedIn();
   const myDevice = useMyDeviceId();
@@ -319,22 +324,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     if (showElsewhere && isHomeView) return sessions.filter((s) => s.spaceId === null);
     return scopedSpace ? sessions.filter((s) => s.spaceId === scopedSpace) : sessions;
   }, [sessions, scopedSpace, showElsewhere, isHomeView]);
-
-  // Space-wide counts feed the "All" tile in ProjectTileGrid — that
-  // tile is the user's reset button, so its counts must NOT narrow
-  // when a folder is selected. Everything below this point (chips,
-  // list) does narrow.
-  const spaceCounts = useMemo(() => {
-    // `dormant` is a display-time projection of `done` (no first-class
-    // chip in v1) — fold it into `done` so the count chip totals
-    // "nothing to do" sessions regardless of how they got there.
-    const counts: Record<StateFilter, number> & { dormant: number } = { live: 0, "live-terminals": 0, active: 0, waiting: 0, disconnected: 0, done: 0, dormant: 0, all: scopedSessions.length };
-    for (const s of scopedSessions) counts[s.displayState]++;
-    counts.done += counts.disconnected + counts.dormant;
-    counts.disconnected = 0;
-    counts.live = counts.active + counts.waiting;
-    return counts;
-  }, [scopedSessions]);
 
   // Folder-narrowed sessions: when a project tile is selected, sessions
   // filter to that source (or sessions without a source for VAULT, or
@@ -542,9 +531,25 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     return counts;
   }, [effectiveDesktopProps.artifacts]);
 
-  const PROJECTS_DEFAULT_VISIBLE = 8;
-
   const [projectsExpanded, setProjectsExpanded] = useState(false);
+
+  // Collapsed, the Projects strip shows exactly one row. The grid is
+  // responsive (auto-fill), so the column count varies with width — measure
+  // it from the live grid rather than guessing a fixed number.
+  const [projectColumns, setProjectColumns] = useState(4);
+  const projectsGridObserver = useRef<ResizeObserver | null>(null);
+  const measureProjectColumns = useCallback((el: HTMLDivElement) => {
+    const tracks = getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length;
+    if (tracks > 0) setProjectColumns(tracks);
+  }, []);
+  const projectsGridRef = useCallback((el: HTMLDivElement | null) => {
+    projectsGridObserver.current?.disconnect();
+    if (!el) return;
+    measureProjectColumns(el);
+    const ro = new ResizeObserver(() => measureProjectColumns(el));
+    ro.observe(el);
+    projectsGridObserver.current = ro;
+  }, [measureProjectColumns]);
 
   // Recency per project (max lastEventAt across its sessions).
   const lastActivityByProject = useMemo(() => {
@@ -590,7 +595,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
 
   const visibleProjects = projectsExpanded
     ? sortedProjects
-    : sortedProjects.slice(0, PROJECTS_DEFAULT_VISIBLE);
+    : sortedProjects.slice(0, projectColumns);
 
   const hiddenCount = sortedProjects.length - visibleProjects.length;
 
@@ -911,7 +916,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               )}
               {onOpenNewSession && <NewSessionPill onClick={onOpenNewSession} />}
             </div>
-            <OnboardingDock userSpaceCount={userSpaceCount} />
+            <OnboardingDock userSpaceCount={userSpaceCount} publishedCount={publishedCount} />
             </LayoutGroup>
           </nav>
 
@@ -946,7 +951,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               </button>
               <span className="home-section-rule" />
             </div>
-            <div className="home-projects-grid">
+            <div className="home-projects-grid" ref={projectsGridRef}>
               {visibleProjects.map((p) => (
                 // onSpaceDelete intentionally omitted — Home strip can't collapse spaces.
                 // isLastProject/spaceTotalSessions are inert here (willCollapseSpace = false).
@@ -977,7 +982,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 </button>
               </div>
             )}
-            {projectsExpanded && sortedProjects.length > PROJECTS_DEFAULT_VISIBLE && (
+            {projectsExpanded && sortedProjects.length > projectColumns && (
               <div className="home-projects-footer">
                 <button
                   type="button"
@@ -1106,7 +1111,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               sessionCountsByProject={sessionCountsByProject}
               selectedProjectId={selectedProjectId}
               setSelectedProjectId={setSelectedProjectId}
-              totalCounts={spaceCounts}
+              spaceTotalSessions={scopedSessions.length}
               showAttachForm={showAttachForm}
               setShowAttachForm={setShowAttachForm}
               onProjectsChanged={refreshSpaceProjects}

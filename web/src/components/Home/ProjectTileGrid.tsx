@@ -1,4 +1,6 @@
-// Project tile grid: All / Vault / one tile per project / + Add.
+// Project tile grid: Vault / one tile per project / + Add. (No "All" tile —
+// the unfiltered view is the default; re-clicking the active project clears
+// the filter back to everything.)
 // Renamed from "linked folder" framing — projects don't have a path; folder
 // association is downstream via `.oyster/id` or claim_orphan.
 import { useMemo } from "react";
@@ -6,12 +8,12 @@ import { Shield } from "lucide-react";
 import type { Project } from "../../data/projects-api";
 import { AttachFolderForm } from "./AttachFolderForm";
 import { ProjectTile } from "./ProjectTile";
-import { VAULT, type StateFilter } from "./types";
+import { VAULT } from "./types";
 
 export function ProjectTileGrid({
   spaceId, projects, projectArtefactCounts, sessionCountsByProject,
   selectedProjectId, setSelectedProjectId,
-  totalCounts, showAttachForm, setShowAttachForm, onProjectsChanged, onSpaceDelete,
+  spaceTotalSessions, showAttachForm, setShowAttachForm, onProjectsChanged, onSpaceDelete,
   onLaunchClaude,
 }: {
   spaceId: string;
@@ -23,7 +25,9 @@ export function ProjectTileGrid({
   sessionCountsByProject: Partial<Record<string, { running: number; active: number; waiting: number; disconnected: number; done: number }>>;
   selectedProjectId: string | null;
   setSelectedProjectId: (next: string | null) => void;
-  totalCounts: Record<StateFilter, number>;
+  // Total sessions in this space — feeds ProjectTile's collapse-confirmation
+  // phrase ("N sessions"). Doesn't narrow when a project tile is selected.
+  spaceTotalSessions: number;
   showAttachForm: boolean;
   setShowAttachForm: (v: boolean) => void;
   onProjectsChanged: () => void;
@@ -39,29 +43,16 @@ export function ProjectTileGrid({
   );
   const vaultCount = projectArtefactCounts[VAULT] ?? 0;
 
-  function pickTile(id: string | null) {
+  // Toggle: re-picking the active tile clears back to the unfiltered view.
+  // Only ever called with a project id or VAULT now (the "All" reset tile,
+  // the lone pickTile(null) caller, is gone).
+  function pickTile(id: string) {
     setSelectedProjectId(selectedProjectId === id ? null : id);
   }
 
   return (
     <div className="home-spaces-section home-projects-section">
       <div className="home-spaces-grid">
-        <button
-          type="button"
-          className={`home-space-card${selectedProjectId === null ? " selected" : ""}`}
-          onClick={() => pickTile(null)}
-          title="All projects in this space"
-        >
-          <div className="home-space-card-name">All</div>
-          <div className="home-space-card-counts">
-            {totalCounts["live-terminals"] > 0 && <span className="signal"><span className="pip pip-teal" />{totalCounts["live-terminals"]} running</span>}
-            {totalCounts.active > 0 && <span className="signal"><span className="pip pip-green" />{totalCounts.active} active</span>}
-            {totalCounts.waiting > 0 && <span className="signal"><span className="pip pip-amber" />{totalCounts.waiting} waiting</span>}
-            {totalCounts.done > 0 && <span className="signal"><span className="pip pip-dim" />{totalCounts.done} done</span>}
-            {totalCounts.all === 0 && <span className="signal signal-muted">no sessions yet</span>}
-          </div>
-        </button>
-
         {vaultCount > 0 && (
           <button
             type="button"
@@ -90,7 +81,7 @@ export function ProjectTileGrid({
             onSelect={() => pickTile(p.id)}
             onChanged={onProjectsChanged}
             isLastProject={projects.length === 1}
-            spaceTotalSessions={totalCounts.all}
+            spaceTotalSessions={spaceTotalSessions}
             onSpaceDelete={onSpaceDelete}
             otherProjects={sortedProjects.filter((o) => o.id !== p.id)}
             onLaunchClaude={onLaunchClaude}
