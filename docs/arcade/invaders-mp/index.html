@@ -96,29 +96,51 @@
   body.is-clean #prescreen .meta { display: none; }
 
   #prescreen .title {
-    font-size: 18px; letter-spacing: 0.3em; color: #2dd4ff;
+    font-size: 22px; letter-spacing: 0.3em; color: #ff3aa1;
     margin: 0;
+    text-shadow: 0 0 14px rgba(255, 58, 161, 0.55);
+    animation: title-pulse 2.6s ease-in-out infinite;
+  }
+  @keyframes title-pulse {
+    0%, 100% { opacity: 0.88; }
+    50%      { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #prescreen .title { animation: none; }
   }
 
+  /* Subtitle — compact context line. Includes the room code inline so
+     a fresh visitor sees ROOM = WGZX at a glance without the old
+     marquee block competing for hierarchy. */
+  #prescreen .subtitle {
+    font-size: 9px; letter-spacing: 0.22em;
+    color: rgba(255, 255, 255, 0.55);
+  }
+  #prescreen .subtitle b {
+    color: #fff; font-weight: normal; letter-spacing: 0.28em;
+  }
+
+  /* ROOM line under the QR — small reminder of what the QR encodes.
+     Replaces the old huge yellow `.room-code` marquee. */
   #prescreen .room-line {
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 9px; letter-spacing: 0.22em;
+    color: rgba(255, 255, 255, 0.55);
   }
-  #prescreen .room-label {
-    font-size: 9px; letter-spacing: 0.25em;
-    color: rgba(255, 255, 255, 0.5);
-  }
+  #prescreen .room-label { color: rgba(255, 255, 255, 0.4); }
   #prescreen .room-code {
-    font-size: 44px; letter-spacing: 0.22em;
-    color: #ffd84a;
-    text-shadow: 4px 4px 0 #ff3aa1;
-    line-height: 1;
+    color: #fff; letter-spacing: 0.3em;
+    font-size: 12px;
   }
 
-  /* QR card — large + centred so it's the obvious "show this to your
-     friend" target. Subtle Copy-link sits underneath for the cases
-     where scanning isn't possible (parent texting a URL, etc.). */
+  /* QR card — the "show this to your friend" target. Pill-style COPY
+     LINK sits underneath as the parent-texting-the-URL fallback. */
   #prescreen .qr-wrap {
-    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  #prescreen .qr-hdr {
+    font-size: 9px; letter-spacing: 0.3em;
+    color: rgba(255, 255, 255, 0.6);
   }
   #prescreen .qr {
     background: #fff;
@@ -128,17 +150,29 @@
   }
   #prescreen .qr img {
     display: block;
-    width: 180px; height: 180px;
+    width: 160px; height: 160px;
     image-rendering: pixelated;
   }
-  #prescreen .qr-share {
-    background: transparent; color: rgba(255,255,255,0.55);
-    border: 1px solid rgba(255,255,255,0.2); border-radius: 3px;
-    padding: 5px 12px; font: inherit; font-size: 9px;
-    letter-spacing: 0.12em; cursor: pointer;
+
+  /* Pill button — shared base for the SHUFFLE / COPY LINK utility
+     pair. Quiet outline, matched padding + letter-spacing so they
+     read as siblings under the avatars / QR. */
+  #prescreen .pill-btn {
+    background: rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.55);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 999px;
+    padding: 7px 14px;
+    font: inherit; font-size: 9px;
+    letter-spacing: 0.18em; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
   }
-  #prescreen .qr-share:hover {
+  #prescreen .pill-btn:hover:not(:disabled) {
     color: #fff; border-color: rgba(255,255,255,0.45);
+  }
+  #prescreen .pill-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  #prescreen .pill-btn.copied {
+    color: #6bff8c; border-color: #6bff8c; background: rgba(107,255,140,0.10);
   }
 
   /* Player slots — compact card per seat: pixel-art portrait above the
@@ -210,24 +244,8 @@
   #prescreen .player-slot[data-seat="p3"] { color: #6bff8c; }
   #prescreen .player-slot[data-seat="p4"] { color: #ffd84a; }
 
-  /* Shuffle pill — quietly invites the player to rotate their portrait.
-     Only enabled once we've been assigned a seat. Flip animation runs on
-     every avatar (.ps-avatar.is-shuffling) when the salt rolls. */
-  #prescreen .shuffle-btn {
-    background: rgba(255,255,255,0.04);
-    color: rgba(255,255,255,0.55);
-    border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 999px;
-    padding: 6px 14px;
-    font: inherit; font-size: 9px;
-    letter-spacing: 0.18em; cursor: pointer;
-  }
-  #prescreen .shuffle-btn:hover:not(:disabled) {
-    color: #fff; border-color: rgba(255,255,255,0.45);
-  }
-  #prescreen .shuffle-btn:disabled {
-    opacity: 0.4; cursor: not-allowed;
-  }
+  /* Avatar shuffle flip — runs on every .ps-avatar tagged is-shuffling
+     when the salt rolls (local SHUFFLE or remote echo). */
   .ps-avatar.is-shuffling { animation: ps-avatar-flip 0.36s ease-in-out; }
   @keyframes ps-avatar-flip {
     0%   { transform: scale(1) rotateY(0); }
@@ -239,16 +257,26 @@
     .ps-avatar.is-shuffling { animation: none; }
   }
 
-  /* Name input — bigger + centred so it doesn't look like a tiny
-     dev field. */
+  /* Name input — first-launch affordance. Hidden once a name lives in
+     localStorage (the player's own slot will show their name + their
+     avatar already). Tappable from the players row to edit later. */
   #prescreen .name-input {
-    background: #0a0a28; color: #fff;
-    border: 2px solid #2dd4ff; border-radius: 4px;
-    padding: 10px 14px; font: inherit; font-size: 13px;
-    letter-spacing: 0.1em; width: 220px; max-width: 80vw;
+    background: rgba(255,255,255,0.04);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 4px;
+    padding: 8px 12px;
+    font: inherit; font-size: 11px;
+    letter-spacing: 0.1em;
+    width: 200px; max-width: 80vw;
     text-align: center;
   }
   #prescreen .name-input::placeholder { color: rgba(255,255,255,0.35); }
+  #prescreen .name-input:focus {
+    outline: none; border-color: #ff3aa1;
+    background: rgba(255,58,161,0.06);
+  }
+  #prescreen .name-input[hidden] { display: none; }
 
   /* Big-start — the obvious primary action. Drop shadow + idle pulse
      pulls the eye to "tap me". Disabled state is muted grey so it
@@ -273,6 +301,18 @@
     background: #2a2a3a; color: rgba(255,255,255,0.4);
     cursor: not-allowed; box-shadow: none;
   }
+  /* Non-host waiting state — replaces the pink pulse with a quiet
+     dashed pill so joiners know what's happening without expecting
+     they can tap it. Same JS toggles disabled + .is-waiting in sync. */
+  .big-start.is-waiting,
+  .big-start.is-waiting:disabled {
+    background: transparent; color: rgba(255,255,255,0.6);
+    border: 2px dashed rgba(255,255,255,0.22);
+    box-shadow: none; animation: none;
+    font-size: 13px; letter-spacing: 0.18em;
+    padding: 14px 32px;
+  }
+  .big-start.is-waiting b { color: #fff; font-weight: normal; }
   @keyframes start-pulse {
     0%, 100% { transform: scale(1); }
     50%      { transform: scale(1.04); }
@@ -299,6 +339,17 @@
     font-size: 11px; color: #ffd84a; min-height: 1.2em;
     letter-spacing: 0.08em;
   }
+
+  /* Lobby leaderboard footer — one quiet line summarising the top
+     scores. Pulled from Arcade.Leaderboard.read() on init + every
+     time we refresh the lobby. Hidden if the local mirror is empty. */
+  #prescreen .lobby-lb {
+    font-size: 8px; letter-spacing: 0.18em;
+    color: rgba(255, 255, 255, 0.4);
+  }
+  #prescreen .lobby-lb[hidden] { display: none; }
+  #prescreen .lobby-lb b { color: rgba(255,255,255,0.7); font-weight: normal; }
+  #prescreen .lobby-lb .sc { color: #ff3aa1; }
 
   /* End-of-run overlay. Covers the lobby (QR / players / name /
      START / status / debug bar) with a focused gameover screen:
@@ -498,24 +549,14 @@
       </div>
     </div>
     <div id="prescreen">
-      <div class="title">INVADERS</div>
-
-      <div class="room-line">
-        <span class="room-label">ROOM</span>
-        <span class="room-code" id="roomCode">····</span>
-      </div>
-
-      <!-- QR is the headline share target — friends scan to join.
-           Copy-link sits underneath as the parent-helps-out fallback. -->
-      <div class="qr-wrap">
-        <div class="qr" id="qr"></div>
-        <button id="copyBtn" class="qr-share" type="button">Copy link</button>
-      </div>
+      <div class="title">SPACE INVADERS</div>
+      <div class="subtitle">2&ndash;4 PLAYERS · ROOM <b data-room-code>····</b></div>
 
       <!-- One slot per seat, colour-coded. Dimmed when empty, lit when
            occupied, with a YOU pill on the local seat. The .ps-avatar
            img is filled by refreshPlayerSlots with a DiceBear URL keyed
-           to that player's name + avatarSalt. -->
+           to that player's name + avatarSalt. Tap your own slot to
+           reveal the name input. -->
       <div class="players">
         <div class="player-slot" data-seat="p1"><div class="ps-avatar-wrap"><img class="ps-avatar" alt=""></div><div class="ps-label">P1</div><div class="ps-name">—</div></div>
         <div class="player-slot" data-seat="p2"><div class="ps-avatar-wrap"><img class="ps-avatar" alt=""></div><div class="ps-label">P2</div><div class="ps-name">—</div></div>
@@ -523,13 +564,25 @@
         <div class="player-slot" data-seat="p4"><div class="ps-avatar-wrap"><img class="ps-avatar" alt=""></div><div class="ps-label">P4</div><div class="ps-name">—</div></div>
       </div>
 
-      <button id="shuffleBtn" class="shuffle-btn" type="button" disabled>&#x21bb; SHUFFLE MY AVATAR</button>
+      <button id="shuffleBtn" class="pill-btn" type="button" disabled>&#x21bb; SHUFFLE MY AVATAR</button>
 
       <input id="nameInput" class="name-input" maxlength="12" placeholder="Your name" autocomplete="off" autocapitalize="off" spellcheck="false">
+
+      <!-- QR + room code + COPY LINK pill. Hero of the invite story. -->
+      <div class="qr-wrap">
+        <div class="qr-hdr">SCAN TO INVITE</div>
+        <div class="qr" id="qr"></div>
+        <div class="room-line"><span class="room-label">ROOM</span><span class="room-code" id="roomCode" data-room-code>····</span></div>
+        <button id="copyBtn" class="pill-btn" type="button">&#x29C9; COPY LINK</button>
+      </div>
 
       <button id="startBtn" class="big-start" disabled>START</button>
 
       <div id="status">Connecting…</div>
+
+      <!-- One-line family leaderboard. Hidden when the local mirror is
+           empty (first-time visitor, never played). -->
+      <div class="lobby-lb" id="lobbyLb" hidden></div>
 
       <!-- Netstat indicator (transport dot + ping) — pinned bottom-right
            of the prescreen. Always visible; ?clean hides it for
@@ -806,7 +859,9 @@
     : 'ws://' + location.hostname + ':8787/api/mp/invaders/ws';
   const wsUrl = wsBase + '?code=' + roomCode;
 
-  document.getElementById('roomCode').textContent = roomCode;
+  // Two places display the code now (subtitle inline + below the QR);
+  // both are tagged data-room-code so the setter writes them in sync.
+  document.querySelectorAll('[data-room-code]').forEach(el => el.textContent = roomCode);
   renderQR(location.href);
 
   // ?clean on the URL hides the diagnostic meta line + Retry P2P for
@@ -907,9 +962,13 @@
   copyBtn.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(location.href);
-      const orig = copyBtn.textContent;
-      copyBtn.textContent = 'Copied';
-      setTimeout(() => { copyBtn.textContent = orig; }, 1200);
+      const orig = copyBtn.innerHTML;
+      copyBtn.innerHTML = '&#x2713; COPIED!';
+      copyBtn.classList.add('copied');
+      setTimeout(() => {
+        copyBtn.innerHTML = orig;
+        copyBtn.classList.remove('copied');
+      }, 1500);
     } catch (e) { /* no clipboard permission; ignore */ }
   });
 
@@ -921,6 +980,11 @@
   let myName = '';
   try { myName = (localStorage.getItem(NAME_STORAGE_KEY) || '').slice(0, NAME_MAX_CHARS); } catch {}
   nameInput.value = myName;
+  // First-time visitor sees the input; returning players have their name
+  // in their slot already so we tuck it away. Re-revealed by tapping
+  // your own player slot (handler wired below, once playerSlotEls
+  // exists).
+  nameInput.hidden = !!myName;
   function publishName() {
     try { localStorage.setItem(NAME_STORAGE_KEY, myName); } catch {}
     sendToServer({ type: 'name', name: myName });
@@ -928,6 +992,11 @@
   nameInput.addEventListener('input', () => {
     myName = nameInput.value.slice(0, NAME_MAX_CHARS);
     publishName();
+  });
+  // Hide the input again once the player tabs/clicks away with a value
+  // — they've committed it, get the slot view back.
+  nameInput.addEventListener('blur', () => {
+    if (myName) nameInput.hidden = true;
   });
 
   // Avatar: a small integer that seeds the DiceBear pixel-art portrait
@@ -1652,6 +1721,19 @@
   const playerSlotEls = SEATS.map(s =>
     document.querySelector(`.player-slot[data-seat="${s}"]`));
 
+  // Tap your own slot → reveal the name input (the lobby hides it
+  // once a name is stored, so this is the "rename me" affordance).
+  playerSlotEls.forEach((slot, i) => {
+    if (!slot) return;
+    slot.style.cursor = 'pointer';
+    slot.addEventListener('click', () => {
+      if (SEATS[i] !== mySeat) return;
+      nameInput.hidden = false;
+      nameInput.focus();
+      nameInput.select();
+    });
+  });
+
   // Per-seat background colour passed to DiceBear (hex without #).
   // Matches SHIP_COLORS so the portrait's tile colour reads as the
   // same seat colour as the in-game ship.
@@ -1728,6 +1810,21 @@
     }
   }
 
+  // Lobby leaderboard footer — one quiet line summarising the top two
+  // scores from the local mirror (Arcade.Leaderboard.read()). Empty
+  // mirror (first-time visitor) hides the row entirely. Called from
+  // refreshLobby on every snapshot + once on init in case the
+  // background refresh resolves before the first WS message.
+  const lobbyLbEl = document.getElementById('lobbyLb');
+  function refreshLobbyLeaderboard() {
+    const list = (Arcade.Leaderboard.read() || []).slice(0, 2);
+    if (!list.length) { lobbyLbEl.hidden = true; lobbyLbEl.textContent = ''; return; }
+    const fmt = (e) => `<b>${(e.initials || '???').toUpperCase()}</b> <span class="sc">${e.score}</span>`;
+    lobbyLbEl.hidden = false;
+    lobbyLbEl.innerHTML = 'THIS WEEK &nbsp; ' + list.map(fmt).join(' &nbsp;·&nbsp; ');
+  }
+  refreshLobbyLeaderboard();
+
   // Tracks the prior status across refreshLobby calls so we can
   // detect a *transition* into gameover (vs. a snapshot from a room
   // we just joined that was already over). Without this, a fresh
@@ -1768,47 +1865,57 @@
     const hostName = hostIdx >= 0
       ? ((lastState.players[hostIdx]?.name || '').trim() || ('P' + (hostIdx + 1)))
       : 'P1';
+    // Apply host/non-host visual to the START button. is-waiting swaps
+    // the pink pulse for a dashed pill labelled "WAITING FOR <host>";
+    // is-waiting + disabled together prevent the button from looking
+    // tappable when it isn't.
+    function setStart({ disabled, waiting, text }) {
+      startBtn.disabled = !!disabled;
+      startBtn.classList.toggle('is-waiting', !!waiting);
+      // innerHTML so the <b> in the waiting label is honoured.
+      startBtn.innerHTML = text;
+    }
+    const waitingLabel = `WAITING FOR <b>${hostName}</b>`;
+
     if (s === 'waiting') {
       setStatus('Connecting…');
-      startBtn.disabled = true;
+      setStart({ disabled: true, waiting: !isHost, text: isHost ? 'START' : waitingLabel });
     } else if (s === 'ready') {
       if (isHost) {
         // Solo → invite-friends nudge; multi → READY!.
         setStatus(occupied >= 2
           ? `${occupied} players ready — tap START!`
           : 'Tap START — friends can join anytime');
-        startBtn.disabled = false;
+        setStart({ disabled: false, waiting: false, text: 'START' });
       } else {
-        setStatus(`Waiting for ${hostName} to start…`);
-        startBtn.disabled = true;
+        setStatus('');
+        setStart({ disabled: true, waiting: true, text: waitingLabel });
       }
     } else if (s === 'countdown') {
       setStatus('GET READY!');
-      startBtn.disabled = true;
+      setStart({ disabled: true, waiting: false, text: 'START' });
     } else if (s === 'running') {
       // Prescreen is hidden during running so this text is invisible,
       // but keep it set in case we surface a HUD later.
       setStatus('');
-      startBtn.disabled = true;
+      setStart({ disabled: true, waiting: false, text: 'START' });
     } else if (s === 'gameover') {
       // Endscreen owns the gameover UI now (headline + score +
       // initials / PLAY AGAIN) — but ONLY for rounds the player
       // actually participated in (caught by `enteredGameover`).
       // A fresh visitor landing on a room that was already over
-      // sees the normal lobby with START enabled, so they can
-      // begin a new round instead of being trapped behind a stale
-      // overlay with someone else's score. Host-only START applies
-      // here too — joiners watch the cabinet decide.
-      startBtn.disabled = !isHost;
+      // sees the normal lobby with START available (host) or the
+      // waiting dashed pill (joiner).
       if (enteredGameover) {
         setStatus('');
         showEndscreen();
       } else {
-        setStatus(isHost
-          ? 'Tap START — friends can join anytime'
-          : `Waiting for ${hostName} to start…`);
+        setStatus(isHost ? 'Tap START — friends can join anytime' : '');
       }
+      if (isHost) setStart({ disabled: false, waiting: false, text: 'START' });
+      else        setStart({ disabled: true,  waiting: true,  text: waitingLabel });
     }
+    refreshLobbyLeaderboard();
   }
 
   // ── Endscreen overlay ───────────────────────────────────────
