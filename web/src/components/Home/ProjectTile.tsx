@@ -135,10 +135,14 @@ export function ProjectTile({
         className={`home-space-card home-project-tile${selected ? " selected" : ""}`}
         style={menuOpen ? { zIndex: 20 } : undefined}
       >
-        <button
-          type="button"
+        {/* role=button (not <button>) so the interactive app chip can nest
+            without invalid button-in-button HTML. Mirrors SessionRow's row. */}
+        <div
           className="home-project-tile-body"
+          role="button"
+          tabIndex={0}
           onClick={onSelect}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } }}
           title={project.name}
         >
           <div
@@ -183,7 +187,7 @@ export function ProjectTile({
               </span>
             )}
           </div>
-        </button>
+        </div>
         {onLaunchClaude && (
           <button
             type="button"
