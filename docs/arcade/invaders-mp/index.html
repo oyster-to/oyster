@@ -109,15 +109,26 @@
     #prescreen .title { animation: none; }
   }
 
-  /* Subtitle — compact context line. Includes the room code inline so
-     a fresh visitor sees ROOM = WGZX at a glance without the old
-     marquee block competing for hierarchy. */
-  #prescreen .subtitle {
-    font-size: 9px; letter-spacing: 0.22em;
-    color: rgba(255, 255, 255, 0.55);
+  /* Top ROOM display — restored from the original design: small label
+     above a chunky yellow-on-pink code. The iconic identifier for the
+     room; reads from anywhere in the kitchen as a target the QR or
+     COPY LINK both resolve to. */
+  #prescreen .room-display {
+    display: flex; align-items: baseline; justify-content: center;
+    gap: 12px;
   }
-  #prescreen .subtitle b {
-    color: #fff; font-weight: normal; letter-spacing: 0.28em;
+  #prescreen .room-display .label {
+    font-size: 9px; letter-spacing: 0.22em;
+    color: rgba(255, 255, 255, 0.5);
+  }
+  #prescreen .room-display .code {
+    font-size: 32px; letter-spacing: 0.22em;
+    color: #ffd84a;
+    text-shadow: 3px 3px 0 #ff3aa1;
+    line-height: 1;
+  }
+  @media (min-width: 720px) and (orientation: landscape) {
+    #prescreen .room-display .code { font-size: 40px; }
   }
 
   /* ROOM line under the QR — small reminder of what the QR encodes.
@@ -577,7 +588,10 @@
     </div>
     <div id="prescreen">
       <div class="title">INVADERS</div>
-      <div class="subtitle">2&ndash;4 PLAYERS · ROOM <b data-room-code>····</b></div>
+      <div class="room-display">
+        <span class="label">ROOM</span>
+        <span class="code" data-room-code>····</span>
+      </div>
 
       <!-- One slot per seat, colour-coded. Dimmed when empty, lit when
            occupied, with a YOU pill on the local seat. The .ps-avatar
