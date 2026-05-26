@@ -235,6 +235,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // Artefact KIND filter — orthogonal to source; the two combine. "all" = no
   // kind narrowing. Reset on scope change alongside the source filter.
   const [artefactKind, setArtefactKind] = useState<ArtifactKind | "all">("all");
+  const [kindMenuOpen, setKindMenuOpen] = useState(false);
   const [artefactsLimit, setArtefactsLimit] = useState(ARTEFACTS_PREVIEW);
   // Cwd-based tile filter: drives session narrowing on both Home default
   // and showElsewhere. Lives alongside selectedProjectId; resets when scope changes.
@@ -562,6 +563,16 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     () => ARTIFACT_KINDS.filter((k) => (artefactKindCounts[k] ?? 0) > 0),
     [artefactKindCounts],
   );
+
+  // Close the kind-filter dropdown on any click outside it.
+  useEffect(() => {
+    if (!kindMenuOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement)?.closest(".home-kind-filter")) setKindMenuOpen(false);
+    };
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, [kindMenuOpen]);
 
   const [projectsExpanded, setProjectsExpanded] = useState(false);
 
@@ -1309,6 +1320,49 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               })}
             </span>
             <span className="home-section-rule" />
+            {presentKinds.length > 1 && (
+              <div className="home-kind-filter">
+                <button
+                  type="button"
+                  className={`home-kind-trigger${artefactKind !== "all" ? " active" : ""}`}
+                  onClick={() => setKindMenuOpen((v) => !v)}
+                  aria-haspopup="menu"
+                  aria-expanded={kindMenuOpen}
+                  title="Filter artefacts by kind"
+                >
+                  <span className="home-kind-trigger-label">Kind:</span>
+                  {artefactKind === "all" ? "all" : artefactKind}
+                  <span className="home-kind-caret" aria-hidden="true">▾</span>
+                </button>
+                {kindMenuOpen && (
+                  <div className="home-kind-menu" role="menu">
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={artefactKind === "all"}
+                      className={`home-kind-item${artefactKind === "all" ? " active" : ""}`}
+                      onClick={() => { setArtefactKind("all"); setKindMenuOpen(false); }}
+                    >
+                      <span>All kinds</span>
+                      <span className="home-kind-count">{artefactSourceCounts.all}</span>
+                    </button>
+                    {presentKinds.map((kind) => (
+                      <button
+                        key={kind}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={artefactKind === kind}
+                        className={`home-kind-item${artefactKind === kind ? " active" : ""}`}
+                        onClick={() => { setArtefactKind(kind); setKindMenuOpen(false); }}
+                      >
+                        <span>{kind}</span>
+                        <span className="home-kind-count">{artefactKindCounts[kind] ?? 0}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="home-view-toggle">
               <button
                 className={`view-btn${artefactsView === "icons" ? " active" : ""}`}
@@ -1337,26 +1391,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               </button>
             </div>
           </div>
-          {presentKinds.length > 1 && (
-            <div className="home-section-kinds">
-              <span className="home-kind-label">Kind</span>
-              <button
-                className={`stat-btn${artefactKind === "all" ? " active" : ""}`}
-                onClick={() => setArtefactKind("all")}
-              >
-                all
-              </button>
-              {presentKinds.map((kind) => (
-                <button
-                  key={kind}
-                  className={`stat-btn${artefactKind === kind ? " active" : ""}`}
-                  onClick={() => setArtefactKind(kind)}
-                >
-                  {artefactKindCounts[kind]} {kind}
-                </button>
-              ))}
-            </div>
-          )}
           {artefactSource === "published" && filteredArtefactsTotal === 0 ? (
             <div className="home-empty">
               {signedIn === null ? (

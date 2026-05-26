@@ -207,26 +207,64 @@
   color: var(--home-accent-bright);
 }
 
-/* Second filter row — artefact KIND pills. Aligns with .home-section-head's
-   width/gutter; tucks just under the source-pill row. Reuses .stat-btn. */
-.home-section-kinds {
-  max-width: 1100px;
-  margin: -6px auto 14px;
-  padding: 0 32px;
-  display: flex;
-  flex-wrap: wrap;
+/* Artefact KIND filter — a compact dropdown on the right of the section head.
+   Trigger reuses the .stat-btn vocabulary; the menu drops below it. */
+.home-kind-filter { position: relative; display: inline-flex; }
+.home-kind-trigger {
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-}
-.home-kind-label {
+  gap: 6px;
   font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 11px;
   color: var(--text-dim);
-  opacity: 0.6;
-  margin-right: 4px;
+  background: var(--home-surface);
+  border: 1px solid var(--home-border);
+  padding: 3px 10px;
+  border-radius: 9999px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
+.home-kind-trigger:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+.home-kind-trigger.active {
+  background: rgba(124, 107, 255, 0.18);
+  border-color: var(--home-border-accent);
+  color: var(--home-accent-bright);
+}
+.home-kind-trigger-label { opacity: 0.6; text-transform: uppercase; }
+.home-kind-caret { font-size: 9px; opacity: 0.7; }
+
+.home-kind-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 160px;
+  padding: 4px;
+  background: rgba(20, 21, 40, 0.98);
+  border: 1px solid var(--home-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+.home-kind-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+}
+.home-kind-item:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+.home-kind-item.active { background: rgba(124, 107, 255, 0.18); color: var(--home-accent-bright); }
+.home-kind-count { color: var(--home-text-muted); font-variant-numeric: tabular-nums; }
 
 /* ── State pips ── */
 .pip {
