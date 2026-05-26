@@ -185,7 +185,7 @@ export async function tryHandleStaticRoute(
     const name = startMatch[1];
     const config = artifactService.getAppConfig(name);
     if (config) {
-      if (await deps.isPortOpen(config.port)) { sendJson({ status: "already_running" }); return true; }
+      if (await deps.isPortOpen(config.port)) { sendJson({ status: "already_running", port: config.port }); return true; }
       deps.startApp(name, config);
       try { await deps.waitForReady(config.port); sendJson({ status: "started", port: config.port }); }
       catch { sendJson({ status: "timeout" }, 500); }
@@ -195,7 +195,8 @@ export async function tryHandleStaticRoute(
     const project = deps.projectService.getById(name);
     const r = project ? resolveRunnableApp(project) : { app: null as null };
     if (r.app) {
-      if (deps.getRunningApp(r.app.id)) { sendJson({ status: "already_running" }); return true; }
+      const running = deps.getRunningApp(r.app.id);
+      if (running) { sendJson({ status: "already_running", port: running.port }); return true; }
       const port = await deps.findFreePort();
       deps.startAppById(r.app.id, buildLaunchArgv(r.app.framework, port), r.app.cwd, port);
       try { await deps.waitForReady(port); sendJson({ status: "started", port }); }

@@ -438,8 +438,13 @@ export default function App() {
         )
       );
       const appName = artifact.id.replace("app:", "");
-      await startAppApi(appName);
-      window.open(artifact.url, artifact.id, "width=1280,height=900");
+      const { port } = await startAppApi(appName);
+      // Autodetected apps allocate their port at start, so the artefact's own
+      // `url` is empty until the next refresh — open the port the start call
+      // returned. Fixed-port (manually registered) apps keep working via the
+      // fallback. Skip opening entirely if start failed (no port, no url).
+      const url = port ? `http://localhost:${port}` : artifact.url;
+      if (url) window.open(url, artifact.id, "width=1280,height=900");
     } else {
       // Static artifact (generated app, doc, deck, diagram, etc.) — open in viewer
       const fullscreen = shouldOpenFullscreen(artifact.artifactKind);
