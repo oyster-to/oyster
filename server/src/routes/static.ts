@@ -188,7 +188,7 @@ export async function tryHandleStaticRoute(
       if (await deps.isPortOpen(config.port)) { sendJson({ status: "already_running" }); return true; }
       deps.startApp(name, config);
       try { await deps.waitForReady(config.port); sendJson({ status: "started", port: config.port }); }
-      catch { sendJson({ status: "timeout", message: "Couldn't start — runnable apps launch via `npm run dev`; check the dev script." }, 500); }
+      catch { sendJson({ status: "timeout" }, 500); }
       return true;
     }
     // Derived runnable app: `name` is a projectId (web strips the `app:` prefix).
