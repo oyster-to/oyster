@@ -74,7 +74,7 @@ SP and MP do **not** compete over the sim or the chrome. They differ only in the
 | Pixel-render primitives (`sprites.js`) | `docs/arcade/invaders-mp/` | 🟡 invaders-only |
 | **Session / transport** — DO + WebRTC + lobby + seats + host harness + solo-skips-DO | inline in `invaders-mp/index.html` + `infra/oyster-arcade-mp/` | 🔴 Works, but **locked inline** — not a reusable block |
 | **Cabinet bootstrap / new-game scaffold** (`Arcade.Game.boot(config)`) | — | 🔴 Doesn't exist; every game hand-wires DOM + `mount()` calls |
-| `Arcade.Music` (BGM control) | — | 🔴 Doesn't exist; 3 games each reinvent it inline |
+| `Arcade.Music` (BGM control) | `docs/arcade/shared/music.js` | ✅ Shipped (#594) — multiplexer + autoplay-retry + gain×slider compose. invaders + space-jumper migrated; rocket-ship in the SP-0 PR. |
 
 ## Sub-projects
 

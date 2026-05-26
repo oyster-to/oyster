@@ -173,11 +173,15 @@
     }
     // Optional { score, initials } to flag as the player's just-entered row —
     // the matching <li> gets an `is-you` class for the game to style/animate.
+    // Only the FIRST match is flagged: duplicate score+initials entries are
+    // common, and highlighting several rows would be confusing.
     const hl = opts.highlight || null;
+    let highlighted = false;
     list.forEach((e, i) => {
       const li = document.createElement('li');
-      if (hl && e.score === hl.score && (e.initials || '') === (hl.initials || '')) {
+      if (!highlighted && hl && e.score === hl.score && (e.initials || '') === (hl.initials || '')) {
         li.classList.add('is-you');
+        highlighted = true;
       }
       const cols = [
         ['lb-rank',     String(i + 1).padStart(2, '0') + '.'],

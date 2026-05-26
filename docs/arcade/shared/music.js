@@ -13,10 +13,10 @@
 // Arcade.Music does NOT own: SFX (Arcade.Audio); the pause overlay UI; the
 //                            global music-slider policy; crossfades.
 //
-// Volume: { gain } sets a track's BASE volume when play() starts it — each game
-// keeps its own tuned per-track level. The module does NOT multiply by or
-// coordinate with pause.js's music slider; it replicates today's per-game
-// behaviour. Games where the slider owns volume (invaders) pass no gain.
+// Volume: { gain } is a track's per-track BASE level. When pause.js is present
+// the effective volume is (MUSIC slider × gain), re-applied on slider changes
+// so the slider stays sticky across track switches; with no pause.js it's just
+// gain. Pass NO gain (invaders) to let the slider own the volume outright.
 //
 // current() returns the track we last asked to play. After an autoplay block it
 // may name a track that is pending (not yet audible) until retryPending() runs —
@@ -36,12 +36,36 @@
 
 (function () {
   const SELECTOR = 'audio[id^="bgm"]';
-  let currentId = null;   // id of the track we last asked to play
-  let pendingId = null;   // a play() the browser rejected, awaiting retryPending()
+  let currentId = null;    // id of the track we last asked to play
+  let pendingId = null;    // a play() the browser rejected, awaiting retryPending()
+  let currentGain = null;  // current track's base gain, for re-composing on slider change
+  let subscribed = false;  // hooked into pause.js's onToggle yet?
 
   function bgmEls() {
     try { return Array.prototype.slice.call(document.querySelectorAll(SELECTOR)); }
     catch (_) { return []; }
+  }
+
+  // Effective volume = the player's MUSIC slider (pause.js; 1 if absent) × the
+  // track's base gain — keeps the per-track mix AND lets the slider stay sticky.
+  function musicVol() {
+    try {
+      if (window.Arcade && Arcade.Pause && Arcade.Pause.getMusicVolume) return Arcade.Pause.getMusicVolume();
+    } catch (_) {}
+    return 1;
+  }
+  // Re-apply the current track's volume when the slider moves. pause.js fires
+  // onToggle AFTER it writes <audio>.volume, so this composes on top and wins.
+  function reapply() {
+    if (currentGain == null || !currentId) return;
+    const a = document.getElementById(currentId);
+    if (a) { try { a.volume = musicVol() * currentGain; } catch (_) {} }
+  }
+  function ensureSubscribed() {
+    if (subscribed) return;
+    try {
+      if (window.Arcade && Arcade.Pause && Arcade.Pause.onToggle) { Arcade.Pause.onToggle(reapply); subscribed = true; }
+    } catch (_) {}
   }
 
   // Start one element. gain null => leave volume as-is. restart false => keep
@@ -50,7 +74,7 @@
   function start(a, id, gain, loop, restart) {
     try {
       if (loop != null) a.loop = loop;   // undefined => respect the authored <audio loop>
-      if (gain != null) a.volume = gain;
+      if (gain != null) a.volume = musicVol() * gain;   // compose with the MUSIC slider
       if (restart) a.currentTime = 0;
       const p = a.play();
       if (p && typeof p.catch === 'function') p.catch(() => { pendingId = id; });
@@ -59,6 +83,7 @@
 
   function play(id, opts) {
     opts = opts || {};
+    ensureSubscribed();
     const restart = opts.restart !== false;  // default true
     const target = document.getElementById(id);
     if (!target) return;
@@ -67,6 +92,7 @@
       try { a.pause(); if (restart) a.currentTime = 0; } catch (_) {}
     });
     currentId = id;
+    currentGain = opts.gain == null ? null : opts.gain;
     pendingId = null;
     start(target, id, opts.gain, opts.loop, restart);   // opts.loop undefined => keep authored loop
   }
@@ -83,6 +109,7 @@
     bgmEls().forEach(a => { try { a.pause(); a.currentTime = 0; } catch (_) {} });
     currentId = null;
     pendingId = null;
+    currentGain = null;
   }
 
   function retryPending() {

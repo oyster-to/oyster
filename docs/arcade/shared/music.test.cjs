@@ -34,6 +34,9 @@ const allBgm = [theme, level, boss];
 
 const sandbox = {
   console,
+  // Stub pause.js: getMusicVolume() feeds Arcade.Music's gain composition (1 by
+  // default, so plain gain assertions hold); _fire() simulates the slider moving.
+  Arcade: { Pause: { _vol: 1, _cbs: [], getMusicVolume() { return this._vol; }, onToggle(cb) { this._cbs.push(cb); }, _fire() { this._cbs.forEach(cb => cb()); } } },
   document: {
     getElementById(id) { return byId[id] || null; },
     // The module's only selector is audio[id^="bgm"] — every fake track matches.
@@ -127,6 +130,15 @@ const tick = () => Promise.resolve();   // flush one microtask round
   const playsAfter = theme._plays;
   M.retryPending();
   check('retryPending with nothing pending does not replay', theme._plays, playsAfter);
+
+  // gain composes with the pause MUSIC slider and stays sticky when it moves:
+  // effective volume = slider × gain, re-applied via pause.js's onToggle.
+  sandbox.Arcade.Pause._vol = 0.5;
+  M.play('bgm-theme', { gain: 0.4 });
+  check('volume = slider (0.5) × gain (0.4)', theme.volume, 0.2);
+  sandbox.Arcade.Pause._vol = 1;
+  sandbox.Arcade.Pause._fire();   // slider moved back to full
+  check('slider change re-applies gain (sticky)', theme.volume, 0.4);
 
   console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
   process.exit(failures === 0 ? 0 : 1);

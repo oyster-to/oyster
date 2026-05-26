@@ -31,7 +31,7 @@ is explicitly **out of scope** (see "Decisions" below).
 |---|---|---|
 | **A** | Adopt `Arcade.EndOverlay` for game-over | Medium (behavioural) |
 | **B** | Adopt `Arcade.Pause` (pause + volume overlay) | Low |
-| **C** | Load the 5 shared stylesheets, delete inline duplicates | High (visual) |
+| **C** | Load the 6 shared stylesheets, delete inline duplicates | High (visual) |
 | **D** | Adopt `Arcade.Music` for BGM | Low |
 
 `Arcade.Music` shipped in **FW-0 (#594)** after this spec was first written, so
@@ -150,11 +150,13 @@ dodger.)
 
 ## Step C — Shared CSS swap (the careful one)
 
-Load the five shared stylesheets, delete the inline rules they now cover, and
+Load the six shared stylesheets, delete the inline rules they now cover, and
 keep a small, clearly-marked **rocket-ship-specific** block.
 
 **Load order** (in `<head>`, matching the other games):
-`pixel-font.css` → `cabinet.css` → `touch.css` → `overlays.css` → `splash.css`.
+`pixel-font.css` → `cabinet.css` → `touch.css` → `overlays.css` → `splash.css` →
+`leaderboard.css`. (`leaderboard.css` was extracted to shared in #598 after this
+spec was first drafted — hence "six", not five.)
 
 **Keep inline (game-specific):**
 - SYSTEM BOOT intro animation
