@@ -1,10 +1,9 @@
 // server/test/runnable-app.test.ts
 import { describe, it, expect } from "vitest";
-import { classifyDevScript, buildLaunchArgv } from "../src/runnable-app.js";
+import { classifyDevScript, buildLaunchArgv, resolveRunnableApp } from "../src/runnable-app.js";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { resolveRunnableApp } from "../src/runnable-app.js";
 
 describe("classifyDevScript", () => {
   it("classifies bare vite as vite", () => {
