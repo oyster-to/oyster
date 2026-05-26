@@ -414,6 +414,12 @@ export function initState() {
     // sees the same labels. Set via the `name` wire message. Empty
     // string = no label rendered.
     names: SEATS.reduce((acc, s) => (acc[s] = '', acc), /** @type {Record<string,string>} */({})),
+    // Per-seat avatar salt — a small integer that seeds the DiceBear
+    // pixel-art portrait shown above each player's name. Each tap of
+    // SHUFFLE bumps the local salt; the client persists it to
+    // localStorage so the face is stable across rooms and reloads.
+    // 0 = no avatar yet (renderer falls back to a seat-default seed).
+    avatarSalts: SEATS.reduce((acc, s) => (acc[s] = 0, acc), /** @type {Record<string,number>} */({})),
     // Server clock (ms) at which the countdown overlay should end and
     // the game transitions from 'countdown' → 'running'. Only meaningful
     // while status === 'countdown'.
@@ -1326,6 +1332,10 @@ export function snapshotForClient(state) {
         x: round(ship.x),
         alive: ship.alive,
         name: state.names?.[s] ?? '',
+        // Per-seat DiceBear seed. 0 means the player hasn't shuffled
+        // (renderer picks a seat-default face); any positive integer
+        // is a stable seed unique to that player.
+        avatarSalt: state.avatarSalts?.[s] ?? 0,
         // Per-player score (replaces the old top-level state.score).
         score: ship.score,
         // Phase F per-player additions — combo chain length, current

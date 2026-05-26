@@ -90,15 +90,10 @@
     pointer-events: none;
   }
 
-  /* Diagnostic line (netcode / ping / transport) + Retry P2P button.
-     Visible by default during the testing phase — they're genuinely
-     useful for spotting bad transport / version mismatches. The URL
-     ?clean query hides them via body.is-clean for the kid view, and
-     we'll flip the default back to "hidden unless ?debug" at release. */
-  body.is-clean #prescreen .meta,
-  body.is-clean #prescreen #retryBtn {
-    display: none;
-  }
+  /* Netstat indicator (transport dot + ping) — pinned bottom-right,
+     visible by default. ?clean hides it for screenshots / streaming;
+     retry stays debug-only (?debug). */
+  body.is-clean #prescreen .meta { display: none; }
 
   #prescreen .title {
     font-size: 18px; letter-spacing: 0.3em; color: #2dd4ff;
@@ -146,27 +141,52 @@
     color: #fff; border-color: rgba(255,255,255,0.45);
   }
 
-  /* Player slots — bigger cards for chunky touch targets + kid-readable
-     name text. Per-seat colour matches in-game SHIP_COLORS. */
+  /* Player slots — compact card per seat: pixel-art portrait above the
+     name + label. Per-seat colour matches in-game SHIP_COLORS and rings
+     the avatar so identity reads at a glance ("you're pink"). Avatars
+     come from DiceBear's pixel-art style, seeded by per-seat salt that
+     each player can shuffle. */
   #prescreen .players {
-    display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;
+    display: flex; gap: 14px; flex-wrap: wrap; justify-content: center;
   }
   #prescreen .player-slot {
-    border: 2px solid currentColor;
-    border-radius: 6px;
-    padding: 10px 14px;
-    min-width: 84px;
-    opacity: 0.28;
+    position: relative;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 5px;
+    min-width: 76px;
+    opacity: 0.42;
     text-align: center;
     transition: opacity 0.2s ease;
   }
   #prescreen .player-slot.is-active { opacity: 1; }
+  #prescreen .ps-avatar-wrap {
+    position: relative;
+    width: 56px; height: 56px;
+    border-radius: 4px;
+    box-shadow: 0 0 0 2px currentColor;
+  }
+  #prescreen .ps-avatar {
+    width: 100%; height: 100%;
+    image-rendering: pixelated;
+    border-radius: 4px;
+    display: block;
+  }
+  /* Empty slot: dashed ring + ? glyph in place of the portrait. */
+  #prescreen .player-slot.is-empty .ps-avatar-wrap {
+    box-shadow: none;
+    border: 2px dashed rgba(255,255,255,0.15);
+    display: grid; place-items: center;
+    color: rgba(255,255,255,0.18);
+    font-size: 24px;
+    line-height: 1;
+  }
+  #prescreen .player-slot.is-empty .ps-avatar-wrap::after { content: '?'; }
+  #prescreen .player-slot.is-empty .ps-avatar { display: none; }
   #prescreen .player-slot .ps-label {
-    font-size: 9px; letter-spacing: 0.22em;
+    font-size: 8px; letter-spacing: 0.22em;
   }
   #prescreen .player-slot .ps-name {
-    margin-top: 8px;
-    font-size: 11px; color: #fff;
+    font-size: 10px; color: #fff;
     min-height: 1em; letter-spacing: 0.06em;
     word-break: break-word;
   }
@@ -174,16 +194,50 @@
     color: rgba(255,255,255,0.4);
     font-style: italic;
   }
+  /* YOU pill — sits above the avatar in seat colour. */
   #prescreen .player-slot .ps-you {
-    display: block;
-    margin-top: 5px;
-    font-size: 7px; letter-spacing: 0.28em;
-    color: rgba(255,255,255,0.65);
+    position: absolute;
+    top: -8px; left: 50%;
+    transform: translateX(-50%);
+    background: #fff;
+    color: #0a0a28;
+    padding: 1px 6px;
+    font-size: 6px; letter-spacing: 0.18em;
+    border-radius: 2px;
   }
   #prescreen .player-slot[data-seat="p1"] { color: #2dd4ff; }
   #prescreen .player-slot[data-seat="p2"] { color: #ff3aa1; }
   #prescreen .player-slot[data-seat="p3"] { color: #6bff8c; }
   #prescreen .player-slot[data-seat="p4"] { color: #ffd84a; }
+
+  /* Shuffle pill — quietly invites the player to rotate their portrait.
+     Only enabled once we've been assigned a seat. Flip animation runs on
+     every avatar (.ps-avatar.is-shuffling) when the salt rolls. */
+  #prescreen .shuffle-btn {
+    background: rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.55);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font: inherit; font-size: 9px;
+    letter-spacing: 0.18em; cursor: pointer;
+  }
+  #prescreen .shuffle-btn:hover:not(:disabled) {
+    color: #fff; border-color: rgba(255,255,255,0.45);
+  }
+  #prescreen .shuffle-btn:disabled {
+    opacity: 0.4; cursor: not-allowed;
+  }
+  .ps-avatar.is-shuffling { animation: ps-avatar-flip 0.36s ease-in-out; }
+  @keyframes ps-avatar-flip {
+    0%   { transform: scale(1) rotateY(0); }
+    45%  { transform: scale(0.85) rotateY(90deg); }
+    55%  { transform: scale(0.85) rotateY(-90deg); }
+    100% { transform: scale(1) rotateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ps-avatar.is-shuffling { animation: none; }
+  }
 
   /* Name input — bigger + centred so it doesn't look like a tiny
      dev field. */
@@ -360,31 +414,54 @@
     50% { color: #ffffff; border-bottom-color: #ffffff; }
   }
 
-  /* Debug-mode bottom row: meta + Retry P2P. Only shown when
-     body.is-debug (set when URL has ?debug). */
+  /* Netstat — discreet bottom-right indicator: transport dot + ping.
+     Always visible (no longer behind body.is-debug); ?clean still hides
+     it. The .netcode pill stays inside but only renders on mismatch. */
   #prescreen .meta {
-    margin-top: 6px;
-    font-size: 8px; letter-spacing: 0.1em;
+    position: absolute;
+    bottom: 12px; right: 16px;
+    font-size: 7px; letter-spacing: 0.15em;
     color: rgba(255, 255, 255, 0.4);
-    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+    display: inline-flex; align-items: center; gap: 8px;
+    pointer-events: none;
   }
-  #prescreen .netcode.mismatch { color: #ff6666; }
-  #prescreen .ping.low  { color: #6bff8c; }
+  #prescreen .netcode { display: none; }
+  #prescreen .netcode.mismatch {
+    display: inline; color: #ff6666;
+  }
+  #prescreen .ping.low  { color: rgba(255,255,255,0.55); }
   #prescreen .ping.mid  { color: #ffd84a; }
   #prescreen .ping.high { color: #ff6666; }
+  /* Transport pill becomes a dot+label combo. Default = relay (yellow). */
   #prescreen .transport {
-    padding: 1px 6px; border-radius: 3px; text-transform: uppercase;
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.55);
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 0; background: transparent; color: rgba(255,255,255,0.55);
+    text-transform: uppercase;
   }
-  #prescreen .transport.p2p        { color: #1a3a1a; background: #6bff8c; font-weight: bold; }
-  #prescreen .transport.connecting { color: #ffd84a; background: rgba(255, 216, 74, 0.15); }
+  #prescreen .transport::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: #ffd84a;                                 /* relay = yellow */
+    box-shadow: 0 0 6px rgba(255, 216, 74, 0.55);
+  }
+  #prescreen .transport.p2p        { color: #6bff8c; }
+  #prescreen .transport.p2p::before {
+    background: #6bff8c; box-shadow: 0 0 6px rgba(107, 255, 140, 0.55);
+  }
+  #prescreen .transport.connecting { color: rgba(255,255,255,0.4); }
+  #prescreen .transport.connecting::before {
+    background: rgba(255,255,255,0.4); box-shadow: none;
+  }
+  /* Retry button — debug-only, restored when body.is-debug. */
   #prescreen #retryBtn {
+    position: absolute;
+    bottom: 12px; left: 16px;
     background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.55);
     border: 1px solid rgba(255,255,255,0.2); border-radius: 3px;
     padding: 4px 10px; font: inherit; font-size: 9px;
     letter-spacing: 0.1em; cursor: pointer;
+    display: none;
   }
+  body.is-debug #prescreen #retryBtn { display: inline-block; }
 
   /* Pink fire button — same colour recipe as SP's invaders/. */
   .touch-controls .tc-fire-btn {
@@ -436,13 +513,17 @@
       </div>
 
       <!-- One slot per seat, colour-coded. Dimmed when empty, lit when
-           occupied, with a YOU badge on the local seat. -->
+           occupied, with a YOU pill on the local seat. The .ps-avatar
+           img is filled by refreshPlayerSlots with a DiceBear URL keyed
+           to that player's name + avatarSalt. -->
       <div class="players">
-        <div class="player-slot" data-seat="p1"><div class="ps-label">P1</div><div class="ps-name">—</div></div>
-        <div class="player-slot" data-seat="p2"><div class="ps-label">P2</div><div class="ps-name">—</div></div>
-        <div class="player-slot" data-seat="p3"><div class="ps-label">P3</div><div class="ps-name">—</div></div>
-        <div class="player-slot" data-seat="p4"><div class="ps-label">P4</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p1"><div class="ps-avatar-wrap"><img class="ps-avatar" alt=""></div><div class="ps-label">P1</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p2"><div class="ps-avatar-wrap"><img class="ps-avatar" alt=""></div><div class="ps-label">P2</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p3"><div class="ps-avatar-wrap"><img class="ps-avatar" alt=""></div><div class="ps-label">P3</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p4"><div class="ps-avatar-wrap"><img class="ps-avatar" alt=""></div><div class="ps-label">P4</div><div class="ps-name">—</div></div>
       </div>
+
+      <button id="shuffleBtn" class="shuffle-btn" type="button" disabled>&#x21bb; SHUFFLE MY AVATAR</button>
 
       <input id="nameInput" class="name-input" maxlength="12" placeholder="Your name" autocomplete="off" autocapitalize="off" spellcheck="false">
 
@@ -450,12 +531,14 @@
 
       <div id="status">Connecting…</div>
 
-      <!-- Diagnostic line + dev controls; only visible when the URL
-           has ?debug (CSS hides .meta + #retryBtn unless body.is-debug). -->
+      <!-- Netstat indicator (transport dot + ping) — pinned bottom-right
+           of the prescreen. Always visible; ?clean hides it for
+           screenshots/streaming. netcode mismatch only renders on a
+           version-skew. -->
       <div class="meta">
         <span id="netcode" class="netcode">netcode v?</span>
-        <span id="ping" class="ping"></span>
         <span id="transport" class="transport">relay</span>
+        <span id="ping" class="ping"></span>
       </div>
       <button id="retryBtn" title="Force a fresh WebRTC handshake (use if the badge is stuck on relay after a late join)">Retry P2P</button>
     </div>
@@ -670,7 +753,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 31;
+  const NETCODE_VERSION = 32;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -845,6 +928,41 @@
   nameInput.addEventListener('input', () => {
     myName = nameInput.value.slice(0, NAME_MAX_CHARS);
     publishName();
+  });
+
+  // Avatar: a small integer that seeds the DiceBear pixel-art portrait
+  // for this seat. Persisted to localStorage so the face survives
+  // reloads + room hops; published on seat assignment + on every
+  // SHUFFLE tap. 0 isn't used as a salt (engine treats 0 as "no avatar
+  // chosen"), so first launch picks a random positive value.
+  const AVATAR_STORAGE_KEY = 'invaders-mp.avatar-salt';
+  function randomSalt() { return 1 + Math.floor(Math.random() * 999999); }
+  let myAvatarSalt = 0;
+  try {
+    const raw = parseInt(localStorage.getItem(AVATAR_STORAGE_KEY) || '0', 10);
+    if (Number.isFinite(raw) && raw > 0) myAvatarSalt = raw;
+  } catch {}
+  if (!myAvatarSalt) {
+    myAvatarSalt = randomSalt();
+    try { localStorage.setItem(AVATAR_STORAGE_KEY, String(myAvatarSalt)); } catch {}
+  }
+  function publishAvatar() {
+    try { localStorage.setItem(AVATAR_STORAGE_KEY, String(myAvatarSalt)); } catch {}
+    sendToServer({ type: 'avatar', salt: myAvatarSalt });
+  }
+  const shuffleBtn = document.getElementById('shuffleBtn');
+  shuffleBtn.addEventListener('click', () => {
+    myAvatarSalt = randomSalt();
+    publishAvatar();
+    // Re-render local immediately — server echo will keep us consistent
+    // with what other players see. Snapshot may take up to a tick to
+    // arrive, so this avoids the visible 1-frame stall.
+    if (mySeat && lastState) {
+      const i = SEATS.indexOf(mySeat);
+      const p = lastState.players[i];
+      if (p) p.avatarSalt = myAvatarSalt;
+      refreshPlayerSlots();
+    }
   });
 
   // --------------------------------------------------------------------
@@ -1379,9 +1497,13 @@
       // The local seat is indicated by the YOU badge on the player slot
       // (refreshPlayerSlots renders it), so we no longer need a "You are
       // P1" text node above the controls.
-      // Tell the server our display name as soon as we have a seat
-      // so the very first snapshot it broadcasts already includes it.
+      // Tell the server our display name + avatar salt as soon as we
+      // have a seat so the very first snapshot it broadcasts already
+      // includes them. Enable the shuffle pill — it only does anything
+      // useful once we're seated.
       if (myName) publishName();
+      publishAvatar();
+      shuffleBtn.disabled = false;
       const serverV = msg.netcode;
       // Colo trace: edge that handled the upgrade → data center the
       // DO actually lives in. Tells us whether locationHint took and
@@ -1530,6 +1652,31 @@
   const playerSlotEls = SEATS.map(s =>
     document.querySelector(`.player-slot[data-seat="${s}"]`));
 
+  // Per-seat background colour passed to DiceBear (hex without #).
+  // Matches SHIP_COLORS so the portrait's tile colour reads as the
+  // same seat colour as the in-game ship.
+  const AVATAR_BG_HEX = ['2dd4ff', 'ff3aa1', '6bff8c', 'ffd84a'];
+
+  function avatarUrl(seatIdx, name, salt) {
+    // Seed: name + salt when both are present, salt alone otherwise.
+    // Includes the seat index as a tiebreaker so two players with the
+    // same name + salt still get distinct faces (very unlikely, but
+    // cheap to guarantee).
+    const safeName = (name || '').trim().toUpperCase() || ('P' + (seatIdx + 1));
+    const seed = `${safeName}-${salt || 1}-${seatIdx}`;
+    const bg   = AVATAR_BG_HEX[seatIdx] || 'ffffff';
+    return 'https://api.dicebear.com/9.x/pixel-art/svg'
+         + '?seed=' + encodeURIComponent(seed)
+         + '&backgroundColor=' + bg
+         + '&randomizeIds=false&size=64';
+  }
+
+  // Track the last-rendered (name, salt) tuple per seat so we only swap
+  // img.src + replay the flip animation when something actually changed.
+  // Without this, a high-frequency snapshot stream would thrash the
+  // animation + browser image cache.
+  const lastAvatarKey = SEATS.map(() => '');
+
   function refreshPlayerSlots() {
     if (!lastState) return;
     for (let i = 0; i < MAX_SEATS; i++) {
@@ -1544,13 +1691,30 @@
       slot.classList.toggle('is-active', occupied);
       slot.classList.toggle('is-empty', !occupied);
       const nameEl = slot.querySelector('.ps-name');
+      const avatarEl = slot.querySelector('.ps-avatar');
       if (occupied) {
         const trimmed = (p.name || '').trim();
         nameEl.textContent = trimmed || 'PLAYER';
+        const salt = (p.avatarSalt | 0) || 1;
+        const key = trimmed + '|' + salt;
+        if (lastAvatarKey[i] !== key) {
+          lastAvatarKey[i] = key;
+          avatarEl.src = avatarUrl(i, trimmed, salt);
+          avatarEl.alt = (trimmed || 'P' + (i + 1)) + ' avatar';
+          avatarEl.classList.remove('is-shuffling');
+          void avatarEl.offsetWidth;   // restart animation
+          avatarEl.classList.add('is-shuffling');
+        }
       } else {
         nameEl.textContent = 'waiting…';
+        // Empty slot — clear src so the dashed-? placeholder shows.
+        if (lastAvatarKey[i] !== '') {
+          lastAvatarKey[i] = '';
+          avatarEl.removeAttribute('src');
+          avatarEl.alt = '';
+        }
       }
-      // YOU badge on the local seat (created lazily; idempotent).
+      // YOU pill on the local seat (created lazily; idempotent).
       const isYou = SEATS[i] === mySeat && occupied;
       let youEl = slot.querySelector('.ps-you');
       if (isYou && !youEl) {
@@ -1590,15 +1754,34 @@
     // game yet) and gameover (so the player can hit Start to replay).
     tube.classList.toggle('is-ready', s === 'countdown' || s === 'running');
     refreshPlayerSlots();
+    // Host = the lowest-indexed *occupied* seat. P1 normally, but if
+    // P1 dropped mid-room the next occupied seat takes over — without
+    // this, surviving players would be stuck staring at "waiting for
+    // P1 to start" forever. Server still accepts start from any seat,
+    // so the worst case if this client logic drifts is the whole room
+    // can start — never the reverse.
+    let hostIdx = -1;
+    for (let i = 0; i < MAX_SEATS; i++) {
+      if (seatOccupied(i)) { hostIdx = i; break; }
+    }
+    const isHost = hostIdx >= 0 && SEATS[hostIdx] === mySeat;
+    const hostName = hostIdx >= 0
+      ? ((lastState.players[hostIdx]?.name || '').trim() || ('P' + (hostIdx + 1)))
+      : 'P1';
     if (s === 'waiting') {
       setStatus('Connecting…');
       startBtn.disabled = true;
     } else if (s === 'ready') {
-      // Solo → invite-friends nudge; multi → READY!.
-      setStatus(occupied >= 2
-        ? `${occupied} players ready — tap START!`
-        : 'Tap START — friends can join anytime');
-      startBtn.disabled = false;
+      if (isHost) {
+        // Solo → invite-friends nudge; multi → READY!.
+        setStatus(occupied >= 2
+          ? `${occupied} players ready — tap START!`
+          : 'Tap START — friends can join anytime');
+        startBtn.disabled = false;
+      } else {
+        setStatus(`Waiting for ${hostName} to start…`);
+        startBtn.disabled = true;
+      }
     } else if (s === 'countdown') {
       setStatus('GET READY!');
       startBtn.disabled = true;
@@ -1614,13 +1797,16 @@
       // A fresh visitor landing on a room that was already over
       // sees the normal lobby with START enabled, so they can
       // begin a new round instead of being trapped behind a stale
-      // overlay with someone else's score.
-      startBtn.disabled = false;
+      // overlay with someone else's score. Host-only START applies
+      // here too — joiners watch the cabinet decide.
+      startBtn.disabled = !isHost;
       if (enteredGameover) {
         setStatus('');
         showEndscreen();
       } else {
-        setStatus('Tap START — friends can join anytime');
+        setStatus(isHost
+          ? 'Tap START — friends can join anytime'
+          : `Waiting for ${hostName} to start…`);
       }
     }
   }

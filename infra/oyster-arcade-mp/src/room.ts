@@ -167,7 +167,13 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //        cosmetic only); CRT screen shake on boss defeat + local-
 //        player death (client only, no wire change). New wire
 //        field: state.claudeCol.
-const NETCODE_VERSION = 31;
+// v32 — Lobby redesign: DiceBear pixel-art avatars per seat,
+//        seeded by a new per-seat avatarSalt integer. SHUFFLE
+//        pill on the lobby bumps the local salt and broadcasts
+//        via the new `avatar` client message; server persists in
+//        game.avatarSalts and ships it in every snapshot per player.
+//        New wire field: players[i].avatarSalt.
+const NETCODE_VERSION = 32;
 
 type ClientMessage =
   | { type: 'ping';   t: number }
@@ -175,6 +181,7 @@ type ClientMessage =
   | { type: 'pos';    x: number }
   | { type: 'start' }
   | { type: 'name';   name: unknown }
+  | { type: 'avatar'; salt: unknown }
   // `to` is untrusted wire data — narrowed by isSeat() in relaySignal.
   | { type: 'signal'; to: unknown; payload: unknown }
   | { type: 'cheat' };
@@ -345,6 +352,9 @@ export class InvadersRoom {
       case 'name':
         this.handleName(seat, msg);
         return;
+      case 'avatar':
+        this.handleAvatar(seat, msg);
+        return;
       case 'signal':
         this.relaySignal(seat, msg);
         return;
@@ -366,6 +376,15 @@ export class InvadersRoom {
     // every snapshot. Empty string is allowed (clears the name).
     if (typeof msg.name !== 'string') return;
     this.game.names[seat] = msg.name.trim().slice(0, MAX_NAME_CHARS);
+    this.broadcastSnapshot();
+  }
+
+  private handleAvatar(seat: Seat, msg: { salt: unknown }): void {
+    // Per-seat DiceBear seed integer. Floor + clamp to a reasonable
+    // range so a misbehaving client can't push huge URL params downstream.
+    if (typeof msg.salt !== 'number' || !Number.isFinite(msg.salt)) return;
+    const salt = Math.max(0, Math.min(1e9, Math.floor(msg.salt)));
+    this.game.avatarSalts[seat] = salt;
     this.broadcastSnapshot();
   }
 
@@ -412,14 +431,16 @@ export class InvadersRoom {
     // Solo start allowed: any pre-game state with at least one player.
     // Other seats can join mid-countdown / mid-game; their ship is
     // masked as not-alive on the wire and doesn't take damage until
-    // occupied. We preserve current names across the reset so a
-    // restart doesn't blank the labels.
+    // occupied. We preserve current names + avatars across the reset
+    // so a restart doesn't blank labels or scramble portraits.
     const s = this.game.status;
     if (s !== 'ready' && s !== 'waiting' && s !== 'gameover') return;
     if (this.sockets.size < 1) return;
     const keepNames = this.game.names;
+    const keepAvatars = this.game.avatarSalts;
     this.game = initState();
     this.game.names = keepNames;
+    this.game.avatarSalts = keepAvatars;
     this.game.status = 'countdown';
     this.game.countdownEndMs = Date.now() + COUNTDOWN_MS;
     this.startLoop();
