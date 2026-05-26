@@ -338,6 +338,7 @@
      ESC remains a close-the-easter-egg gesture (handled by iframe-host
      when embedded in oyster.to's home page). -->
 <script src="arcade/shared/audio.js"></script>
+<script src="arcade/shared/music.js"></script>
 <script src="arcade/shared/touch.js"></script>
 <script src="arcade/shared/leaderboard.js"></script>
 <script src="arcade/shared/splash.js"></script>
@@ -732,8 +733,7 @@ function triggerGameOver() {
   if (gameOver) return;
   gameOver = true;
   playCrash();
-  const bgmGame = document.getElementById('bgm-game');
-  if (bgmGame) bgmGame.pause();
+  Arcade.Music.pause();   // pause the game track on death
   // Screen shake on impact
   const tube = document.querySelector('.tube');
   if (tube) {
@@ -785,8 +785,7 @@ function restartGame() {
   movedAt = 0;
   update.lastThrusting = false;
   Arcade.EndOverlay.hide();
-  const bgmGame = document.getElementById('bgm-game');
-  if (bgmGame) { bgmGame.currentTime = 0; bgmGame.play().catch(() => {}); }
+  Arcade.Music.play('bgm-game', { gain: 0.4 });   // game track (pauses the title track)
 }
 
 function update() {
@@ -1081,14 +1080,9 @@ function loop() {
 
 loop();
 
-// 8-bit title music — initialised here but started by the splash IIFE
-// once the boot sequence completes. Title music ends when the splash is
-// dismissed (entering the game).
-(function () {
-  const bgm = document.getElementById('bgm');
-  if (!bgm) return;
-  bgm.volume = 0.45;
-})();
+// BGM is driven by Arcade.Music (shared): the splash hooks below play the title
+// (`bgm`, gain 0.45) / game (`bgm-game`, gain 0.4) tracks; play() pauses the
+// other one, and retryPending() recovers a title track blocked by iOS autoplay.
 
 // One-time migration of the legacy single-key mute (`oyster-rocket-muted`)
 // into the arcade-wide music + sfx mute keys, before Arcade.Audio inits.
@@ -1288,23 +1282,18 @@ paintLeaderboard();
 // audio-context kick. enterAttract() (from the game-over paths) re-shows the
 // splash on the leaderboard; the loop reads Arcade.Splash.isPlaying().
 (function () {
-  const bgm = document.getElementById('bgm');           // title music
-  const bgmGame = document.getElementById('bgm-game');  // game music
-  let awaiting = false;   // title music blocked by autoplay policy; retry on first gesture
-  function startTitleMusic() { if (!bgm) return; bgm.currentTime = 0; bgm.play().catch(() => { awaiting = true; }); }
-  function startGameMusic()  { if (!bgmGame) return; bgmGame.volume = 0.4; bgmGame.currentTime = 0; bgmGame.play().catch(() => {}); }
-
   Arcade.Splash.mount({
     splash: '#splash', tube: '.tube',
     views: '#splash .splash-main .splash-view', boot: '#splash .boot',
     titleIndex: 0, leaderboardIndex: 1, cycleMs: 5500, bootMs: 2750,
     isBusy: () => !!(window.Arcade && Arcade.Initials && Arcade.Initials.isActive && Arcade.Initials.isActive()),
-    onTitle() { if (bgmGame) bgmGame.pause(); startTitleMusic(); },
-    onPlay()  { if (bgm) bgm.pause(); awaiting = false; startGameMusic(); if (typeof restartGame === 'function') restartGame(); },
+    // Arcade.Music owns BGM: play() pauses the other track for us.
+    onTitle() { Arcade.Music.play('bgm', { gain: 0.45 }); },
+    onPlay()  { if (typeof restartGame === 'function') restartGame(); },  // restartGame starts the game track
     onLeaderboardShow() { paintLeaderboard(); },
     unlockAudio() {
       if (typeof ensureAudioCtx === 'function') ensureAudioCtx();
-      if (awaiting && bgm) { bgm.play().catch(() => {}); awaiting = false; }
+      Arcade.Music.retryPending();   // recover a title track the iOS autoplay policy blocked
     },
   });
 
