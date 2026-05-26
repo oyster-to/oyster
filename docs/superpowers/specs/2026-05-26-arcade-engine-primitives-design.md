@@ -149,12 +149,17 @@ change. Each swap is mechanical and individually parity-checkable.
 | Helper | `invaders/index.html` | `space-jumper/index.html` |
 |---|---|---|
 | `canvas.configure` | `resize()` backing-store lines (keeps building `bgGradient` locally) | `resize()` backing-store lines |
-| `rectsOverlap` | inline overlap tests in `resolveCollisions` | `aabbOverlap` definition + call sites |
+| `rectsOverlap` | *(deferred this slice — see note below)* | `aabbOverlap` definition + call sites |
 | `rand.tileHash` | — | `tileHash` definition + call sites |
 | `draw.circle` | — | `fillCircle` + `fillCircleOn` definitions + call sites |
 
 `invaders-mp` is **out of scope** (separate engine/netcode path; not a single-player
 canvas game in the same shape).
+
+**Invaders `rectsOverlap` deferred (scoping decision):** converting Invaders' 5 bespoke
+inline collision conditionals to `rectsOverlap` is a higher-risk hand-rewrite of live
+gameplay logic, and `rectsOverlap` is already proven by Space Jumper's adoption. Invaders
+adopts `canvas.configure` only this slice; the collision conversion is a fast-follow.
 
 Note on `canvas.configure` adoption: today both games do `W = canvas.width = rect.width`.
 After adoption, geometry uses `surface.cssWidth`/`surface.cssHeight`; with the default
