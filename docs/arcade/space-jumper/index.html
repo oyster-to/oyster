@@ -486,12 +486,16 @@ Arcade.Leaderboard.init({ game: 'space-jumper', max: 10 });
 // extra letter prev/next keys (matches Space Jumper's WASD movement scheme).
 // onSubmit handles the per-game UX (SCORE SAVED text, restart grace, server
 // submit + splash repaint).
+// The player's most-recently-saved { score, initials } so the leaderboard can
+// flash the row they just landed on (shared paintList highlight). Null until a save.
+let lastEntry = null;
 Arcade.Initials.mount({
   fireButton: '#tc-jump',
   fireLabel:  { idle: 'JUMP', select: 'SELECT' },
   extraKeys:  { 'letter-prev': ['w', 'W'], 'letter-next': ['s', 'S'] },
   onSubmit: (initials) => {
     hideEndOverlay();
+    lastEntry = { score, initials };   // flash this row when the board shows
     Arcade.Leaderboard.submit(score, initials).then(res => {
       if (!res.ok) console.warn('leaderboard submit failed:', res.error);
       refreshLeaderboard(true);   // pull fresh so the just-saved score shows
@@ -516,7 +520,7 @@ function paintSplashHiScore() {
 // Top-10 list for the splash's leaderboard view (3-digit pad, legacy from
 // when scores capped at 999).
 function paintLeaderboard() {
-  Arcade.Leaderboard.paintList({ listSelector: '#lb-list', pad: 3 });
+  Arcade.Leaderboard.paintList({ listSelector: '#lb-list', pad: 3, highlight: lastEntry });
 }
 // Pull live scores from the DB whenever the board is shown — so the splash
 // stays current (including the score you just saved), not just at boot.
