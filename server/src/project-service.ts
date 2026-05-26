@@ -108,6 +108,8 @@ export class ProjectService {
   private withDerived(base: Project): Project {
     const project = { ...base, ...this.detectPathState(base.id) };
     const r = resolveRunnableApp(project);
+    // The tile chip needs only id + label; cwd/framework are runtime-only
+    // (used by the launch path), so we deliberately narrow here.
     if (r.app) project.app = { id: r.app.id, label: r.app.label };
     return project;
   }
