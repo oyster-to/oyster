@@ -27,10 +27,15 @@
     const rect = canvas.getBoundingClientRect();
     const cssWidth = rect.width;
     const cssHeight = rect.height;
-    const pixelWidth = Math.round(cssWidth * dpr);
-    const pixelHeight = Math.round(cssHeight * dpr);
-    canvas.width = pixelWidth;
-    canvas.height = pixelHeight;
+    // Assign css*dpr and read the value back: the canvas width/height
+    // attributes coerce to integers by truncation, so the read-back is the
+    // TRUE backing-store size. This matches the prior `canvas.width = rect.width`
+    // exactly at dpr 1 (no Math.round drift when getBoundingClientRect returns
+    // fractional CSS pixels) and guarantees the returned facts equal reality.
+    canvas.width = cssWidth * dpr;
+    canvas.height = cssHeight * dpr;
+    const pixelWidth = canvas.width;
+    const pixelHeight = canvas.height;
     const ctx = canvas.getContext('2d');
     if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     return { ctx, cssWidth, cssHeight, dpr, pixelWidth, pixelHeight };

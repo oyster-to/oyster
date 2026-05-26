@@ -49,6 +49,7 @@ modules read another's API at call time. Use this order.
 <script src="../shared/initials.js"></script>
 <script src="../shared/end-overlay.js"></script>
 <script src="../shared/splash.js"></script>
+<script src="../shared/engine.js"></script>     <!-- game primitives; pure, no deps, order-independent -->
 ```
 
 Skip any module you don't need — but mind the noted dependencies (`pause`

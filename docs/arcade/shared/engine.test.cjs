@@ -33,8 +33,13 @@ function makeCanvas(cssW, cssH) {
     fillRect(x, y, w, h) { this._rects.push([x, y, w, h]); },
   };
   return {
-    width: 0,
-    height: 0,
+    // Emulate the browser: assigning the canvas width/height attribute coerces
+    // to an unsigned integer (truncation), so reads return the real backing size.
+    _w: 0, _h: 0,
+    get width() { return this._w; },
+    set width(v) { this._w = Math.floor(v); },
+    get height() { return this._h; },
+    set height(v) { this._h = Math.floor(v); },
     getBoundingClientRect() { return { width: cssW, height: cssH }; },
     getContext() { return ctx; },
   };
@@ -66,6 +71,15 @@ for (const bad of [0, null, NaN, -2]) {
   const ss = E.canvas.configure(cc, { maxDpr: bad });
   check(`invalid maxDpr ${String(bad)} => dpr 1`, ss.dpr, 1);
 }
+
+// Fractional CSS size: the browser truncates the backing store, so configure
+// must NOT round (that would drift 1px and break parity). pixelWidth/Height are
+// read back from the canvas, so they equal the true (truncated) backing size.
+sandbox.devicePixelRatio = 1;
+const cf = makeCanvas(1396.5, 700.5);
+const sf = E.canvas.configure(cf);
+check('fractional css truncates backing (parity, not rounded)', [cf.width, cf.height], [1396, 700]);
+check('pixelWidth/Height read back from real backing', [sf.pixelWidth, sf.pixelHeight], [1396, 700]);
 
 // ---- rectsOverlap (strict AABB) ------------------------------------------
 check('overlapping rects => true', E.rectsOverlap(0, 0, 10, 10, 5, 5, 10, 10), true);
