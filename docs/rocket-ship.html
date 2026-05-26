@@ -20,6 +20,8 @@
 <link rel="stylesheet" href="arcade/shared/cabinet.css">
 <link rel="stylesheet" href="arcade/shared/touch.css">
 <link rel="stylesheet" href="arcade/shared/overlays.css">
+<link rel="stylesheet" href="arcade/shared/splash.css">
+<link rel="stylesheet" href="arcade/shared/leaderboard.css">
 <style>
   /* pixel-font.css (shared) provides the Press Start 2P @font-face, the *
      reset, and the body/canvas gesture + selection lock. */
@@ -52,23 +54,10 @@
      the coarse bezel/tube edge-to-edge tweak from cabinet.css. */
 
 
-  /* Retro arcade splash — boot sequence, then INSERT COIN screen */
-  .splash {
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    background: #000;
-    font-family: 'Press Start 2P', ui-monospace, monospace;
-    color: #fff;
-    overflow: hidden;
-    /* CRT power-on: thin horizontal line snaps open to full screen */
-    animation: splash-poweron 0.55s ease-out;
-  }
-  .splash.is-hidden {
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.25s ease;
-  }
+  /* splash.css (shared) provides .splash, .splash.is-hidden, the .splash-main
+     layout, .start, .controls, .credit, .hiscore-row, and the .splash-view
+     cycler. rocket-ship's own SYSTEM BOOT, title, and sound toggle stay below.
+     (.splash background is #000 — the shared --splash-bg default — so no var.) */
 
   /* SYSTEM BOOT — easter-egg-only intro on direct visits (not embedded
      in the arcade cabinet, which has its own splash). Phosphor-cyan
@@ -129,16 +118,9 @@
   }
   @keyframes boot-fill    { to { width: 100%; } }
 
+  /* splash.css provides the .splash-main layout; rocket-ship adds only the
+     SYSTEM BOOT reveal — hidden until the boot bar finishes (~2.75s), then in. */
   .splash .splash-main {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 40px 24px;
-    gap: clamp(18px, 3vw, 32px);
     opacity: 0;
     visibility: hidden;
     animation: boot-show 0.45s 2.75s forwards, splash-reveal 0.45s 2.75s forwards;
@@ -188,35 +170,7 @@
   @media (prefers-reduced-motion: reduce) {
     .title-rocket, .title-rocket .flame { animation: none; }
   }
-  .splash .start {
-    font-size: clamp(11px, 2vw, 16px);
-    letter-spacing: 0.16em;
-    color: #fff;
-    animation: arcade-blink 1s steps(1) infinite;
-  }
-  .splash .controls {
-    display: grid;
-    grid-template-columns: auto auto;
-    gap: 10px 18px;
-    font-size: clamp(8px, 1.2vw, 11px);
-    letter-spacing: 0.08em;
-    color: #b8b8d0;
-    margin-top: 6px;
-  }
-  .splash .controls .key {
-    color: #2dd4ff;
-    text-align: right;
-  }
-  .splash .controls .desc {
-    color: #fff;
-    text-align: left;
-  }
-  .splash .credit {
-    font-size: clamp(7px, 1vw, 9px);
-    letter-spacing: 0.2em;
-    color: rgba(255, 255, 255, 0.35);
-    margin-top: clamp(12px, 2vw, 20px);
-  }
+  /* .splash .start / .controls / .credit now from splash.css. */
   .splash .sound-toggle {
     position: absolute;
     top: clamp(10px, 1.6vw, 18px);
@@ -249,109 +203,18 @@
     text-decoration-thickness: 0.12em;
   }
   @media (prefers-reduced-motion: reduce) {
-    .splash { animation: none; }
+    /* splash.css disables the .splash + .start animations; here we just tame
+       the game-specific SYSTEM BOOT so .splash-main still reveals (splash-reveal
+       flips visibility — without it, it stays hidden for these users). */
     .splash .boot         { animation: boot-show 0.3s forwards; }
-    /* splash-reveal flips visibility — without it, .splash-main starts
-       hidden and never becomes visible for reduced-motion users. */
     .splash .splash-main  { animation: boot-show 0.3s forwards, splash-reveal 0.3s forwards; }
     .splash .boot.is-running .boot-bar-fill { animation: boot-fill 0.6s linear forwards; }
-    .splash .start        { animation: none; opacity: 1; }
   }
 
-  .splash .hiscore-row {
-    font-size: clamp(9px, 1.3vw, 12px);
-    letter-spacing: 0.18em;
-    color: #ff3aa1;
-    margin-top: clamp(8px, 1.4vw, 14px);
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .splash .hiscore-row .hs-val { color: #ffd84a; }
-  .splash .hiscore-row .hs-initials { color: #2dd4ff; }
-
-  /* Splash views (title-card / leaderboard) auto-cycle */
-  .splash-main .splash-view {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: clamp(14px, 2.4vw, 28px);
-    padding: 40px 24px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.5s ease;
-  }
-  .splash-main .splash-view.is-active {
-    opacity: 1;
-    pointer-events: auto;
-  }
-  .leaderboard {
-    color: #fff;
-    font-family: 'Press Start 2P', ui-monospace, monospace;
-  }
-  .leaderboard .lb-title {
-    font-size: clamp(18px, 3.5vw, 32px);
-    color: #ffd84a;
-    letter-spacing: 0.12em;
-    text-shadow: 3px 3px 0 #ff3aa1, 5px 5px 0 #2dd4ff;
-    margin-bottom: clamp(8px, 1.5vw, 16px);
-  }
-  .leaderboard .lb-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: grid;
-    grid-template-columns: auto auto auto auto;
-    gap: 6px 18px;
-    font-size: clamp(10px, 1.5vw, 14px);
-    letter-spacing: 0.14em;
-    align-items: center;
-  }
-  .leaderboard .lb-list li {
-    display: contents;
-  }
-  .leaderboard .lb-rank { color: #ff3aa1; text-align: right; }
-  .leaderboard .lb-initials { color: #2dd4ff; text-align: left; letter-spacing: 0.2em; }
-  .leaderboard .lb-score { color: #ffd84a; text-align: right; }
-  .leaderboard .lb-since {
-    color: rgba(255, 255, 255, 0.4);
-    font-size: 0.78em;
-    letter-spacing: 0.1em;
-    text-align: left;
-  }
-  /* The player's just-entered row (paintList({ highlight })). .lb-list li is
-     display:contents — no row box — so light up the cells. A quick flash grabs
-     the eye when the row first lands, then it settles into a cyan->gold pulse
-     so kids can see exactly where they placed. */
-  .leaderboard .lb-list li.is-you span {
-    color: #fff;
-    animation:
-      lb-you-flash 0.2s steps(1) 5,
-      lb-you-glow 0.9s ease-in-out 1s infinite;
-  }
-  @keyframes lb-you-flash {
-    0%, 100% { opacity: 1;   text-shadow: 0 0 18px #fff; }
-    50%      { opacity: 0.2; text-shadow: none; }
-  }
-  @keyframes lb-you-glow {
-    0%, 100% { text-shadow: 0 0 5px rgba(45, 212, 255, 0.6); }
-    50%      { text-shadow: 0 0 16px rgba(255, 216, 74, 0.95); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    /* No flash/pulse — keep a static glow so the row is still clearly marked. */
-    .leaderboard .lb-list li.is-you span {
-      animation: none;
-      text-shadow: 0 0 10px rgba(45, 212, 255, 0.8);
-    }
-  }
-  .leaderboard .lb-empty {
-    font-size: clamp(10px, 1.4vw, 12px);
-    color: rgba(255, 255, 255, 0.55);
-    letter-spacing: 0.14em;
-  }
+  /* .splash .hiscore-row and the .splash-view cycler styling now from splash.css. */
+  /* leaderboard.css (shared) provides the .leaderboard / .lb-* styling, the
+     optional since column (.has-since), and the .is-you highlight. rocket-ship
+     opts into both via paintList({ showSince: true, highlight }). */
 
   /* overlays.css (shared) provides the .gameover / .go-* game-over + initials
      styles. rocket-ship's palette matches the shared defaults exactly, so no

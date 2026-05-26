@@ -157,6 +157,9 @@
     const emptyText = opts.emptyText || 'NO SCORES YET — BE THE FIRST';
     const showSince = !!opts.showSince;
     const fmtSince  = opts.sinceFormatter || (() => '');
+    // Match the grid to whether we render the since cell (CSS .has-since adds
+    // the 4th column) so both 3- and 4-column games lay out correctly.
+    ol.classList.toggle('has-since', showSince);
     const list = read();
     ol.textContent = '';
     if (!list.length) {
