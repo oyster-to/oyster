@@ -615,6 +615,9 @@ export default function App() {
         onSpaceUpdate={handleSpaceUpdate}
         onLaunchClaude={handleLaunchClaudeFromProject}
         onOpenApp={(appId) => {
+          // Reveal the app's card by switching to its space — narrow on purpose
+          // (never starts the process; that's the card's click). No-op if the
+          // artefacts list hasn't merged the derived app yet (narrow timing window).
           const a = artifacts.find((x) => x.id === appId);
           if (a) handleSpaceChange(a.spaceId);
         }}

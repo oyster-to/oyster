@@ -172,6 +172,9 @@ export function getRunningApp(appId: string): { port: number; pid: number } | un
 
 export function startAppById(appId: string, argv: string[], cwd: string, port: number): void {
   if (runningApps.has(appId)) return; // idempotent
+  // `starting` is only cleared on exit/error (not on port-ready), matching the
+  // DB-app path. Harmless: buildDerivedAppArtifacts checks online (live port)
+  // before starting, so a healthy app reads "online" even while this stays set.
   starting.add(appId);
   const child = spawn(argv[0], argv.slice(1), { cwd, stdio: "pipe" });
   const info = { port, pid: child.pid ?? -1 };
