@@ -161,7 +161,9 @@ export function stopApp(name: string, port: number): boolean {
 // ── Derived-app runtime (separate from the DB-app `procs` path above) ──
 // Detected runnable apps (Vite/Next) are launched here. Keyed by the derived
 // app id (`app:<projectId>`). A port is allocated at start, never on read.
-interface RunningApp { port: number; pid: number; child: ChildProcess; info: { port: number; pid: number }; }
+// `info` is the stable object handed to callers via getRunningApp (so repeated
+// reads are reference-equal); `child` stays internal for stop/cleanup.
+interface RunningApp { child: ChildProcess; info: { port: number; pid: number }; }
 const runningApps = new Map<string, RunningApp>();
 
 export function getRunningApp(appId: string): { port: number; pid: number } | undefined {
@@ -173,7 +175,7 @@ export function startAppById(appId: string, argv: string[], cwd: string, port: n
   starting.add(appId);
   const child = spawn(argv[0], argv.slice(1), { cwd, stdio: "pipe" });
   const info = { port, pid: child.pid ?? -1 };
-  runningApps.set(appId, { port, pid: child.pid ?? -1, child, info });
+  runningApps.set(appId, { child, info });
   // BOTH exit and error must clear state, or status sticks at "starting" / a
   // stale "offline"-with-old-port. A failed spawn fires "error", not "exit".
   const cleanup = () => { runningApps.delete(appId); starting.delete(appId); };
