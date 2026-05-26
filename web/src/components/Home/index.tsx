@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutGroup, motion } from "framer-motion";
-import { Folder, FolderPlus, Shield } from "lucide-react";
+import { Filter, Folder, FolderPlus, Shield } from "lucide-react";
 import type { Session, SessionState, DisplayState } from "../../data/sessions-api";
 import { ARTIFACT_KINDS, type Artifact, type ArtifactKind, type Space } from "../../../../shared/types";
 import { useMemories } from "../../hooks/useMemories";
@@ -1297,7 +1297,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         </section>
 
         <section className="home-section">
-          <div className="home-section-head">
+          <div className="home-section-head" style={kindMenuOpen ? { zIndex: 40 } : undefined}>
             <span className="home-section-label">Artefacts</span>
             <span className="home-section-stats">
               {ARTEFACT_SOURCE_ORDER.map((src) => {
@@ -1330,6 +1330,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   aria-expanded={kindMenuOpen}
                   title="Filter artefacts by kind"
                 >
+                  <Filter size={12} aria-hidden="true" className="home-kind-icon" />
                   <span className="home-kind-trigger-label">Kind:</span>
                   {artefactKind === "all" ? "all" : artefactKind}
                   <span className="home-kind-caret" aria-hidden="true">▾</span>

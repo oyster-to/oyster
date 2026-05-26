@@ -231,6 +231,7 @@
   border-color: var(--home-border-accent);
   color: var(--home-accent-bright);
 }
+.home-kind-icon { flex: 0 0 auto; opacity: 0.8; }
 .home-kind-trigger-label { opacity: 0.6; text-transform: uppercase; }
 .home-kind-caret { font-size: 9px; opacity: 0.7; }
 
