@@ -110,6 +110,14 @@ export class ArtifactService {
     this.getCloudOnlyPublications = source;
   }
 
+  private derivedAppProvider?: () => Promise<Artifact[]>;
+
+  // Inject the runnable-app provider. Wired in index.ts once projectService +
+  // process-manager exist. Optional so tests and the reconcile path work without it.
+  setDerivedAppProvider(provider: () => Promise<Artifact[]>): void {
+    this.derivedAppProvider = provider;
+  }
+
   constructor(private db: Database.Database, private store: ArtifactStore, private workerBase: string, private viewerBase: string, private userlandDir?: string, private spaceStore?: SpaceStore) {}
 
   async getAllArtifacts(onArtifactRemoved?: (id: string, filePath: string) => void): Promise<Artifact[]> {
@@ -214,7 +222,23 @@ export class ArtifactService {
     }
 
     const ghosts = this.synthesiseCloudOnlyGhosts(new Set([...persisted, ...gen].map((a) => a.id)));
-    return [...persisted, ...gen, ...ghosts];
+    const merged = [...persisted, ...gen, ...ghosts];
+
+    // Derived runnable-app artefacts (in-memory, never persisted). Dedupe by id:
+    // the `app:<projectId>` namespace is reserved for these, so a pre-existing id
+    // is unexpected — keep the existing entry and warn rather than silently drop.
+    if (this.derivedAppProvider) {
+      const ids = new Set(merged.map((a) => a.id));
+      for (const app of await this.derivedAppProvider()) {
+        if (ids.has(app.id)) {
+          debug("artifact-svc", "derived app id collides with existing artefact", { id: app.id });
+          continue;
+        }
+        ids.add(app.id);
+        merged.push(app);
+      }
+    }
+    return merged;
   }
 
   // Build synthetic Artifact entries for cloud publications whose artifact_id
