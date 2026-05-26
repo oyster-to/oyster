@@ -23,6 +23,16 @@ Detection is **conservative**: match the leading executable + subcommand, not a 
 `vite build`, `next build`, and `concurrently … vite …` do **not** match. False positives
 (claiming something is a launchable app when it isn't) are worse than false negatives.
 
+**Command parsing is shell-aware but shallow** (pinned by tests):
+
+- Strip leading `KEY=value` env-var assignments before reading the launcher
+  (`NODE_ENV=dev vite` → matches `vite`).
+- Wrapper commands are **not** unwrapped in v1 — `cross-env … vite`, `concurrently …`,
+  `npm-run-all …` → `null` (documented false negative; the audited fleet doesn't use them).
+- Trailing flags in the script are preserved and our port flags append after them, so
+  `vite --host 0.0.0.0` and `next dev -H 0.0.0.0` both match and launch correctly
+  (`… --host 0.0.0.0 --port P --strictPort` / `… -H 0.0.0.0 -p P`).
+
 Everything else — `concurrently`/`npm-run-all` orchestrators, custom scripts, no `dev`
 script — is **not** surfaced as a launchable app in v1. See "Explicitly deferred".
 
@@ -50,7 +60,7 @@ tile chip, the artefact card, and the start/stop routes all consume it — nothi
 its own id/label/config independently.
 
 ```
-resolveRunnableApp(project): RunnableApp | null
+resolveRunnableApp(project): { app: RunnableApp } | { app: null; reason: string }
 
 RunnableApp = {
   id:        `app:${project.id}`,   // stable, unique, rename-proof (UUID-based)
@@ -63,8 +73,15 @@ RunnableApp = {
 
 - **`id` = `app:<projectId>`.** Not `app:<name>` — package/folder names collide across
   projects; the project UUID does not and survives renames.
+- **One producer of identity.** This resolver is the *only* place `app:<projectId>`, the
+  label, and the argv are constructed. The chip, the card, and the start/stop routes call
+  it — none reconstruct the id or config themselves. A test asserts the id is identical
+  across the chip and card derivations.
 - Reads `package.json` at `project.recentPath`, parses the `dev` script's leading command
   conservatively, returns `null` if not a recognized launcher.
+- **Returns a `reason` on null** (e.g. `"no dev script"`, `"unrecognized launcher: concurrently"`,
+  `"vite build is not a dev server"`). The UI uses only the positive case, but the reason is
+  `debug()`-logged so "why didn't a chip appear?" is answerable without guesswork.
 - `argv` is the launch command (see "Launch lifecycle"); the concrete port is filled in at
   **start time**, not here.
 
@@ -94,13 +111,18 @@ RunnableApp = {
   (`index.ts:704`, condition `entry.filePath && status === "ready"`) never writes them to
   the DB. They stay in-memory by construction. This is the mechanism that enforces
   "no DB row" — not a convention we have to remember.
-- **Dedupe by `id`** before returning, guarding against collision with existing
-  generated/DB artefacts.
+  - *Fragility guard:* "every artefact has a filePath" must not be assumed elsewhere. Add a
+    comment at the reconcile site stating derived local-process apps are intentionally
+    pathless, and a test asserting a derived app is **absent from the DB** after a list.
+- **Dedupe by `id`** before returning. The `app:<projectId>` namespace is **reserved** for
+  derived apps — a *DB* row carrying that id is unexpected (v1 never persists one), so on
+  collision prefer the derived entry **and `debug()`-warn** rather than silently swallowing
+  it; a silent dedupe could hide a real bug or stale row.
 
 ### Launch lifecycle (process-manager owns runtime state)
 
 The current `startApp` (`process-manager.ts:110`) hardcodes Vite's `--port N --strictPort`
-and string-splits the command. Two changes:
+and string-splits the command. Three changes:
 
 1. **`startApp` takes explicit argv** instead of a command string + hardcoded flags. The
    resolver supplies the exact invocation, so npm passthrough is correct:
@@ -121,8 +143,17 @@ and string-splits the command. Two changes:
      - child alive + port open → `online` (url `http://localhost:<port>`)
      - starting → `starting`
      - otherwise → `offline` (no url yet)
+   - **Crash/cleanup.** Today only `child.on("exit")` clears `procs` (`:124`); there is **no
+     `error` handler**. Both `exit` and `error` (spawn failure) must delete the
+     `{ appId → port, pid, child }` entry, so status can't get stuck at `starting` or report
+     a stale `offline`-with-old-port. After cleanup the app simply reverts to `offline`.
    - The existing **DB** `local_process` path keeps using `isPortOpen` (its current
      behaviour); we do not refactor it. Scope stays surgical.
+
+3. **Launch-failure messaging is user-visible, not just documented.** When start fails
+   (`waitForReady` timeout, spawn error), the surfaced error names the assumption — e.g.
+   *"Couldn't start — runnable apps launch via `npm run dev`; check the dev script."* —
+   rather than a bare timeout.
 
 ### Routes (start/stop symmetry)
 
@@ -155,15 +186,20 @@ Parity / behaviour tests (no timing assertions):
 - `resolveRunnableApp`:
   - Vite `dev: "vite"` → runnable, framework vite, argv with `--port`/`--strictPort` slot.
   - Next `dev: "next dev --turbopack"` → runnable, framework next, argv with `-p` slot.
-  - `concurrently …` → `null`.
+  - `vite --host 0.0.0.0` / `next dev -H 0.0.0.0` → runnable (trailing flags preserved).
+  - `NODE_ENV=dev vite` → runnable (leading env-var assignment stripped).
+  - `cross-env NODE_ENV=dev vite` → `null` (wrappers not unwrapped in v1) with a `reason`.
+  - `concurrently …` → `null` with a `reason`.
   - `vite build` / `next build` → `null` (conservative leading-command match).
-  - no `dev` script / missing `package.json` → `null`.
+  - no `dev` script / missing `package.json` → `null` with a `reason`.
   - id is `app:<projectId>` and identical across the chip and card derivations.
-- `getAllArtifacts` dedupes derived app ids; derived app has no `filePath` (so reconcile
-  skips it — assert it is absent from the DB after a list).
-- Start route resolves a derived app's config (not a DB row) and stop resolves the same id.
+- `getAllArtifacts` dedupes derived app ids; derived app has **no `filePath`** and is
+  **absent from the DB** after a list (reconcile skips it).
+- Start route resolves a derived app's config (not a DB row); **stop resolves the same id**
+  through the same path.
 - Status reflects process-manager state: offline when no child, online after start records
-  a live child + open port.
+  a live child + open port, and **reverts to offline after the child exits or errors**
+  (crash-cleanup path).
 
 ## CHANGELOG
 
