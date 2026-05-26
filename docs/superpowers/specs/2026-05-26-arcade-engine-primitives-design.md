@@ -18,7 +18,7 @@ the same shape.
 
 ```
 Arcade.Audio / Music / Splash / Pause / Touch / Initials / Leaderboard / EndOverlay   ← cabinet chrome
-Arcade.Engine.{ canvas, aabb, rand, draw }                                            ← game primitives (NEW)
+Arcade.Engine.{ canvas, rectsOverlap, rand, draw }                                    ← game primitives (NEW)
 ```
 
 This directly serves the framework ambition (`shared/` as a target an agent can build
@@ -58,7 +58,7 @@ or agent — two clean buckets instead of one flat bag of ~30 helpers.
 ### `Arcade.Engine.canvas`
 
 ```js
-const view = Arcade.Engine.canvas.configure(canvas, { maxDpr = 1 } = {});
+const surface = Arcade.Engine.canvas.configure(canvas, { maxDpr = 1 } = {});
 // → { ctx, cssWidth, cssHeight, dpr, pixelWidth, pixelHeight }
 ```
 
@@ -69,6 +69,8 @@ veto point left for the reviewer.)*
 
 **Behaviour:**
 - Reads the CSS box via `canvas.getBoundingClientRect()` → `cssWidth`, `cssHeight`.
+- `maxDpr = Math.max(1, Number(maxDpr) || 1)` — guards `0` / `null` / `NaN` / negative
+  so a bad value can't produce a zero-size or broken canvas.
 - `dpr = min(window.devicePixelRatio || 1, maxDpr)`.
 - `pixelWidth = round(cssWidth * dpr)`, `pixelHeight = round(cssHeight * dpr)`.
 - Sets `canvas.width = pixelWidth`, `canvas.height = pixelHeight`.
@@ -80,9 +82,9 @@ veto point left for the reviewer.)*
 **Does NOT:** letterbox, derive tile sizes, set up a camera, or otherwise map the game
 world. The game does that from the returned facts, e.g.:
 ```js
-const v = Arcade.Engine.canvas.configure(canvas);
-letterboxFixedPlayfield(v, 260, 280);   // Invaders
-deriveTileSize(v);                       // Space Jumper
+const surface = Arcade.Engine.canvas.configure(canvas);
+letterboxFixedPlayfield(surface, 260, 280);   // Invaders
+deriveTileSize(surface);                       // Space Jumper
 ```
 
 **Footgun (must be documented in the header + README, and tested):** `configure` resets
@@ -94,15 +96,19 @@ game-applied persistent transform to survive it — re-apply after `configure` i
 transform ⇒ rendering-equivalent to today's `resize()`. DPR crispness is strictly
 opt-in (`{ maxDpr: 2 }`) because both games repaint the full screen every frame, so a
 higher backing store is ~`dpr²`× the fill cost — a real hit on phones/tablets. Opting
-in later is a one-flag change with no game-code change (the transform handles scaling),
-and the cost can be measured per game.
+in later should be a one-flag change for games that draw in CSS-pixel coordinates; games
+with custom transforms, cached gradients/image buffers, or pixel-perfect assumptions may
+still need local work. The cost can be measured per game.
 
-### `Arcade.Engine.aabb`
+### `Arcade.Engine.rectsOverlap`
 
 ```js
-Arcade.Engine.aabb(ax, ay, aw, ah, bx, by, bw, bh);  // → boolean
-// strict overlap: touching edges returns false
+Arcade.Engine.rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh);  // → boolean
+// AABB test; strict overlap — touching edges return false
 ```
+
+Named `rectsOverlap` (not `aabb`) so it reads for a reader who isn't game-engine fluent;
+the comment keeps the AABB term discoverable.
 
 The pure axis-aligned box-overlap test (Space Jumper's `aabbOverlap`, verbatim
 semantics: `ax < bx+bw && ax+aw > bx && ay < by+bh && ay+ah > by`). Documented as
@@ -143,7 +149,7 @@ change. Each swap is mechanical and individually parity-checkable.
 | Helper | `invaders/index.html` | `space-jumper/index.html` |
 |---|---|---|
 | `canvas.configure` | `resize()` backing-store lines (keeps building `bgGradient` locally) | `resize()` backing-store lines |
-| `aabb` | inline overlap tests in `resolveCollisions` | `aabbOverlap` definition + call sites |
+| `rectsOverlap` | inline overlap tests in `resolveCollisions` | `aabbOverlap` definition + call sites |
 | `rand.tileHash` | — | `tileHash` definition + call sites |
 | `draw.circle` | — | `fillCircle` + `fillCircleOn` definitions + call sites |
 
@@ -151,7 +157,7 @@ change. Each swap is mechanical and individually parity-checkable.
 canvas game in the same shape).
 
 Note on `canvas.configure` adoption: today both games do `W = canvas.width = rect.width`.
-After adoption, geometry uses `view.cssWidth`/`view.cssHeight`; with the default
+After adoption, geometry uses `surface.cssWidth`/`surface.cssHeight`; with the default
 `maxDpr: 1` these equal the pixel dimensions, so the change is rendering-equivalent.
 
 ## Tests — `docs/arcade/shared/engine.test.cjs`
@@ -165,8 +171,9 @@ Node-based, modelled on the existing `music.test.cjs` / `splash.test.cjs` (mock
   - `canvas.width === round(cssWidth * dpr)`, `canvas.height === round(cssHeight * dpr)`.
   - `ctx.setTransform` called with `(dpr, 0, 0, dpr, 0, 0)` after the call (transform
     reset / normalised).
+  - invalid `maxDpr` (`0`, `null`, `NaN`, `-2`) ⇒ clamped, `dpr === 1`.
   - return object exposes `ctx` + all five facts.
-- **`aabb`:** overlapping boxes ⇒ `true`; disjoint ⇒ `false`; **edge-touching ⇒ `false`**
+- **`rectsOverlap`:** overlapping boxes ⇒ `true`; disjoint ⇒ `false`; **edge-touching ⇒ `false`**
   (named test, pins the strict-overlap contract).
 - **`rand.tileHash`:** deterministic for a fixed `i`; result in `[0, 1)`; a known
   fixed value for a known `i`.
@@ -199,12 +206,12 @@ Layered onto `Arcade.Engine` later, none requiring a reshape of this slice:
 |---|---|
 | Adoption silently changes rendering | `maxDpr: 1` default = rendering-equivalent; unit tests + browser parity check both games |
 | `setTransform` reset surprises a later contributor | Documented in header + README; asserted in tests |
-| "Engine" overpromises while the surface is small | Acceptable — it's the deliberate home for the loop/collision work to come; draw/rand/aabb/canvas already cohere as primitives |
+| "Engine" overpromises while the surface is small | Acceptable — it's the deliberate home for the loop/collision work to come; draw/rand/rectsOverlap/canvas already cohere as primitives |
 | Over-fragmentation | Single `engine.js`, single namespace — one script tag, one row in the README |
 
 ## Acceptance criteria
 
-- `shared/engine.js` defines `Arcade.Engine` with `canvas.configure`, `aabb`,
+- `shared/engine.js` defines `Arcade.Engine` with `canvas.configure`, `rectsOverlap`,
   `rand.tileHash`, `draw.circle` exactly as specified.
 - Both single-player games adopt all applicable helpers; their inline copies are removed.
 - `shared/engine.test.cjs` passes, covering the cases above.
