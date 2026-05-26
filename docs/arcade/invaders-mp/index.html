@@ -133,6 +133,23 @@
     font-size: 12px;
   }
 
+  /* Hero row: pairs the QR card with the START button. On portrait
+     (phone / iPad held vertically) they stack as a single centred
+     column. On landscape laptop they sit side-by-side so START
+     stops sliding past the fold below the QR. */
+  #prescreen .hero-row {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 14px;
+  }
+  @media (min-width: 720px) and (orientation: landscape) {
+    #prescreen .hero-row {
+      flex-direction: row;
+      gap: 64px;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+
   /* QR card — the "show this to your friend" target. Pill-style COPY
      LINK sits underneath as the parent-texting-the-URL fallback. */
   #prescreen .qr-wrap {
@@ -195,9 +212,14 @@
   #prescreen .player-slot.is-active { opacity: 1; }
   #prescreen .ps-avatar-wrap {
     position: relative;
-    width: 56px; height: 56px;
+    width: 64px; height: 64px;
     border-radius: 4px;
     box-shadow: 0 0 0 2px currentColor;
+  }
+  /* Laptop / landscape: bump avatars + a bit more breathing room. */
+  @media (min-width: 720px) and (orientation: landscape) {
+    #prescreen .ps-avatar-wrap { width: 76px; height: 76px; }
+    #prescreen .players { gap: 22px; }
   }
   #prescreen .ps-avatar {
     width: 100%; height: 100%;
@@ -226,7 +248,7 @@
   }
   #prescreen .player-slot.is-empty .ps-name {
     color: rgba(255,255,255,0.4);
-    font-style: italic;
+    letter-spacing: 0.22em;
   }
   /* YOU pill — sits above the avatar in seat colour. */
   #prescreen .player-slot .ps-you {
@@ -288,6 +310,11 @@
     letter-spacing: 0.22em; cursor: pointer;
     box-shadow: 0 4px 0 #b32271, 0 6px 14px rgba(255,58,161,0.4);
     transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+  /* Laptop landscape: START becomes a meatier focal point next to
+     the QR. Keeps the same colour story; just bigger + chunkier. */
+  @media (min-width: 720px) and (orientation: landscape) {
+    .big-start { padding: 26px 70px; font-size: 26px; letter-spacing: 0.26em; min-width: 280px; }
   }
   .big-start:not(:disabled):hover {
     transform: translateY(-1px);
@@ -568,15 +595,19 @@
 
       <input id="nameInput" class="name-input" maxlength="12" placeholder="Your name" autocomplete="off" autocapitalize="off" spellcheck="false">
 
-      <!-- QR + room code + COPY LINK pill. Hero of the invite story. -->
-      <div class="qr-wrap">
-        <div class="qr-hdr">SCAN TO INVITE</div>
-        <div class="qr" id="qr"></div>
-        <div class="room-line"><span class="room-label">ROOM</span><span class="room-code" id="roomCode" data-room-code>····</span></div>
-        <button id="copyBtn" class="pill-btn" type="button">&#x29C9; COPY LINK</button>
-      </div>
+      <!-- Hero row: QR (left) + START (right) as twin focal points on
+           landscape laptop; stacks back to a single column on portrait
+           devices via the CSS media query. -->
+      <div class="hero-row">
+        <div class="qr-wrap">
+          <div class="qr-hdr">SCAN TO INVITE</div>
+          <div class="qr" id="qr"></div>
+          <div class="room-line"><span class="room-label">ROOM</span><span class="room-code" id="roomCode" data-room-code>····</span></div>
+          <button id="copyBtn" class="pill-btn" type="button">&#x29C9; COPY LINK</button>
+        </div>
 
-      <button id="startBtn" class="big-start" disabled>START</button>
+        <button id="startBtn" class="big-start" disabled>START</button>
+      </div>
 
       <div id="status">Connecting…</div>
 
@@ -1788,7 +1819,7 @@
           avatarEl.classList.add('is-shuffling');
         }
       } else {
-        nameEl.textContent = 'waiting…';
+        nameEl.textContent = 'OPEN';
         // Empty slot — clear src so the dashed-? placeholder shows.
         if (lastAvatarKey[i] !== '') {
           lastAvatarKey[i] = '';
