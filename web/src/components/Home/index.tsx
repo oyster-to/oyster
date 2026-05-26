@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutGroup, motion } from "framer-motion";
 import { Folder, FolderPlus, Shield } from "lucide-react";
 import type { Session, SessionState, DisplayState } from "../../data/sessions-api";
-import type { Artifact, Space } from "../../../../shared/types";
+import { ARTIFACT_KINDS, type Artifact, type ArtifactKind, type Space } from "../../../../shared/types";
 import { useMemories } from "../../hooks/useMemories";
 import { useAuthSignedIn } from "../../hooks/useAuthSignedIn";
 import { useMyDeviceId } from "../../hooks/useMyDeviceId";
@@ -232,6 +232,9 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // Artefact source filter (#280) + 3-row collapse. Reset on scope change
   // so each space starts compact and at "all".
   const [artefactSource, setArtefactSource] = useState<ArtefactSource>("all");
+  // Artefact KIND filter — orthogonal to source; the two combine. "all" = no
+  // kind narrowing. Reset on scope change alongside the source filter.
+  const [artefactKind, setArtefactKind] = useState<ArtifactKind | "all">("all");
   const [artefactsLimit, setArtefactsLimit] = useState(ARTEFACTS_PREVIEW);
   // Cwd-based tile filter: drives session narrowing on both Home default
   // and showElsewhere. Lives alongside selectedProjectId; resets when scope changes.
@@ -301,6 +304,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     setArtefactsLimit(ARTEFACTS_PREVIEW);
     setSessionsLimit(SESSIONS_PREVIEW);
     setArtefactSource("all");
+    setArtefactKind("all");
     if (pendingFolderSelection.current) {
       setSelectedProjectId(pendingFolderSelection.current);
       pendingFolderSelection.current = null;
@@ -543,6 +547,22 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     return counts;
   }, [effectiveDesktopProps.artifacts]);
 
+  // Per-kind counts over the active scope — independent of the source filter,
+  // matching how the source pills count the scope total. Drives the Kind row.
+  const artefactKindCounts = useMemo(() => {
+    const counts: Partial<Record<ArtifactKind, number>> = {};
+    for (const a of effectiveDesktopProps.artifacts) {
+      counts[a.artifactKind] = (counts[a.artifactKind] ?? 0) + 1;
+    }
+    return counts;
+  }, [effectiveDesktopProps.artifacts]);
+  // Kinds actually present in this scope, in canonical order. The Kind row only
+  // renders when there's more than one — no point filtering a single-kind scope.
+  const presentKinds = useMemo(
+    () => ARTIFACT_KINDS.filter((k) => (artefactKindCounts[k] ?? 0) > 0),
+    [artefactKindCounts],
+  );
+
   const [projectsExpanded, setProjectsExpanded] = useState(false);
 
   // Collapsed, the Projects strip shows exactly one row. The grid is
@@ -645,6 +665,10 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     } else if (artefactSource !== "all") {
       list = list.filter((a) => (a.sourceOrigin ?? "manual") === artefactSource);
     }
+    // KIND filter combines with the source filter above.
+    if (artefactKind !== "all") {
+      list = list.filter((a) => a.artifactKind === artefactKind);
+    }
     // Pinned-first within the active scope (#387), then most-recent
     // first. Sorting by createdAt here (not just inside ArtefactTable)
     // means the artefactsLimit slice picks the freshest rows; each
@@ -659,7 +683,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
       return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
     });
     return list;
-  }, [effectiveDesktopProps.artifacts, artefactSource, selectedProjectId]);
+  }, [effectiveDesktopProps.artifacts, artefactSource, artefactKind, selectedProjectId]);
   const visibleArtefacts = useMemo(
     () => filteredArtefacts.slice(0, artefactsLimit),
     [filteredArtefacts, artefactsLimit],
@@ -1313,6 +1337,26 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               </button>
             </div>
           </div>
+          {presentKinds.length > 1 && (
+            <div className="home-section-kinds">
+              <span className="home-kind-label">Kind</span>
+              <button
+                className={`stat-btn${artefactKind === "all" ? " active" : ""}`}
+                onClick={() => setArtefactKind("all")}
+              >
+                all
+              </button>
+              {presentKinds.map((kind) => (
+                <button
+                  key={kind}
+                  className={`stat-btn${artefactKind === kind ? " active" : ""}`}
+                  onClick={() => setArtefactKind(kind)}
+                >
+                  {artefactKindCounts[kind]} {kind}
+                </button>
+              ))}
+            </div>
+          )}
           {artefactSource === "published" && filteredArtefactsTotal === 0 ? (
             <div className="home-empty">
               {signedIn === null ? (

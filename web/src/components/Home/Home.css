@@ -207,6 +207,27 @@
   color: var(--home-accent-bright);
 }
 
+/* Second filter row — artefact KIND pills. Aligns with .home-section-head's
+   width/gutter; tucks just under the source-pill row. Reuses .stat-btn. */
+.home-section-kinds {
+  max-width: 1100px;
+  margin: -6px auto 14px;
+  padding: 0 32px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.home-kind-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  opacity: 0.6;
+  margin-right: 4px;
+}
+
 /* ── State pips ── */
 .pip {
   width: 6px;
@@ -585,6 +606,21 @@
   background: rgba(124, 107, 255, 0.05);
 }
 .home-artefact-row:last-child { border-bottom: none; }
+
+/* Column-header row for the artefacts table (mirrors .home-row--header on the
+   sessions table). Reuses .home-artefact-row's grid; just restyles + disables
+   the row affordances. */
+.home-artefact-row--header {
+  cursor: default;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+.home-artefact-row--header:hover { background: transparent; }
+.home-artefact-row--header > :last-child { text-align: right; }
 
 .home-artefact-row-title {
   font-size: 13px;

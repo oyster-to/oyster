@@ -66,6 +66,12 @@ export function ArtefactTable({ artifacts, spaces, onArtifactClick, onArtifactPu
   return (
     <div className="home-table-wrap">
       <div className="home-table">
+        <div className="home-artefact-row home-artefact-row--header" role="row">
+          <span role="columnheader">Name</span>
+          <span role="columnheader">Space</span>
+          <span role="columnheader">Kind</span>
+          <span role="columnheader">Created</span>
+        </div>
         {sorted.map((art) => {
           const space = spaces.find((s) => s.id === art.spaceId);
           return (
