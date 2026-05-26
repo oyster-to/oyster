@@ -109,39 +109,21 @@
     #prescreen .title { animation: none; }
   }
 
-  /* Top ROOM display — restored from the original design: small label
-     above a chunky yellow-on-pink code. The iconic identifier for the
-     room; reads from anywhere in the kitchen as a target the QR or
-     COPY LINK both resolve to. */
-  #prescreen .room-display {
-    display: flex; align-items: baseline; justify-content: center;
-    gap: 12px;
+  /* ROOM line under the QR — the only place the room code lives now.
+     Small label + iconic yellow-on-pink code so it reads as "this is
+     the room" from across the table. */
+  #prescreen .room-line {
+    display: inline-flex; align-items: baseline; gap: 10px;
   }
-  #prescreen .room-display .label {
+  #prescreen .room-label {
     font-size: 9px; letter-spacing: 0.22em;
     color: rgba(255, 255, 255, 0.5);
   }
-  #prescreen .room-display .code {
-    font-size: 32px; letter-spacing: 0.22em;
+  #prescreen .room-code {
+    font-size: 22px; letter-spacing: 0.22em;
     color: #ffd84a;
     text-shadow: 3px 3px 0 #ff3aa1;
     line-height: 1;
-  }
-  @media (min-width: 720px) and (orientation: landscape) {
-    #prescreen .room-display .code { font-size: 40px; }
-  }
-
-  /* ROOM line under the QR — small reminder of what the QR encodes.
-     Replaces the old huge yellow `.room-code` marquee. */
-  #prescreen .room-line {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-size: 9px; letter-spacing: 0.22em;
-    color: rgba(255, 255, 255, 0.55);
-  }
-  #prescreen .room-label { color: rgba(255, 255, 255, 0.4); }
-  #prescreen .room-code {
-    color: #fff; letter-spacing: 0.3em;
-    font-size: 12px;
   }
 
   /* Hero row: pairs the QR card with the START button. On portrait
@@ -588,10 +570,6 @@
     </div>
     <div id="prescreen">
       <div class="title">INVADERS</div>
-      <div class="room-display">
-        <span class="label">ROOM</span>
-        <span class="code" data-room-code>····</span>
-      </div>
 
       <!-- One slot per seat, colour-coded. Dimmed when empty, lit when
            occupied, with a YOU pill on the local seat. The .ps-avatar
