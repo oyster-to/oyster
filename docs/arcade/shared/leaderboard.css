@@ -31,6 +31,45 @@
 .leaderboard .lb-rank     { color: #ff3aa1; text-align: right; }
 .leaderboard .lb-initials { color: #2dd4ff; text-align: left; letter-spacing: 0.2em; }
 .leaderboard .lb-score    { color: #ffd84a; text-align: right; }
+
+/* Optional 4th column — a humanised "since" timestamp (e.g. "2m ago"). A game
+   opts in by passing showSince:true to paintList, which renders the .lb-since
+   cell AND adds .has-since here so the grid makes room for it. Rocket Ship uses
+   it; Invaders / Space Jumper stay 3-column. */
+.leaderboard .lb-list.has-since { grid-template-columns: auto auto auto auto; column-gap: 18px; }
+.leaderboard .lb-since {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.78em;
+  letter-spacing: 0.1em;
+  text-align: left;
+}
+
+/* The player's just-entered row — paintList({ highlight: {score,initials} })
+   adds .is-you to the matching <li>. .lb-list li is display:contents (no row
+   box), so light up the cells: a quick flash to announce it, then a cyan->gold
+   pulse so a player (especially a kid) can see exactly where they placed. */
+.leaderboard .lb-list li.is-you span {
+  color: #fff;
+  animation:
+    lb-you-flash 0.2s steps(1) 5,
+    lb-you-glow 0.9s ease-in-out 1s infinite;
+}
+@keyframes lb-you-flash {
+  0%, 100% { opacity: 1;   text-shadow: 0 0 18px #fff; }
+  50%      { opacity: 0.2; text-shadow: none; }
+}
+@keyframes lb-you-glow {
+  0%, 100% { text-shadow: 0 0 5px rgba(45, 212, 255, 0.6); }
+  50%      { text-shadow: 0 0 16px rgba(255, 216, 74, 0.95); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* No flash/pulse — keep a static glow so the row is still clearly marked. */
+  .leaderboard .lb-list li.is-you span {
+    animation: none;
+    text-shadow: 0 0 10px rgba(45, 212, 255, 0.8);
+  }
+}
+
 .leaderboard .lb-empty {
   font-size: clamp(10px, 1.4vw, 12px);
   color: rgba(255, 255, 255, 0.55);

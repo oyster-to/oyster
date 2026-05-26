@@ -89,6 +89,16 @@
 
   async function submit(score, initials) {
     if (!game) return { ok: false, error: 'not_initialised' };
+    // Optimistic local insert — runs synchronously before the cloud round-trip
+    // so the player sees their score (and the UI can highlight it) the instant
+    // the board paints, instead of waiting on / depending on the network. The
+    // cloud stays the source of truth: a successful submit overwrites the mirror
+    // with the canonical list below, and refresh() reconciles on next load.
+    const optimistic = read();
+    optimistic.push({ score, initials, created_at: Date.now() });
+    optimistic.sort((a, b) => b.score - a.score);
+    write(optimistic.slice(0, MAX));
+
     const token = await ensurePlayToken();
     if (!token) return { ok: false, error: 'no_token' };
     try {
@@ -147,6 +157,9 @@
     const emptyText = opts.emptyText || 'NO SCORES YET — BE THE FIRST';
     const showSince = !!opts.showSince;
     const fmtSince  = opts.sinceFormatter || (() => '');
+    // Match the grid to whether we render the since cell (CSS .has-since adds
+    // the 4th column) so both 3- and 4-column games lay out correctly.
+    ol.classList.toggle('has-since', showSince);
     const list = read();
     ol.textContent = '';
     if (!list.length) {
@@ -158,8 +171,18 @@
       ol.appendChild(li);
       return;
     }
+    // Optional { score, initials } to flag as the player's just-entered row —
+    // the matching <li> gets an `is-you` class for the game to style/animate.
+    // Only the FIRST match is flagged: duplicate score+initials entries are
+    // common, and highlighting several rows would be confusing.
+    const hl = opts.highlight || null;
+    let highlighted = false;
     list.forEach((e, i) => {
       const li = document.createElement('li');
+      if (!highlighted && hl && e.score === hl.score && (e.initials || '') === (hl.initials || '')) {
+        li.classList.add('is-you');
+        highlighted = true;
+      }
       const cols = [
         ['lb-rank',     String(i + 1).padStart(2, '0') + '.'],
         ['lb-initials', e.initials || '---'],

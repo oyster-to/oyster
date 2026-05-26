@@ -16,122 +16,27 @@
     document.documentElement.classList.add('is-arcade-embedded');
   }
 </script>
+<link rel="stylesheet" href="arcade/shared/pixel-font.css">
+<link rel="stylesheet" href="arcade/shared/cabinet.css">
+<link rel="stylesheet" href="arcade/shared/touch.css">
+<link rel="stylesheet" href="arcade/shared/overlays.css">
+<link rel="stylesheet" href="arcade/shared/splash.css">
+<link rel="stylesheet" href="arcade/shared/leaderboard.css">
 <style>
-  /* Self-hosted to ensure the full glyph set is available. Google Fonts
-     subsets Press Start 2P into per-script WOFF2 files and arrow/symbol
-     codepoints (U+2190 ←, U+2192 →, U+2605 ★, U+266A ♪) aren't in any of
-     them, so they fall back to system fonts when loaded from Google. */
-  @font-face {
-    font-family: 'Press Start 2P';
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-    src: url('assets/PressStart2P-Regular.ttf') format('truetype');
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: #0a0a0a;
-    margin: 0;
-    overflow: hidden;
-    height: 100vh;     /* fallback */
-    height: 100svh;    /* iOS Safari/Chrome: clip to visible viewport */
-    width: 100vw;
-    /* Suppress iOS text selection / Copy popup when a tap drifts slightly
-       during gameplay or on the splash. Everything in the game is visual
-       — nothing should be selectable. */
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
-    -webkit-tap-highlight-color: transparent;
-  }
+  /* pixel-font.css (shared) provides the Press Start 2P @font-face, the *
+     reset, and the body/canvas gesture + selection lock. */
 
   /* Screen container — old CRT bezel (warm-gray molded plastic) */
-  .screen {
-    position: relative;
-    width: 100vw;
-    height: 100vh;     /* fallback */
-    height: 100svh;    /* clip to visible viewport on iOS Safari/Chrome */
-    overflow: hidden;
-    /* Bezel: dark gradient simulating molded plastic frame, with
-       a soft inner shadow giving the bezel depth. */
-    background:
-      linear-gradient(180deg, #2a2724 0%, #1a1815 50%, #100e0c 100%);
-    padding: 22px;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.06),
-      inset 0 -2px 6px rgba(0, 0, 0, 0.6);
-  }
-
-  /* The tube — inset darker than the bezel, pronounced rounded glass corners
-     for that bulbous old-CRT look. */
-  .tube {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background: #000;
-    border-radius: 36px;
-    box-shadow:
-      /* deep inner shadow makes the bezel look thick around the tube */
-      inset 0 0 0 1px rgba(0, 0, 0, 0.9),
-      inset 0 0 40px rgba(0, 0, 0, 0.85),
-      0 0 0 2px rgba(0, 0, 0, 0.7);
-  }
-
-  canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
-    filter: contrast(1.02) brightness(1.18) saturate(1.3);
-  }
+  /* cabinet.css (shared) provides .screen (bezel), .tube, canvas filter,
+     .overlay (CRT scanlines), .vignette, crt-shake, splash-poweron + arcade-blink
+     keyframes, and the coarse-pointer edge-to-edge tweak. */
 
   /* On-screen touch controls — only on coarse-pointer devices and only once
      the splash dismisses (tube.is-ready). Two thumb clusters: turn-pair in
      the bottom-left, thrust in the bottom-right. */
-  .touch-controls {
-    position: absolute;
-    inset: auto 0 0 0;
-    display: none;
-    justify-content: space-between;
-    align-items: flex-end;
-    padding: clamp(14px, 3vw, 28px);
-    pointer-events: none;
-    z-index: 6;
-  }
-  .tube.is-ready .touch-controls { display: flex; }
-  @media (hover: hover) and (pointer: fine) {
-    .touch-controls { display: none !important; }
-  }
-  .touch-controls .tc-group {
-    display: flex;
-    gap: clamp(10px, 2vw, 16px);
-    pointer-events: none;
-  }
-  .touch-controls .tc-btn {
-    pointer-events: auto;
-    width: clamp(56px, 11vw, 80px);
-    height: clamp(56px, 11vw, 80px);
-    border-radius: 12px;
-    border: 2px solid rgba(45, 212, 255, 0.6);
-    background: rgba(0, 0, 0, 0.35);
-    color: #2dd4ff;
-    font-family: 'Press Start 2P', ui-monospace, monospace;
-    font-size: clamp(20px, 4vw, 30px);
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    user-select: none;
-    transition: background 0.08s, border-color 0.08s;
-  }
-  .touch-controls .tc-btn:active,
-  .touch-controls .tc-btn.is-pressed {
-    background: rgba(45, 212, 255, 0.25);
-    border-color: #2dd4ff;
-    color: #fff;
-  }
+  /* touch.css (shared) provides the .touch-controls layout container, the
+     .tc-btn base + pressed state, and the .key-only/.touch-only utility.
+     Only rocket-ship's bigger orange thrust button stays game-specific. */
   .touch-controls .tc-thrust {
     width: clamp(72px, 14vw, 100px);
     height: clamp(72px, 14vw, 100px);
@@ -145,111 +50,14 @@
     color: #fff;
   }
 
-  /* Show keyboard hints by default; swap to touch labels on coarse
-     pointers. display:revert lets each element fall back to its natural
-     display value (div → block, span → inline) so the utility works in
-     both block and inline contexts. */
-  .touch-only { display: none; }
-  @media (pointer: coarse) {
-    .key-only { display: none; }
-    .touch-only { display: revert; }
-    /* Touch devices — drop the cabinet bezel + rounded tube edges so
-       the splash + playfield go edge-to-edge. Phones and tablets
-       don't have screen real estate to spare for chrome. */
-    .screen { padding: 0; background: #000; }
-    .tube   { border-radius: 0; box-shadow: none; }
-  }
+  /* .key-only / .touch-only show-on-coarse utility now from touch.css;
+     the coarse bezel/tube edge-to-edge tweak from cabinet.css. */
 
-  /* CRT scanlines + RGB sub-pixel overlay */
-  /* CRT layers sit ABOVE the splash/gameover/celebrate panels so the scanlines
-     + vignette read on every screen, not just gameplay. pointer-events:none
-     means they don't intercept input from the panels below. */
-  .overlay {
-    height: 100%;
-    left: 0;
-    position: absolute;
-    top: 0;
-    width: 100%;
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-  }
-  .overlay::after {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-image: url('assets/crt.png');
-    background-repeat: no-repeat;
-    background-size: 100% 100%;
-    content: "";
-    opacity: 0.55;
-  }
-  /* Softer vignette — corners fade toward the bezel, never fully black */
-  .vignette {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: radial-gradient(ellipse at center,
-      transparent 55%,
-      rgba(0, 0, 0, 0.22) 80%,
-      rgba(0, 0, 0, 0.45) 100%);
-    pointer-events: none;
-    z-index: 11;
-    border-radius: 36px;
-  }
 
-  /* Hide the game canvas until the title splash is dismissed.
-     The tube reveals the canvas once .ready is on the tube. */
-  .tube canvas { visibility: hidden; }
-  .tube.is-ready canvas { visibility: visible; }
-
-  /* Crash shake — applied to .tube briefly when the rocket dies */
-  @keyframes crt-shake {
-    0%, 100% { transform: translate(0, 0) rotate(0); }
-    10% { transform: translate(-3px,  2px) rotate(-0.4deg); }
-    20% { transform: translate( 4px, -2px) rotate( 0.3deg); }
-    30% { transform: translate(-3px,  3px) rotate(-0.3deg); }
-    40% { transform: translate( 3px,  2px) rotate( 0.4deg); }
-    50% { transform: translate(-3px, -3px) rotate(-0.3deg); }
-    60% { transform: translate( 2px, -3px) rotate( 0.2deg); }
-    70% { transform: translate(-2px,  2px) rotate(-0.1deg); }
-    80% { transform: translate( 1px, -1px) rotate( 0.1deg); }
-    90% { transform: translate(-1px,  1px) rotate(0); }
-  }
-  .tube.is-shaking { animation: crt-shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
-
-  /* Retro arcade splash — boot sequence, then INSERT COIN screen */
-  .splash {
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    background: #000;
-    font-family: 'Press Start 2P', ui-monospace, monospace;
-    color: #fff;
-    overflow: hidden;
-    /* CRT power-on: thin horizontal line snaps open to full screen */
-    animation: splash-poweron 0.55s ease-out;
-  }
-  .splash.is-hidden {
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.25s ease;
-  }
-  /* @keyframes splash-poweron — inline here because rocket-ship.html is a
-     standalone page that doesn't load shared/cabinet.css (it predates the
-     shared cabinet styles + has its own .tube/.overlay setup inline). */
-  @keyframes splash-poweron {
-    0%   { transform: scale(1, 0.005); filter: brightness(3.5); }
-    55%  { transform: scale(1, 0.005); filter: brightness(3.5); }
-    80%  { transform: scale(1, 1); filter: brightness(2); }
-    100% { transform: scale(1, 1); filter: brightness(1); }
-  }
+  /* splash.css (shared) provides .splash, .splash.is-hidden, the .splash-main
+     layout, .start, .controls, .credit, .hiscore-row, and the .splash-view
+     cycler. rocket-ship's own SYSTEM BOOT, title, and sound toggle stay below.
+     (.splash background is #000 — the shared --splash-bg default — so no var.) */
 
   /* SYSTEM BOOT — easter-egg-only intro on direct visits (not embedded
      in the arcade cabinet, which has its own splash). Phosphor-cyan
@@ -310,16 +118,9 @@
   }
   @keyframes boot-fill    { to { width: 100%; } }
 
+  /* splash.css provides the .splash-main layout; rocket-ship adds only the
+     SYSTEM BOOT reveal — hidden until the boot bar finishes (~2.75s), then in. */
   .splash .splash-main {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 40px 24px;
-    gap: clamp(18px, 3vw, 32px);
     opacity: 0;
     visibility: hidden;
     animation: boot-show 0.45s 2.75s forwards, splash-reveal 0.45s 2.75s forwards;
@@ -369,41 +170,7 @@
   @media (prefers-reduced-motion: reduce) {
     .title-rocket, .title-rocket .flame { animation: none; }
   }
-  .splash .start {
-    font-size: clamp(11px, 2vw, 16px);
-    letter-spacing: 0.16em;
-    color: #fff;
-    animation: arcade-blink 1s steps(1) infinite;
-  }
-  /* @keyframes arcade-blink — inline for the same reason as splash-poweron
-     above (rocket-ship.html doesn't load shared/cabinet.css). */
-  @keyframes arcade-blink {
-    0%, 50% { opacity: 1; }
-    51%, 100% { opacity: 0; }
-  }
-  .splash .controls {
-    display: grid;
-    grid-template-columns: auto auto;
-    gap: 10px 18px;
-    font-size: clamp(8px, 1.2vw, 11px);
-    letter-spacing: 0.08em;
-    color: #b8b8d0;
-    margin-top: 6px;
-  }
-  .splash .controls .key {
-    color: #2dd4ff;
-    text-align: right;
-  }
-  .splash .controls .desc {
-    color: #fff;
-    text-align: left;
-  }
-  .splash .credit {
-    font-size: clamp(7px, 1vw, 9px);
-    letter-spacing: 0.2em;
-    color: rgba(255, 255, 255, 0.35);
-    margin-top: clamp(12px, 2vw, 20px);
-  }
+  /* .splash .start / .controls / .credit now from splash.css. */
   .splash .sound-toggle {
     position: absolute;
     top: clamp(10px, 1.6vw, 18px);
@@ -436,161 +203,22 @@
     text-decoration-thickness: 0.12em;
   }
   @media (prefers-reduced-motion: reduce) {
-    .splash { animation: none; }
+    /* splash.css disables the .splash + .start animations; here we just tame
+       the game-specific SYSTEM BOOT so .splash-main still reveals (splash-reveal
+       flips visibility — without it, it stays hidden for these users). */
     .splash .boot         { animation: boot-show 0.3s forwards; }
-    /* splash-reveal flips visibility — without it, .splash-main starts
-       hidden and never becomes visible for reduced-motion users. */
     .splash .splash-main  { animation: boot-show 0.3s forwards, splash-reveal 0.3s forwards; }
     .splash .boot.is-running .boot-bar-fill { animation: boot-fill 0.6s linear forwards; }
-    .splash .start        { animation: none; opacity: 1; }
   }
 
-  .splash .hiscore-row {
-    font-size: clamp(9px, 1.3vw, 12px);
-    letter-spacing: 0.18em;
-    color: #ff3aa1;
-    margin-top: clamp(8px, 1.4vw, 14px);
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .splash .hiscore-row .hs-val { color: #ffd84a; }
-  .splash .hiscore-row .hs-initials { color: #2dd4ff; }
+  /* .splash .hiscore-row and the .splash-view cycler styling now from splash.css. */
+  /* leaderboard.css (shared) provides the .leaderboard / .lb-* styling, the
+     optional since column (.has-since), and the .is-you highlight. rocket-ship
+     opts into both via paintList({ showSince: true, highlight }). */
 
-  /* Splash views (title-card / leaderboard) auto-cycle */
-  .splash-main .splash-view {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: clamp(14px, 2.4vw, 28px);
-    padding: 40px 24px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.5s ease;
-  }
-  .splash-main .splash-view.is-active {
-    opacity: 1;
-    pointer-events: auto;
-  }
-  .leaderboard {
-    color: #fff;
-    font-family: 'Press Start 2P', ui-monospace, monospace;
-  }
-  .leaderboard .lb-title {
-    font-size: clamp(18px, 3.5vw, 32px);
-    color: #ffd84a;
-    letter-spacing: 0.12em;
-    text-shadow: 3px 3px 0 #ff3aa1, 5px 5px 0 #2dd4ff;
-    margin-bottom: clamp(8px, 1.5vw, 16px);
-  }
-  .leaderboard .lb-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: grid;
-    grid-template-columns: auto auto auto auto;
-    gap: 6px 18px;
-    font-size: clamp(10px, 1.5vw, 14px);
-    letter-spacing: 0.14em;
-    align-items: center;
-  }
-  .leaderboard .lb-list li {
-    display: contents;
-  }
-  .leaderboard .lb-rank { color: #ff3aa1; text-align: right; }
-  .leaderboard .lb-initials { color: #2dd4ff; text-align: left; letter-spacing: 0.2em; }
-  .leaderboard .lb-score { color: #ffd84a; text-align: right; }
-  .leaderboard .lb-since {
-    color: rgba(255, 255, 255, 0.4);
-    font-size: 0.78em;
-    letter-spacing: 0.1em;
-    text-align: left;
-  }
-  .leaderboard .lb-empty {
-    font-size: clamp(10px, 1.4vw, 12px);
-    color: rgba(255, 255, 255, 0.55);
-    letter-spacing: 0.14em;
-  }
-
-  /* Game over overlay — same arcade vibe */
-  .gameover {
-    position: absolute;
-    inset: 0;
-    z-index: 4;
-    background: rgba(0, 0, 0, 0.88);
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    font-family: 'Press Start 2P', ui-monospace, monospace;
-    color: #fff;
-    gap: clamp(16px, 2.6vw, 26px);
-    padding: 40px 24px;
-    animation: splash-poweron 0.3s ease-out;
-  }
-  .gameover.is-visible { display: flex; }
-  .gameover .go-title {
-    font-size: clamp(28px, 6.5vw, 60px);
-    color: #ff3aa1;
-    text-shadow:
-      3px 3px 0 #2dd4ff,
-      6px 6px 0 #ffd84a,
-      0 0 16px rgba(255, 58, 161, 0.45);
-  }
-  .gameover .go-score {
-    font-size: clamp(14px, 2.2vw, 18px);
-    color: #ffd84a;
-    letter-spacing: 0.18em;
-  }
-  .gameover .go-hiscore {
-    font-size: clamp(9px, 1.3vw, 12px);
-    color: #2dd4ff;
-    letter-spacing: 0.18em;
-    min-height: 14px;
-  }
-  .gameover .go-prompt {
-    font-size: clamp(10px, 1.6vw, 14px);
-    letter-spacing: 0.18em;
-    color: #fff;
-    animation: arcade-blink 1s steps(1) infinite;
-  }
-  .gameover .go-initials {
-    display: flex; flex-direction: column;
-    align-items: center; gap: 12px;
-    margin-top: 8px;
-  }
-  .gameover .go-initials-label {
-    font-size: clamp(10px, 1.5vw, 13px);
-    letter-spacing: 0.2em;
-    color: #ff3aa1;
-  }
-  .gameover .go-initials-slots {
-    display: inline-flex;
-    gap: 18px;
-    font-size: clamp(28px, 5vw, 44px);
-    color: #ffd84a;
-    text-shadow: 2px 2px 0 #ff3aa1, 4px 4px 0 #2dd4ff;
-    letter-spacing: 0.1em;
-  }
-  .gameover .go-slot {
-    display: inline-block;
-    min-width: 1ch;
-    padding: 0 4px;
-    border-bottom: 4px solid rgba(255, 216, 74, 0.3);
-  }
-  .gameover .go-slot.is-active {
-    border-bottom-color: #2dd4ff;
-    animation: arcade-blink 0.6s steps(1) infinite;
-  }
-  .gameover .go-initials-hint {
-    font-size: clamp(8px, 1.1vw, 10px);
-    letter-spacing: 0.16em;
-    color: rgba(255, 255, 255, 0.6);
-  }
+  /* overlays.css (shared) provides the .gameover / .go-* game-over + initials
+     styles. rocket-ship's palette matches the shared defaults exactly, so no
+     --go-* variable overrides are needed. */
 
   /* #1 celebration — pixel flag on a pole. No confetti. */
   .celebrate {
@@ -693,28 +321,6 @@
     .celebrate { animation: none; }
     .celebrate-text, .celebrate-sub, .celebrate-flag .flag-cloth { animation: none; }
   }
-  .overlay::before {
-    position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    right: 0;
-    content: " ";
-    background:
-      linear-gradient(
-        rgba(18, 16, 16, 0) 50%,
-        rgba(0, 0, 0, 0.35) 50%
-      ),
-      linear-gradient(
-        90deg,
-        rgba(255, 0, 0, 0.1),
-        rgba(0, 255, 0, 0.04),
-        rgba(0, 0, 255, 0.1)
-      );
-    z-index: 2;
-    background-size: 100% 3px, 3px 100%;
-    pointer-events: none;
-  }
 </style>
 </head>
 <body>
@@ -732,10 +338,13 @@
      ESC remains a close-the-easter-egg gesture (handled by iframe-host
      when embedded in oyster.to's home page). -->
 <script src="arcade/shared/audio.js"></script>
+<script src="arcade/shared/music.js"></script>
 <script src="arcade/shared/touch.js"></script>
 <script src="arcade/shared/leaderboard.js"></script>
 <script src="arcade/shared/splash.js"></script>
 <script src="arcade/shared/initials.js"></script>
+<script src="arcade/shared/end-overlay.js"></script>
+<script src="arcade/shared/pause.js"></script>
 <script src="arcade/shared/iframe-host.js"></script>
 <div class="screen">
   <div class="tube">
@@ -1124,8 +733,7 @@ function triggerGameOver() {
   if (gameOver) return;
   gameOver = true;
   playCrash();
-  const bgmGame = document.getElementById('bgm-game');
-  if (bgmGame) bgmGame.pause();
+  Arcade.Music.pause();   // pause the game track on death
   // Screen shake on impact
   const tube = document.querySelector('.tube');
   if (tube) {
@@ -1176,13 +784,13 @@ function restartGame() {
   hasMoved = false;
   movedAt = 0;
   update.lastThrusting = false;
-  const ov = document.getElementById('gameover');
-  if (ov) ov.classList.remove('is-visible');
-  const bgmGame = document.getElementById('bgm-game');
-  if (bgmGame) { bgmGame.currentTime = 0; bgmGame.play().catch(() => {}); }
+  Arcade.EndOverlay.hide();
+  Arcade.Music.play('bgm-game', { gain: 0.4 });   // game track (pauses the title track)
 }
 
 function update() {
+  // Paused → hard-freeze everything (the pause overlay sits on top at z 9999).
+  if (Arcade.Pause.isPaused()) return;
   // Splash is up → don't run gameplay (and don't let asteroids creep into
   // the static rocket while user reads the title screen). Particles still
   // animate so the post-explosion debris keeps drifting on the gameover overlay.
@@ -1472,14 +1080,9 @@ function loop() {
 
 loop();
 
-// 8-bit title music — initialised here but started by the splash IIFE
-// once the boot sequence completes. Title music ends when the splash is
-// dismissed (entering the game).
-(function () {
-  const bgm = document.getElementById('bgm');
-  if (!bgm) return;
-  bgm.volume = 0.45;
-})();
+// BGM is driven by Arcade.Music (shared): the splash hooks below play the title
+// (`bgm`, gain 0.45) / game (`bgm-game`, gain 0.4) tracks; play() pauses the
+// other one, and retryPending() recovers a title track blocked by iOS autoplay.
 
 // One-time migration of the legacy single-key mute (`oyster-rocket-muted`)
 // into the arcade-wide music + sfx mute keys, before Arcade.Audio inits.
@@ -1517,6 +1120,11 @@ Arcade.Audio.init({
   volumeKey: 'oyster-arcade-sfx-volume',
   mutedKey:  'oyster-arcade-sfx-muted',
 });
+
+// Pause (P / ESC) is allowed only during live gameplay — never on the title,
+// attract, or game-over (mirrors the other cabinet games' canPause gate).
+Arcade.Pause.canPause = () => Arcade.Splash.isPlaying() && !gameOver;
+
 function ensureAudioCtx() { return Arcade.Audio.ensureCtx(); }
 function playCoin()  { Arcade.Audio.play('sfx-powerup',   0.55); }
 function playCrash() { Arcade.Audio.play('sfx-explosion', 0.75); }
@@ -1528,27 +1136,28 @@ function playThruster() {
   Arcade.Audio.play('sfx-thruster', 0.4);
 }
 
-// Sound toggle on the splash. Mutes EVERYTHING (BGM + SFX) by flipping both
-// arcade-wide mute keys so the state is shared across rocket-ship and the
-// arcade cabinet games.
+// Sound toggle on the splash — a quick all-mute. Routes through Arcade.Pause so
+// it stays in sync with the pause overlay's MUSIC/SFX sliders (shared volume
+// keys across rocket-ship and the cabinet games).
 (function () {
-  const MUSIC_KEY = 'oyster-arcade-music-muted';
-  const SFX_KEY   = 'oyster-arcade-sfx-muted';
   const btn = document.getElementById('sound-toggle');
   if (!btn) return;
-  function readBool(k) { try { return localStorage.getItem(k) === '1'; } catch (_) { return false; } }
-  function writeBool(k, v) { try { localStorage.setItem(k, v ? '1' : '0'); } catch (_) {} }
-  function applyMusic(m) { document.querySelectorAll('audio[id^="bgm"]').forEach(a => { a.muted = m; }); }
-  function setMuted(m) {
-    writeBool(MUSIC_KEY, m);
-    applyMusic(m);
-    Arcade.Audio.setMuted(m);
+  // Read-only: reflect the shared mute state on the button (either channel at
+  // volume 0 reads as muted). Used on load and whenever the pause overlay's
+  // sliders change — so we never clobber a partial volume on load, and the ♪
+  // button stays in sync with the overlay.
+  function syncBtn() {
+    const m = Arcade.Pause.isMusicMuted() || Arcade.Pause.isSfxMuted();
     btn.classList.toggle('is-muted', m);
     btn.setAttribute('aria-pressed', String(m));
   }
-  // Both flags must be consistent — if a sister cabinet game set only one,
-  // treat the splash button as muted (safer) and re-sync.
-  setMuted(readBool(MUSIC_KEY) || readBool(SFX_KEY));
+  function setMuted(m) {
+    Arcade.Pause.setMusicMuted(m);
+    Arcade.Pause.setSfxMuted(m);
+    syncBtn();
+  }
+  syncBtn();                       // initial paint (no volume write)
+  Arcade.Pause.onToggle(syncBtn);  // keep in sync with the pause overlay sliders
   // Stop pointer events from bubbling to the splash's global dismiss listener.
   ['mousedown', 'touchstart', 'pointerdown'].forEach(ev => {
     btn.addEventListener(ev, e => e.stopPropagation(), { passive: true });
@@ -1652,14 +1261,19 @@ function paintSplashHighScore() {
     pad: 3,
   });
 }
+// The player's most-recently-saved { score, initials }, so the leaderboard can
+// flash the row they just landed on. Null until they enter a qualifying score.
+let lastEntry = null;
 function paintLeaderboard() {
   // Rocket Ship is the only game showing the humanised "since" column on the
   // leaderboard list. Module supports it via showSince + sinceFormatter.
+  // highlight flags the player's just-entered row (.is-you) — see lb-you-glow.
   Arcade.Leaderboard.paintList({
     listSelector:   '#lb-list',
     pad:            3,
     showSince:      true,
     sinceFormatter: sincePhrase,
+    highlight:      lastEntry,
   });
 }
 paintSplashHighScore();
@@ -1676,32 +1290,24 @@ paintLeaderboard();
 // audio-context kick. enterAttract() (from the game-over paths) re-shows the
 // splash on the leaderboard; the loop reads Arcade.Splash.isPlaying().
 (function () {
-  const bgm = document.getElementById('bgm');           // title music
-  const bgmGame = document.getElementById('bgm-game');  // game music
-  let awaiting = false;   // title music blocked by autoplay policy; retry on first gesture
-  function startTitleMusic() { if (!bgm) return; bgm.currentTime = 0; bgm.play().catch(() => { awaiting = true; }); }
-  function startGameMusic()  { if (!bgmGame) return; bgmGame.volume = 0.4; bgmGame.currentTime = 0; bgmGame.play().catch(() => {}); }
-
   Arcade.Splash.mount({
     splash: '#splash', tube: '.tube',
     views: '#splash .splash-main .splash-view', boot: '#splash .boot',
     titleIndex: 0, leaderboardIndex: 1, cycleMs: 5500, bootMs: 2750,
     isBusy: () => !!(window.Arcade && Arcade.Initials && Arcade.Initials.isActive && Arcade.Initials.isActive()),
-    onTitle() { if (bgmGame) bgmGame.pause(); startTitleMusic(); },
-    onPlay()  { if (bgm) bgm.pause(); awaiting = false; startGameMusic(); if (typeof restartGame === 'function') restartGame(); },
+    // Arcade.Music owns BGM: play() pauses the other track for us.
+    onTitle() { Arcade.Music.play('bgm', { gain: 0.45 }); },
+    onPlay()  { if (typeof restartGame === 'function') restartGame(); },  // restartGame starts the game track
     onLeaderboardShow() { paintLeaderboard(); },
     unlockAudio() {
       if (typeof ensureAudioCtx === 'function') ensureAudioCtx();
-      if (awaiting && bgm) { bgm.play().catch(() => {}); awaiting = false; }
+      Arcade.Music.retryPending();   // recover a title track the iOS autoplay policy blocked
     },
   });
 
-  // ESC inside the iframe -> ask the parent to close (keyboard events don't
-  // bubble out of the iframe; shared/splash.js deliberately ignores ESC).
-  window.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    try { window.parent.postMessage({ type: 'oyster-rocket-close' }, '*'); } catch (_) {}
-  });
+  // ESC is owned by shared/pause.js (toggles the pause overlay). The hosts
+  // handle closing the cabinet: the arcade frame has its own × + message
+  // listener, and the oyster.to easter-egg host has its own parent-level ESC.
 })();
 
 // ============================================
@@ -1710,21 +1316,25 @@ paintLeaderboard();
 (function () {
   const ov = document.getElementById('gameover');
   if (!ov) return;
-  const initialsBox   = document.getElementById('go-initials');
-  const promptEl      = document.getElementById('go-prompt');
-  const hiscoreLineEl = document.getElementById('go-hiscore');
 
   let pendingScore = 0;
 
+  // The overlay's show/hide, the input grace window, and the score/hi-score
+  // text are owned by shared/end-overlay.js (its default selectors match this
+  // page's #gameover / #go-* DOM). The game still decides WHEN to celebrate,
+  // open initials, or just prompt.
+  Arcade.EndOverlay.mount();
+
   // Initials state machine + listeners are owned by shared/initials.js.
-  // Rocket Ship uses ▲ as the SELECT button during initials. onSubmit kicks
-  // back into attract-mode after writing the score.
+  // Rocket Ship uses ▲ as the SELECT button during initials. onSubmit writes
+  // the score, hides the overlay, and kicks back into attract-mode.
   Arcade.Initials.mount({
     fireButton: '#tc-thrust',
     fireLabel:  { idle: '▲', select: '✓' },
     onSubmit: (initials) => {
+      lastEntry = { score: pendingScore, initials };   // flash this row on the board
       addToLeaderboard(pendingScore, initials);
-      ov.classList.remove('is-visible');
+      Arcade.EndOverlay.hide();
       Arcade.Splash.enterAttract();
     },
   });
@@ -1734,70 +1344,60 @@ paintLeaderboard();
     if (!list.length) return score > 0;
     return score > list[0].score;   // strictly beat current top
   }
+
+  // Show the overlay for the just-ended run. A QUALIFYING score gets the
+  // "RANK — TOP N" line + immediate initials (Rocket Ship's long-standing
+  // behaviour — no "press a key to enter initials" step). A NON-qualifying
+  // score shows ONLY the player's own score — no all-time-high line, which
+  // confused kids into thinking their score WAS the high score. The high-score
+  // table lives in attract mode (the cycling HIGH SCORES scene), like the
+  // classic arcades. graceMs keeps a held death-key from blowing past it.
+  function showOverlay(beat) {
+    Arcade.EndOverlay.show({
+      score: pendingScore,
+      qualifies: beat,
+      hiscoreText: beat ? `RANK ON THE LEADERBOARD — TOP ${LB_SIZE}` : '',
+      graceMs: 600,
+    });
+    if (beat) Arcade.Initials.open();
+    else      Arcade.Initials.close();   // ensure the slots are hidden / prompt shown
+  }
   function showGameOverWith(score) {
     pendingScore = score;
     const beat = qualifiesForLeaderboard(score);
-    // New #1 → flag goes up first; initials prompt appears on dismissal.
-    if (beat && isNewBest(score)) {
-      showCelebration(() => paintGameOverOverlay(true));
-    } else {
-      paintGameOverOverlay(beat);
-    }
-  }
-  function paintGameOverOverlay(beat) {
-    ov.classList.add('is-visible');
-    const hs = getHighScore();
-    if (beat) {
-      hiscoreLineEl.textContent = `RANK ON THE LEADERBOARD — TOP ${LB_SIZE}`;
-      Arcade.Initials.open();
-    } else {
-      hiscoreLineEl.textContent = `HIGH SCORE ${String(hs.score).padStart(3,'0')} ${hs.initials}`;
-      initialsBox.hidden = true;
-      promptEl.hidden    = false;
-    }
+    // New #1 → flag goes up first; overlay + initials appear on its dismissal.
+    if (beat && isNewBest(score)) showCelebration(() => showOverlay(true));
+    else                          showOverlay(beat);
   }
 
   // Expose for triggerGameOver -> setTimeout fade-in
   window.__rocketShowGameOver = showGameOverWith;
 
-  // Touch routing for the game-over overlay. Returns true if the action was
-  // consumed so the touch-button bindings know to suppress their game
-  // (rotate/thrust) side-effects. ◀/▶ cycle the active letter, ▲ advances /
-  // saves on the last slot — handled by Arcade.Initials.action() while
-  // entering initials, dismiss-to-attract-mode otherwise.
-  window.__rocketGameOverTouch = function (action) {
-    if (!ov.classList.contains('is-visible')) return false;
-    if (Arcade.Initials.isActive()) {
-      Arcade.Initials.action(action);
-      return true;
-    }
-    // Non-initials game-over: any touch button dismisses.
-    ov.classList.remove('is-visible');
+  // Dismiss the overlay (back to attract) when NOT entering initials, and only
+  // once the grace window has elapsed. shared/initials.js owns the keyboard
+  // while initials is active.
+  function dismiss() {
+    if (!Arcade.EndOverlay.isVisible()) return;
+    if (!Arcade.EndOverlay.acceptsInput()) return;   // grace window
+    if (Arcade.Initials.isActive()) return;
+    Arcade.EndOverlay.hide();
     Arcade.Splash.enterAttract();
+  }
+
+  // Touch routing for the on-screen buttons during game-over. Returns true if
+  // consumed so the touch bindings suppress their game (rotate/thrust) side
+  // effects. ◀/▶/▲ drive initials while active; otherwise any button dismisses.
+  window.__rocketGameOverTouch = function (action) {
+    if (!Arcade.EndOverlay.isVisible()) return false;
+    if (Arcade.Initials.isActive()) { Arcade.Initials.action(action); return true; }
+    dismiss();
     return true;
   };
 
-  // Click on the gameover overlay dismisses when not entering initials.
-  // Direct-on-element click is reliable on iOS inside iframes where the
-  // older window.touchstart pattern was flaky. Initials entry uses the
-  // dedicated on-screen buttons instead (handled by shared/initials.js).
-  ov.addEventListener('click', () => {
-    if (!ov.classList.contains('is-visible')) return;
-    if (Arcade.Initials.isActive()) return;
-    ov.classList.remove('is-visible');
-    Arcade.Splash.enterAttract();
-  });
-
-  // Non-initials dismiss path — shared/initials.js handles the keyboard
-  // while it's active, so we only handle the "no initials, any key
-  // dismisses to attract mode" case here.
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') return;
-    if (!ov.classList.contains('is-visible')) return;
-    if (Arcade.Initials.isActive()) return;
-    ov.classList.remove('is-visible');
-    Arcade.Splash.enterAttract();
-  });
+  // Direct-on-element click is reliable on iOS inside iframes where the older
+  // window.touchstart pattern was flaky.
+  ov.addEventListener('click', dismiss);
+  window.addEventListener('keydown', (e) => { if (e.key !== 'Escape') dismiss(); });
 })();
 </script>
 </body>
