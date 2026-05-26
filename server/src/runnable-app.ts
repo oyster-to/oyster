@@ -1,6 +1,8 @@
 // Detect a project's runnable web app from its package.json `dev` script,
 // and build the launch invocation. Pure functions — no surprises, easily
 // tested. See docs/superpowers/specs/2026-05-26-runnable-app-detection-design.md.
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 export type Framework = "vite" | "next";
 
@@ -38,4 +40,39 @@ export function buildLaunchArgv(framework: Framework, port: number): string[] {
   const base = ["npm", "run", "dev", "--"];
   if (framework === "vite") return [...base, "--port", String(port), "--strictPort"];
   return [...base, "-p", String(port)]; // next
+}
+
+export interface RunnableApp {
+  id: string;        // app:<projectId>
+  label: string;
+  cwd: string;
+  framework: Framework;
+}
+
+export type ResolveResult =
+  | { app: RunnableApp }
+  | { app: null; reason: string };
+
+// The SOLE producer of a detected app's identity + launch shape. The tile chip,
+// the artefact card, and the start/stop routes all call this — nothing
+// reconstructs `app:<id>` or the argv on its own.
+export function resolveRunnableApp(project: {
+  id: string;
+  name: string;
+  spaceId: string | null;
+  recentPath?: string | null;
+}): ResolveResult {
+  const cwd = project.recentPath;
+  if (!cwd) return { app: null, reason: "no recent path" };
+  const pkgPath = join(cwd, "package.json");
+  if (!existsSync(pkgPath)) return { app: null, reason: "no package.json" };
+  let pkg: { scripts?: Record<string, string> };
+  try {
+    pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+  } catch {
+    return { app: null, reason: "package.json parse error" };
+  }
+  const result = classifyDevScript(pkg.scripts?.dev);
+  if (result.framework === null) return { app: null, reason: result.reason };
+  return { app: { id: `app:${project.id}`, label: project.name, cwd, framework: result.framework } };
 }
