@@ -1096,25 +1096,74 @@
   // setups) still needs a TURN relay we don't run yet. The DO cloud-
   // relay fallback is the safety net for that case.
   // Two *independent* STUN providers so a single host/DNS outage
-  // doesn't kill WebRTC. (Earlier draft listed two ports on
-  // stun.l.google.com — those would have failed together.)
-  const ICE_SERVERS = [
+  // doesn't kill WebRTC. STUN handles ~80% of NATs; the remaining
+  // symmetric-NAT cases (hotels, cellular) need TURN — fetched
+  // separately from /api/mp/turn-credentials and merged below.
+  const STUN_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun.cloudflare.com:3478' },
   ];
+  // Live ICE config. Starts STUN-only; gets upgraded with the
+  // TURN entry once /api/mp/turn-credentials returns. If the
+  // endpoint isn't configured (missing secrets) we just stay
+  // STUN-only — works for most networks, degrades gracefully.
+  let iceServers = [...STUN_SERVERS];
+  let iceFetchedAt = 0;
+  // Refresh ~10 min before the credential TTL expires so a long
+  // session never tries to handshake with stale creds.
+  const ICE_REFRESH_AFTER_MS = 50 * 60 * 1000;
+
+  async function refreshIceServers() {
+    try {
+      const r = await fetch('/api/mp/turn-credentials');
+      if (!r.ok) {
+        // 503 = secrets not configured (expected pre-setup) or CF
+        // upstream blip. Either way, keep the existing list.
+        console.log('[P2P] TURN endpoint returned', r.status, '— STUN-only');
+        return;
+      }
+      const data = await r.json();
+      const ice = data && data.iceServers;
+      if (!ice) return;
+      // CF returns one combined entry with multiple urls + creds.
+      // Merge it in front of STUN so the browser tries TURN candidates
+      // first when reflexive ones fail.
+      iceServers = [ice, ...STUN_SERVERS];
+      iceFetchedAt = Date.now();
+      console.log('[P2P] TURN credentials acquired (Cloudflare Realtime)');
+    } catch (e) {
+      console.warn('[P2P] TURN fetch failed:', e && e.message);
+    }
+  }
+  // Fetch on load — fire-and-forget. The first peer creation that
+  // happens *after* this resolves gets TURN; anything that races
+  // ahead gets STUN-only (still better than the original LAN-only
+  // behaviour, and degrades safely).
+  refreshIceServers();
+  function maybeRefreshIceServers() {
+    if (Date.now() - iceFetchedAt > ICE_REFRESH_AFTER_MS) {
+      refreshIceServers();
+    }
+  }
 
   // Create a peer to `otherSeat` if one doesn't exist yet. Host (P1)
   // initiates; clients are passive (they wait for P1's offer). Idempotent.
   function makePeerTo(otherSeat) {
     if (typeof SimplePeer === 'undefined') return; // library not loaded
     if (peers.has(otherSeat)) return;
+    // Best-effort refresh of TURN credentials before each handshake
+    // so a long-running tab (passed the credential TTL) doesn't try
+    // to connect with stale creds. Fire-and-forget; this peer uses
+    // the current cached `iceServers` regardless of whether the
+    // refresh has resolved yet.
+    maybeRefreshIceServers();
     const initiator = (mySeat === 'p1');
     let p;
     try {
       p = new SimplePeer({
         initiator,
         trickle: true,
-        config: { iceServers: ICE_SERVERS },
+        config: { iceServers },
       });
     } catch (e) {
       console.warn('[P2P] new SimplePeer failed for', otherSeat, e && e.message);
