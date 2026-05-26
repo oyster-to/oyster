@@ -64,7 +64,16 @@
   function ensureSubscribed() {
     if (subscribed) return;
     try {
-      if (window.Arcade && Arcade.Pause && Arcade.Pause.onToggle) { Arcade.Pause.onToggle(reapply); subscribed = true; }
+      if (!(window.Arcade && Arcade.Pause && Arcade.Pause.onToggle)) return;
+      Arcade.Pause.onToggle(reapply);   // slider moves → re-compose
+      // pause.js runs applyMusicVolume() on DOMContentLoaded WITHOUT firing
+      // onToggle, which would clobber a composed volume set by a play() during
+      // parse (embedded immediate-title). Re-apply once after that init —
+      // registered here (after pause.js's own DCL listener) so ours runs last.
+      if (document.readyState === 'loading' && document.addEventListener) {
+        document.addEventListener('DOMContentLoaded', reapply, { once: true });
+      }
+      subscribed = true;
     } catch (_) {}
   }
 

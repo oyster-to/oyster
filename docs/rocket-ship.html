@@ -1142,14 +1142,22 @@ function playThruster() {
 (function () {
   const btn = document.getElementById('sound-toggle');
   if (!btn) return;
-  function setMuted(m) {
-    Arcade.Pause.setMusicMuted(m);
-    Arcade.Pause.setSfxMuted(m);
+  // Read-only: reflect the shared mute state on the button (either channel at
+  // volume 0 reads as muted). Used on load and whenever the pause overlay's
+  // sliders change — so we never clobber a partial volume on load, and the ♪
+  // button stays in sync with the overlay.
+  function syncBtn() {
+    const m = Arcade.Pause.isMusicMuted() || Arcade.Pause.isSfxMuted();
     btn.classList.toggle('is-muted', m);
     btn.setAttribute('aria-pressed', String(m));
   }
-  // Reflect shared state — either channel at volume 0 reads as muted.
-  setMuted(Arcade.Pause.isMusicMuted() || Arcade.Pause.isSfxMuted());
+  function setMuted(m) {
+    Arcade.Pause.setMusicMuted(m);
+    Arcade.Pause.setSfxMuted(m);
+    syncBtn();
+  }
+  syncBtn();                       // initial paint (no volume write)
+  Arcade.Pause.onToggle(syncBtn);  // keep in sync with the pause overlay sliders
   // Stop pointer events from bubbling to the splash's global dismiss listener.
   ['mousedown', 'touchstart', 'pointerdown'].forEach(ev => {
     btn.addEventListener(ev, e => e.stopPropagation(), { passive: true });
