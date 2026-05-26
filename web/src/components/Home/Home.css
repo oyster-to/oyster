@@ -388,6 +388,17 @@
 .home-space-card-counts .signal-muted {
   color: var(--home-text-muted);
 }
+.home-project-app-chip {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--home-border, rgba(255,255,255,0.12));
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  line-height: 1.4;
+}
+.home-project-app-chip:hover { color: var(--text); }
 /* Cross-device chip — same chrome as the space chip but with a distinct
  * tint so it reads as "origin device" not "space membership". Lives in
  * the same top-left slot on tiles; inline-block on rows. */

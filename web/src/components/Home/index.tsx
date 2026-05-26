@@ -54,6 +54,9 @@ interface Props {
   onSpaceUpdate?: (id: string, fields: { displayName?: string; color?: string }) => void;
   /** Spawn an in-app Claude PTY in the given project's recent path. */
   onLaunchClaude?: (projectId: string) => void;
+  /** Navigate the surface to the detected runnable app's space. Does NOT
+   *  start the process — only reveals the artefact card. */
+  onOpenApp?: (appId: string) => void;
   /** Resume a session in an Oyster terminal (`claude --resume <id>`). */
   onLaunchClaudeFromSession?: (sessionId: string) => void;
   /** Launch a remote (cross-device) session in an Oyster terminal once
@@ -167,7 +170,7 @@ const FILTER_LABELS: Record<StateFilter, string> = {
   all: "all",
 };
 
-export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenArtifact, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount, publishedCount }: Props) {
+export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onOpenApp, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenArtifact, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount, publishedCount }: Props) {
   const presence = useTerminalPresence(sessions, terminalWindows ?? []);
   const signedIn = useAuthSignedIn();
   const myDevice = useMyDeviceId();
@@ -1031,6 +1034,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   otherProjects={[]}
                   spaces={moveSpaceOptions}
                   onLaunchClaude={onLaunchClaude}
+                  onOpenApp={onOpenApp}
                 />
               ))}
             </div>
@@ -1077,6 +1081,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   otherProjects={[]}
                   spaces={moveSpaceOptions}
                   onLaunchClaude={onLaunchClaude}
+                  onOpenApp={onOpenApp}
                 />
               ))}
             </div>
@@ -1205,6 +1210,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               onProjectsChanged={refreshSpaceProjects}
               onSpaceDelete={onSpaceDelete}
               onLaunchClaude={onLaunchClaude}
+              onOpenApp={onOpenApp}
             />
           )
         )}

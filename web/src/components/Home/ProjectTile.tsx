@@ -12,7 +12,7 @@ import { PromptModal } from "../PromptModal";
 export function ProjectTile({
   project, artefactCount, sessionCounts, selected, onSelect, onChanged,
   isLastProject, spaceTotalSessions, onSpaceDelete, otherProjects, spaces,
-  onLaunchClaude,
+  onLaunchClaude, onOpenApp,
 }: {
   project: Project;
   artefactCount: number;
@@ -33,6 +33,9 @@ export function ProjectTile({
   /** Spawn a Claude PTY in this project's folder. Disabled when the
    *  project has no live path. */
   onLaunchClaude?: (projectId: string) => void;
+  /** Navigate the surface to the detected runnable app's space. Does NOT
+   *  start the process — only reveals the artefact card so the user can click it. */
+  onOpenApp?: (appId: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -150,6 +153,16 @@ export function ProjectTile({
               />
             )}
             <span style={{ minWidth: 0, wordBreak: "break-word" }}>{project.name}</span>
+            {project.app && (
+              <button
+                type="button"
+                className="home-project-app-chip"
+                title={`Open the ${project.app.label} app`}
+                onClick={(e) => { e.stopPropagation(); onOpenApp?.(project.app!.id); }}
+              >
+                ▶ app
+              </button>
+            )}
           </div>
           <div className="home-space-card-counts">
             {sessionCounts && sessionCounts.running > 0 && <span className="signal"><span className="pip pip-teal" />{sessionCounts.running} running</span>}

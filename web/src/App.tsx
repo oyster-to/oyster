@@ -614,6 +614,10 @@ export default function App() {
         onSpaceDelete={handleSpaceDelete}
         onSpaceUpdate={handleSpaceUpdate}
         onLaunchClaude={handleLaunchClaudeFromProject}
+        onOpenApp={(appId) => {
+          const a = artifacts.find((x) => x.id === appId);
+          if (a) handleSpaceChange(a.spaceId);
+        }}
         onLaunchClaudeFromSession={handleLaunchClaudeFromSession}
         onOpenRemoteInOyster={handleOpenRemoteInOyster}
         onOpenArtifact={(id) => {
