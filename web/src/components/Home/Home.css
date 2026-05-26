@@ -207,6 +207,72 @@
   color: var(--home-accent-bright);
 }
 
+/* Artefact KIND filter — a compact dropdown on the right of the section head.
+   Trigger reuses the .stat-btn vocabulary; the menu drops below it. */
+.home-kind-filter { position: relative; display: inline-flex; align-items: center; gap: 8px; }
+.home-kind-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+.home-kind-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--home-surface);
+  border: 1px solid var(--home-border);
+  padding: 3px 10px;
+  border-radius: 9999px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.home-kind-trigger:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+.home-kind-trigger.active {
+  background: rgba(124, 107, 255, 0.18);
+  border-color: var(--home-border-accent);
+  color: var(--home-accent-bright);
+}
+.home-kind-caret { font-size: 9px; opacity: 0.7; }
+
+.home-kind-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 160px;
+  padding: 4px;
+  background: rgba(20, 21, 40, 0.98);
+  border: 1px solid var(--home-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+.home-kind-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+}
+.home-kind-item:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+.home-kind-item.active { background: rgba(124, 107, 255, 0.18); color: var(--home-accent-bright); }
+.home-kind-count { color: var(--home-text-muted); font-variant-numeric: tabular-nums; }
+
 /* ── State pips ── */
 .pip {
   width: 6px;
@@ -585,6 +651,21 @@
   background: rgba(124, 107, 255, 0.05);
 }
 .home-artefact-row:last-child { border-bottom: none; }
+
+/* Column-header row for the artefacts table (mirrors .home-row--header on the
+   sessions table). Reuses .home-artefact-row's grid; just restyles + disables
+   the row affordances. */
+.home-artefact-row--header {
+  cursor: default;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+.home-artefact-row--header:hover { background: transparent; }
+.home-artefact-row--header > :last-child { text-align: right; }
 
 .home-artefact-row-title {
   font-size: 13px;

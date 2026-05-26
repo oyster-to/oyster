@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutGroup, motion } from "framer-motion";
 import { Folder, FolderPlus, Shield } from "lucide-react";
 import type { Session, SessionState, DisplayState } from "../../data/sessions-api";
-import type { Artifact, Space } from "../../../../shared/types";
+import { ARTIFACT_KINDS, type Artifact, type ArtifactKind, type Space } from "../../../../shared/types";
 import { useMemories } from "../../hooks/useMemories";
 import { useAuthSignedIn } from "../../hooks/useAuthSignedIn";
 import { useMyDeviceId } from "../../hooks/useMyDeviceId";
@@ -232,6 +232,10 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // Artefact source filter (#280) + 3-row collapse. Reset on scope change
   // so each space starts compact and at "all".
   const [artefactSource, setArtefactSource] = useState<ArtefactSource>("all");
+  // Artefact KIND filter — orthogonal to source; the two combine. "all" = no
+  // kind narrowing. Reset on scope change alongside the source filter.
+  const [artefactKind, setArtefactKind] = useState<ArtifactKind | "all">("all");
+  const [kindMenuOpen, setKindMenuOpen] = useState(false);
   const [artefactsLimit, setArtefactsLimit] = useState(ARTEFACTS_PREVIEW);
   // Cwd-based tile filter: drives session narrowing on both Home default
   // and showElsewhere. Lives alongside selectedProjectId; resets when scope changes.
@@ -301,6 +305,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     setArtefactsLimit(ARTEFACTS_PREVIEW);
     setSessionsLimit(SESSIONS_PREVIEW);
     setArtefactSource("all");
+    setArtefactKind("all");
     if (pendingFolderSelection.current) {
       setSelectedProjectId(pendingFolderSelection.current);
       pendingFolderSelection.current = null;
@@ -543,6 +548,44 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     return counts;
   }, [effectiveDesktopProps.artifacts]);
 
+  // Per-kind counts over the active scope — independent of the source filter,
+  // matching how the source pills count the scope total. Drives the Kind row.
+  const artefactKindCounts = useMemo(() => {
+    const counts: Partial<Record<ArtifactKind, number>> = {};
+    for (const a of effectiveDesktopProps.artifacts) {
+      counts[a.artifactKind] = (counts[a.artifactKind] ?? 0) + 1;
+    }
+    return counts;
+  }, [effectiveDesktopProps.artifacts]);
+  // Kinds actually present in this scope, in canonical order. The Kind row only
+  // renders when there's more than one — no point filtering a single-kind scope.
+  const presentKinds = useMemo(
+    () => ARTIFACT_KINDS.filter((k) => (artefactKindCounts[k] ?? 0) > 0),
+    [artefactKindCounts],
+  );
+
+  // Close the kind-filter dropdown on any click outside it. `e.target` is an
+  // EventTarget, not necessarily an Element, so guard before calling .closest().
+  useEffect(() => {
+    if (!kindMenuOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      const t = e.target;
+      if (!(t instanceof Element) || !t.closest(".home-kind-filter")) setKindMenuOpen(false);
+    };
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, [kindMenuOpen]);
+
+  // If the selected kind leaves the current scope (its last artefact is
+  // removed/moved, or the scope changes), fall back to "all". Otherwise the
+  // dropdown can hide while still filtering to an absent kind — stranding an
+  // empty list with no visible control to reset.
+  useEffect(() => {
+    if (artefactKind !== "all" && !presentKinds.includes(artefactKind)) {
+      setArtefactKind("all");
+    }
+  }, [artefactKind, presentKinds]);
+
   const [projectsExpanded, setProjectsExpanded] = useState(false);
 
   // Collapsed, the Projects strip shows exactly one row. The grid is
@@ -645,6 +688,10 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     } else if (artefactSource !== "all") {
       list = list.filter((a) => (a.sourceOrigin ?? "manual") === artefactSource);
     }
+    // KIND filter combines with the source filter above.
+    if (artefactKind !== "all") {
+      list = list.filter((a) => a.artifactKind === artefactKind);
+    }
     // Pinned-first within the active scope (#387), then most-recent
     // first. Sorting by createdAt here (not just inside ArtefactTable)
     // means the artefactsLimit slice picks the freshest rows; each
@@ -659,7 +706,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
       return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
     });
     return list;
-  }, [effectiveDesktopProps.artifacts, artefactSource, selectedProjectId]);
+  }, [effectiveDesktopProps.artifacts, artefactSource, artefactKind, selectedProjectId]);
   const visibleArtefacts = useMemo(
     () => filteredArtefacts.slice(0, artefactsLimit),
     [filteredArtefacts, artefactsLimit],
@@ -1262,7 +1309,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         </section>
 
         <section className="home-section">
-          <div className="home-section-head">
+          <div className="home-section-head" style={kindMenuOpen ? { zIndex: 40 } : undefined}>
             <span className="home-section-label">Artefacts</span>
             <span className="home-section-stats">
               {ARTEFACT_SOURCE_ORDER.map((src) => {
@@ -1285,6 +1332,50 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               })}
             </span>
             <span className="home-section-rule" />
+            {presentKinds.length > 1 && (
+              <div className="home-kind-filter">
+                <span className="home-kind-label">Kind</span>
+                <button
+                  type="button"
+                  className={`home-kind-trigger${artefactKind !== "all" ? " active" : ""}`}
+                  onClick={() => setKindMenuOpen((v) => !v)}
+                  aria-haspopup="menu"
+                  aria-expanded={kindMenuOpen}
+                  aria-label="Filter artefacts by kind"
+                  title="Filter artefacts by kind"
+                >
+                  {artefactKind === "all" ? "all" : artefactKind}
+                  <span className="home-kind-caret" aria-hidden="true">▾</span>
+                </button>
+                {kindMenuOpen && (
+                  <div className="home-kind-menu" role="menu">
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={artefactKind === "all"}
+                      className={`home-kind-item${artefactKind === "all" ? " active" : ""}`}
+                      onClick={() => { setArtefactKind("all"); setKindMenuOpen(false); }}
+                    >
+                      <span>All kinds</span>
+                      <span className="home-kind-count">{artefactSourceCounts.all}</span>
+                    </button>
+                    {presentKinds.map((kind) => (
+                      <button
+                        key={kind}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={artefactKind === kind}
+                        className={`home-kind-item${artefactKind === kind ? " active" : ""}`}
+                        onClick={() => { setArtefactKind(kind); setKindMenuOpen(false); }}
+                      >
+                        <span>{kind}</span>
+                        <span className="home-kind-count">{artefactKindCounts[kind] ?? 0}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="home-view-toggle">
               <button
                 className={`view-btn${artefactsView === "icons" ? " active" : ""}`}
