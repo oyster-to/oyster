@@ -3,6 +3,7 @@
 // tested. See docs/superpowers/specs/2026-05-26-runnable-app-detection-design.md.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Artifact, ArtifactStatus } from "../../shared/types.js";
 
 export type Framework = "vite" | "next";
 
@@ -75,4 +76,51 @@ export function resolveRunnableApp(project: {
   const result = classifyDevScript(pkg.scripts?.dev);
   if (result.framework === null) return { app: null, reason: result.reason };
   return { app: { id: `app:${project.id}`, label: project.name, cwd, framework: result.framework } };
+}
+
+export interface AppRuntimeView {
+  getRunningApp(appId: string): { port: number; pid: number } | undefined;
+  isStarting(appId: string): boolean;
+  isPortOpen(port: number): Promise<boolean>;
+}
+
+// Map runnable projects → in-memory local_process app artefacts. Status + url
+// come from runtime state (a live child + open port), never a pre-reserved port.
+export async function buildDerivedAppArtifacts(
+  projects: Array<{ id: string; name: string; spaceId: string | null; recentPath?: string | null }>,
+  runtime: AppRuntimeView,
+): Promise<Artifact[]> {
+  const out: Artifact[] = [];
+  for (const project of projects) {
+    const r = resolveRunnableApp(project);
+    if (!r.app) continue;
+    const appId = r.app.id;
+    const running = runtime.getRunningApp(appId);
+
+    let status: ArtifactStatus = "offline";
+    let url = "";
+    let runtimeConfig: Record<string, unknown> = {};
+    if (running && (await runtime.isPortOpen(running.port))) {
+      status = "online";
+      url = `http://localhost:${running.port}`;
+      runtimeConfig = { port: running.port };
+    } else if (runtime.isStarting(appId)) {
+      status = "starting";
+    }
+
+    out.push({
+      id: appId,
+      label: r.app.label,
+      artifactKind: "app",
+      spaceId: project.spaceId ?? "home",
+      status,
+      runtimeKind: "local_process",
+      runtimeConfig,
+      url,
+      createdAt: new Date(0).toISOString(),
+      sourceOrigin: "discovered",
+      projectId: project.id,
+    });
+  }
+  return out;
 }

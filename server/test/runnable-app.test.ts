@@ -1,6 +1,6 @@
 // server/test/runnable-app.test.ts
 import { describe, it, expect } from "vitest";
-import { classifyDevScript, buildLaunchArgv, resolveRunnableApp } from "../src/runnable-app.js";
+import { classifyDevScript, buildLaunchArgv, resolveRunnableApp, buildDerivedAppArtifacts } from "../src/runnable-app.js";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -89,5 +89,58 @@ describe("resolveRunnableApp", () => {
   it("returns null+reason when recentPath is absent", () => {
     expect(resolveRunnableApp({ id: "p", name: "n", spaceId: null, recentPath: null }))
       .toEqual({ app: null, reason: "no recent path" });
+  });
+});
+
+describe("buildDerivedAppArtifacts", () => {
+  function mkVite() {
+    const dir = mkdtempSync(join(tmpdir(), "oyster-bda-"));
+    writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { dev: "vite" } }));
+    return dir;
+  }
+
+  it("emits an offline local_process app for a runnable project with no running child", async () => {
+    const dir = mkVite();
+    const apps = await buildDerivedAppArtifacts(
+      [{ id: "p1", name: "Site", spaceId: "work", recentPath: dir }],
+      { getRunningApp: () => undefined, isStarting: () => false, isPortOpen: async () => false },
+    );
+    expect(apps).toHaveLength(1);
+    expect(apps[0]).toMatchObject({
+      id: "app:p1", artifactKind: "app", runtimeKind: "local_process",
+      status: "offline", url: "", sourceOrigin: "discovered", projectId: "p1", spaceId: "work",
+    });
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("emits online with a url when a child is running and the port is open", async () => {
+    const dir = mkVite();
+    const apps = await buildDerivedAppArtifacts(
+      [{ id: "p1", name: "Site", spaceId: "work", recentPath: dir }],
+      { getRunningApp: () => ({ port: 4500, pid: 1 }), isStarting: () => false, isPortOpen: async () => true },
+    );
+    expect(apps[0]).toMatchObject({ status: "online", url: "http://localhost:4500" });
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("skips non-runnable projects", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "oyster-bda-non-"));
+    writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { dev: "concurrently x" } }));
+    const apps = await buildDerivedAppArtifacts(
+      [{ id: "p1", name: "Mono", spaceId: "work", recentPath: dir }],
+      { getRunningApp: () => undefined, isStarting: () => false, isPortOpen: async () => false },
+    );
+    expect(apps).toHaveLength(0);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("falls back to spaceId 'home' when the project has no space", async () => {
+    const dir = mkVite();
+    const apps = await buildDerivedAppArtifacts(
+      [{ id: "p1", name: "Site", spaceId: null, recentPath: dir }],
+      { getRunningApp: () => undefined, isStarting: () => false, isPortOpen: async () => false },
+    );
+    expect(apps[0].spaceId).toBe("home");
+    rmSync(dir, { recursive: true, force: true });
   });
 });
