@@ -160,7 +160,14 @@ const MAX_WS_MESSAGE_CHARS = 4096;
 //          set 4 = 0.65 s (with a 0.55 s floor that the 4-set game
 //          never actually reaches) so endgame stages feel urgent.
 //        - Client-only: march-heartbeat synth + UFO warble synth.
-const NETCODE_VERSION = 30;
+// v31 — Polish pack: grid drop-rows scale per wave (later stages
+//        start the swarm one row lower, capped at 3 — partner to
+//        v30's fire-interval ramp); Claude easter egg (one row-3
+//        cell per grid renders as a terracotta Claude creature,
+//        cosmetic only); CRT screen shake on boss defeat + local-
+//        player death (client only, no wire change). New wire
+//        field: state.claudeCol.
+const NETCODE_VERSION = 31;
 
 type ClientMessage =
   | { type: 'ping';   t: number }

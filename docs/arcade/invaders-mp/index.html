@@ -559,7 +559,18 @@
   const UFO_W = UFO_W_EXPORT ?? 16;
   const UFO_H = UFO_H_EXPORT ?? 7;
   const UFO_Y = UFO_Y_EXPORT ?? 12;
-  import { ROW_COLORS, spriteForRow, paintPixels, paintShip, paintBoss } from './sprites.js';
+  // Namespace import + destructure for the same reason as engine.js
+  // above — a stale cached sprites.js mid-deploy that's missing the
+  // new exports (paintClaude / CLAUDE_COLOUR landed in #599) would
+  // hard-fail the module link and white-screen the page. With the
+  // namespace form, missing members are just `undefined` and the
+  // affected feature (Claude render) silently no-ops.
+  import * as sprites from './sprites.js';
+  const {
+    ROW_COLORS, spriteForRow, paintPixels, paintShip, paintBoss,
+    paintClaude, CLAUDE_COLOUR,
+  } = sprites;
+  const CLAUDE_ROW = 3;  // 0-indexed; row 3 + 4 are octopus, Claude rides the upper octopus row
   // Renderer uses INV_COLS to map invader array index → grid row. It
   // happens to equal 11 in the current engine; mirror as a const so a
   // future engine.INV_COLS change forces an audit here rather than
@@ -659,7 +670,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 30;
+  const NETCODE_VERSION = 31;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -1328,6 +1339,18 @@
           // msg.status would swallow the explosion on round-ending
           // deaths. The lose jingle still fires separately below.
           Arcade.Audio.play('sfx-explosion', 0.6);
+          // CRT shake — own-ship death is the right drama beat to
+          // jolt the cabinet. Other players' deaths don't shake
+          // this client (their cabinet shakes on its own snapshot).
+          shakeTube();
+        }
+        // CRT shake on boss defeat too. Detect transition: prev had
+        // a boss alive, msg has no boss (cleared in checkStageClear
+        // when hp hits 0). Guard on prev.boss truthiness so a
+        // mid-deploy snapshot without `boss` doesn't false-fire.
+        if (prev.boss && prev.boss.hp > 0 && (!msg.boss || msg.boss.hp === 0)
+            && prev.phase === 'boss') {
+          shakeTube();
         }
         if (msg.status === 'gameover' && prev.status !== 'gameover' && !msg.won) {
           Arcade.Audio.play('sfx-lose', 0.6);
@@ -1379,6 +1402,32 @@
   // prescreen fade (our `.tube.is-ready #prescreen` rule). Single
   // class flip = entire UI transition.
   const tube = document.querySelector('.tube');
+
+  // CRT shake — toggles the shared `.tube.is-shaking` keyframe in
+  // cabinet.css. Triggered on dramatic moments only (boss defeat,
+  // own-ship death) so it stays a treat, not a distraction.
+  // Re-entrant: a second trigger before the first ends restarts the
+  // animation cleanly. SHAKE_MS matches the keyframe duration in
+  // cabinet.css (.tube.is-shaking → 0.55 s) so the class lifetime
+  // and the animation track exactly; out-of-sync values would let
+  // the next trigger fire mid-animation or strip the class early.
+  const SHAKE_MS = 550;
+  let shakeUntil = 0;
+  function shakeTube() {
+    if (!tube) return;
+    // Force a reflow if already shaking so the keyframe restarts
+    // from frame 0 rather than continuing wherever it was.
+    if (tube.classList.contains('is-shaking')) {
+      tube.classList.remove('is-shaking');
+      // Read offsetWidth to flush the layout change before re-adding.
+      void tube.offsetWidth;
+    }
+    tube.classList.add('is-shaking');
+    shakeUntil = performance.now() + SHAKE_MS;
+    setTimeout(() => {
+      if (performance.now() >= shakeUntil) tube.classList.remove('is-shaking');
+    }, SHAKE_MS + 50);
+  }
 
   // Player slot elements, indexed by seat position. Filled from
   // refreshPlayerSlots on every snapshot.
@@ -2074,21 +2123,39 @@
     const markedFlashWhite = marked
       ? (Math.floor(performance.now() / 80) % 2 === 0)
       : false;
+    // Claude easter egg — row-3 cell at column `latestSnap.claudeCol`
+    // gets the Claude sprite + terracotta colour instead of the
+    // usual octopus. Re-rolled per grid by the engine; client just
+    // honours whatever column the snapshot specifies.
+    const claudeCol = (latestSnap.claudeCol != null) ? latestSnap.claudeCol : -1;
     for (let i = 0; i < n; i++) {
       const ia = a.invaders[i], ib = b.invaders[i];
       if (!ib.a || !ia.a) continue;            // dead either side → hide
       const row = Math.floor(i / SPRITE_COLS);
+      const col = i % SPRITE_COLS;
+      const isMarked = marked && marked.i === i;
+      const isClaude = row === CLAUDE_ROW && col === claudeCol;
       const { frames, w } = spriteForRow(row);
       const ox = row === 0 ? 2 : 0;
-      const isMarked = marked && marked.i === i;
       const dx = isMarked ? (marked.dx || 0) : 0;
       const dy = isMarked ? (marked.dy || 0) : 0;
       const cellX = Math.round(lerp(ia.x, ib.x) + ox + dx);
       const cellY = Math.round(lerp(ia.y, ib.y) + dy);
-      const colour = (isMarked && markedFlashWhite)
-        ? '#ffffff'
-        : (ROW_COLORS[row] || '#ffffff');
-      paintPixels(ctx, cellX, cellY, frames[frame], SPRITE_SCALE, colour);
+      if (isClaude && paintClaude) {
+        // Claude pulses white when marked (same flash cadence) so the
+        // easter egg + the marked-invader bonus both still read.
+        // Guard on paintClaude being defined — a stale sprites.js
+        // mid-deploy might lack the export, in which case we fall
+        // through to the normal octopus render and the easter egg
+        // is silently hidden until the cache refreshes.
+        const claudeColour = (isMarked && markedFlashWhite) ? '#ffffff' : (CLAUDE_COLOUR || '#d97757');
+        paintClaude(ctx, cellX, cellY, SPRITE_SCALE, frame, claudeColour);
+      } else {
+        const colour = (isMarked && markedFlashWhite)
+          ? '#ffffff'
+          : (ROW_COLORS[row] || '#ffffff');
+        paintPixels(ctx, cellX, cellY, frames[frame], SPRITE_SCALE, colour);
+      }
     }
 
     // Shields — decode the packed bitmap from the snapshot once when

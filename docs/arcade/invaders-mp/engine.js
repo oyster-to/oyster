@@ -400,6 +400,10 @@ export function initState() {
     // gap so the first stage gets a few seconds of "normal" before
     // the first swoop. Updated by stepMarked + nextMarkedGap.
     markedSpawnIn: MARKED_GAP_MIN_SEC,
+    // Which row-3 column renders as the Claude easter egg this grid.
+    // Cosmetic — the cell still scores like a normal row-3 octopus.
+    // Re-rolled in checkStageClear whenever a new grid spawns.
+    claudeCol: pickClaudeCol(),
     // 2-frame "shuffle" animation. Advances by horizontal distance
     // travelled, mirroring SP's discrete-step flip (~2 units per
     // beat) — so the animation cadence is tied to march speed and
@@ -423,19 +427,34 @@ export function initState() {
   };
 }
 
-function buildGrid() {
+// Total waves elapsed across all sets, used to scale grid difficulty.
+// 1-1 = 1, 1-2 = 2, ..., 2-1 = 4, 2-3 = 6, ... Pure derivation from
+// state — no separate counter needed.
+const GRID_DROP_ROWS_MAX = 3;
+function waveTotal(setNum, stageNum) {
+  return (setNum - 1) * STAGES_PER_SET + stageNum;
+}
+
+// `dropRows` (0..3) starts the swarm that many rows lower so later
+// waves give less reaction room — matches SP's `dropRows = min(3,
+// waveNum - 1)`. Caller computes via waveTotal(stageSet, stageNum).
+// Claude easter-egg column lives on state.claudeCol (re-rolled in
+// checkStageClear), not here — buildGrid only owns invader positions.
+function buildGrid(dropRows = 0) {
   const out = [];
+  const yOffset = dropRows * INV_GAP_Y;
   for (let row = 0; row < INV_ROWS; row++) {
     for (let col = 0; col < INV_COLS; col++) {
       out.push({
         x: INV_ORIGIN_X + col * INV_GAP_X,
-        y: INV_ORIGIN_Y + row * INV_GAP_Y,
+        y: INV_ORIGIN_Y + row * INV_GAP_Y + yOffset,
         alive: true,
       });
     }
   }
   return out;
 }
+function pickClaudeCol() { return Math.floor(Math.random() * INV_COLS); }
 
 // === Step ===
 
@@ -659,7 +678,8 @@ function checkStageClear(state) {
     state.boss = null;
     state.stageSet += 1;
     state.stageNum = 1;
-    state.invaders = buildGrid();
+    state.invaders = buildGrid(Math.min(GRID_DROP_ROWS_MAX, waveTotal(state.stageSet, state.stageNum) - 1));
+    state.claudeCol = pickClaudeCol();
     state.invaderDir = 1;
     state.invaderDropRemaining = 0;
     state.invaderFireAccum = 0;
@@ -682,7 +702,8 @@ function checkStageClear(state) {
     state.stageAnnounceIn = STAGE_ANNOUNCE_SEC;
     return;
   }
-  state.invaders = buildGrid();
+  state.invaders = buildGrid(Math.min(GRID_DROP_ROWS_MAX, waveTotal(state.stageSet, state.stageNum) - 1));
+  state.claudeCol = pickClaudeCol();
   state.invaderDir = 1;
   state.invaderDropRemaining = 0;
   state.invaderFireAccum = 0;
@@ -1374,5 +1395,9 @@ export function snapshotForClient(state) {
       dx: round(state.marked.swoopDX),
       dy: round(state.marked.swoopDY),
     } : null,
+    // Which row-3 column renders as the Claude easter egg this grid.
+    // Re-rolled on each new grid spawn. Client-side cosmetic only —
+    // collision / scoring are unchanged.
+    claudeCol:      state.claudeCol | 0,
   };
 }

@@ -155,6 +155,8 @@ export interface GameState {
   marked: MarkedInvader | null;
   /** Seconds until the next mark-spawn attempt while none is active. */
   markedSpawnIn: number;
+  /** Row-3 column index for the Claude easter egg this grid (0..INV_COLS-1). */
+  claudeCol: number;
 }
 
 export interface WireSnapshot {
@@ -210,6 +212,8 @@ export interface WireSnapshot {
   cheated: boolean;
   /** Currently-swooping marked invader, or null. `i` indexes the invaders array; dx/dy are swoop offsets added to the invader's grid position. */
   marked: { i: number; dx: number; dy: number } | null;
+  /** Row-3 column index for the Claude easter egg this grid. */
+  claudeCol: number;
   /**
    * Per-seat occupancy. Set by the transport layer (room.ts on the
    * server, hostTick on the client) after snapshotForClient returns,

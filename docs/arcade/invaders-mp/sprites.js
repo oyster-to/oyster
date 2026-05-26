@@ -138,3 +138,40 @@ export function paintBoss(ctx, x, y, scale, frame, type, bandIndex) {
     }
   }
 }
+
+// Claude easter egg — one row-3 octopus cell renders as a tiny
+// Claude creature in terracotta `#d97757`. Ported from SP — pure
+// cosmetic, scores like any other row-3 octopus (10 pts × combo).
+// 9×6 body plus 4 separate "feet" rectangles below; the feet
+// stretch slightly on frame 1 so it looks like the creature is
+// marching with the swarm. Painted at scale 1.5 to match the grid
+// invader pipeline; the body sits one PF to the left so the wider
+// silhouette stays centred in the 18 PF grid cell.
+export const CLAUDE_COLOUR = '#d97757';
+const CLAUDE_BODY = [
+  '..XXXXX..',
+  '.XXXXXXX.',
+  '.X.XXX.X.',
+  '.XXXXXXX.',
+  'XXXXXXXXX',
+  '.XXXXXXX.',
+];
+export function paintClaude(ctx, x, y, scale, frame, color) {
+  ctx.fillStyle = color || CLAUDE_COLOUR;
+  const ox = -1;                                 // SP-matching nudge
+  for (let row = 0; row < CLAUDE_BODY.length; row++) {
+    const cells = CLAUDE_BODY[row];
+    const py = y + row * scale;
+    for (let col = 0; col < cells.length; col++) {
+      if (cells[col] === 'X') ctx.fillRect(x + (col + ox) * scale, py, scale, scale);
+    }
+  }
+  // 4 marching legs — pairs at the body edges with a centre gap so
+  // it reads as ▘▘ ▝▝. Frame 1 stretches them to ~1.5× height so the
+  // creature animates "stepping" along with the swarm's shuffle.
+  const legY = y + CLAUDE_BODY.length * scale;
+  const legH = (frame & 1 ? 1.5 : 1) * scale;
+  for (const u of [1, 2.5, 5.5, 7]) {
+    ctx.fillRect(x + (u + ox) * scale, legY, scale, legH);
+  }
+}
