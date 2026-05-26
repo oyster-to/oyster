@@ -564,15 +564,27 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     [artefactKindCounts],
   );
 
-  // Close the kind-filter dropdown on any click outside it.
+  // Close the kind-filter dropdown on any click outside it. `e.target` is an
+  // EventTarget, not necessarily an Element, so guard before calling .closest().
   useEffect(() => {
     if (!kindMenuOpen) return;
     const onDocClick = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement)?.closest(".home-kind-filter")) setKindMenuOpen(false);
+      const t = e.target;
+      if (!(t instanceof Element) || !t.closest(".home-kind-filter")) setKindMenuOpen(false);
     };
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
   }, [kindMenuOpen]);
+
+  // If the selected kind leaves the current scope (its last artefact is
+  // removed/moved, or the scope changes), fall back to "all". Otherwise the
+  // dropdown can hide while still filtering to an absent kind — stranding an
+  // empty list with no visible control to reset.
+  useEffect(() => {
+    if (artefactKind !== "all" && !presentKinds.includes(artefactKind)) {
+      setArtefactKind("all");
+    }
+  }, [artefactKind, presentKinds]);
 
   const [projectsExpanded, setProjectsExpanded] = useState(false);
 
