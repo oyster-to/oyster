@@ -91,6 +91,7 @@
 <script src="../shared/initials.js"></script>
 <script src="../shared/end-overlay.js"></script>
 <script src="../shared/splash.js"></script>
+<script src="../shared/engine.js"></script>
 <audio id="sfx-explosion" src="../shared/sfx-explosion.mp3" preload="auto"></audio>
 <audio id="sfx-lose"      src="../shared/sfx-lose.mp3"      preload="auto"></audio>
 <audio id="sfx-shoot"     src="sfx-shoot.mp3"               preload="auto"></audio>
@@ -185,9 +186,12 @@ const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 let W, H, bgGradient;
 function resize() {
-  const rect = canvas.getBoundingClientRect();
-  W = canvas.width = rect.width;
-  H = canvas.height = rect.height;
+  // Arcade.Engine.canvas.configure sizes the backing store + normalises the
+  // transform; default maxDpr:1 keeps this rendering-equivalent. W/H stay in
+  // CSS pixels (the playfield letterbox + sprites map from these).
+  const surface = Arcade.Engine.canvas.configure(canvas);
+  W = surface.cssWidth;
+  H = surface.cssHeight;
   // Build the washed navy gradient once per resize — matches the splash.
   bgGradient = ctx.createLinearGradient(0, 0, 0, H);
   bgGradient.addColorStop(0, '#0d1a60');
