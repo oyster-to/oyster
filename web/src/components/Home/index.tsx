@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutGroup, motion } from "framer-motion";
-import { Filter, Folder, FolderPlus, Shield } from "lucide-react";
+import { Folder, FolderPlus, Shield } from "lucide-react";
 import type { Session, SessionState, DisplayState } from "../../data/sessions-api";
 import { ARTIFACT_KINDS, type Artifact, type ArtifactKind, type Space } from "../../../../shared/types";
 import { useMemories } from "../../hooks/useMemories";
@@ -1322,16 +1322,16 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             <span className="home-section-rule" />
             {presentKinds.length > 1 && (
               <div className="home-kind-filter">
+                <span className="home-kind-label">Kind</span>
                 <button
                   type="button"
                   className={`home-kind-trigger${artefactKind !== "all" ? " active" : ""}`}
                   onClick={() => setKindMenuOpen((v) => !v)}
                   aria-haspopup="menu"
                   aria-expanded={kindMenuOpen}
+                  aria-label="Filter artefacts by kind"
                   title="Filter artefacts by kind"
                 >
-                  <Filter size={12} aria-hidden="true" className="home-kind-icon" />
-                  <span className="home-kind-trigger-label">Kind:</span>
                   {artefactKind === "all" ? "all" : artefactKind}
                   <span className="home-kind-caret" aria-hidden="true">▾</span>
                 </button>

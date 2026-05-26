@@ -209,7 +209,15 @@
 
 /* Artefact KIND filter — a compact dropdown on the right of the section head.
    Trigger reuses the .stat-btn vocabulary; the menu drops below it. */
-.home-kind-filter { position: relative; display: inline-flex; }
+.home-kind-filter { position: relative; display: inline-flex; align-items: center; gap: 8px; }
+.home-kind-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  opacity: 0.6;
+}
 .home-kind-trigger {
   display: inline-flex;
   align-items: center;
@@ -231,8 +239,6 @@
   border-color: var(--home-border-accent);
   color: var(--home-accent-bright);
 }
-.home-kind-icon { flex: 0 0 auto; opacity: 0.8; }
-.home-kind-trigger-label { opacity: 0.6; text-transform: uppercase; }
 .home-kind-caret { font-size: 9px; opacity: 0.7; }
 
 .home-kind-menu {
