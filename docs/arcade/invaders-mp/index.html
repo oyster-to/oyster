@@ -1083,6 +1083,24 @@
     else                             setTransport('relay');
   }
 
+  // STUN servers — without these SimplePeer only emits host candidates
+  // (LAN IPs). Same Wi-Fi works (assuming the AP allows client-to-
+  // client traffic), but hotels almost always disable that ("AP
+  // isolation" / "guest mode"). STUN lets each peer discover its
+  // public ip:port behind NAT so the other end has something to
+  // connect to. Public Google + Cloudflare STUN are free and well-
+  // maintained; we list multiple so a single outage doesn't break
+  // WebRTC for everyone.
+  //
+  // STUN doesn't fix every NAT — symmetric NAT (some hotel + cellular
+  // setups) still needs a TURN relay we don't run yet. The DO cloud-
+  // relay fallback is the safety net for that case.
+  const ICE_SERVERS = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun.l.google.com:5349' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+  ];
+
   // Create a peer to `otherSeat` if one doesn't exist yet. Host (P1)
   // initiates; clients are passive (they wait for P1's offer). Idempotent.
   function makePeerTo(otherSeat) {
@@ -1091,13 +1109,31 @@
     const initiator = (mySeat === 'p1');
     let p;
     try {
-      p = new SimplePeer({ initiator, trickle: true });
+      p = new SimplePeer({
+        initiator,
+        trickle: true,
+        config: { iceServers: ICE_SERVERS },
+      });
     } catch (e) {
       console.warn('[P2P] new SimplePeer failed for', otherSeat, e && e.message);
       return;
     }
     peers.set(otherSeat, p);
     console.log('[P2P] peer to', otherSeat, '(initiator=' + initiator + ')');
+    // ICE diagnostic logging — taps into the underlying
+    // RTCPeerConnection so failures past the SimplePeer wrapper are
+    // visible (e.g. "all candidates failed" with no error event).
+    // Useful when triaging hotel / cellular / corporate networks
+    // where STUN alone isn't enough and we need to know if it's a
+    // candidate-gathering failure vs a connectivity check failure.
+    if (p._pc) {
+      p._pc.addEventListener('iceconnectionstatechange', () => {
+        console.log('[P2P] ICE', otherSeat, '→', p._pc.iceConnectionState);
+      });
+      p._pc.addEventListener('icegatheringstatechange', () => {
+        console.log('[P2P] gather', otherSeat, '→', p._pc.iceGatheringState);
+      });
+    }
 
     p.on('signal', (data) => {
       if (ws && ws.readyState === 1) {
