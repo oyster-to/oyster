@@ -19,6 +19,12 @@ describe("classifyDevScript", () => {
   it("strips a leading KEY=value env assignment", () => {
     expect(classifyDevScript("NODE_ENV=dev vite")).toEqual({ framework: "vite" });
   });
+  it("strips multiple leading KEY=value env assignments", () => {
+    expect(classifyDevScript("NODE_ENV=dev PORT=3000 vite")).toEqual({ framework: "vite" });
+  });
+  it("rejects bare `next` (no subcommand) with a reason", () => {
+    expect(classifyDevScript("next")).toEqual({ framework: null, reason: "next (no subcommand) is not a dev server" });
+  });
   it("rejects wrappers (cross-env, concurrently) with a reason", () => {
     expect(classifyDevScript("cross-env NODE_ENV=dev vite")).toEqual({
       framework: null, reason: "unrecognized launcher: cross-env",

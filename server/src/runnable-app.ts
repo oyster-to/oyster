@@ -1,4 +1,3 @@
-// server/src/runnable-app.ts
 // Detect a project's runnable web app from its package.json `dev` script,
 // and build the launch invocation. Pure functions — no surprises, easily
 // tested. See docs/superpowers/specs/2026-05-26-runnable-app-detection-design.md.
@@ -10,8 +9,8 @@ export type ClassifyResult =
   | { framework: null; reason: string };
 
 // Classify a package.json `dev` script string. Conservative: match the leading
-// executable + subcommand, never a substring. Strips a single leading KEY=value
-// env assignment; does NOT unwrap wrappers (cross-env / concurrently / npm-run-all).
+// executable + subcommand, never a substring. Strips leading KEY=value env
+// assignments (zero or more); does NOT unwrap wrappers (cross-env / concurrently / npm-run-all).
 export function classifyDevScript(devScript: string | undefined): ClassifyResult {
   if (!devScript || !devScript.trim()) return { framework: null, reason: "no dev script" };
   const tokens = devScript.trim().split(/\s+/);
