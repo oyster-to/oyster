@@ -438,9 +438,8 @@ function waveTotal(setNum, stageNum) {
 // `dropRows` (0..3) starts the swarm that many rows lower so later
 // waves give less reaction room — matches SP's `dropRows = min(3,
 // waveNum - 1)`. Caller computes via waveTotal(stageSet, stageNum).
-// `claudeCol` (0..INV_COLS-1) picks which row-3 cell renders as the
-// terracotta Claude easter egg (cosmetic only — same point value
-// as any other row-3 octopus). Re-rolled per grid spawn.
+// Claude easter-egg column lives on state.claudeCol (re-rolled in
+// checkStageClear), not here — buildGrid only owns invader positions.
 function buildGrid(dropRows = 0) {
   const out = [];
   const yOffset = dropRows * INV_GAP_Y;
