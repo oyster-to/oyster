@@ -1095,9 +1095,11 @@
   // STUN doesn't fix every NAT — symmetric NAT (some hotel + cellular
   // setups) still needs a TURN relay we don't run yet. The DO cloud-
   // relay fallback is the safety net for that case.
+  // Two *independent* STUN providers so a single host/DNS outage
+  // doesn't kill WebRTC. (Earlier draft listed two ports on
+  // stun.l.google.com — those would have failed together.)
   const ICE_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun.l.google.com:5349' },
     { urls: 'stun:stun.cloudflare.com:3478' },
   ];
 
@@ -1126,14 +1128,23 @@
     // Useful when triaging hotel / cellular / corporate networks
     // where STUN alone isn't enough and we need to know if it's a
     // candidate-gathering failure vs a connectivity check failure.
-    if (p._pc) {
-      p._pc.addEventListener('iceconnectionstatechange', () => {
-        console.log('[P2P] ICE', otherSeat, '→', p._pc.iceConnectionState);
-      });
-      p._pc.addEventListener('icegatheringstatechange', () => {
-        console.log('[P2P] gather', otherSeat, '→', p._pc.iceGatheringState);
-      });
-    }
+    //
+    // NOTE: deliberately reaching into simple-peer's underscore-
+    // prefixed `_pc` is a private-API access. Guarded so a future
+    // library refactor (rename/remove) silently disables the
+    // diagnostics rather than crashing the peer setup. Worst case
+    // we lose log lines, never the connection.
+    try {
+      const pc = p._pc;
+      if (pc && typeof pc.addEventListener === 'function') {
+        pc.addEventListener('iceconnectionstatechange', () => {
+          console.log('[P2P] ICE', otherSeat, '→', pc.iceConnectionState);
+        });
+        pc.addEventListener('icegatheringstatechange', () => {
+          console.log('[P2P] gather', otherSeat, '→', pc.iceGatheringState);
+        });
+      }
+    } catch (_) { /* simple-peer internals changed — diagnostics skipped */ }
 
     p.on('signal', (data) => {
       if (ws && ws.readyState === 1) {
