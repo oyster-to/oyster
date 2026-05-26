@@ -18,6 +18,7 @@ import { extname, join, resolve, sep } from "node:path";
 import type { ArtifactService } from "../artifact-service.js";
 import type { SqliteSpaceStore } from "../space-store.js";
 import type { RouteCtx } from "../http-utils.js";
+import { resolveRunnableApp, buildLaunchArgv } from "../runnable-app.js";
 import { MIME } from "../mime.js";
 import { renderMarkdown, renderMermaid } from "../renderers.js";
 import { injectBridge } from "../error-bridge.js";
@@ -39,6 +40,13 @@ export interface StaticRouteDeps {
   stopApp: (name: string, port: number) => boolean;
   isPortOpen: (port: number) => Promise<boolean>;
   waitForReady: (port: number) => Promise<void>;
+  /** Derived runnable-app launch hooks (parallel to startApp/stopApp, which
+   *  serve DB-backed apps). Resolve a projectId → runnable app and manage it. */
+  projectService: { getById: (id: string) => { id: string; name: string; spaceId: string | null; recentPath?: string | null } | null };
+  startAppById: (appId: string, argv: string[], cwd: string, port: number) => void;
+  stopAppById: (appId: string) => boolean;
+  getRunningApp: (appId: string) => { port: number; pid: number } | undefined;
+  findFreePort: () => Promise<number>;
 }
 
 /** Resolve a /artifacts/<relativePath> URL to a file on disk. The icon
@@ -176,23 +184,25 @@ export async function tryHandleStaticRoute(
     if (rejectIfNonLocalOrigin()) return true;
     const name = startMatch[1];
     const config = artifactService.getAppConfig(name);
-    if (!config) {
-      res.writeHead(404);
-      res.end("Unknown app");
+    if (config) {
+      if (await deps.isPortOpen(config.port)) { sendJson({ status: "already_running" }); return true; }
+      deps.startApp(name, config);
+      try { await deps.waitForReady(config.port); sendJson({ status: "started", port: config.port }); }
+      catch { sendJson({ status: "timeout", message: "Couldn't start — runnable apps launch via `npm run dev`; check the dev script." }, 500); }
       return true;
     }
-    if (await deps.isPortOpen(config.port)) {
-      sendJson({ status: "already_running" });
+    // Derived runnable app: `name` is a projectId (web strips the `app:` prefix).
+    const project = deps.projectService.getById(name);
+    const r = project ? resolveRunnableApp(project) : { app: null as null };
+    if (r.app) {
+      if (deps.getRunningApp(r.app.id)) { sendJson({ status: "already_running" }); return true; }
+      const port = await deps.findFreePort();
+      deps.startAppById(r.app.id, buildLaunchArgv(r.app.framework, port), r.app.cwd, port);
+      try { await deps.waitForReady(port); sendJson({ status: "started", port }); }
+      catch { sendJson({ status: "timeout", message: "Couldn't start — runnable apps launch via `npm run dev`; check the dev script." }, 500); }
       return true;
     }
-    deps.startApp(name, config);
-    try {
-      await deps.waitForReady(config.port);
-      sendJson({ status: "started", port: config.port });
-    } catch {
-      sendJson({ status: "timeout" }, 500);
-    }
-    return true;
+    res.writeHead(404); res.end("Unknown app"); return true;
   }
 
   // GET /api/apps/:name/stop — see /start above re: local-origin guard +
@@ -202,12 +212,13 @@ export async function tryHandleStaticRoute(
     if (rejectIfNonLocalOrigin()) return true;
     const name = stopMatch[1];
     const config = artifactService.getAppConfig(name);
-    if (!config) {
-      res.writeHead(404);
-      res.end("Unknown app");
+    if (config) {
+      const stopped = deps.stopApp(name, config.port);
+      sendJson({ status: stopped ? "stopped" : "not_managed" });
       return true;
     }
-    const stopped = deps.stopApp(name, config.port);
+    // Derived app: stop by the same id the start path used.
+    const stopped = deps.stopAppById(`app:${name}`);
     sendJson({ status: stopped ? "stopped" : "not_managed" });
     return true;
   }

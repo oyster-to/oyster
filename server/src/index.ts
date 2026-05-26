@@ -8,11 +8,17 @@ import {
   startApp,
   stopApp,
   isPortOpen,
+  isStarting,
   waitForReady,
   updateGeneratedArtifact,
   getGeneratedArtifactEntries,
+  startAppById,
+  stopAppById,
+  getRunningApp,
+  findFreePort,
   type ArtifactKind,
 } from "./process-manager.js";
+import { buildDerivedAppArtifacts } from "./runnable-app.js";
 import Database from "better-sqlite3";
 import { acquireLock, AlreadyRunningError, releaseLock, setLockPort } from "./single-instance-lock.js";
 import { lookupProject } from "./lookup-project.js";
@@ -564,6 +570,9 @@ sessionSnapshotHandle.unref();
 
 const spaceService = new SpaceService(spaceStore, store, artifactService, db, spaceSync);
 const projectService = new ProjectService(db);
+artifactService.setDerivedAppProvider(() =>
+  buildDerivedAppArtifacts(projectService.listAll(), { getRunningApp, isStarting, isPortOpen }),
+);
 const sessionService = new SessionService(db, sessionStore);
 const claudePtyManager = new ClaudePtyManager({ sessionStore, db, broadcastUiEvent });
 // Forward-declared so the terminal route can hold a stable reference even
@@ -881,6 +890,7 @@ async function handleHttpRequest(req: IncomingMessage, res: ServerResponse) {
       backupsDir: BACKUPS_DIR,
     },
     startApp, stopApp, isPortOpen, waitForReady,
+    projectService, startAppById, stopAppById, getRunningApp, findFreePort,
   })) return;
 
   // GET /api/ui/events — SSE stream for UI commands.
