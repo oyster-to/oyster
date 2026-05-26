@@ -18,6 +18,9 @@ export interface Project {
    *  Computed server-side per GET, so a `git init` after attach reflects
    *  on the next refresh. Absent on responses from older builds. */
   isGitRepo?: boolean;
+  /** Derived runnable web app (Vite/Next) at the project's recent path.
+   *  Absent when not a recognized launcher. Drives the tile "app" chip. */
+  app?: { id: string; label: string };
 }
 
 export async function fetchProjectsForSpace(spaceId: string, signal?: AbortSignal): Promise<Project[]> {

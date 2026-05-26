@@ -10,6 +10,7 @@ import { basename, join } from "node:path";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { readOysterId, writeOysterId } from "./oyster-id.js";
+import { resolveRunnableApp } from "./runnable-app.js";
 
 // `~/foo` and `~` → `<home>/foo` / `<home>`. The UI accepts tilde paths
 // in the "Add project" form; without this expansion the marker, the
@@ -41,6 +42,10 @@ export interface Project {
    *  Computed at read time; never persisted, so a `git init` on disk is
    *  reflected on the next GET without any boot-scan dance. */
   isGitRepo?: boolean;
+  /** Derived runnable web app (Vite/Next), computed at read time from the
+   *  recent path's package.json. Absent when the project isn't a recognized
+   *  single-launcher app. Drives the project-tile "app" chip; never persisted. */
+  app?: { id: string; label: string };
 }
 
 interface ProjectRow {
@@ -77,7 +82,7 @@ export class ProjectService {
     const rows = this.db
       .prepare("SELECT id, space_id, name, created_at FROM projects WHERE space_id = ? AND removed_at IS NULL ORDER BY name COLLATE NOCASE")
       .all(spaceId) as ProjectRow[];
-    return rows.map((row) => ({ ...rowToProject(row), ...this.detectPathState(row.id) }));
+    return rows.map((row) => this.withDerived(rowToProject(row)));
   }
 
   /** All non-removed projects across every space, sorted by name. Used by
@@ -86,7 +91,7 @@ export class ProjectService {
     const rows = this.db
       .prepare("SELECT id, space_id, name, created_at FROM projects WHERE removed_at IS NULL ORDER BY name COLLATE NOCASE")
       .all() as ProjectRow[];
-    return rows.map((row) => ({ ...rowToProject(row), ...this.detectPathState(row.id) }));
+    return rows.map((row) => this.withDerived(rowToProject(row)));
   }
 
   /** Lookup a single non-removed project by id, with path state attached.
@@ -96,7 +101,15 @@ export class ProjectService {
       .prepare("SELECT id, space_id, name, created_at FROM projects WHERE id = ? AND removed_at IS NULL")
       .get(id) as ProjectRow | undefined;
     if (!row) return null;
-    return { ...rowToProject(row), ...this.detectPathState(row.id) };
+    return this.withDerived(rowToProject(row));
+  }
+
+  // Attach read-time derived fields (path state + runnable app) to a project.
+  private withDerived(base: Project): Project {
+    const project = { ...base, ...this.detectPathState(base.id) };
+    const r = resolveRunnableApp(project);
+    if (r.app) project.app = { id: r.app.id, label: r.app.label };
+    return project;
   }
 
   // Walk this project's cached paths once and derive:
