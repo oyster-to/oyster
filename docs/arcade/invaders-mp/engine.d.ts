@@ -147,6 +147,8 @@ export interface GameState {
   invaderFrameAccum: number;
   /** Per-seat display name; empty string = no label. */
   names: Record<Seat, string>;
+  /** Per-seat DiceBear avatar salt; 0 = no avatar yet (fallback seed). */
+  avatarSalts: Record<Seat, number>;
   /** Server-clock ms; only meaningful while status === 'countdown'. */
   countdownEndMs: number;
   /** True after any B-press this match — disqualifies all per-player scores from the leaderboard. */
@@ -170,6 +172,8 @@ export interface WireSnapshot {
     x: number;
     alive: boolean;
     name: string;
+    /** DiceBear seed integer; 0 = use seat-default seed. */
+    avatarSalt: number;
     score: number;
     combo: number;
     superAmmo: number;

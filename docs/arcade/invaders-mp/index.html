@@ -90,40 +90,67 @@
     pointer-events: none;
   }
 
-  /* Diagnostic line (netcode / ping / transport) + Retry P2P button.
-     Visible by default during the testing phase — they're genuinely
-     useful for spotting bad transport / version mismatches. The URL
-     ?clean query hides them via body.is-clean for the kid view, and
-     we'll flip the default back to "hidden unless ?debug" at release. */
-  body.is-clean #prescreen .meta,
-  body.is-clean #prescreen #retryBtn {
-    display: none;
-  }
+  /* Netstat indicator (transport dot + ping) — pinned bottom-right,
+     visible by default. ?clean hides it for screenshots / streaming;
+     retry stays debug-only (?debug). */
+  body.is-clean #prescreen .meta { display: none; }
 
   #prescreen .title {
-    font-size: 18px; letter-spacing: 0.3em; color: #2dd4ff;
+    font-size: 22px; letter-spacing: 0.3em; color: #ff3aa1;
     margin: 0;
+    text-shadow: 0 0 14px rgba(255, 58, 161, 0.55);
+    animation: title-pulse 2.6s ease-in-out infinite;
+  }
+  @keyframes title-pulse {
+    0%, 100% { opacity: 0.88; }
+    50%      { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #prescreen .title { animation: none; }
   }
 
+  /* ROOM line under the QR — the only place the room code lives now.
+     Small label + iconic yellow-on-pink code so it reads as "this is
+     the room" from across the table. */
   #prescreen .room-line {
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    display: inline-flex; align-items: baseline; gap: 10px;
   }
   #prescreen .room-label {
-    font-size: 9px; letter-spacing: 0.25em;
+    font-size: 9px; letter-spacing: 0.22em;
     color: rgba(255, 255, 255, 0.5);
   }
   #prescreen .room-code {
-    font-size: 44px; letter-spacing: 0.22em;
+    font-size: 22px; letter-spacing: 0.22em;
     color: #ffd84a;
-    text-shadow: 4px 4px 0 #ff3aa1;
+    text-shadow: 3px 3px 0 #ff3aa1;
     line-height: 1;
   }
 
-  /* QR card — large + centred so it's the obvious "show this to your
-     friend" target. Subtle Copy-link sits underneath for the cases
-     where scanning isn't possible (parent texting a URL, etc.). */
+  /* Hero row: pairs the QR card with the START button. On portrait
+     (phone / iPad held vertically) they stack as a single centred
+     column. On landscape laptop they sit side-by-side so START
+     stops sliding past the fold below the QR. */
+  #prescreen .hero-row {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 14px;
+  }
+  @media (min-width: 720px) and (orientation: landscape) {
+    #prescreen .hero-row {
+      flex-direction: row;
+      gap: 64px;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+
+  /* QR card — the "show this to your friend" target. Pill-style COPY
+     LINK sits underneath as the parent-texting-the-URL fallback. */
   #prescreen .qr-wrap {
-    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  #prescreen .qr-hdr {
+    font-size: 9px; letter-spacing: 0.3em;
+    color: rgba(255, 255, 255, 0.6);
   }
   #prescreen .qr {
     background: #fff;
@@ -133,68 +160,138 @@
   }
   #prescreen .qr img {
     display: block;
-    width: 180px; height: 180px;
+    width: 160px; height: 160px;
     image-rendering: pixelated;
   }
-  #prescreen .qr-share {
-    background: transparent; color: rgba(255,255,255,0.55);
-    border: 1px solid rgba(255,255,255,0.2); border-radius: 3px;
-    padding: 5px 12px; font: inherit; font-size: 9px;
-    letter-spacing: 0.12em; cursor: pointer;
+
+  /* Pill button — shared base for the SHUFFLE / COPY LINK utility
+     pair. Quiet outline, matched padding + letter-spacing so they
+     read as siblings under the avatars / QR. */
+  #prescreen .pill-btn {
+    background: rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.55);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 999px;
+    padding: 7px 14px;
+    font: inherit; font-size: 9px;
+    letter-spacing: 0.18em; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
   }
-  #prescreen .qr-share:hover {
+  #prescreen .pill-btn:hover:not(:disabled) {
     color: #fff; border-color: rgba(255,255,255,0.45);
   }
+  #prescreen .pill-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  #prescreen .pill-btn.copied {
+    color: #6bff8c; border-color: #6bff8c; background: rgba(107,255,140,0.10);
+  }
 
-  /* Player slots — bigger cards for chunky touch targets + kid-readable
-     name text. Per-seat colour matches in-game SHIP_COLORS. */
+  /* Player slots — compact card per seat: pixel-art portrait above the
+     name + label. Per-seat colour matches in-game SHIP_COLORS and rings
+     the avatar so identity reads at a glance ("you're pink"). Avatars
+     come from DiceBear's pixel-art style, seeded by per-seat salt that
+     each player can shuffle. */
   #prescreen .players {
-    display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;
+    display: flex; gap: 14px; flex-wrap: wrap; justify-content: center;
   }
   #prescreen .player-slot {
-    border: 2px solid currentColor;
-    border-radius: 6px;
-    padding: 10px 14px;
-    min-width: 84px;
-    opacity: 0.28;
+    position: relative;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 5px;
+    min-width: 76px;
+    opacity: 0.42;
     text-align: center;
     transition: opacity 0.2s ease;
   }
   #prescreen .player-slot.is-active { opacity: 1; }
+  #prescreen .ps-avatar-wrap {
+    position: relative;
+    width: 64px; height: 64px;
+    border-radius: 4px;
+    box-shadow: 0 0 0 2px currentColor;
+  }
+  /* Laptop / landscape: bump avatars + a bit more breathing room. */
+  @media (min-width: 720px) and (orientation: landscape) {
+    #prescreen .ps-avatar-wrap { width: 76px; height: 76px; }
+    #prescreen .players { gap: 22px; }
+  }
+  #prescreen .ps-avatar {
+    width: 100%; height: 100%;
+    image-rendering: pixelated;
+    border-radius: 4px;
+    display: block;
+  }
+  /* Empty slot: dashed ring + ? glyph in place of the portrait. */
+  #prescreen .player-slot.is-empty .ps-avatar-wrap {
+    box-shadow: none;
+    border: 2px dashed rgba(255,255,255,0.15);
+    display: grid; place-items: center;
+    color: rgba(255,255,255,0.18);
+    font-size: 24px;
+    line-height: 1;
+  }
+  #prescreen .player-slot.is-empty .ps-avatar-wrap::after { content: '?'; }
+  #prescreen .player-slot.is-empty .ps-avatar { display: none; }
   #prescreen .player-slot .ps-label {
-    font-size: 9px; letter-spacing: 0.22em;
+    font-size: 8px; letter-spacing: 0.22em;
   }
   #prescreen .player-slot .ps-name {
-    margin-top: 8px;
-    font-size: 11px; color: #fff;
+    font-size: 10px; color: #fff;
     min-height: 1em; letter-spacing: 0.06em;
     word-break: break-word;
   }
   #prescreen .player-slot.is-empty .ps-name {
     color: rgba(255,255,255,0.4);
-    font-style: italic;
+    letter-spacing: 0.22em;
   }
+  /* YOU pill — sits above the avatar in seat colour. */
   #prescreen .player-slot .ps-you {
-    display: block;
-    margin-top: 5px;
-    font-size: 7px; letter-spacing: 0.28em;
-    color: rgba(255,255,255,0.65);
+    position: absolute;
+    top: -8px; left: 50%;
+    transform: translateX(-50%);
+    background: #fff;
+    color: #0a0a28;
+    padding: 1px 6px;
+    font-size: 6px; letter-spacing: 0.18em;
+    border-radius: 2px;
   }
   #prescreen .player-slot[data-seat="p1"] { color: #2dd4ff; }
   #prescreen .player-slot[data-seat="p2"] { color: #ff3aa1; }
   #prescreen .player-slot[data-seat="p3"] { color: #6bff8c; }
   #prescreen .player-slot[data-seat="p4"] { color: #ffd84a; }
 
-  /* Name input — bigger + centred so it doesn't look like a tiny
-     dev field. */
+  /* Avatar shuffle flip — runs on every .ps-avatar tagged is-shuffling
+     when the salt rolls (local SHUFFLE or remote echo). */
+  .ps-avatar.is-shuffling { animation: ps-avatar-flip 0.36s ease-in-out; }
+  @keyframes ps-avatar-flip {
+    0%   { transform: scale(1) rotateY(0); }
+    45%  { transform: scale(0.85) rotateY(90deg); }
+    55%  { transform: scale(0.85) rotateY(-90deg); }
+    100% { transform: scale(1) rotateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ps-avatar.is-shuffling { animation: none; }
+  }
+
+  /* Name input — first-launch affordance. Hidden once a name lives in
+     localStorage (the player's own slot will show their name + their
+     avatar already). Tappable from the players row to edit later. */
   #prescreen .name-input {
-    background: #0a0a28; color: #fff;
-    border: 2px solid #2dd4ff; border-radius: 4px;
-    padding: 10px 14px; font: inherit; font-size: 13px;
-    letter-spacing: 0.1em; width: 220px; max-width: 80vw;
+    background: rgba(255,255,255,0.04);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 4px;
+    padding: 8px 12px;
+    font: inherit; font-size: 11px;
+    letter-spacing: 0.1em;
+    width: 200px; max-width: 80vw;
     text-align: center;
   }
   #prescreen .name-input::placeholder { color: rgba(255,255,255,0.35); }
+  #prescreen .name-input:focus {
+    outline: none; border-color: #ff3aa1;
+    background: rgba(255,58,161,0.06);
+  }
+  #prescreen .name-input[hidden] { display: none; }
 
   /* Big-start — the obvious primary action. Drop shadow + idle pulse
      pulls the eye to "tap me". Disabled state is muted grey so it
@@ -206,6 +303,11 @@
     letter-spacing: 0.22em; cursor: pointer;
     box-shadow: 0 4px 0 #b32271, 0 6px 14px rgba(255,58,161,0.4);
     transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+  /* Laptop landscape: START becomes a meatier focal point next to
+     the QR. Keeps the same colour story; just bigger + chunkier. */
+  @media (min-width: 720px) and (orientation: landscape) {
+    .big-start { padding: 26px 70px; font-size: 26px; letter-spacing: 0.26em; min-width: 280px; }
   }
   .big-start:not(:disabled):hover {
     transform: translateY(-1px);
@@ -219,6 +321,18 @@
     background: #2a2a3a; color: rgba(255,255,255,0.4);
     cursor: not-allowed; box-shadow: none;
   }
+  /* Non-host waiting state — replaces the pink pulse with a quiet
+     dashed pill so joiners know what's happening without expecting
+     they can tap it. Same JS toggles disabled + .is-waiting in sync. */
+  .big-start.is-waiting,
+  .big-start.is-waiting:disabled {
+    background: transparent; color: rgba(255,255,255,0.6);
+    border: 2px dashed rgba(255,255,255,0.22);
+    box-shadow: none; animation: none;
+    font-size: 13px; letter-spacing: 0.18em;
+    padding: 14px 32px;
+  }
+  .big-start.is-waiting b { color: #fff; font-weight: normal; }
   @keyframes start-pulse {
     0%, 100% { transform: scale(1); }
     50%      { transform: scale(1.04); }
@@ -245,6 +359,17 @@
     font-size: 11px; color: #ffd84a; min-height: 1.2em;
     letter-spacing: 0.08em;
   }
+
+  /* Lobby leaderboard footer — one quiet line summarising the top
+     scores. Pulled from Arcade.Leaderboard.read() on init + every
+     time we refresh the lobby. Hidden if the local mirror is empty. */
+  #prescreen .lobby-lb {
+    font-size: 8px; letter-spacing: 0.18em;
+    color: rgba(255, 255, 255, 0.4);
+  }
+  #prescreen .lobby-lb[hidden] { display: none; }
+  #prescreen .lobby-lb b { color: rgba(255,255,255,0.7); font-weight: normal; }
+  #prescreen .lobby-lb .sc { color: #ff3aa1; }
 
   /* End-of-run overlay. Covers the lobby (QR / players / name /
      START / status / debug bar) with a focused gameover screen:
@@ -360,31 +485,54 @@
     50% { color: #ffffff; border-bottom-color: #ffffff; }
   }
 
-  /* Debug-mode bottom row: meta + Retry P2P. Only shown when
-     body.is-debug (set when URL has ?debug). */
+  /* Netstat — discreet bottom-right indicator: transport dot + ping.
+     Always visible (no longer behind body.is-debug); ?clean still hides
+     it. The .netcode pill stays inside but only renders on mismatch. */
   #prescreen .meta {
-    margin-top: 6px;
-    font-size: 8px; letter-spacing: 0.1em;
+    position: absolute;
+    bottom: 12px; right: 16px;
+    font-size: 7px; letter-spacing: 0.15em;
     color: rgba(255, 255, 255, 0.4);
-    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+    display: inline-flex; align-items: center; gap: 8px;
+    pointer-events: none;
   }
-  #prescreen .netcode.mismatch { color: #ff6666; }
-  #prescreen .ping.low  { color: #6bff8c; }
+  #prescreen .netcode { display: none; }
+  #prescreen .netcode.mismatch {
+    display: inline; color: #ff6666;
+  }
+  #prescreen .ping.low  { color: rgba(255,255,255,0.55); }
   #prescreen .ping.mid  { color: #ffd84a; }
   #prescreen .ping.high { color: #ff6666; }
+  /* Transport pill becomes a dot+label combo. Default = relay (yellow). */
   #prescreen .transport {
-    padding: 1px 6px; border-radius: 3px; text-transform: uppercase;
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.55);
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 0; background: transparent; color: rgba(255,255,255,0.55);
+    text-transform: uppercase;
   }
-  #prescreen .transport.p2p        { color: #1a3a1a; background: #6bff8c; font-weight: bold; }
-  #prescreen .transport.connecting { color: #ffd84a; background: rgba(255, 216, 74, 0.15); }
+  #prescreen .transport::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: #ffd84a;                                 /* relay = yellow */
+    box-shadow: 0 0 6px rgba(255, 216, 74, 0.55);
+  }
+  #prescreen .transport.p2p        { color: #6bff8c; }
+  #prescreen .transport.p2p::before {
+    background: #6bff8c; box-shadow: 0 0 6px rgba(107, 255, 140, 0.55);
+  }
+  #prescreen .transport.connecting { color: rgba(255,255,255,0.4); }
+  #prescreen .transport.connecting::before {
+    background: rgba(255,255,255,0.4); box-shadow: none;
+  }
+  /* Retry button — debug-only, restored when body.is-debug. */
   #prescreen #retryBtn {
+    position: absolute;
+    bottom: 12px; left: 16px;
     background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.55);
     border: 1px solid rgba(255,255,255,0.2); border-radius: 3px;
     padding: 4px 10px; font: inherit; font-size: 9px;
     letter-spacing: 0.1em; cursor: pointer;
+    display: none;
   }
+  body.is-debug #prescreen #retryBtn { display: inline-block; }
 
   /* Pink fire button — same colour recipe as SP's invaders/. */
   .touch-controls .tc-fire-btn {
@@ -423,39 +571,50 @@
     <div id="prescreen">
       <div class="title">INVADERS</div>
 
-      <div class="room-line">
-        <span class="room-label">ROOM</span>
-        <span class="room-code" id="roomCode">····</span>
-      </div>
-
-      <!-- QR is the headline share target — friends scan to join.
-           Copy-link sits underneath as the parent-helps-out fallback. -->
-      <div class="qr-wrap">
-        <div class="qr" id="qr"></div>
-        <button id="copyBtn" class="qr-share" type="button">Copy link</button>
-      </div>
-
       <!-- One slot per seat, colour-coded. Dimmed when empty, lit when
-           occupied, with a YOU badge on the local seat. -->
+           occupied, with a YOU pill on the local seat. The .ps-avatar
+           img is filled by refreshPlayerSlots with a DiceBear URL keyed
+           to that player's name + avatarSalt. Tap your own slot to
+           reveal the name input. -->
       <div class="players">
-        <div class="player-slot" data-seat="p1"><div class="ps-label">P1</div><div class="ps-name">—</div></div>
-        <div class="player-slot" data-seat="p2"><div class="ps-label">P2</div><div class="ps-name">—</div></div>
-        <div class="player-slot" data-seat="p3"><div class="ps-label">P3</div><div class="ps-name">—</div></div>
-        <div class="player-slot" data-seat="p4"><div class="ps-label">P4</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p1"><div class="ps-avatar-wrap"><img class="ps-avatar" alt="" referrerpolicy="no-referrer"></div><div class="ps-label">P1</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p2"><div class="ps-avatar-wrap"><img class="ps-avatar" alt="" referrerpolicy="no-referrer"></div><div class="ps-label">P2</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p3"><div class="ps-avatar-wrap"><img class="ps-avatar" alt="" referrerpolicy="no-referrer"></div><div class="ps-label">P3</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p4"><div class="ps-avatar-wrap"><img class="ps-avatar" alt="" referrerpolicy="no-referrer"></div><div class="ps-label">P4</div><div class="ps-name">—</div></div>
       </div>
+
+      <button id="shuffleBtn" class="pill-btn" type="button" disabled>&#x21bb; SHUFFLE MY AVATAR</button>
 
       <input id="nameInput" class="name-input" maxlength="12" placeholder="Your name" autocomplete="off" autocapitalize="off" spellcheck="false">
 
-      <button id="startBtn" class="big-start" disabled>START</button>
+      <!-- Hero row: QR (left) + START (right) as twin focal points on
+           landscape laptop; stacks back to a single column on portrait
+           devices via the CSS media query. -->
+      <div class="hero-row">
+        <div class="qr-wrap">
+          <div class="qr-hdr">SCAN TO INVITE</div>
+          <div class="qr" id="qr"></div>
+          <div class="room-line"><span class="room-label">ROOM</span><span class="room-code" id="roomCode" data-room-code>····</span></div>
+          <button id="copyBtn" class="pill-btn" type="button">&#x29C9; COPY LINK</button>
+        </div>
+
+        <button id="startBtn" class="big-start" disabled>START</button>
+      </div>
 
       <div id="status">Connecting…</div>
 
-      <!-- Diagnostic line + dev controls; only visible when the URL
-           has ?debug (CSS hides .meta + #retryBtn unless body.is-debug). -->
+      <!-- One-line family leaderboard. Hidden when the local mirror is
+           empty (first-time visitor, never played). -->
+      <div class="lobby-lb" id="lobbyLb" hidden></div>
+
+      <!-- Netstat indicator (transport dot + ping) — pinned bottom-right
+           of the prescreen. Always visible; ?clean hides it for
+           screenshots/streaming. netcode mismatch only renders on a
+           version-skew. -->
       <div class="meta">
         <span id="netcode" class="netcode">netcode v?</span>
-        <span id="ping" class="ping"></span>
         <span id="transport" class="transport">relay</span>
+        <span id="ping" class="ping"></span>
       </div>
       <button id="retryBtn" title="Force a fresh WebRTC handshake (use if the badge is stuck on relay after a late join)">Retry P2P</button>
     </div>
@@ -670,7 +829,7 @@
   // Welcome from the server includes its own value so we can flag a
   // mismatch (usually means one side is still on a stale deploy or the
   // browser is showing a cached HTML). See server room.ts for history.
-  const NETCODE_VERSION = 31;
+  const NETCODE_VERSION = 32;
 
   // --------------------------------------------------------------------
   // Room code — 4 letters that identifies this room's DO instance.
@@ -723,7 +882,9 @@
     : 'ws://' + location.hostname + ':8787/api/mp/invaders/ws';
   const wsUrl = wsBase + '?code=' + roomCode;
 
-  document.getElementById('roomCode').textContent = roomCode;
+  // Two places display the code now (subtitle inline + below the QR);
+  // both are tagged data-room-code so the setter writes them in sync.
+  document.querySelectorAll('[data-room-code]').forEach(el => el.textContent = roomCode);
   renderQR(location.href);
 
   // ?clean on the URL hides the diagnostic meta line + Retry P2P for
@@ -824,9 +985,13 @@
   copyBtn.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(location.href);
-      const orig = copyBtn.textContent;
-      copyBtn.textContent = 'Copied';
-      setTimeout(() => { copyBtn.textContent = orig; }, 1200);
+      const orig = copyBtn.innerHTML;
+      copyBtn.innerHTML = '&#x2713; COPIED!';
+      copyBtn.classList.add('copied');
+      setTimeout(() => {
+        copyBtn.innerHTML = orig;
+        copyBtn.classList.remove('copied');
+      }, 1500);
     } catch (e) { /* no clipboard permission; ignore */ }
   });
 
@@ -838,6 +1003,11 @@
   let myName = '';
   try { myName = (localStorage.getItem(NAME_STORAGE_KEY) || '').slice(0, NAME_MAX_CHARS); } catch {}
   nameInput.value = myName;
+  // First-time visitor sees the input; returning players have their name
+  // in their slot already so we tuck it away. Re-revealed by tapping
+  // your own player slot (handler wired below, once playerSlotEls
+  // exists).
+  nameInput.hidden = !!myName;
   function publishName() {
     try { localStorage.setItem(NAME_STORAGE_KEY, myName); } catch {}
     sendToServer({ type: 'name', name: myName });
@@ -845,6 +1015,41 @@
   nameInput.addEventListener('input', () => {
     myName = nameInput.value.slice(0, NAME_MAX_CHARS);
     publishName();
+  });
+  // Hide the input again once the player tabs/clicks away with a value
+  // — they've committed it, get the slot view back.
+  nameInput.addEventListener('blur', () => {
+    if (myName) nameInput.hidden = true;
+  });
+
+  // Avatar: a small integer that seeds the DiceBear pixel-art portrait
+  // for this seat. Persisted to localStorage so the face survives
+  // reloads + room hops; published on seat assignment + on every
+  // SHUFFLE tap. 0 isn't used as a salt (engine treats 0 as "no avatar
+  // chosen"), so first launch picks a random positive value.
+  const AVATAR_STORAGE_KEY = 'invaders-mp.avatar-salt';
+  function randomSalt() { return 1 + Math.floor(Math.random() * 999999); }
+  let myAvatarSalt = 0;
+  try {
+    const raw = parseInt(localStorage.getItem(AVATAR_STORAGE_KEY) || '0', 10);
+    if (Number.isFinite(raw) && raw > 0) myAvatarSalt = raw;
+  } catch {}
+  if (!myAvatarSalt) {
+    myAvatarSalt = randomSalt();
+    try { localStorage.setItem(AVATAR_STORAGE_KEY, String(myAvatarSalt)); } catch {}
+  }
+  function publishAvatar() {
+    try { localStorage.setItem(AVATAR_STORAGE_KEY, String(myAvatarSalt)); } catch {}
+    sendToServer({ type: 'avatar', salt: myAvatarSalt });
+  }
+  const shuffleBtn = document.getElementById('shuffleBtn');
+  shuffleBtn.addEventListener('click', () => {
+    myAvatarSalt = randomSalt();
+    publishAvatar();
+    // No need to mutate lastState — refreshPlayerSlots reads
+    // myAvatarSalt directly for the local seat, so the new face
+    // paints on this tick without waiting for the server echo.
+    if (mySeat && lastState) refreshPlayerSlots();
   });
 
   // --------------------------------------------------------------------
@@ -915,6 +1120,9 @@
     if (latest && latest.players) {
       for (let i = 0; i < MAX_SEATS; i++) {
         hostState.names[SEATS[i]] = latest.players[i]?.name || '';
+        // Same carry-over for avatar salts so portraits don't reset
+        // to the seat-default face the moment host mode engages.
+        hostState.avatarSalts[SEATS[i]] = latest.players[i]?.avatarSalt || 0;
       }
     }
     hostState.status = 'countdown';
@@ -977,6 +1185,14 @@
     } else if (msg.type === 'name') {
       if (typeof msg.name !== 'string') return;
       hostState.names[seat] = msg.name.trim().slice(0, NAME_MAX_CHARS);
+    } else if (msg.type === 'avatar') {
+      // Mirror room.ts validation: finite int clamped to a reasonable
+      // range. Without this branch, SHUFFLE in P2P host mode would
+      // route to the host's DC, hit no handler, and silently drop —
+      // joiners' faces would freeze on whatever snapshot the cloud
+      // server held at the moment host mode engaged.
+      if (typeof msg.salt !== 'number' || !Number.isFinite(msg.salt)) return;
+      hostState.avatarSalts[seat] = Math.max(0, Math.min(1e9, Math.floor(msg.salt)));
     } else if (msg.type === 'cheat') {
       // Debug B-key skip — applied to local hostState. Engine helper
       // gates by status/phase so we don't need to guard here.
@@ -1209,6 +1425,7 @@
       // DC now that we have a direct channel.
       if (mySeat !== 'p1' && otherSeat === 'p1' && myName) {
         try { p.send(JSON.stringify({ type: 'name', name: myName })); } catch {}
+        try { p.send(JSON.stringify({ type: 'avatar', salt: myAvatarSalt })); } catch {}
       }
     });
     p.on('data', (raw) => onPeerData(otherSeat, raw));
@@ -1379,9 +1596,13 @@
       // The local seat is indicated by the YOU badge on the player slot
       // (refreshPlayerSlots renders it), so we no longer need a "You are
       // P1" text node above the controls.
-      // Tell the server our display name as soon as we have a seat
-      // so the very first snapshot it broadcasts already includes it.
+      // Tell the server our display name + avatar salt as soon as we
+      // have a seat so the very first snapshot it broadcasts already
+      // includes them. Enable the shuffle pill — it only does anything
+      // useful once we're seated.
       if (myName) publishName();
+      publishAvatar();
+      shuffleBtn.disabled = false;
       const serverV = msg.netcode;
       // Colo trace: edge that handled the upgrade → data center the
       // DO actually lives in. Tells us whether locationHint took and
@@ -1530,6 +1751,45 @@
   const playerSlotEls = SEATS.map(s =>
     document.querySelector(`.player-slot[data-seat="${s}"]`));
 
+  // Tap your own slot → reveal the name input (the lobby hides it
+  // once a name is stored, so this is the "rename me" affordance).
+  // refreshPlayerSlots toggles the pointer cursor on the local slot
+  // only — other slots stay inert so the affordance isn't misleading.
+  playerSlotEls.forEach((slot, i) => {
+    if (!slot) return;
+    slot.addEventListener('click', () => {
+      if (SEATS[i] !== mySeat) return;
+      nameInput.hidden = false;
+      nameInput.focus();
+      nameInput.select();
+    });
+  });
+
+  // Per-seat background colour passed to DiceBear (hex without #).
+  // Matches SHIP_COLORS so the portrait's tile colour reads as the
+  // same seat colour as the in-game ship.
+  const AVATAR_BG_HEX = ['2dd4ff', 'ff3aa1', '6bff8c', 'ffd84a'];
+
+  function avatarUrl(seatIdx, salt) {
+    // Seed is (salt, seatIdx) only — no player names leave the device.
+    // (Earlier shape included the uppercased name; that sent identifying
+    // user input to api.dicebear.com on every shuffle.) Salt is a
+    // per-device random int persisted to localStorage, so collisions
+    // across players are vanishingly rare; seatIdx is the tiebreaker.
+    const seed = `${salt || 1}-${seatIdx}`;
+    const bg   = AVATAR_BG_HEX[seatIdx] || 'ffffff';
+    return 'https://api.dicebear.com/9.x/pixel-art/svg'
+         + '?seed=' + encodeURIComponent(seed)
+         + '&backgroundColor=' + bg
+         + '&randomizeIds=false&size=64';
+  }
+
+  // Track the last-rendered (name, salt) tuple per seat so we only swap
+  // img.src + replay the flip animation when something actually changed.
+  // Without this, a high-frequency snapshot stream would thrash the
+  // animation + browser image cache.
+  const lastAvatarKey = SEATS.map(() => '');
+
   function refreshPlayerSlots() {
     if (!lastState) return;
     for (let i = 0; i < MAX_SEATS; i++) {
@@ -1544,14 +1804,38 @@
       slot.classList.toggle('is-active', occupied);
       slot.classList.toggle('is-empty', !occupied);
       const nameEl = slot.querySelector('.ps-name');
+      const avatarEl = slot.querySelector('.ps-avatar');
       if (occupied) {
         const trimmed = (p.name || '').trim();
         nameEl.textContent = trimmed || 'PLAYER';
+        // For your own seat, the local salt is the source of truth.
+        // The snapshot's value may lag a tick if the server hasn't
+        // echoed the latest SHUFFLE yet — trusting it would flicker
+        // the portrait back to the previous face before snapping
+        // forward again. Other seats use the snapshot directly.
+        const isMine = SEATS[i] === mySeat;
+        const salt = isMine ? myAvatarSalt : ((p.avatarSalt | 0) || 1);
+        const key = String(salt);
+        if (lastAvatarKey[i] !== key) {
+          lastAvatarKey[i] = key;
+          avatarEl.src = avatarUrl(i, salt);
+          avatarEl.alt = (trimmed || 'P' + (i + 1)) + ' avatar';
+          avatarEl.classList.remove('is-shuffling');
+          void avatarEl.offsetWidth;   // restart animation
+          avatarEl.classList.add('is-shuffling');
+        }
       } else {
-        nameEl.textContent = 'waiting…';
+        nameEl.textContent = 'OPEN';
+        // Empty slot — clear src so the dashed-? placeholder shows.
+        if (lastAvatarKey[i] !== '') {
+          lastAvatarKey[i] = '';
+          avatarEl.removeAttribute('src');
+          avatarEl.alt = '';
+        }
       }
-      // YOU badge on the local seat (created lazily; idempotent).
+      // YOU pill on the local seat (created lazily; idempotent).
       const isYou = SEATS[i] === mySeat && occupied;
+      slot.style.cursor = isYou ? 'pointer' : '';
       let youEl = slot.querySelector('.ps-you');
       if (isYou && !youEl) {
         youEl = document.createElement('div');
@@ -1563,6 +1847,36 @@
       }
     }
   }
+
+  // Lobby leaderboard footer — one quiet line summarising the top two
+  // scores from the local mirror (Arcade.Leaderboard.read()). Empty
+  // mirror (first-time visitor) hides the row entirely. Called from
+  // refreshLobby on every snapshot + once on init in case the
+  // background refresh resolves before the first WS message.
+  const lobbyLbEl = document.getElementById('lobbyLb');
+  function refreshLobbyLeaderboard() {
+    const list = (Arcade.Leaderboard.read() || []).slice(0, 2);
+    lobbyLbEl.replaceChildren();
+    if (!list.length) { lobbyLbEl.hidden = true; return; }
+    lobbyLbEl.hidden = false;
+    // Build with DOM nodes + textContent — initials come from
+    // localStorage which any prior client (or a future server bug)
+    // could have poisoned with HTML. Same pattern the endscreen
+    // leaderboard painter uses.
+    lobbyLbEl.appendChild(document.createTextNode('THIS WEEK   '));
+    list.forEach((e, idx) => {
+      if (idx > 0) lobbyLbEl.appendChild(document.createTextNode('  ·  '));
+      const b = document.createElement('b');
+      b.textContent = (e.initials || '???').toUpperCase();
+      lobbyLbEl.appendChild(b);
+      lobbyLbEl.appendChild(document.createTextNode(' '));
+      const sc = document.createElement('span');
+      sc.className = 'sc';
+      sc.textContent = String(e.score);
+      lobbyLbEl.appendChild(sc);
+    });
+  }
+  refreshLobbyLeaderboard();
 
   // Tracks the prior status across refreshLobby calls so we can
   // detect a *transition* into gameover (vs. a snapshot from a room
@@ -1590,39 +1904,79 @@
     // game yet) and gameover (so the player can hit Start to replay).
     tube.classList.toggle('is-ready', s === 'countdown' || s === 'running');
     refreshPlayerSlots();
+    // Host = the lowest-indexed *occupied* seat. P1 normally, but if
+    // P1 dropped mid-room the next occupied seat takes over — without
+    // this, surviving players would be stuck staring at "waiting for
+    // P1 to start" forever. Server still accepts start from any seat,
+    // so the worst case if this client logic drifts is the whole room
+    // can start — never the reverse.
+    let hostIdx = -1;
+    for (let i = 0; i < MAX_SEATS; i++) {
+      if (seatOccupied(i)) { hostIdx = i; break; }
+    }
+    const isHost = hostIdx >= 0 && SEATS[hostIdx] === mySeat;
+    const hostName = hostIdx >= 0
+      ? ((lastState.players[hostIdx]?.name || '').trim() || ('P' + (hostIdx + 1)))
+      : 'P1';
+    // Apply host/non-host visual to the START button. is-waiting swaps
+    // the pink pulse for a dashed pill labelled "WAITING FOR <host>";
+    // is-waiting + disabled together prevent the button from looking
+    // tappable when it isn't. The waiting label is built with real
+    // DOM nodes so a crafted player name in `hostName` can't inject
+    // HTML through innerHTML.
+    function setStart({ disabled, waiting, label, host }) {
+      startBtn.disabled = !!disabled;
+      startBtn.classList.toggle('is-waiting', !!waiting);
+      startBtn.replaceChildren();
+      if (waiting) {
+        startBtn.appendChild(document.createTextNode('WAITING FOR '));
+        const b = document.createElement('b');
+        b.textContent = host || 'HOST';
+        startBtn.appendChild(b);
+      } else {
+        startBtn.appendChild(document.createTextNode(label || 'START'));
+      }
+    }
+
     if (s === 'waiting') {
       setStatus('Connecting…');
-      startBtn.disabled = true;
+      setStart({ disabled: true, waiting: !isHost, label: 'START', host: hostName });
     } else if (s === 'ready') {
-      // Solo → invite-friends nudge; multi → READY!.
-      setStatus(occupied >= 2
-        ? `${occupied} players ready — tap START!`
-        : 'Tap START — friends can join anytime');
-      startBtn.disabled = false;
+      if (isHost) {
+        // Solo → invite-friends nudge; multi → READY!.
+        setStatus(occupied >= 2
+          ? `${occupied} players ready — tap START!`
+          : 'Tap START — friends can join anytime');
+        setStart({ disabled: false, waiting: false, label: 'START' });
+      } else {
+        setStatus('');
+        setStart({ disabled: true, waiting: true, host: hostName });
+      }
     } else if (s === 'countdown') {
       setStatus('GET READY!');
-      startBtn.disabled = true;
+      setStart({ disabled: true, waiting: false, label: 'START' });
     } else if (s === 'running') {
       // Prescreen is hidden during running so this text is invisible,
       // but keep it set in case we surface a HUD later.
       setStatus('');
-      startBtn.disabled = true;
+      setStart({ disabled: true, waiting: false, label: 'START' });
     } else if (s === 'gameover') {
       // Endscreen owns the gameover UI now (headline + score +
       // initials / PLAY AGAIN) — but ONLY for rounds the player
       // actually participated in (caught by `enteredGameover`).
       // A fresh visitor landing on a room that was already over
-      // sees the normal lobby with START enabled, so they can
-      // begin a new round instead of being trapped behind a stale
-      // overlay with someone else's score.
-      startBtn.disabled = false;
+      // sees the normal lobby with START available (host) or the
+      // waiting dashed pill (joiner).
       if (enteredGameover) {
         setStatus('');
         showEndscreen();
       } else {
-        setStatus('Tap START — friends can join anytime');
+        setStatus(isHost ? 'Tap START — friends can join anytime' : '');
       }
+      if (isHost) setStart({ disabled: false, waiting: false, label: 'START' });
+      else        setStart({ disabled: true,  waiting: true,  host: hostName });
     }
+    refreshLobbyLeaderboard();
   }
 
   // ── Endscreen overlay ───────────────────────────────────────
