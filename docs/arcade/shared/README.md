@@ -4,6 +4,12 @@ Everything in `docs/arcade/shared/` is the common cabinet for the arcade games
 (`invaders/`, `space-jumper/`, …). The JS modules attach to a single global
 `window.Arcade.*` namespace; the CSS sheets style a fixed set of class/id names.
 
+The framework has **two layers**. The modules below are *cabinet chrome* —
+`Audio`, `Music`, `Splash`, `Pause`, `Touch`, `Initials`, `Leaderboard`,
+`EndOverlay`. `engine.js` adds the *game-primitive* layer under `Arcade.Engine`
+(canvas backing-store, rect overlap, stable PRNG, pixel draw) — the building
+blocks of a game's own simulation and rendering, not the surrounding cabinet.
+
 **The one gotcha:** every module is **selector-driven with silent defaults**.
 If your markup doesn't use the exact ids/classes a module expects, the module
 no-ops quietly — no error, just a dead button or an unstyled panel. This file
@@ -43,6 +49,7 @@ modules read another's API at call time. Use this order.
 <script src="../shared/initials.js"></script>
 <script src="../shared/end-overlay.js"></script>
 <script src="../shared/splash.js"></script>
+<script src="../shared/engine.js"></script>     <!-- game primitives; pure, no deps, order-independent -->
 ```
 
 Skip any module you don't need — but mind the noted dependencies (`pause`
@@ -70,6 +77,7 @@ give your script `defer`, or wrap init in `DOMContentLoaded`.)
 | `initials.js` | `Initials` | `#go-initials` container, `#go-initials .go-slot` cells each with `data-slot="N"`, `#go-prompt` | High-score initials state machine (keyboard + touch). `mount({onSubmit, fireButton})`, `open()`. Gate your restart listeners on `if (Arcade.Initials.isActive()) return;`. |
 | `end-overlay.js` | `EndOverlay` | `#gameover` root + `#go-title`, `#go-score-val`, `#go-hiscore`, `#go-prompt` (toggles `.is-visible`) | Game-over/complete overlay + the grace-window + "next keypress restarts" gate. `show({score, title, titleClass, hiscore, hiscoreText, graceMs, qualifies})` (`hiscoreText` overrides the default HIGH-line formatter — Rocket Ship / Space Jumper use it), `acceptsInput()`, `consumePending()`. `mount()` is optional (defaults match the ids above). |
 | `splash.js` | `Splash` | `#splash`, `#splash .splash-view` (index 0 = title, 1 = leaderboard), `.tube` | Full attract-mode lifecycle: booting → title → playing → attract. `mount({onTitle, onPlay, onLeaderboardShow, unlockAudio, isBusy})`, `enterAttract()`. Gate your loop with `if (!Arcade.Splash.isPlaying()) return;`. Toggles `.tube.is-ready` and `body.is-ingame`. |
+| `engine.js` | `Engine` | none — pure helpers, no DOM lookups at load | Game primitives (the layer below the chrome above): `canvas.configure(canvas,{maxDpr})` (backing store + capped DPR transform, returns `{ctx,cssWidth,cssHeight,dpr,pixelWidth,pixelHeight}`); `rectsOverlap(...)` (strict AABB); `rand.tileHash(i)`; `draw.circle(ctx,cx,cy,r)`. **`canvas.configure` resets the 2D transform on every call — call it on resize, not per-frame.** |
 
 ### Stylesheet class contracts
 

@@ -252,6 +252,7 @@
 <script src="../shared/splash.js"></script>
 <script src="../shared/initials.js"></script>
 <script src="../shared/end-overlay.js"></script>
+<script src="../shared/engine.js"></script>
 <audio id="sfx-powerup"   src="../shared/sfx-powerup.mp3"   preload="auto"></audio>
 <audio id="sfx-explosion" src="../shared/sfx-explosion.mp3" preload="auto"></audio>
 <audio id="sfx-lose"      src="../shared/sfx-lose.mp3"      preload="auto"></audio>
@@ -377,9 +378,12 @@ const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 let W, H;
 function resize() {
-  const rect = canvas.getBoundingClientRect();
-  W = canvas.width = rect.width;
-  H = canvas.height = rect.height;
+  // Arcade.Engine.canvas.configure sizes the backing store + normalises the
+  // transform; default maxDpr:1 keeps this rendering-equivalent. W/H stay in
+  // CSS pixels (the game's drawing coordinate space).
+  const surface = Arcade.Engine.canvas.configure(canvas);
+  W = surface.cssWidth;
+  H = surface.cssHeight;
 }
 resize();
 window.addEventListener('resize', resize);
@@ -938,8 +942,10 @@ let gameOver = false;
 let gameOverAt = 0;
 const enemies = [];
 
+// Forwards to the shared primitive (single source of truth). Same signature,
+// so existing call sites are unchanged.
 function aabbOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
-  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+  return Arcade.Engine.rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh);
 }
 
 function initEnemies() {
@@ -1910,18 +1916,10 @@ function drawHUD() {
 
 // ---------- Background helpers ----------
 // Crisp pixel-style disc via small rectangles. Cheap, no canvas arcs.
-function fillCircle(cx, cy, r) {
-  for (let y = -r; y <= r; y++) {
-    const w = Math.round(Math.sqrt(r * r - y * y));
-    ctx.fillRect(Math.round(cx - w), Math.round(cy + y), w * 2, 1);
-  }
-}
-function fillCircleOn(c, cx, cy, r) {
-  for (let y = -r; y <= r; y++) {
-    const w = Math.round(Math.sqrt(r * r - y * y));
-    c.fillRect(Math.round(cx - w), Math.round(cy + y), w * 2, 1);
-  }
-}
+// Forward to the shared scanline disc. fillCircle draws on the main ctx;
+// fillCircleOn takes an explicit context (offscreen moon canvas, etc.).
+function fillCircle(cx, cy, r) { Arcade.Engine.draw.circle(ctx, cx, cy, r); }
+function fillCircleOn(c, cx, cy, r) { Arcade.Engine.draw.circle(c, cx, cy, r); }
 
 // Moon is static art rendered into an offscreen canvas once, then
 // blitted via drawImage each frame — saves ~70 sqrt() calls + 70
@@ -1956,9 +1954,7 @@ function getMoonCanvas() {
 // the per-frame screen x), so a tile's hash — and therefore the shape
 // + position of whatever's drawn on it — never changes between frames.
 function tileHash(i) {
-  let x = ((i | 0) + 100000) >>> 0;
-  x = (x * 9301 + 49297) % 233280;
-  return x / 233280;
+  return Arcade.Engine.rand.tileHash(i);
 }
 
 // Distant pixel-city silhouette. Each "tile" along the strip hosts one
