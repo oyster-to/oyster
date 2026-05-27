@@ -577,10 +577,10 @@
            to that player's name + avatarSalt. Tap your own slot to
            reveal the name input. -->
       <div class="players">
-        <div class="player-slot" data-seat="p1"><div class="ps-avatar-wrap"><img class="ps-avatar" alt=""></div><div class="ps-label">P1</div><div class="ps-name">—</div></div>
-        <div class="player-slot" data-seat="p2"><div class="ps-avatar-wrap"><img class="ps-avatar" alt=""></div><div class="ps-label">P2</div><div class="ps-name">—</div></div>
-        <div class="player-slot" data-seat="p3"><div class="ps-avatar-wrap"><img class="ps-avatar" alt=""></div><div class="ps-label">P3</div><div class="ps-name">—</div></div>
-        <div class="player-slot" data-seat="p4"><div class="ps-avatar-wrap"><img class="ps-avatar" alt=""></div><div class="ps-label">P4</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p1"><div class="ps-avatar-wrap"><img class="ps-avatar" alt="" referrerpolicy="no-referrer"></div><div class="ps-label">P1</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p2"><div class="ps-avatar-wrap"><img class="ps-avatar" alt="" referrerpolicy="no-referrer"></div><div class="ps-label">P2</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p3"><div class="ps-avatar-wrap"><img class="ps-avatar" alt="" referrerpolicy="no-referrer"></div><div class="ps-label">P3</div><div class="ps-name">—</div></div>
+        <div class="player-slot" data-seat="p4"><div class="ps-avatar-wrap"><img class="ps-avatar" alt="" referrerpolicy="no-referrer"></div><div class="ps-label">P4</div><div class="ps-name">—</div></div>
       </div>
 
       <button id="shuffleBtn" class="pill-btn" type="button" disabled>&#x21bb; SHUFFLE MY AVATAR</button>
@@ -1046,15 +1046,10 @@
   shuffleBtn.addEventListener('click', () => {
     myAvatarSalt = randomSalt();
     publishAvatar();
-    // Re-render local immediately — server echo will keep us consistent
-    // with what other players see. Snapshot may take up to a tick to
-    // arrive, so this avoids the visible 1-frame stall.
-    if (mySeat && lastState) {
-      const i = SEATS.indexOf(mySeat);
-      const p = lastState.players[i];
-      if (p) p.avatarSalt = myAvatarSalt;
-      refreshPlayerSlots();
-    }
+    // No need to mutate lastState — refreshPlayerSlots reads
+    // myAvatarSalt directly for the local seat, so the new face
+    // paints on this tick without waiting for the server echo.
+    if (mySeat && lastState) refreshPlayerSlots();
   });
 
   // --------------------------------------------------------------------
@@ -1125,6 +1120,9 @@
     if (latest && latest.players) {
       for (let i = 0; i < MAX_SEATS; i++) {
         hostState.names[SEATS[i]] = latest.players[i]?.name || '';
+        // Same carry-over for avatar salts so portraits don't reset
+        // to the seat-default face the moment host mode engages.
+        hostState.avatarSalts[SEATS[i]] = latest.players[i]?.avatarSalt || 0;
       }
     }
     hostState.status = 'countdown';
@@ -1187,6 +1185,14 @@
     } else if (msg.type === 'name') {
       if (typeof msg.name !== 'string') return;
       hostState.names[seat] = msg.name.trim().slice(0, NAME_MAX_CHARS);
+    } else if (msg.type === 'avatar') {
+      // Mirror room.ts validation: finite int clamped to a reasonable
+      // range. Without this branch, SHUFFLE in P2P host mode would
+      // route to the host's DC, hit no handler, and silently drop —
+      // joiners' faces would freeze on whatever snapshot the cloud
+      // server held at the moment host mode engaged.
+      if (typeof msg.salt !== 'number' || !Number.isFinite(msg.salt)) return;
+      hostState.avatarSalts[seat] = Math.max(0, Math.min(1e9, Math.floor(msg.salt)));
     } else if (msg.type === 'cheat') {
       // Debug B-key skip — applied to local hostState. Engine helper
       // gates by status/phase so we don't need to guard here.
@@ -1419,6 +1425,7 @@
       // DC now that we have a direct channel.
       if (mySeat !== 'p1' && otherSeat === 'p1' && myName) {
         try { p.send(JSON.stringify({ type: 'name', name: myName })); } catch {}
+        try { p.send(JSON.stringify({ type: 'avatar', salt: myAvatarSalt })); } catch {}
       }
     });
     p.on('data', (raw) => onPeerData(otherSeat, raw));
@@ -1746,9 +1753,10 @@
 
   // Tap your own slot → reveal the name input (the lobby hides it
   // once a name is stored, so this is the "rename me" affordance).
+  // refreshPlayerSlots toggles the pointer cursor on the local slot
+  // only — other slots stay inert so the affordance isn't misleading.
   playerSlotEls.forEach((slot, i) => {
     if (!slot) return;
-    slot.style.cursor = 'pointer';
     slot.addEventListener('click', () => {
       if (SEATS[i] !== mySeat) return;
       nameInput.hidden = false;
@@ -1762,13 +1770,13 @@
   // same seat colour as the in-game ship.
   const AVATAR_BG_HEX = ['2dd4ff', 'ff3aa1', '6bff8c', 'ffd84a'];
 
-  function avatarUrl(seatIdx, name, salt) {
-    // Seed: name + salt when both are present, salt alone otherwise.
-    // Includes the seat index as a tiebreaker so two players with the
-    // same name + salt still get distinct faces (very unlikely, but
-    // cheap to guarantee).
-    const safeName = (name || '').trim().toUpperCase() || ('P' + (seatIdx + 1));
-    const seed = `${safeName}-${salt || 1}-${seatIdx}`;
+  function avatarUrl(seatIdx, salt) {
+    // Seed is (salt, seatIdx) only — no player names leave the device.
+    // (Earlier shape included the uppercased name; that sent identifying
+    // user input to api.dicebear.com on every shuffle.) Salt is a
+    // per-device random int persisted to localStorage, so collisions
+    // across players are vanishingly rare; seatIdx is the tiebreaker.
+    const seed = `${salt || 1}-${seatIdx}`;
     const bg   = AVATAR_BG_HEX[seatIdx] || 'ffffff';
     return 'https://api.dicebear.com/9.x/pixel-art/svg'
          + '?seed=' + encodeURIComponent(seed)
@@ -1800,11 +1808,17 @@
       if (occupied) {
         const trimmed = (p.name || '').trim();
         nameEl.textContent = trimmed || 'PLAYER';
-        const salt = (p.avatarSalt | 0) || 1;
-        const key = trimmed + '|' + salt;
+        // For your own seat, the local salt is the source of truth.
+        // The snapshot's value may lag a tick if the server hasn't
+        // echoed the latest SHUFFLE yet — trusting it would flicker
+        // the portrait back to the previous face before snapping
+        // forward again. Other seats use the snapshot directly.
+        const isMine = SEATS[i] === mySeat;
+        const salt = isMine ? myAvatarSalt : ((p.avatarSalt | 0) || 1);
+        const key = String(salt);
         if (lastAvatarKey[i] !== key) {
           lastAvatarKey[i] = key;
-          avatarEl.src = avatarUrl(i, trimmed, salt);
+          avatarEl.src = avatarUrl(i, salt);
           avatarEl.alt = (trimmed || 'P' + (i + 1)) + ' avatar';
           avatarEl.classList.remove('is-shuffling');
           void avatarEl.offsetWidth;   // restart animation
@@ -1821,6 +1835,7 @@
       }
       // YOU pill on the local seat (created lazily; idempotent).
       const isYou = SEATS[i] === mySeat && occupied;
+      slot.style.cursor = isYou ? 'pointer' : '';
       let youEl = slot.querySelector('.ps-you');
       if (isYou && !youEl) {
         youEl = document.createElement('div');
@@ -1841,10 +1856,25 @@
   const lobbyLbEl = document.getElementById('lobbyLb');
   function refreshLobbyLeaderboard() {
     const list = (Arcade.Leaderboard.read() || []).slice(0, 2);
-    if (!list.length) { lobbyLbEl.hidden = true; lobbyLbEl.textContent = ''; return; }
-    const fmt = (e) => `<b>${(e.initials || '???').toUpperCase()}</b> <span class="sc">${e.score}</span>`;
+    lobbyLbEl.replaceChildren();
+    if (!list.length) { lobbyLbEl.hidden = true; return; }
     lobbyLbEl.hidden = false;
-    lobbyLbEl.innerHTML = 'THIS WEEK &nbsp; ' + list.map(fmt).join(' &nbsp;·&nbsp; ');
+    // Build with DOM nodes + textContent — initials come from
+    // localStorage which any prior client (or a future server bug)
+    // could have poisoned with HTML. Same pattern the endscreen
+    // leaderboard painter uses.
+    lobbyLbEl.appendChild(document.createTextNode('THIS WEEK   '));
+    list.forEach((e, idx) => {
+      if (idx > 0) lobbyLbEl.appendChild(document.createTextNode('  ·  '));
+      const b = document.createElement('b');
+      b.textContent = (e.initials || '???').toUpperCase();
+      lobbyLbEl.appendChild(b);
+      lobbyLbEl.appendChild(document.createTextNode(' '));
+      const sc = document.createElement('span');
+      sc.className = 'sc';
+      sc.textContent = String(e.score);
+      lobbyLbEl.appendChild(sc);
+    });
   }
   refreshLobbyLeaderboard();
 
@@ -1891,37 +1921,45 @@
     // Apply host/non-host visual to the START button. is-waiting swaps
     // the pink pulse for a dashed pill labelled "WAITING FOR <host>";
     // is-waiting + disabled together prevent the button from looking
-    // tappable when it isn't.
-    function setStart({ disabled, waiting, text }) {
+    // tappable when it isn't. The waiting label is built with real
+    // DOM nodes so a crafted player name in `hostName` can't inject
+    // HTML through innerHTML.
+    function setStart({ disabled, waiting, label, host }) {
       startBtn.disabled = !!disabled;
       startBtn.classList.toggle('is-waiting', !!waiting);
-      // innerHTML so the <b> in the waiting label is honoured.
-      startBtn.innerHTML = text;
+      startBtn.replaceChildren();
+      if (waiting) {
+        startBtn.appendChild(document.createTextNode('WAITING FOR '));
+        const b = document.createElement('b');
+        b.textContent = host || 'HOST';
+        startBtn.appendChild(b);
+      } else {
+        startBtn.appendChild(document.createTextNode(label || 'START'));
+      }
     }
-    const waitingLabel = `WAITING FOR <b>${hostName}</b>`;
 
     if (s === 'waiting') {
       setStatus('Connecting…');
-      setStart({ disabled: true, waiting: !isHost, text: isHost ? 'START' : waitingLabel });
+      setStart({ disabled: true, waiting: !isHost, label: 'START', host: hostName });
     } else if (s === 'ready') {
       if (isHost) {
         // Solo → invite-friends nudge; multi → READY!.
         setStatus(occupied >= 2
           ? `${occupied} players ready — tap START!`
           : 'Tap START — friends can join anytime');
-        setStart({ disabled: false, waiting: false, text: 'START' });
+        setStart({ disabled: false, waiting: false, label: 'START' });
       } else {
         setStatus('');
-        setStart({ disabled: true, waiting: true, text: waitingLabel });
+        setStart({ disabled: true, waiting: true, host: hostName });
       }
     } else if (s === 'countdown') {
       setStatus('GET READY!');
-      setStart({ disabled: true, waiting: false, text: 'START' });
+      setStart({ disabled: true, waiting: false, label: 'START' });
     } else if (s === 'running') {
       // Prescreen is hidden during running so this text is invisible,
       // but keep it set in case we surface a HUD later.
       setStatus('');
-      setStart({ disabled: true, waiting: false, text: 'START' });
+      setStart({ disabled: true, waiting: false, label: 'START' });
     } else if (s === 'gameover') {
       // Endscreen owns the gameover UI now (headline + score +
       // initials / PLAY AGAIN) — but ONLY for rounds the player
@@ -1935,8 +1973,8 @@
       } else {
         setStatus(isHost ? 'Tap START — friends can join anytime' : '');
       }
-      if (isHost) setStart({ disabled: false, waiting: false, text: 'START' });
-      else        setStart({ disabled: true,  waiting: true,  text: waitingLabel });
+      if (isHost) setStart({ disabled: false, waiting: false, label: 'START' });
+      else        setStart({ disabled: true,  waiting: true,  host: hostName });
     }
     refreshLobbyLeaderboard();
   }
