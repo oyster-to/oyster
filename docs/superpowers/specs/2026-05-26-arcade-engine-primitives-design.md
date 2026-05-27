@@ -72,8 +72,11 @@ veto point left for the reviewer.)*
 - `maxDpr = Math.max(1, Number(maxDpr) || 1)` — guards `0` / `null` / `NaN` / negative
   so a bad value can't produce a zero-size or broken canvas.
 - `dpr = min(window.devicePixelRatio || 1, maxDpr)`.
-- `pixelWidth = round(cssWidth * dpr)`, `pixelHeight = round(cssHeight * dpr)`.
-- Sets `canvas.width = pixelWidth`, `canvas.height = pixelHeight`.
+- Sets `canvas.width = cssWidth * dpr` (same for height) and reads it back: the
+  canvas attributes coerce to integers by truncation, so the read-back is the true
+  backing-store size. `pixelWidth = canvas.width`, `pixelHeight = canvas.height`.
+  (No `Math.round` — truncation matches the prior `canvas.width = rect.width`
+  exactly at dpr 1, with no 1px drift on fractional CSS sizes.)
 - Grabs `ctx = canvas.getContext('2d')` and **always** normalises the transform:
   `ctx.setTransform(dpr, 0, 0, dpr, 0, 0)` (identity when `dpr === 1`), so game code keeps
   drawing in CSS-pixel coordinates regardless of DPR.
@@ -173,7 +176,8 @@ Node-based, modelled on the existing `music.test.cjs` / `splash.test.cjs` (mock
 - **`canvas.configure`:**
   - `maxDpr` omitted ⇒ `dpr === 1`.
   - `devicePixelRatio = 3`, `{ maxDpr: 2 }` ⇒ `dpr === 2`.
-  - `canvas.width === round(cssWidth * dpr)`, `canvas.height === round(cssHeight * dpr)`.
+  - `canvas.width` reads back the truncated `cssWidth * dpr` (same for height); a
+    fractional CSS size (e.g. 1396.5 → 1396) truncates, matching the old behaviour.
   - `ctx.setTransform` called with `(dpr, 0, 0, dpr, 0, 0)` after the call (transform
     reset / normalised).
   - invalid `maxDpr` (`0`, `null`, `NaN`, `-2`) ⇒ clamped, `dpr === 1`.
