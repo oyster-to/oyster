@@ -13,5 +13,9 @@
     "@cloudflare/workers-types": "^4.20260101.0",
     "typescript": "^5.4.0",
     "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "@dicebear/core": "^9.4.2",
+    "@dicebear/pixel-art": "^9.4.2"
   }
 }

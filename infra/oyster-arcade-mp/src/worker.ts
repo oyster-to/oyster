@@ -12,6 +12,14 @@
 //                                   handshakes fail. Returns the JSON
 //                                   from CF, or 503 if the TURN_APP_ID
 //                                   + TURN_APP_TOKEN secrets aren't set.
+// GET  /api/mp/avatar?seed=X&bg=Y → renders a DiceBear pixel-art SVG
+//                                   for the given seed at the edge,
+//                                   served from the same origin so we
+//                                   drop the external dependency on
+//                                   api.dicebear.com (and don't leak
+//                                   anything via Referer). Deterministic
+//                                   per (seed, bg), so we ship it with
+//                                   immutable cache headers.
 //
 // Anything else 404s. v0 is one game (invaders), per-pair rooms keyed
 // by code, no matchmaking, no auth.
@@ -23,10 +31,54 @@
 // STUN-only, which is fine for cone-NAT networks but fails on hotels
 // + cellular with symmetric NAT.
 
+import { createAvatar } from '@dicebear/core';
+// DiceBear v9 ships each style as a namespace (create + meta + schema)
+// rather than a named export — pass the whole module to createAvatar.
+import * as pixelArt from '@dicebear/pixel-art';
+
 export interface Env {
   ROOM: DurableObjectNamespace;
   TURN_APP_ID?: string;
   TURN_APP_TOKEN?: string;
+}
+
+// Avatar input limits — generous but bounded so a misbehaving client
+// can't push huge seeds through the SVG renderer or stuff garbage
+// through our cache key. Client only sends short ints today.
+const AVATAR_SEED_MAX = 64;
+
+function handleAvatar(url: URL): Response {
+  // Strict validation rather than silent fix-up: every accepted request
+  // canonicalizes to exactly one cache key. Truncating seeds or
+  // defaulting malformed bg values lets an attacker fan out one
+  // logical SVG across unbounded cache entries (cache-key
+  // amplification) while burning CPU on re-renders behind the CDN.
+  const seed = url.searchParams.get('seed') || '';
+  if (!seed) {
+    return new Response('missing seed', { status: 400 });
+  }
+  if (seed.length > AVATAR_SEED_MAX) {
+    return new Response(`seed exceeds ${AVATAR_SEED_MAX} chars`, { status: 400 });
+  }
+  const bg = (url.searchParams.get('bg') || '').toLowerCase();
+  if (!/^[0-9a-f]{6}$/.test(bg)) {
+    return new Response('bg must be 6-char hex without #', { status: 400 });
+  }
+  const svg = createAvatar(pixelArt, {
+    seed,
+    backgroundColor: [bg],
+    randomizeIds: false,
+  }).toString();
+  return new Response(svg, {
+    headers: {
+      'content-type': 'image/svg+xml; charset=utf-8',
+      // Deterministic per (seed, bg) — the seed is part of the URL,
+      // so the cache key is the full request. Immutable means CDN +
+      // browser hold this forever; if we ever change the renderer
+      // we'll bump the path (e.g. /api/mp/avatar/v2).
+      'cache-control': 'public, max-age=31536000, immutable',
+    },
+  });
 }
 
 // 1-hour TTL on TURN credentials. Long enough that a single fetch
@@ -92,6 +144,10 @@ export default {
 
     if (url.pathname === '/api/mp/turn-credentials') {
       return handleTurnCredentials(env);
+    }
+
+    if (url.pathname === '/api/mp/avatar') {
+      return handleAvatar(url);
     }
 
     if (url.pathname === '/api/mp/invaders/ws') {
