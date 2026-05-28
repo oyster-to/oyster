@@ -272,24 +272,75 @@
     .ps-avatar.is-shuffling { animation: none; }
   }
 
-  /* Name input — first-launch affordance. Hidden once a name lives in
-     localStorage (the player's own slot will show their name + their
-     avatar already). Tappable from the players row to edit later. */
-  #prescreen .name-input {
+  /* SHUFFLE button — tag chip "attached" to the players row via a wedge
+     pointing up. Filled in the local player's seat colour (set via JS
+     once mySeat is assigned) so it visibly belongs to you. Falls back
+     to the muted .pill-btn look while disabled / pre-seat. */
+  #prescreen #shuffleBtn {
+    position: relative;
+    background: var(--shuffle-accent, rgba(255,255,255,0.04));
+    color: var(--shuffle-ink, rgba(255,255,255,0.55));
+    border: 0;
+    border-radius: 6px;
+    padding: 10px 16px;
+    font: inherit; font-size: 10px;
+    letter-spacing: 0.18em; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+    box-shadow: 0 2px 0 rgba(0,0,0,0.35);
+    transition: transform 0.08s ease, filter 0.12s ease;
+  }
+  /* Wedge — only rendered once the chip has a seat colour to point with. */
+  #prescreen #shuffleBtn::before {
+    content: "";
+    position: absolute;
+    top: -6px; left: 50%; transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 6px solid var(--shuffle-accent, transparent);
+  }
+  #prescreen #shuffleBtn:hover:not(:disabled) {
+    filter: brightness(1.12);
+    transform: translateY(-1px);
+  }
+  #prescreen #shuffleBtn:active:not(:disabled) { transform: translateY(1px); }
+  #prescreen #shuffleBtn:disabled {
     background: rgba(255,255,255,0.04);
-    color: #fff;
-    border: 1px solid rgba(255,255,255,0.25);
-    border-radius: 4px;
-    padding: 8px 12px;
+    color: rgba(255,255,255,0.3);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+  #prescreen #shuffleBtn:disabled::before { display: none; }
+  #prescreen #shuffleBtn .ico {
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+  }
+
+  /* Name input — first-launch affordance. Dashed underline + italic
+     placeholder reads as a fill-me-in slot rather than a chunky form
+     field, matching the playful tag-chip CTA family. Hidden once a
+     name lives in localStorage (the player's own slot will show their
+     name + their avatar already). Tappable from the players row to
+     edit later. */
+  #prescreen .name-input {
+    background: transparent;
+    color: var(--ink, #fff);
+    border: 0;
+    border-bottom: 1px dashed rgba(255,255,255,0.3);
+    border-radius: 0;
+    padding: 6px 4px 4px;
     font: inherit; font-size: 11px;
     letter-spacing: 0.1em;
     width: 200px; max-width: 80vw;
     text-align: center;
   }
-  #prescreen .name-input::placeholder { color: rgba(255,255,255,0.35); }
+  #prescreen .name-input::placeholder {
+    color: rgba(255,255,255,0.3);
+    font-style: italic;
+    letter-spacing: 0.06em;
+  }
   #prescreen .name-input:focus {
-    outline: none; border-color: #ff3aa1;
-    background: rgba(255,58,161,0.06);
+    outline: none;
+    border-bottom-color: #ff3aa1;
   }
   #prescreen .name-input[hidden] { display: none; }
 
@@ -696,7 +747,7 @@
         <div class="player-slot" data-seat="p4"><div class="ps-avatar-wrap"><img class="ps-avatar" alt="" referrerpolicy="no-referrer"></div><div class="ps-label">P4</div><div class="ps-name">—</div></div>
       </div>
 
-      <button id="shuffleBtn" class="pill-btn" type="button" disabled>&#x21bb; SHUFFLE MY AVATAR</button>
+      <button id="shuffleBtn" type="button" disabled><span class="ico">&#x21bb;</span> ROLL NEW FACE</button>
 
       <input id="nameInput" class="name-input" maxlength="12" placeholder="Your name" autocomplete="off" autocapitalize="off" spellcheck="false">
 
@@ -1717,6 +1768,15 @@
       if (myName) publishName();
       publishAvatar();
       shuffleBtn.disabled = false;
+      // Paint the SHUFFLE chip in our seat colour — the wedge above it
+      // visibly attaches the chip to the players row, and the fill
+      // mirrors the in-game ship colour. Done once on seat assignment;
+      // the seat doesn't change for the lifetime of the connection.
+      const mySeatIdx = SEATS.indexOf(mySeat);
+      if (mySeatIdx >= 0) {
+        shuffleBtn.style.setProperty('--shuffle-accent', SHIP_COLORS[mySeatIdx]);
+        shuffleBtn.style.setProperty('--shuffle-ink', '#0a0a1e');
+      }
       const serverV = msg.netcode;
       // Colo trace: edge that handled the upgrade → data center the
       // DO actually lives in. Tells us whether locationHint took and
