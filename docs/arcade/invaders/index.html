@@ -126,7 +126,7 @@
     line-height: 1;
   }
 
-  /* Hero row: pairs the QR card with the START button. On portrait
+  /* Hero row: pairs the QR card with the START column. On portrait
      (phone / iPad held vertically) they stack as a single centred
      column. On landscape laptop they sit side-by-side so START
      stops sliding past the fold below the QR. */
@@ -141,6 +141,16 @@
       align-items: center;
       justify-content: center;
     }
+  }
+
+  /* START + status text live together — sub-status reads as "about
+     this button" rather than free-floating below the whole hero row. */
+  #prescreen .start-col {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 10px;
+  }
+  #prescreen .start-col #status {
+    min-height: 1em;
   }
 
   /* QR card — the "show this to your friend" target. Pill-style COPY
@@ -762,10 +772,11 @@
           <button id="copyBtn" class="pill-btn" type="button">&#x29C9; COPY LINK</button>
         </div>
 
-        <button id="startBtn" class="big-start" disabled>START</button>
+        <div class="start-col">
+          <button id="startBtn" class="big-start" disabled>START</button>
+          <div id="status">Connecting…</div>
+        </div>
       </div>
-
-      <div id="status">Connecting…</div>
 
       <!-- One-line family leaderboard. Hidden when the local mirror is
            empty (first-time visitor, never played). -->
@@ -2223,10 +2234,12 @@
       setStart({ disabled: true, waiting: !isHost, label: 'START', host: hostName });
     } else if (s === 'ready') {
       if (isHost) {
-        // Solo → invite-friends nudge; multi → READY!.
+        // Sub-status — the START button is right next to this text now,
+        // so we drop the redundant "tap START" instruction and just
+        // reassure: friends can join after the round starts.
         setStatus(occupied >= 2
-          ? `${occupied} players ready — tap START!`
-          : 'Tap START — friends can join anytime');
+          ? `${occupied} players ready`
+          : 'friends can join anytime');
         setStart({ disabled: false, waiting: false, label: 'START' });
       } else {
         setStatus('');
@@ -2251,7 +2264,7 @@
         setStatus('');
         showEndscreen();
       } else {
-        setStatus(isHost ? 'Tap START — friends can join anytime' : '');
+        setStatus(isHost ? 'friends can join anytime' : '');
       }
       if (isHost) setStart({ disabled: false, waiting: false, label: 'START' });
       else        setStart({ disabled: true,  waiting: true,  host: hostName });
