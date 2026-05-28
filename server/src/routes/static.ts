@@ -47,6 +47,9 @@ export interface StaticRouteDeps {
   stopAppById: (appId: string) => boolean;
   getRunningApp: (appId: string) => { port: number; pid: number } | undefined;
   findFreePort: () => Promise<number>;
+  /** Push an SSE artifact_changed so the surface flips the optimistic
+   *  "starting" status to online/offline without waiting for a poll. */
+  broadcastUiEvent: (event: { version: 1; command: string; payload: { id: string | null } }) => void;
 }
 
 /** Resolve a /artifacts/<relativePath> URL to a file on disk. The icon
@@ -184,11 +187,16 @@ export async function tryHandleStaticRoute(
     if (rejectIfNonLocalOrigin()) return true;
     const name = startMatch[1];
     const config = artifactService.getAppConfig(name);
+    // Any lifecycle outcome (started / stopped / failed) needs to refresh the
+    // surface so the optimistic "starting" dot flips to its real state without
+    // waiting for a poll. Inline at every exit; the cost is one SSE per call.
+    const refresh = () => deps.broadcastUiEvent({ version: 1, command: "artifact_changed", payload: { id: null } });
     if (config) {
-      if (await deps.isPortOpen(config.port)) { sendJson({ status: "already_running", port: config.port }); return true; }
+      if (await deps.isPortOpen(config.port)) { sendJson({ status: "already_running", port: config.port }); refresh(); return true; }
       deps.startApp(name, config);
       try { await deps.waitForReady(config.port); sendJson({ status: "started", port: config.port }); }
       catch { sendJson({ status: "timeout" }, 500); }
+      refresh();
       return true;
     }
     // Derived runnable app: `name` is a projectId (web strips the `app:` prefix).
@@ -196,14 +204,15 @@ export async function tryHandleStaticRoute(
     const r = project ? resolveRunnableApp(project) : { app: null as null };
     if (r.app) {
       const running = deps.getRunningApp(r.app.id);
-      if (running) { sendJson({ status: "already_running", port: running.port }); return true; }
+      if (running) { sendJson({ status: "already_running", port: running.port }); refresh(); return true; }
       const port = await deps.findFreePort();
       deps.startAppById(r.app.id, buildLaunchArgv(r.app.framework, port), r.app.cwd, port);
       try { await deps.waitForReady(port); sendJson({ status: "started", port }); }
       catch { sendJson({ status: "timeout", message: "Couldn't start — runnable apps launch via `npm run dev`; check the dev script." }, 500); }
+      refresh();
       return true;
     }
-    res.writeHead(404); res.end("Unknown app"); return true;
+    sendJson({ status: "unknown_app", message: "App not found." }, 404); return true;
   }
 
   // GET /api/apps/:name/stop — see /start above re: local-origin guard +
@@ -213,14 +222,17 @@ export async function tryHandleStaticRoute(
     if (rejectIfNonLocalOrigin()) return true;
     const name = stopMatch[1];
     const config = artifactService.getAppConfig(name);
+    const refresh = () => deps.broadcastUiEvent({ version: 1, command: "artifact_changed", payload: { id: null } });
     if (config) {
       const stopped = deps.stopApp(name, config.port);
       sendJson({ status: stopped ? "stopped" : "not_managed" });
+      refresh();
       return true;
     }
     // Derived app: stop by the same id the start path used.
     const stopped = deps.stopAppById(`app:${name}`);
     sendJson({ status: stopped ? "stopped" : "not_managed" });
+    refresh();
     return true;
   }
 

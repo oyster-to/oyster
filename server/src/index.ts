@@ -891,6 +891,7 @@ async function handleHttpRequest(req: IncomingMessage, res: ServerResponse) {
     },
     startApp, stopApp, isPortOpen, waitForReady,
     projectService, startAppById, stopAppById, getRunningApp, findFreePort,
+    broadcastUiEvent,
   })) return;
 
   // GET /api/ui/events — SSE stream for UI commands.

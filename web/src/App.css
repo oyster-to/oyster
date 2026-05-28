@@ -496,7 +496,10 @@ body {
 }
 
 .status-dot.offline {
-  background: #ef4444;
+  /* Neutral grey — "not started" is the default resting state, not an error.
+     (Failures are surfaced via the click handler's alert; we don't paint the
+     dot red just because the app hasn't been launched.) */
+  background: #6b7280;
 }
 
 .status-dot.starting {

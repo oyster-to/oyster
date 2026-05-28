@@ -12,7 +12,7 @@ import { PromptModal } from "../PromptModal";
 export function ProjectTile({
   project, artefactCount, sessionCounts, selected, onSelect, onChanged,
   isLastProject, spaceTotalSessions, onSpaceDelete, otherProjects, spaces,
-  onLaunchClaude, onOpenApp,
+  onLaunchClaude, onPlayApp, appStatus,
 }: {
   project: Project;
   artefactCount: number;
@@ -33,9 +33,13 @@ export function ProjectTile({
   /** Spawn a Claude PTY in this project's folder. Disabled when the
    *  project has no live path. */
   onLaunchClaude?: (projectId: string) => void;
-  /** Navigate the surface to the detected runnable app's space. Does NOT
-   *  start the process — only reveals the artefact card so the user can click it. */
-  onOpenApp?: (appId: string) => void;
+  /** Click the ▶ app chip → play. Same unified launch flow as clicking the
+   *  artefact card (start + preview window). The parent looks the matching
+   *  artefact up by id and forwards to the shared click handler. */
+  onPlayApp?: (appId: string) => void;
+  /** Current lifecycle status of the detected app artefact, used to colour the
+   *  chip (online / starting / offline). Undefined when not yet resolved. */
+  appStatus?: string;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -160,9 +164,13 @@ export function ProjectTile({
             {project.app && (
               <button
                 type="button"
-                className="home-project-app-chip"
-                title={`Open the ${project.app.label} app`}
-                onClick={(e) => { e.stopPropagation(); onOpenApp?.(project.app!.id); }}
+                className={`home-project-app-chip${appStatus ? ` is-${appStatus}` : ""}`}
+                title={appStatus === "online"
+                  ? `Open the ${project.app.label} preview`
+                  : appStatus === "starting"
+                    ? `${project.app.label} is starting…`
+                    : `Play the ${project.app.label} app`}
+                onClick={(e) => { e.stopPropagation(); onPlayApp?.(project.app!.id); }}
               >
                 ▶ app
               </button>

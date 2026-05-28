@@ -54,9 +54,13 @@ interface Props {
   onSpaceUpdate?: (id: string, fields: { displayName?: string; color?: string }) => void;
   /** Spawn an in-app Claude PTY in the given project's recent path. */
   onLaunchClaude?: (projectId: string) => void;
-  /** Navigate the surface to the detected runnable app's space. Does NOT
-   *  start the process — only reveals the artefact card. */
-  onOpenApp?: (appId: string) => void;
+  /** Play the detected runnable app — unified launch flow (same as clicking
+   *  the artefact card). The host resolves the appId to its artefact and
+   *  forwards to its click handler. */
+  onPlayApp?: (appId: string) => void;
+  /** Look up an app artefact's current lifecycle status by id; used to colour
+   *  the tile chip (online/starting/offline). */
+  appStatusById?: (id: string) => string | undefined;
   /** Resume a session in an Oyster terminal (`claude --resume <id>`). */
   onLaunchClaudeFromSession?: (sessionId: string) => void;
   /** Launch a remote (cross-device) session in an Oyster terminal once
@@ -170,7 +174,7 @@ const FILTER_LABELS: Record<StateFilter, string> = {
   all: "all",
 };
 
-export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onOpenApp, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenArtifact, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount, publishedCount }: Props) {
+export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onPlayApp, appStatusById, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenArtifact, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount, publishedCount }: Props) {
   const presence = useTerminalPresence(sessions, terminalWindows ?? []);
   const signedIn = useAuthSignedIn();
   const myDevice = useMyDeviceId();
@@ -1034,7 +1038,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   otherProjects={[]}
                   spaces={moveSpaceOptions}
                   onLaunchClaude={onLaunchClaude}
-                  onOpenApp={onOpenApp}
+                  onPlayApp={onPlayApp}
+                  appStatus={p.app ? appStatusById?.(p.app.id) : undefined}
                 />
               ))}
             </div>
@@ -1081,7 +1086,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   otherProjects={[]}
                   spaces={moveSpaceOptions}
                   onLaunchClaude={onLaunchClaude}
-                  onOpenApp={onOpenApp}
+                  onPlayApp={onPlayApp}
+                  appStatus={p.app ? appStatusById?.(p.app.id) : undefined}
                 />
               ))}
             </div>
@@ -1210,7 +1216,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               onProjectsChanged={refreshSpaceProjects}
               onSpaceDelete={onSpaceDelete}
               onLaunchClaude={onLaunchClaude}
-              onOpenApp={onOpenApp}
+              onPlayApp={onPlayApp}
+              appStatusById={appStatusById}
             />
           )
         )}
