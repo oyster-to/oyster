@@ -321,8 +321,12 @@
   }
   #prescreen #shuffleBtn:disabled::before { display: none; }
   #prescreen #shuffleBtn .ico {
-    font-family: ui-monospace, monospace;
-    font-size: 12px;
+    width: 14px; height: 14px;
+    display: block;
+    /* Lucide stroke icon — inherits chip text colour via currentColor.
+       Vertical-align fixes the baseline so the dice sits flush with
+       the ROLL NEW FACE caps. */
+    vertical-align: -2px;
   }
 
   /* Name input — first-launch affordance. Dashed underline + italic
@@ -757,7 +761,17 @@
         <div class="player-slot" data-seat="p4"><div class="ps-avatar-wrap"><img class="ps-avatar" alt="" referrerpolicy="no-referrer"></div><div class="ps-label">P4</div><div class="ps-name">—</div></div>
       </div>
 
-      <button id="shuffleBtn" type="button" disabled><span class="ico">&#x21bb;</span> ROLL NEW FACE</button>
+      <button id="shuffleBtn" type="button" disabled>
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <rect width="12" height="12" x="2" y="10" rx="2" ry="2"/>
+          <path d="m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6"/>
+          <path d="M6 14h.01"/>
+          <path d="M10 18h.01"/>
+          <path d="M15 6h.01"/>
+          <path d="M18 9h.01"/>
+        </svg>
+        ROLL NEW FACE
+      </button>
 
       <input id="nameInput" class="name-input" maxlength="12" placeholder="Your name" autocomplete="off" autocapitalize="off" spellcheck="false">
 
