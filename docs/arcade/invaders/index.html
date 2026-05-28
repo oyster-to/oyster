@@ -1772,16 +1772,15 @@
 
   function avatarUrl(seatIdx, salt) {
     // Seed is (salt, seatIdx) only — no player names leave the device.
-    // (Earlier shape included the uppercased name; that sent identifying
-    // user input to api.dicebear.com on every shuffle.) Salt is a
-    // per-device random int persisted to localStorage, so collisions
-    // across players are vanishingly rare; seatIdx is the tiebreaker.
+    // Salt is a per-device random int persisted to localStorage, so
+    // collisions across players are vanishingly rare; seatIdx is the
+    // tiebreaker. The endpoint renders DiceBear server-side at the
+    // same origin (no external runtime dependency on api.dicebear.com,
+    // no third-party sees the request); responses are immutable so
+    // CDN + browser cache the SVG forever per (seed, bg).
     const seed = `${salt || 1}-${seatIdx}`;
     const bg   = AVATAR_BG_HEX[seatIdx] || 'ffffff';
-    return 'https://api.dicebear.com/9.x/pixel-art/svg'
-         + '?seed=' + encodeURIComponent(seed)
-         + '&backgroundColor=' + bg
-         + '&randomizeIds=false&size=64';
+    return '/api/mp/avatar?seed=' + encodeURIComponent(seed) + '&bg=' + bg;
   }
 
   // Track the last-rendered (name, salt) tuple per seat so we only swap
