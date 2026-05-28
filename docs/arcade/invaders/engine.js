@@ -10,10 +10,11 @@
 // room.ts gets full TypeScript type-checking against this file
 // without an allowJs build flag.
 
-// Strict AABB primitive imported from shared/geometry.js — same
-// one-liner that lives inline in shared/engine.js's Arcade.Engine,
-// re-exported here so the server-authoritative sim and the browser
-// share one source of truth without depending on `window.Arcade`.
+// Strict AABB primitive — same one-liner that lives inline in
+// shared/engine.js's Arcade.Engine. Pulled in via ESM (not via
+// window.Arcade) so this file works identically when bundled into
+// the Cloudflare Worker, where there is no DOM and no Arcade global.
+// Used internally; not re-exported.
 import { rectsOverlap } from '../shared/geometry.js';
 
 // === Playfield ===
