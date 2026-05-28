@@ -10,6 +10,14 @@ The framework has **two layers**. The modules below are *cabinet chrome* —
 (canvas backing-store, rect overlap, stable PRNG, pixel draw) — the building
 blocks of a game's own simulation and rendering, not the surrounding cabinet.
 
+**Separately,** `geometry.js` is a tiny ESM module (`export function rectsOverlap`)
+for simulation-safe primitives — no DOM, no globals, no `window.Arcade` attach.
+It exists so a game's simulation code that runs in **both** the browser and a
+Cloudflare Worker (e.g. `invaders/engine.js`, imported by `room.ts`) can share
+the primitive without depending on a browser-only surface. `Arcade.Engine` keeps
+its own inline copy of the same one-liner so the cabinet's IIFE loading stays
+synchronous; both paths are byte-equivalent.
+
 **The one gotcha:** every module is **selector-driven with silent defaults**.
 If your markup doesn't use the exact ids/classes a module expects, the module
 no-ops quietly — no error, just a dead button or an unstyled panel. This file

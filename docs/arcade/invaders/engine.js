@@ -10,6 +10,12 @@
 // room.ts gets full TypeScript type-checking against this file
 // without an allowJs build flag.
 
+// Strict AABB primitive imported from shared/geometry.js — same
+// one-liner that lives inline in shared/engine.js's Arcade.Engine,
+// re-exported here so the server-authoritative sim and the browser
+// share one source of truth without depending on `window.Arcade`.
+import { rectsOverlap } from '../shared/geometry.js';
+
 // === Playfield ===
 // Widened from 240 in Phase D to match SP and host the 11-column
 // invader grid. With 4 ships at SHIP_W=16, the spawn margin is now
@@ -1006,7 +1012,7 @@ function resolveCollisions(state, occupied) {
       const isMarked = state.marked && state.marked.idx === i;
       const ix = isMarked ? inv.x + state.marked.swoopDX : inv.x;
       const iy = isMarked ? inv.y + state.marked.swoopDY : inv.y;
-      if (!overlap(b.x, b.y, bw, bh, ix, iy, INV_W, INV_H)) continue;
+      if (!rectsOverlap(b.x, b.y, bw, bh, ix, iy, INV_W, INV_H)) continue;
       inv.alive = false;
       const owner = b.owner && state.ships[b.owner];
       if (owner) {
@@ -1070,7 +1076,7 @@ function resolveCollisions(state, occupied) {
       if (b.y < -bh) continue;
       for (const a of state.boss.adds) {
         if (!a.alive) continue;
-        if (!overlap(b.x, b.y, bw, bh, a.x, a.y, BOSS_ADD_W, BOSS_ADD_H)) continue;
+        if (!rectsOverlap(b.x, b.y, bw, bh, a.x, a.y, BOSS_ADD_W, BOSS_ADD_H)) continue;
         a.alive = false;
         a.respawnIn = BOSS_ADD_RESPAWN_SEC;
         const owner = b.owner && state.ships[b.owner];
@@ -1104,7 +1110,7 @@ function resolveCollisions(state, occupied) {
       const bw = b.charged ? CHARGED_BULLET_W : BULLET_W;
       const bh = b.charged ? CHARGED_BULLET_H : BULLET_H;
       if (b.y < -bh) continue;
-      if (!overlap(b.x, b.y, bw, bh, bs.x, bs.y, BOSS_W, BOSS_H)) continue;
+      if (!rectsOverlap(b.x, b.y, bw, bh, bs.x, bs.y, BOSS_W, BOSS_H)) continue;
       const dmg = b.charged ? 3 : 1;
       bs.hp = Math.max(0, bs.hp - dmg);
       const owner = b.owner && state.ships[b.owner];
@@ -1149,7 +1155,7 @@ function resolveCollisions(state, occupied) {
       const bw = b.charged ? CHARGED_BULLET_W : BULLET_W;
       const bh = b.charged ? CHARGED_BULLET_H : BULLET_H;
       if (b.y < -bh) continue;
-      if (overlap(b.x, b.y, bw, bh, state.ufo.x, UFO_Y, UFO_W, UFO_H)) {
+      if (rectsOverlap(b.x, b.y, bw, bh, state.ufo.x, UFO_Y, UFO_W, UFO_H)) {
         // Progress = distance travelled from the spawn edge, so left-
         // and right-spawning UFOs both pay 0 at their spawn point and
         // ramp up to the max as they approach the despawn edge —
@@ -1203,7 +1209,7 @@ function resolveCollisions(state, occupied) {
     for (const seat of SEATS) {
       const ship = state.ships[seat];
       if (!ship.alive || !occupied[seat] || ship.invulnFor > 0) continue;
-      if (overlap(b.x, b.y, BULLET_W, BULLET_H, ship.x, SHIP_Y, SHIP_W, SHIP_H)) {
+      if (rectsOverlap(b.x, b.y, BULLET_W, BULLET_H, ship.x, SHIP_Y, SHIP_W, SHIP_H)) {
         ship.alive = false;
         if (state.lives > 0) {
           state.lives--;
@@ -1240,10 +1246,6 @@ function checkEnd(state, occupied) {
   // a boss interrupts (Phase H) or you lose to breach/wipe.
   // checkStageClear (called before this in step()) handles the
   // grid-clear case by rebuilding the next stage.
-}
-
-function overlap(ax, ay, aw, ah, bx, by, bw, bh) {
-  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
 
 // === Debug cheats ===
