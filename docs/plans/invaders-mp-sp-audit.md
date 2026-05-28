@@ -1,5 +1,7 @@
 # Invaders MP — SP parity audit + phase replan
 
+> **Status: ✅ Shipped — historical record.** Phases D–J landed in #586/#588/#590/#591/#593, and the SP folder was deleted + MP renamed to the canonical `/invaders/` in #608. The body below describes the world at the start of the audit (SP at `docs/arcade/invaders/`, MP at `docs/arcade/invaders-mp/`) and is preserved as a snapshot of the gap analysis, not a live plan.
+>
 > Snapshot of where MP stands vs single-player Invaders. Source of truth for the remaining phases of the SP→MP convergence.
 >
 > SP is `docs/arcade/invaders/index.html` (~3000 LoC, all logic inline). MP is `docs/arcade/invaders-mp/index.html` (~1500 LoC client) + `engine.js` (~300 LoC authoritative sim, bundled into both client host-mode and server worker) + `room.ts` (Cloudflare DO transport).

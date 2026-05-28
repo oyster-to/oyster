@@ -22,41 +22,29 @@ export default {
       return fetch(new Request('https://oyster.to' + url.pathname + url.search, req));
     }
 
-    // Path-based room codes for the MP spike — /invaders-mp/FROG (and
-    // /invaders-mp/FROG/) should serve the canonical index.html so
-    // the client can read the room code from location.pathname. We
-    // rewrite any /invaders-mp/<segment> that doesn't look like a
-    // file (no dot) and isn't the bare directory path. Real files
-    // (simple-peer.min.js, engine.js, etc.) flow through to ASSETS.
-    if (/^\/invaders-mp\/[^./]+\/?$/.test(url.pathname)) {
-      const rewritten = new URL('/invaders-mp/', req.url);
+    // Path-based room codes — /invaders/FROG (and /invaders/FROG/)
+    // should serve the canonical index.html so the client can read
+    // the room code from location.pathname. We rewrite any
+    // /invaders/<segment> that doesn't look like a file (no dot) and
+    // isn't the bare directory path. Real files (simple-peer.min.js,
+    // engine.js, sfx-*.mp3, etc.) flow through to ASSETS.
+    if (/^\/invaders\/[^./]+\/?$/.test(url.pathname)) {
+      const rewritten = new URL('/invaders/', req.url);
       return env.ASSETS.fetch(new Request(rewritten, req));
     }
 
-    // Back-compat for v18 (2P-only) shared links: 301 anything under
-    // /invaders-2p/ to the same path under /invaders-mp/. Preserves
-    // the room code so old QR codes / Messages links still work.
-    // The bare path `/invaders-2p` (no trailing slash) maps to
-    // `/invaders-mp/` so the ASSETS binding can serve the directory
-    // index; without the trailing slash it would 404.
-    if (url.pathname === '/invaders-2p' || url.pathname.startsWith('/invaders-2p/')) {
-      const tail = url.pathname.slice('/invaders-2p'.length); // '' or '/...'
-      const dest = '/invaders-mp' + (tail || '/');
+    // Back-compat for shared links from the v18 (2P) and v19-v32 (MP)
+    // era: 301 anything under /invaders-2p/ or /invaders-mp/ to the
+    // same path under /invaders/. Preserves the room code so old QR
+    // codes / Messages links still work. Bare paths without a trailing
+    // slash also map to /invaders/ so the ASSETS binding can serve the
+    // directory index.
+    if (url.pathname === '/invaders-2p' || url.pathname.startsWith('/invaders-2p/') ||
+        url.pathname === '/invaders-mp' || url.pathname.startsWith('/invaders-mp/')) {
+      const prefix = url.pathname.startsWith('/invaders-mp') ? '/invaders-mp' : '/invaders-2p';
+      const tail = url.pathname.slice(prefix.length); // '' or '/...'
+      const dest = '/invaders' + (tail || '/');
       return Response.redirect(new URL(dest + url.search, req.url).toString(), 301);
-    }
-
-    // Phase J — MP is now feature-complete (lives, supers, bosses,
-    // cutscene, leaderboard) and inherits SP's 'invaders' hi-score
-    // table. Redirect the canonical SP entry points to the MP lobby
-    // so bookmarks + search results land on the multiplayer build.
-    //   /invaders, /invaders/, /invaders/index.html → /invaders-mp/
-    // Asset paths under /invaders/ (sfx-shoot.mp3, sfx-kill.wav,
-    // anything else with a file extension) are EXEMPT — MP still
-    // references them via ../invaders/ so they have to keep serving.
-    if (url.pathname === '/invaders' ||
-        url.pathname === '/invaders/' ||
-        url.pathname === '/invaders/index.html') {
-      return Response.redirect(new URL('/invaders-mp/' + url.search, req.url).toString(), 301);
     }
 
     return env.ASSETS.fetch(req);

@@ -15,7 +15,7 @@ compatibility_date = "2026-04-01"
 pattern = "arcade.oyster.to/api/mp/*"
 zone_name = "oyster.to"
 
-# Durable Object class that owns one invaders-2p room. One DO instance
+# Durable Object class that owns one invaders room. One DO instance
 # per 4-letter room code (resolved by the worker via idFromName); the
 # server-authoritative game state lives in memory inside the instance.
 [[durable_objects.bindings]]
