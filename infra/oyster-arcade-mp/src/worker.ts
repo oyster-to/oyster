@@ -46,18 +46,24 @@ export interface Env {
 // can't push huge seeds through the SVG renderer or stuff garbage
 // through our cache key. Client only sends short ints today.
 const AVATAR_SEED_MAX = 64;
-const AVATAR_FALLBACK_BG = 'cccccc';
 
 function handleAvatar(url: URL): Response {
-  const seed = (url.searchParams.get('seed') || '').slice(0, AVATAR_SEED_MAX);
+  // Strict validation rather than silent fix-up: every accepted request
+  // canonicalizes to exactly one cache key. Truncating seeds or
+  // defaulting malformed bg values lets an attacker fan out one
+  // logical SVG across unbounded cache entries (cache-key
+  // amplification) while burning CPU on re-renders behind the CDN.
+  const seed = url.searchParams.get('seed') || '';
   if (!seed) {
     return new Response('missing seed', { status: 400 });
   }
-  const bgRaw = (url.searchParams.get('bg') || '').toLowerCase();
-  // backgroundColor expects a list of 6-char hex strings (no #). Anything
-  // else falls back to a neutral grey rather than 400-ing — keeps the
-  // lobby rendering even if a client drift sends a malformed bg.
-  const bg = /^[0-9a-f]{6}$/.test(bgRaw) ? bgRaw : AVATAR_FALLBACK_BG;
+  if (seed.length > AVATAR_SEED_MAX) {
+    return new Response(`seed exceeds ${AVATAR_SEED_MAX} chars`, { status: 400 });
+  }
+  const bg = (url.searchParams.get('bg') || '').toLowerCase();
+  if (!/^[0-9a-f]{6}$/.test(bg)) {
+    return new Response('bg must be 6-char hex without #', { status: 400 });
+  }
   const svg = createAvatar(pixelArt, {
     seed,
     backgroundColor: [bg],
