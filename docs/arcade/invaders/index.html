@@ -1975,7 +1975,11 @@
   const playerToastEl = document.getElementById('playerToast');
   const TOAST_HOLD_MS  = 2800;
   const TOAST_FADE_MS  = 300;
-  let toastHideTimer = 0;
+  // Two timers: hold (until fade begins) + fade (until display:none).
+  // Both have to be cleared on a new toast — otherwise a stray
+  // fade timer from the previous toast can hide the new one mid-life.
+  let toastHoldTimer = 0;
+  let toastFadeTimer = 0;
 
   function rgba(hex, alpha) {
     // Cheap hex → rgba for the glow halo. Accepts '#rrggbb' or 'rrggbb'.
@@ -2030,10 +2034,11 @@
     void playerToastEl.offsetWidth;          // restart the entrance animation
     playerToastEl.classList.add('is-visible');
 
-    clearTimeout(toastHideTimer);
-    toastHideTimer = setTimeout(() => {
+    clearTimeout(toastHoldTimer);
+    clearTimeout(toastFadeTimer);
+    toastHoldTimer = setTimeout(() => {
       playerToastEl.classList.remove('is-visible');
-      setTimeout(() => { playerToastEl.hidden = true; }, TOAST_FADE_MS);
+      toastFadeTimer = setTimeout(() => { playerToastEl.hidden = true; }, TOAST_FADE_MS);
     }, TOAST_HOLD_MS);
   }
 
