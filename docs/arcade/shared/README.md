@@ -24,8 +24,10 @@ no-ops quietly — no error, just a dead button or an unstyled panel. This file
 is the source of truth for those selectors so a new game (or an agent building
 one) can be scaffolded correctly the first time.
 
-Each module is a plain IIFE — no build step, no imports. Drop the `<script>`
-tags in and the `window.Arcade.*` objects appear.
+Each cabinet/engine module is a plain IIFE — no build step, no imports. Drop
+the `<script>` tags in and the `window.Arcade.*` objects appear. (`geometry.js`
+is the lone exception: it's ESM-only and consumed via `import`, not a
+`<script>` tag. See the "Separately" paragraph above.)
 
 ---
 
