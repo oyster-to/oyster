@@ -14,7 +14,7 @@ export function ProjectTileGrid({
   spaceId, projects, projectArtefactCounts, sessionCountsByProject,
   selectedProjectId, setSelectedProjectId,
   spaceTotalSessions, spaces, showAttachForm, setShowAttachForm, onProjectsChanged, onSpaceDelete,
-  onLaunchClaude,
+  onLaunchClaude, onPlayApp, appStatusById,
 }: {
   spaceId: string;
   projects: Project[];
@@ -35,6 +35,8 @@ export function ProjectTileGrid({
   onProjectsChanged: () => void;
   onSpaceDelete?: (spaceId: string) => Promise<void> | void;
   onLaunchClaude?: (projectId: string) => void;
+  onPlayApp?: (appId: string) => void;
+  appStatusById?: (id: string) => string | undefined;
 }) {
   // Sort by artefact count desc — busiest projects first.
   const sortedProjects = useMemo(
@@ -88,6 +90,8 @@ export function ProjectTileGrid({
             otherProjects={sortedProjects.filter((o) => o.id !== p.id)}
             spaces={spaces}
             onLaunchClaude={onLaunchClaude}
+            onPlayApp={onPlayApp}
+            appStatus={p.app ? appStatusById?.(p.app.id) : undefined}
           />
         ))}
 

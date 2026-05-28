@@ -438,8 +438,25 @@ export default function App() {
         )
       );
       const appName = artifact.id.replace("app:", "");
-      await startAppApi(appName);
-      window.open(artifact.url, artifact.id, "width=1280,height=900");
+      let res: { status: string; port?: number; message?: string };
+      try {
+        res = await startAppApi(appName);
+      } catch (err) {
+        // Network / parse failure — revert the optimistic "starting" and tell
+        // the user so the dot doesn't sit pulsing forever.
+        setArtifacts((prev) => prev.map((a) => a.id === artifact.id ? { ...a, status: "offline" as const } : a));
+        alert(`Couldn't start ${artifact.label}: ${err instanceof Error ? err.message : String(err)}`);
+        return;
+      }
+      const succeeded = (res.status === "started" || res.status === "already_running") && typeof res.port === "number";
+      if (!succeeded) {
+        // Timeout / unknown_app / etc. — revert and surface the message. The
+        // server-side broadcast will reconcile to real state on the next tick.
+        setArtifacts((prev) => prev.map((a) => a.id === artifact.id ? { ...a, status: "offline" as const } : a));
+        alert(`Couldn't start ${artifact.label}: ${res.message ?? res.status}`);
+        return;
+      }
+      window.open(`http://localhost:${res.port}`, artifact.id, "width=1280,height=900");
     } else {
       // Static artifact (generated app, doc, deck, diagram, etc.) — open in viewer
       const fullscreen = shouldOpenFullscreen(artifact.artifactKind);
@@ -614,6 +631,17 @@ export default function App() {
         onSpaceDelete={handleSpaceDelete}
         onSpaceUpdate={handleSpaceUpdate}
         onLaunchClaude={handleLaunchClaudeFromProject}
+        onPlayApp={(appId) => {
+          // Unified launch flow — same as clicking the card. Switch to the
+          // app's space first so the surface reveals the card transitioning
+          // through starting → online, THEN start the process. If the list
+          // hasn't merged the artefact yet, no-op (rare timing window).
+          const a = artifacts.find((x) => x.id === appId);
+          if (!a) return;
+          handleSpaceChange(a.spaceId);
+          void handleArtifactClick(a);
+        }}
+        appStatusById={(id) => artifacts.find((a) => a.id === id)?.status}
         onLaunchClaudeFromSession={handleLaunchClaudeFromSession}
         onOpenRemoteInOyster={handleOpenRemoteInOyster}
         onOpenArtifact={(id) => {

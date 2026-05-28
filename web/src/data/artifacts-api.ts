@@ -9,7 +9,7 @@ export async function fetchArtifacts(): Promise<Artifact[]> {
 // startApp/stopApp keep their bespoke shape: server routes are GETs and the
 // callers in App.tsx tolerate any response (no throw on non-OK). Promoting
 // to getJson would change that contract — out of scope for this refactor.
-export async function startApp(name: string): Promise<{ status: string; port?: number }> {
+export async function startApp(name: string): Promise<{ status: string; port?: number; message?: string }> {
   const res = await fetch(`/api/apps/${name}/start`);
   return res.json();
 }

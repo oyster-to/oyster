@@ -158,10 +158,60 @@ export function stopApp(name: string, port: number): boolean {
   return false;
 }
 
+// ── Derived-app runtime (separate from the DB-app `procs` path above) ──
+// Detected runnable apps (Vite/Next) are launched here. Keyed by the derived
+// app id (`app:<projectId>`). A port is allocated at start, never on read.
+// `info` is the stable object handed to callers via getRunningApp (so repeated
+// reads are reference-equal); `child` stays internal for stop/cleanup.
+interface RunningApp { child: ChildProcess; info: { port: number; pid: number }; }
+const runningApps = new Map<string, RunningApp>();
+
+export function getRunningApp(appId: string): { port: number; pid: number } | undefined {
+  return runningApps.get(appId)?.info;
+}
+
+export function startAppById(appId: string, argv: string[], cwd: string, port: number): void {
+  if (runningApps.has(appId)) return; // idempotent
+  // `starting` is only cleared on exit/error (not on port-ready), matching the
+  // DB-app path. Harmless: buildDerivedAppArtifacts checks online (live port)
+  // before starting, so a healthy app reads "online" even while this stays set.
+  starting.add(appId);
+  const child = spawn(argv[0], argv.slice(1), { cwd, stdio: "pipe" });
+  const info = { port, pid: child.pid ?? -1 };
+  runningApps.set(appId, { child, info });
+  // BOTH exit and error must clear state, or status sticks at "starting" / a
+  // stale "offline"-with-old-port. A failed spawn fires "error", not "exit".
+  const cleanup = () => { runningApps.delete(appId); starting.delete(appId); };
+  child.on("exit", cleanup);
+  child.on("error", cleanup);
+  child.stdout?.on("data", (d: Buffer) => process.stdout.write(`[${appId}] ${d}`));
+  child.stderr?.on("data", (d: Buffer) => process.stderr.write(`[${appId}] ${d}`));
+}
+
+export function stopAppById(appId: string): boolean {
+  const r = runningApps.get(appId);
+  if (!r) return false;
+  r.child.kill("SIGTERM");
+  runningApps.delete(appId);
+  starting.delete(appId);
+  return true;
+}
+
+// Find a free TCP port, skipping Oyster's own (3333 dev / 4444 installed).
+export async function findFreePort(start = 4500): Promise<number> {
+  const skip = new Set([3333, 4444]);
+  for (let p = start; p < start + 1000; p++) {
+    if (skip.has(p)) continue;
+    if (!(await isPortOpen(p))) return p;
+  }
+  throw new Error("no free port found");
+}
+
 // ── Cleanup on exit ──
 
 function cleanup() {
   procs.forEach((p) => p.kill());
+  runningApps.forEach((r) => r.child.kill());
   process.exit();
 }
 

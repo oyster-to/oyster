@@ -791,3 +791,36 @@ describe("ProjectService.moveProjectToSpace", () => {
     expect(() => service.moveProjectToSpace(p.id, "home")).toThrow(/not found/);
   });
 });
+
+describe("ProjectService runnable-app field", () => {
+  let dir: string; let db: Database.Database; let service: ProjectService;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "oyster-ps-app-"));
+    db = initDb(dir);
+    db.exec(`INSERT INTO spaces (id, display_name, color, scan_status) VALUES ('work','Work','#000','none')`);
+    service = new ProjectService(db);
+  });
+  afterEach(() => { db.close(); rmSync(dir, { recursive: true, force: true }); });
+
+  it("sets project.app for a vite project", () => {
+    const folder = mkdtempSync(join(tmpdir(), "oyster-ps-vite-"));
+    writeFileSync(join(folder, "package.json"), JSON.stringify({ scripts: { dev: "vite" } }));
+    const proj = service.createProject({ spaceId: "work", name: "Site" });
+    db.prepare("INSERT INTO project_paths (project_id, path) VALUES (?, ?)").run(proj.id, folder);
+
+    const [listed] = service.listForSpace("work");
+    expect(listed.app).toEqual({ id: `app:${proj.id}`, label: "Site" });
+    rmSync(folder, { recursive: true, force: true });
+  });
+
+  it("leaves project.app undefined for a non-runnable project", () => {
+    const folder = mkdtempSync(join(tmpdir(), "oyster-ps-non-"));
+    writeFileSync(join(folder, "package.json"), JSON.stringify({ scripts: { dev: "concurrently x" } }));
+    const proj = service.createProject({ spaceId: "work", name: "Mono" });
+    db.prepare("INSERT INTO project_paths (project_id, path) VALUES (?, ?)").run(proj.id, folder);
+
+    const [listed] = service.listForSpace("work");
+    expect(listed.app).toBeUndefined();
+    rmSync(folder, { recursive: true, force: true });
+  });
+});

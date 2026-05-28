@@ -12,7 +12,7 @@ import { PromptModal } from "../PromptModal";
 export function ProjectTile({
   project, artefactCount, sessionCounts, selected, onSelect, onChanged,
   isLastProject, spaceTotalSessions, onSpaceDelete, otherProjects, spaces,
-  onLaunchClaude,
+  onLaunchClaude, onPlayApp, appStatus,
 }: {
   project: Project;
   artefactCount: number;
@@ -33,6 +33,13 @@ export function ProjectTile({
   /** Spawn a Claude PTY in this project's folder. Disabled when the
    *  project has no live path. */
   onLaunchClaude?: (projectId: string) => void;
+  /** Click the ▶ app chip → play. Same unified launch flow as clicking the
+   *  artefact card (start + preview window). The parent looks the matching
+   *  artefact up by id and forwards to the shared click handler. */
+  onPlayApp?: (appId: string) => void;
+  /** Current lifecycle status of the detected app artefact, used to colour the
+   *  chip (online / starting / offline). Undefined when not yet resolved. */
+  appStatus?: string;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -132,10 +139,14 @@ export function ProjectTile({
         className={`home-space-card home-project-tile${selected ? " selected" : ""}`}
         style={menuOpen ? { zIndex: 20 } : undefined}
       >
-        <button
-          type="button"
+        {/* role=button (not <button>) so the interactive app chip can nest
+            without invalid button-in-button HTML. Mirrors SessionRow's row. */}
+        <div
           className="home-project-tile-body"
+          role="button"
+          tabIndex={0}
           onClick={onSelect}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } }}
           title={project.name}
         >
           <div
@@ -150,6 +161,20 @@ export function ProjectTile({
               />
             )}
             <span style={{ minWidth: 0, wordBreak: "break-word" }}>{project.name}</span>
+            {project.app && (
+              <button
+                type="button"
+                className={`home-project-app-chip${appStatus ? ` is-${appStatus}` : ""}`}
+                title={appStatus === "online"
+                  ? `Open the ${project.app.label} preview`
+                  : appStatus === "starting"
+                    ? `${project.app.label} is starting…`
+                    : `Play the ${project.app.label} app`}
+                onClick={(e) => { e.stopPropagation(); onPlayApp?.(project.app!.id); }}
+              >
+                ▶ app
+              </button>
+            )}
           </div>
           <div className="home-space-card-counts">
             {sessionCounts && sessionCounts.running > 0 && <span className="signal"><span className="pip pip-teal" />{sessionCounts.running} running</span>}
@@ -170,7 +195,7 @@ export function ProjectTile({
               </span>
             )}
           </div>
-        </button>
+        </div>
         {onLaunchClaude && (
           <button
             type="button"

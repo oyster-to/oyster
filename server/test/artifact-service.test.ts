@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import Database from "better-sqlite3";
 import { ArtifactService } from "../src/artifact-service.js";
 import { SqliteArtifactStore } from "../src/artifact-store.js";
+import type { Artifact } from "../../shared/types.js";
 
 function makeDb(): Database.Database {
   const db = new Database(":memory:");
@@ -44,6 +45,8 @@ function seed(
   db: Database.Database,
   fields: Partial<{
     id: string;
+    label: string;
+    runtime_kind: string;
     share_token: string | null;
     share_mode: string | null;
     published_at: number | null;
@@ -60,10 +63,12 @@ function seed(
        (id, space_id, label, artifact_kind, storage_kind, storage_config,
         runtime_kind, runtime_config, share_token, share_mode, published_at,
         share_updated_at, unpublished_at, pinned_at, removed_at, project_id)
-     VALUES (?, 'home', 'Test artefact', 'notes', 'url', '{}',
-             'static_file', '{}', ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, 'home', ?, 'notes', 'url', '{}',
+             ?, '{}', ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
+    fields.label ?? "Test artefact",
+    fields.runtime_kind ?? "static_file",
     fields.share_token ?? null,
     fields.share_mode ?? null,
     fields.published_at ?? null,
@@ -292,5 +297,40 @@ describe("ArtifactService.pinArtifact / unpinArtifact (#387)", () => {
     expect(() => service.unpinArtifact(id)).not.toThrow();
     const row = db.prepare("SELECT pinned_at FROM artifacts WHERE id = ?").get(id) as { pinned_at: number | null };
     expect(row.pinned_at).toBeNull();
+  });
+});
+
+describe("getAllArtifacts derived-app merge", () => {
+  it("appends provider apps and never writes them to the DB", async () => {
+    const db = makeDb();
+    const service = new ArtifactService(db, new SqliteArtifactStore(db), "https://oyster.to", "https://share.oyster.to");
+    const derived: Artifact = {
+      id: "app:p1", label: "Site", artifactKind: "app", spaceId: "work",
+      status: "offline", runtimeKind: "local_process", runtimeConfig: {}, url: "",
+      createdAt: new Date(0).toISOString(), sourceOrigin: "discovered", projectId: "p1",
+    };
+    service.setDerivedAppProvider(async () => [derived]);
+
+    const all = await service.getAllArtifacts();
+    expect(all.find((a) => a.id === "app:p1")).toMatchObject({ runtimeKind: "local_process" });
+
+    const row = db.prepare("SELECT id FROM artifacts WHERE id = ?").get("app:p1");
+    expect(row).toBeUndefined(); // derived → never persisted
+  });
+
+  it("does not duplicate a derived id that already exists, and keeps the original", async () => {
+    const db = makeDb();
+    seed(db, { id: "app:p1", label: "Real Row", runtime_kind: "local_process" });
+    const service = new ArtifactService(db, new SqliteArtifactStore(db), "https://oyster.to", "https://share.oyster.to");
+    service.setDerivedAppProvider(async () => [{
+      id: "app:p1", label: "Derived Dupe", artifactKind: "app", spaceId: "work",
+      status: "offline", runtimeKind: "local_process", runtimeConfig: {}, url: "",
+      createdAt: new Date(0).toISOString(), sourceOrigin: "discovered", projectId: "p1",
+    }]);
+
+    const all = await service.getAllArtifacts();
+    const matches = all.filter((a) => a.id === "app:p1");
+    expect(matches).toHaveLength(1);
+    expect(matches[0].label).toBe("Real Row"); // existing wins; derived dropped
   });
 });
