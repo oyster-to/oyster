@@ -299,15 +299,6 @@
     box-shadow: 0 2px 0 rgba(0,0,0,0.35);
     transition: transform 0.08s ease, filter 0.12s ease;
   }
-  /* Wedge — only rendered once the chip has a seat colour to point with. */
-  #prescreen #shuffleBtn::before {
-    content: "";
-    position: absolute;
-    top: -6px; left: 50%; transform: translateX(-50%);
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-bottom: 6px solid var(--shuffle-accent, transparent);
-  }
   #prescreen #shuffleBtn:hover:not(:disabled) {
     filter: brightness(1.12);
     transform: translateY(-1px);
@@ -319,7 +310,6 @@
     box-shadow: none;
     cursor: not-allowed;
   }
-  #prescreen #shuffleBtn:disabled::before { display: none; }
   #prescreen #shuffleBtn .ico {
     width: 14px; height: 14px;
     display: block;
@@ -329,34 +319,53 @@
     vertical-align: -2px;
   }
 
-  /* Name input — first-launch affordance. Dashed underline + italic
-     placeholder reads as a fill-me-in slot rather than a chunky form
-     field, matching the playful tag-chip CTA family. Hidden once a
-     name lives in localStorage (the player's own slot will show their
-     name + their avatar already). Tappable from the players row to
-     edit later. */
-  #prescreen .name-input {
+  /* Name editing happens IN the player slot — no separate input row
+     below the lobby. Your own slot's name gets a dashed underline +
+     small pencil hint to advertise "tap to rename". Tapping swaps
+     the .ps-name text for an inline .ps-name-input that submits on
+     blur / Enter. */
+  #prescreen .player-slot.is-mine .ps-name {
+    border-bottom: 1px dashed rgba(255,255,255,0.35);
+    padding-bottom: 1px;
+  }
+  #prescreen .ps-edit-hint {
+    display: inline-block;
+    width: 9px; height: 9px;
+    margin-left: 5px;
+    vertical-align: -1px;
+    opacity: 0.55;
+    color: inherit;
+  }
+  #prescreen .ps-edit-hint svg {
+    display: block;
+    width: 100%; height: 100%;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  #prescreen .player-slot.is-mine:hover .ps-edit-hint { opacity: 1; }
+
+  #prescreen .ps-name-input {
     background: transparent;
     color: var(--ink, #fff);
     border: 0;
-    border-bottom: 1px dashed rgba(255,255,255,0.3);
+    border-bottom: 1px dashed #ff3aa1;
     border-radius: 0;
-    padding: 6px 4px 4px;
-    font: inherit; font-size: 11px;
-    letter-spacing: 0.1em;
-    width: 200px; max-width: 80vw;
+    padding: 0 0 1px;
+    margin: 0;
+    font: inherit; font-size: 10px;
+    letter-spacing: 0.06em;
     text-align: center;
+    width: 80px;
+    max-width: 100%;
   }
-  #prescreen .name-input::placeholder {
+  #prescreen .ps-name-input::placeholder {
     color: rgba(255,255,255,0.3);
     font-style: italic;
-    letter-spacing: 0.06em;
   }
-  #prescreen .name-input:focus {
-    outline: none;
-    border-bottom-color: #ff3aa1;
-  }
-  #prescreen .name-input[hidden] { display: none; }
+  #prescreen .ps-name-input:focus { outline: none; }
 
   /* Big-start — the obvious primary action. Drop shadow + idle pulse
      pulls the eye to "tap me". Disabled state is muted grey so it
@@ -773,8 +782,6 @@
         ROLL NEW FACE
       </button>
 
-      <input id="nameInput" class="name-input" maxlength="12" placeholder="Your name" autocomplete="off" autocapitalize="off" spellcheck="false">
-
       <!-- Hero row: QR (left) + START (right) as twin focal points on
            landscape laptop; stacks back to a single column on portrait
            devices via the CSS media query. -->
@@ -1184,32 +1191,16 @@
     } catch (e) { /* no clipboard permission; ignore */ }
   });
 
-  // Name input: persisted to localStorage so it survives reloads.
-  // Sent to the server (or host, in P2P mode) via sendToServer, which
-  // routes to whichever transport is active. We send on each change
-  // (no debounce — name updates are rare and tiny).
-  const nameInput = document.getElementById('nameInput');
+  // Name: persisted to localStorage so it survives reloads. Edit
+  // happens IN your player slot — startEditingName() swaps the
+  // .ps-name span for an inline input that publishes on every
+  // keystroke (debounce-free; name updates are rare and tiny).
   let myName = '';
   try { myName = (localStorage.getItem(NAME_STORAGE_KEY) || '').slice(0, NAME_MAX_CHARS); } catch {}
-  nameInput.value = myName;
-  // First-time visitor sees the input; returning players have their name
-  // in their slot already so we tuck it away. Re-revealed by tapping
-  // your own player slot (handler wired below, once playerSlotEls
-  // exists).
-  nameInput.hidden = !!myName;
   function publishName() {
     try { localStorage.setItem(NAME_STORAGE_KEY, myName); } catch {}
     sendToServer({ type: 'name', name: myName });
   }
-  nameInput.addEventListener('input', () => {
-    myName = nameInput.value.slice(0, NAME_MAX_CHARS);
-    publishName();
-  });
-  // Hide the input again once the player tabs/clicks away with a value
-  // — they've committed it, get the slot view back.
-  nameInput.addEventListener('blur', () => {
-    if (myName) nameInput.hidden = true;
-  });
 
   // Avatar: a small integer that seeds the DiceBear pixel-art portrait
   // for this seat. Persisted to localStorage so the face survives
@@ -1955,17 +1946,80 @@
   const playerSlotEls = SEATS.map(s =>
     document.querySelector(`.player-slot[data-seat="${s}"]`));
 
-  // Tap your own slot → reveal the name input (the lobby hides it
-  // once a name is stored, so this is the "rename me" affordance).
-  // refreshPlayerSlots toggles the pointer cursor on the local slot
-  // only — other slots stay inert so the affordance isn't misleading.
+  // Lucide pencil — the affordance hint sitting next to your own name
+  // in the players row. Inlined as a constant SVG markup so we don't
+  // round-trip through innerHTML with anything user-provided.
+  const PENCIL_SVG_MARKUP =
+    '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+    + '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>'
+    + '<path d="m15 5 4 4"/>'
+    + '</svg>';
+
+  // Tap your own slot → swap the .ps-name span for an inline input
+  // and focus it. Publishes on every keystroke (same as the old
+  // standalone input did). Blur or Enter / Escape commits.
+  function startEditingName(slot) {
+    if (slot._editing) return;
+    const nameEl = slot.querySelector('.ps-name');
+    if (!nameEl) return;
+    slot._editing = true;
+    const input = document.createElement('input');
+    input.className = 'ps-name-input';
+    input.maxLength = NAME_MAX_CHARS;
+    input.placeholder = 'YOUR NAME';
+    input.value = myName;
+    input.autocomplete = 'off';
+    input.autocapitalize = 'characters';
+    input.spellcheck = false;
+    nameEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    let committed = false;
+    function commit() {
+      if (committed) return;
+      committed = true;
+      slot._editing = false;
+      myName = input.value.slice(0, NAME_MAX_CHARS);
+      publishName();
+      // Hand control back to refreshPlayerSlots — it'll insert a
+      // fresh .ps-name on the next snapshot tick. Synth one now so
+      // the slot isn't blank in the meantime.
+      if (input.parentNode) {
+        const fresh = document.createElement('div');
+        fresh.className = 'ps-name';
+        // Match the snapshot path's casing — no toUpperCase() — so
+        // there's no flicker when refreshPlayerSlots takes over.
+        fresh.appendChild(document.createTextNode(
+          (myName || '').trim() || 'PLAYER'
+        ));
+        // Reattach the pencil hint immediately so the affordance returns
+        // without waiting for the next snapshot.
+        const hint = document.createElement('span');
+        hint.className = 'ps-edit-hint';
+        hint.innerHTML = PENCIL_SVG_MARKUP;
+        fresh.appendChild(hint);
+        input.replaceWith(fresh);
+      }
+    }
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === 'Escape') {
+        e.preventDefault();
+        input.blur();
+      }
+    });
+    input.addEventListener('input', () => {
+      myName = input.value.slice(0, NAME_MAX_CHARS);
+      publishName();
+    });
+  }
+
   playerSlotEls.forEach((slot, i) => {
     if (!slot) return;
     slot.addEventListener('click', () => {
       if (SEATS[i] !== mySeat) return;
-      nameInput.hidden = false;
-      nameInput.focus();
-      nameInput.select();
+      startEditingName(slot);
     });
   });
 
@@ -2006,18 +2060,26 @@
       const occupied = seatOccupied(i);
       slot.classList.toggle('is-active', occupied);
       slot.classList.toggle('is-empty', !occupied);
-      const nameEl = slot.querySelector('.ps-name');
+      const isYou = SEATS[i] === mySeat && occupied;
+      slot.classList.toggle('is-mine', isYou);
+      slot.style.cursor = isYou ? 'pointer' : '';
       const avatarEl = slot.querySelector('.ps-avatar');
       if (occupied) {
         const trimmed = (p.name || '').trim();
-        nameEl.textContent = trimmed || 'PLAYER';
+        // Skip name rebuild while the user is mid-edit on their own
+        // slot — startEditingName has replaced .ps-name with an
+        // inline input; clobbering it would yank the focus + typed
+        // chars. The committed name lands through publishName →
+        // snapshot → here on the next tick.
+        if (!slot._editing) {
+          renderSlotName(slot, trimmed || 'PLAYER', isYou);
+        }
         // For your own seat, the local salt is the source of truth.
         // The snapshot's value may lag a tick if the server hasn't
         // echoed the latest SHUFFLE yet — trusting it would flicker
         // the portrait back to the previous face before snapping
         // forward again. Other seats use the snapshot directly.
-        const isMine = SEATS[i] === mySeat;
-        const salt = isMine ? myAvatarSalt : ((p.avatarSalt | 0) || 1);
+        const salt = isYou ? myAvatarSalt : ((p.avatarSalt | 0) || 1);
         const key = String(salt);
         if (lastAvatarKey[i] !== key) {
           lastAvatarKey[i] = key;
@@ -2028,7 +2090,7 @@
           avatarEl.classList.add('is-shuffling');
         }
       } else {
-        nameEl.textContent = 'OPEN';
+        if (!slot._editing) renderSlotName(slot, 'OPEN', false);
         // Empty slot — clear src so the dashed-? placeholder shows.
         if (lastAvatarKey[i] !== '') {
           lastAvatarKey[i] = '';
@@ -2037,8 +2099,6 @@
         }
       }
       // YOU pill on the local seat (created lazily; idempotent).
-      const isYou = SEATS[i] === mySeat && occupied;
-      slot.style.cursor = isYou ? 'pointer' : '';
       let youEl = slot.querySelector('.ps-you');
       if (isYou && !youEl) {
         youEl = document.createElement('div');
@@ -2048,6 +2108,26 @@
       } else if (!isYou && youEl) {
         youEl.remove();
       }
+    }
+  }
+
+  // Rebuild a slot's name node from scratch each tick. Uses textContent
+  // (not innerHTML) for the wire-derived name, then appends the
+  // pencil-hint SVG for your own slot.
+  function renderSlotName(slot, displayText, isYou) {
+    let nameEl = slot.querySelector('.ps-name');
+    if (!nameEl) {
+      nameEl = document.createElement('div');
+      nameEl.className = 'ps-name';
+      slot.appendChild(nameEl);
+    }
+    nameEl.replaceChildren();
+    nameEl.appendChild(document.createTextNode(displayText));
+    if (isYou) {
+      const hint = document.createElement('span');
+      hint.className = 'ps-edit-hint';
+      hint.innerHTML = PENCIL_SVG_MARKUP;
+      nameEl.appendChild(hint);
     }
   }
 
