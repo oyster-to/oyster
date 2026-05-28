@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sessions — minimum-deviation unify</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --accent: #7c6bff;
+      --accent-bright: #a597ff;
+      --green: #4ade80;
+      --teal: #14b8a6;
+      --amber: #fbbf24;
+      --red: #f87171;
+      --orange: #fb923c;
+      --text: #f0f0f5;
+      --text-dim: rgba(232, 233, 240, 0.66);
+      --text-muted: rgba(232, 233, 240, 0.42);
+      --text-very-muted: rgba(232, 233, 240, 0.2);
+      --bg: rgba(30, 31, 54, 1);
+      --surface: rgba(12, 13, 28, 0.55);
+      --border: rgba(255, 255, 255, 0.06);
+      --font-body: 'Space Grotesk', -apple-system, sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-body);
+      color: var(--text);
+      background: var(--bg);
+      min-height: 100vh;
+      padding: 48px 0 120px;
+    }
+    .glow {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background: radial-gradient(ellipse 70% 45% at 50% 8%, rgba(124,107,255,0.10) 0%, transparent 65%);
+    }
+    .page { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 32px; }
+    .page-title { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
+    .page-subtitle {
+      font-size: 14px; color: var(--text-dim);
+      margin-bottom: 32px; max-width: 760px; line-height: 1.65;
+    }
+    .page-subtitle strong { color: var(--text); font-weight: 600; }
+    .page-subtitle code {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      background: rgba(255,255,255,0.04);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--accent-bright);
+    }
+
+    .scene {
+      padding: 28px 32px 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      backdrop-filter: blur(20px);
+      margin-bottom: 32px;
+    }
+    .scene-label {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--accent-bright);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .scene-title {
+      font-size: 19px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+    }
+    .scene-desc {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.6;
+      margin-bottom: 22px;
+      max-width: 720px;
+    }
+    .scene-desc code {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      background: rgba(255,255,255,0.05);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--accent-bright);
+    }
+
+    .stack-label {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .stack-label + .sessions-table { margin-bottom: 28px; }
+
+    /* Match existing app: 6-column table layout */
+    .sessions-table {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .table-head {
+      display: grid;
+      grid-template-columns: 28px 130px 1fr 110px 90px 70px;
+      gap: 12px;
+      padding: 9px 14px;
+      background: rgba(255,255,255,0.015);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-very-muted);
+    }
+    .table-head div:last-child { text-align: right; }
+
+    .srow {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .srow:hover { background: rgba(255,255,255,0.02); }
+    .srow:last-child { border-bottom: none; }
+
+    .srow-main {
+      display: grid;
+      grid-template-columns: 28px 130px 1fr 110px 90px 70px;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .pip { display: inline-block; width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0; }
+    .pip-green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .pip-amber { background: var(--amber); }
+    .pip-red { background: var(--red); }
+    .pip-dim { background: var(--text-very-muted); }
+
+    .sr-state { display: inline-flex; align-items: center; }
+    .sr-project {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      color: var(--accent-bright);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sr-title-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .sr-title {
+      font-family: var(--font-body);
+      font-size: 13px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sr-title.untitled { color: var(--text-muted); font-style: italic; }
+
+    /* FULL-only: headline weight title */
+    .full .sr-title {
+      font-size: 14.5px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
+    }
+    .resume-chip {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent-bright);
+      background: rgba(124, 107, 255, 0.12);
+      border: 1px solid rgba(124, 107, 255, 0.3);
+      border-radius: 999px;
+      padding: 1px 8px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .resume-chip:hover {
+      background: rgba(124, 107, 255, 0.22);
+      border-color: rgba(124, 107, 255, 0.5);
+    }
+    .sr-agent {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--orange);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .sr-agent .agent-pip { width: 6px; height: 6px; border-radius: 999px; background: var(--orange); }
+    .sr-reason {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sr-time {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* The ONLY thing FULL adds: a line 2 indented under the title column */
+    .sr-extra {
+      margin-left: 182px;  /* 28px (state) + 12px gap + 130px (project) + 12px gap */
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .sr-extra-label {
+      color: var(--text-very-muted);
+      letter-spacing: 0.04em;
+      margin-right: 2px;
+    }
+    .artifact-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      color: var(--accent-bright);
+      background: rgba(124, 107, 255, 0.08);
+      border: 1px solid rgba(124, 107, 255, 0.18);
+      border-radius: 999px;
+      padding: 1px 8px 1px 7px;
+      cursor: pointer;
+    }
+    .artifact-chip:hover { background: rgba(124, 107, 255, 0.18); }
+    .artifact-chip-glyph { font-size: 9px; opacity: 0.8; }
+
+    .pr-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      border-radius: 999px;
+      padding: 1px 8px 1px 7px;
+      cursor: pointer;
+    }
+    .pr-chip-open {
+      color: var(--accent-bright);
+      background: rgba(124, 107, 255, 0.08);
+      border: 1px solid rgba(124, 107, 255, 0.18);
+    }
+    .pr-chip-open:hover { background: rgba(124, 107, 255, 0.18); }
+    .pr-chip-merged {
+      color: var(--green);
+      background: rgba(74, 222, 128, 0.06);
+      border: 1px solid rgba(74, 222, 128, 0.2);
+    }
+    .pr-chip-merged:hover { background: rgba(74, 222, 128, 0.14); }
+    .pr-chip-status {
+      font-size: 9.5px;
+      letter-spacing: 0.05em;
+      opacity: 0.7;
+      text-transform: lowercase;
+    }
+
+    .compare-note {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.65;
+      padding: 16px 20px;
+      background: rgba(74, 222, 128, 0.05);
+      border: 1px solid rgba(74, 222, 128, 0.18);
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    .compare-note strong { color: var(--green); font-weight: 600; }
+    .compare-note code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: rgba(255,255,255,0.05);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--text);
+    }
+    .delta-note {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.65;
+      padding: 16px 20px;
+      background: rgba(124, 107, 255, 0.06);
+      border: 1px solid rgba(124, 107, 255, 0.18);
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    .delta-note strong { color: var(--accent-bright); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="page">
+    <h1 class="page-title">Sessions — minimum-deviation unify</h1>
+    <p class="page-subtitle">
+      Previous mocks deviated from the existing UI without justification.
+      <strong>The existing pattern works:</strong> row click → Inspect (implicit primary), <code>RESUME</code> chip → resume the live session (explicit secondary), time on the right, pip on the left.
+      This mock keeps all of that and only adds <strong>one thing in FULL view</strong>: a second line under the title column with inline artifact chips and any extra context the session row didn't already have room for.
+      No new buttons, no column reorder, no time-position shift.
+    </p>
+
+    <div class="scene">
+      <div class="scene-label">Unify · minimum deviation</div>
+      <div class="scene-title">COMPACT = existing table. FULL = existing table + indented line 2</div>
+      <div class="scene-desc">
+        Toggling FULL ↔ COMPACT only changes whether the <code>.sr-extra</code> line renders.
+        Every other element — state pip, project label, title, RESUME chip, agent, reason, time —
+        stays in the exact same column position in both views. Row click stays the primary action (Inspect). RESUME chip stays the secondary action.
+      </div>
+
+      <div class="stack-label">Full · bigger title</div>
+      <div class="sessions-table full">
+          <div class="table-head">
+            <div></div>
+            <div>Project</div>
+            <div>Title</div>
+            <div>Agent</div>
+            <div>Reason</div>
+            <div>Last active</div>
+          </div>
+
+          <div class="srow">
+            <div class="srow-main">
+              <div class="sr-state"><span class="pip pip-green"></span></div>
+              <div class="sr-project">oyster-dev</div>
+              <div class="sr-title-cell">
+                <span class="sr-title">refactor-splash-styles-dedup</span>
+                <span class="resume-chip">Resume</span>
+              </div>
+              <div class="sr-agent"><span class="agent-pip"></span>claude-code</div>
+              <div class="sr-reason"></div>
+              <div class="sr-time">6s ago</div>
+            </div>
+            <div class="sr-extra">
+<span class="artifact-chip"><span class="artifact-chip-glyph">¶</span>install.md</span>
+            </div>
+          </div>
+
+          <div class="srow">
+            <div class="srow-main">
+              <div class="sr-state"><span class="pip pip-amber"></span></div>
+              <div class="sr-project">oyster-dev</div>
+              <div class="sr-title-cell">
+                <span class="sr-title">1.0 sessions-first first run</span>
+                <span class="resume-chip">Resume</span>
+              </div>
+              <div class="sr-agent"><span class="agent-pip"></span>claude-code</div>
+              <div class="sr-reason"></div>
+              <div class="sr-time">2m</div>
+            </div>
+            <div class="sr-extra">
+<span class="artifact-chip"><span class="artifact-chip-glyph">¶</span>install.md</span>
+              <span class="artifact-chip"><span class="artifact-chip-glyph">¶</span>home-tiles.html</span>
+              <span class="pr-chip pr-chip-open">PR #551 <span class="pr-chip-status">open</span></span>
+            </div>
+          </div>
+
+          <div class="srow">
+            <div class="srow-main">
+              <div class="sr-state"><span class="pip pip-dim"></span></div>
+              <div class="sr-project">oyster-dev</div>
+              <div class="sr-title-cell">
+                <span class="sr-title">polish home tile design</span>
+              </div>
+              <div class="sr-agent"><span class="agent-pip"></span>claude-code</div>
+              <div class="sr-reason"></div>
+              <div class="sr-time">50m</div>
+            </div>
+            <div class="sr-extra">
+<span class="artifact-chip"><span class="artifact-chip-glyph">¶</span>home-mock.html</span>
+            </div>
+          </div>
+
+          <div class="srow">
+            <div class="srow-main">
+              <div class="sr-state"><span class="pip pip-dim"></span></div>
+              <div class="sr-project">tokinvest-client-portal</div>
+              <div class="sr-title-cell">
+                <span class="sr-title untitled">Untitled</span>
+              </div>
+              <div class="sr-agent"><span class="agent-pip"></span>claude-code</div>
+              <div class="sr-reason">stopped by user</div>
+              <div class="sr-time">7h</div>
+            </div>
+          </div>
+
+          <div class="srow">
+            <div class="srow-main">
+              <div class="sr-state"><span class="pip pip-dim"></span></div>
+              <div class="sr-project">oyster-dev</div>
+              <div class="sr-title-cell">
+                <span class="sr-title">awesome-list PRs + launch drafts</span>
+              </div>
+              <div class="sr-agent"><span class="agent-pip"></span>claude-code</div>
+              <div class="sr-reason"></div>
+              <div class="sr-time">17h</div>
+            </div>
+            <div class="sr-extra">
+<span class="artifact-chip"><span class="artifact-chip-glyph">¶</span>launch-2026-05-30-hn.md</span>
+              <span class="pr-chip pr-chip-merged">PR #547 <span class="pr-chip-status">merged</span></span>
+            </div>
+          </div>
+        </div>
+
+      <div class="stack-label">Compact · existing</div>
+      <div class="sessions-table">
+          <div class="table-head">
+            <div></div>
+            <div>Project</div>
+            <div>Title</div>
+            <div>Agent</div>
+            <div>Reason</div>
+            <div>Last active</div>
+          </div>
+
+          <div class="srow">
+            <div class="srow-main">
+              <div class="sr-state"><span class="pip pip-green"></span></div>
+              <div class="sr-project">oyster-dev</div>
+              <div class="sr-title-cell">
+                <span class="sr-title">refactor-splash-styles-dedup</span>
+                <span class="resume-chip">Resume</span>
+              </div>
+              <div class="sr-agent"><span class="agent-pip"></span>claude-code</div>
+              <div class="sr-reason"></div>
+              <div class="sr-time">6s ago</div>
+            </div>
+          </div>
+
+          <div class="srow">
+            <div class="srow-main">
+              <div class="sr-state"><span class="pip pip-amber"></span></div>
+              <div class="sr-project">oyster-dev</div>
+              <div class="sr-title-cell">
+                <span class="sr-title">1.0 sessions-first first run</span>
+                <span class="resume-chip">Resume</span>
+              </div>
+              <div class="sr-agent"><span class="agent-pip"></span>claude-code</div>
+              <div class="sr-reason"></div>
+              <div class="sr-time">2m</div>
+            </div>
+          </div>
+
+          <div class="srow">
+            <div class="srow-main">
+              <div class="sr-state"><span class="pip pip-dim"></span></div>
+              <div class="sr-project">oyster-dev</div>
+              <div class="sr-title-cell">
+                <span class="sr-title">polish home tile design</span>
+              </div>
+              <div class="sr-agent"><span class="agent-pip"></span>claude-code</div>
+              <div class="sr-reason"></div>
+              <div class="sr-time">50m</div>
+            </div>
+          </div>
+
+          <div class="srow">
+            <div class="srow-main">
+              <div class="sr-state"><span class="pip pip-dim"></span></div>
+              <div class="sr-project">tokinvest-client-portal</div>
+              <div class="sr-title-cell">
+                <span class="sr-title untitled">Untitled</span>
+              </div>
+              <div class="sr-agent"><span class="agent-pip"></span>claude-code</div>
+              <div class="sr-reason">stopped by user</div>
+              <div class="sr-time">7h</div>
+            </div>
+          </div>
+
+          <div class="srow">
+            <div class="srow-main">
+              <div class="sr-state"><span class="pip pip-dim"></span></div>
+              <div class="sr-project">oyster-dev</div>
+              <div class="sr-title-cell">
+                <span class="sr-title">awesome-list PRs + launch drafts</span>
+              </div>
+              <div class="sr-agent"><span class="agent-pip"></span>claude-code</div>
+              <div class="sr-reason"></div>
+              <div class="sr-time">17h</div>
+            </div>
+          </div>
+
+          <div class="srow">
+            <div class="srow-main">
+              <div class="sr-state"><span class="pip pip-dim"></span></div>
+              <div class="sr-project">oyster-dev</div>
+              <div class="sr-title-cell">
+                <span class="sr-title">ok oyster arcade new game on a new worktree…</span>
+              </div>
+              <div class="sr-agent"><span class="agent-pip"></span>claude-code</div>
+              <div class="sr-reason">ran /exit</div>
+              <div class="sr-time">1d</div>
+            </div>
+          </div>
+
+          <div class="srow">
+            <div class="srow-main">
+              <div class="sr-state"><span class="pip pip-dim"></span></div>
+              <div class="sr-project">oyster-dev</div>
+              <div class="sr-title-cell">
+                <span class="sr-title">Space Jumper PR 1 + co-design</span>
+              </div>
+              <div class="sr-agent"><span class="agent-pip"></span>claude-code</div>
+              <div class="sr-reason">ran /exit</div>
+              <div class="sr-time">1d</div>
+            </div>
+          </div>
+
+          <div class="srow">
+            <div class="srow-main">
+              <div class="sr-state"><span class="pip pip-dim"></span></div>
+              <div class="sr-project">oyster-dev</div>
+              <div class="sr-title-cell">
+                <span class="sr-title">session status palette redesign</span>
+              </div>
+              <div class="sr-agent"><span class="agent-pip"></span>claude-code</div>
+              <div class="sr-reason">ran /exit</div>
+              <div class="sr-time">1d</div>
+            </div>
+          </div>
+        </div>
+
+      <div class="compare-note">
+        <strong>What changes between FULL and COMPACT:</strong>
+        <br>• FULL renders the optional <code>.sr-extra</code> line below the row, indented under the title column, showing inline artifact chips (and potentially a brief recap if available).
+        <br>• COMPACT skips <code>.sr-extra</code> entirely.
+        <br>• <strong>Nothing else moves.</strong> Pip, project, title, RESUME chip, agent, reason, time — all in the same column positions in both views.
+        <br>• Row click → Inspect (unchanged from today)
+        <br>• RESUME chip → resume the session (unchanged from today)
+      </div>
+
+      <div class="delta-note">
+        <strong>What I'd change from the current implementation:</strong>
+        <br>• <strong>Nothing in COMPACT.</strong> It's the existing table. Don't touch.
+        <br>• <strong>FULL bumps the title to 14.5px / weight 500</strong> — gives the "what was I doing" headline weight without changing layout.
+        <br>• <strong>FULL adds <code>.sr-extra</code> render below each row</strong> when the session has artifacts attributed to it. When there are no artifacts (the bottom rows in the FULL column above), the row collapses to look identical to COMPACT — automatic graceful degradation.
+        <br>• The <strong>FULL ↔ COMPACT toggle is the only new control</strong>, sitting beside the existing filter chips.
+        <br>• <strong>I'd argue against the [Open] button.</strong> The whole row is already a click target → Inspect. Adding a redundant button creates two ways to trigger the same action and clutters the row.
+      </div>
+    </div>
+  </div>
+</body>
+</html>

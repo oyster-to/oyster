@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sessions — unify FULL and COMPACT layouts</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --accent: #7c6bff;
+      --accent-bright: #a597ff;
+      --green: #4ade80;
+      --teal: #14b8a6;
+      --amber: #fbbf24;
+      --red: #f87171;
+      --orange: #fb923c;
+      --text: #f0f0f5;
+      --text-dim: rgba(232, 233, 240, 0.66);
+      --text-muted: rgba(232, 233, 240, 0.42);
+      --text-very-muted: rgba(232, 233, 240, 0.2);
+      --bg: rgba(30, 31, 54, 1);
+      --surface: rgba(12, 13, 28, 0.55);
+      --surface-tile: rgba(22, 24, 47, 0.6);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-strong: rgba(255, 255, 255, 0.12);
+      --border-accent: rgba(124, 107, 255, 0.4);
+      --font-body: 'Space Grotesk', -apple-system, sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-body);
+      color: var(--text);
+      background: var(--bg);
+      min-height: 100vh;
+      padding: 48px 0 120px;
+    }
+    .glow {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background: radial-gradient(ellipse 70% 45% at 50% 8%, rgba(124,107,255,0.10) 0%, transparent 65%);
+    }
+    .page { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 32px; }
+    .page-title { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
+    .page-subtitle {
+      font-size: 14px; color: var(--text-dim);
+      margin-bottom: 36px; max-width: 760px; line-height: 1.65;
+    }
+    .page-subtitle strong { color: var(--text); font-weight: 600; }
+    .page-subtitle code {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      background: rgba(255,255,255,0.04);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--accent-bright);
+    }
+
+    .scene {
+      padding: 28px 32px 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      margin-bottom: 32px;
+    }
+    .scene-label {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--accent-bright);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .scene-title {
+      font-size: 19px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+    }
+    .scene-desc {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.6;
+      margin-bottom: 22px;
+      max-width: 720px;
+    }
+
+    .section-strip {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .section-name {
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .view-toggle-text {
+      display: inline-flex;
+      gap: 0;
+      padding: 2px;
+      background: rgba(20, 21, 42, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      margin-left: auto;
+    }
+    .view-toggle-text button {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      background: transparent;
+      border: none;
+      border-radius: 5px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .view-toggle-text button.active {
+      background: rgba(124, 107, 255, 0.2);
+      color: var(--accent-bright);
+    }
+    .filter-chip {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-dim);
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.025);
+    }
+    .filter-chip.selected {
+      background: rgba(124, 107, 255, 0.18);
+      color: var(--accent-bright);
+      border: 1px solid rgba(124, 107, 255, 0.4);
+      padding: 2px 9px;
+    }
+    .filter-rule {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .sessions-list {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .pip {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+    .pip-green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .pip-amber { background: var(--amber); }
+    .pip-red { background: var(--red); }
+    .pip-dim { background: var(--text-very-muted); }
+    .pip-teal { background: var(--teal); }
+
+    /* ════════════════════════════════════════════════════════
+       OPTION A — Same skeleton, COMPACT drops line 2
+       ════════════════════════════════════════════════════════ */
+    .a-row {
+      display: grid;
+      grid-template-columns: 20px 1fr 80px 84px;
+      align-items: center;
+      column-gap: 14px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .a-row:hover { background: rgba(255,255,255,0.02); }
+    .a-row:last-child { border-bottom: none; }
+    .a-row.compact { padding: 9px 18px; }
+    .a-pip-col {
+      display: inline-flex;
+      justify-content: center;
+    }
+    .a-main { min-width: 0; }
+    .a-line1 {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      min-width: 0;
+    }
+    .a-title {
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 0 1 auto;
+      min-width: 0;
+    }
+    .a-row.compact .a-title { font-size: 13px; }
+    .a-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-very-muted);
+      flex-shrink: 0;
+    }
+    .a-badge.active { color: var(--green); }
+    .a-badge.waiting { color: var(--amber); }
+    .a-line2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 3px;
+      flex-wrap: wrap;
+    }
+    .a-project {
+      color: var(--accent-bright);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .a-agent { color: var(--orange); display: inline-flex; align-items: center; gap: 5px; }
+    .a-agent .pip { width: 5px; height: 5px; background: var(--orange); box-shadow: none; }
+    .a-sep { color: var(--text-very-muted); }
+    .a-reason { color: var(--text-muted); font-style: italic; }
+    .a-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      color: var(--accent-bright);
+      background: rgba(124, 107, 255, 0.08);
+      border: 1px solid rgba(124, 107, 255, 0.18);
+      border-radius: 999px;
+      padding: 1px 8px 1px 7px;
+    }
+    .a-time {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .a-action {
+      font-family: var(--font-body);
+      font-size: 12px;
+      color: var(--text-dim);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 14px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+    }
+    .a-action:hover {
+      color: var(--accent-bright);
+      border-color: var(--border-accent);
+      background: rgba(124, 107, 255, 0.08);
+    }
+    .a-row.compact .a-line2 { display: none; }
+
+    /* ════════════════════════════════════════════════════════
+       OPTION B — Hover-only action button
+       ════════════════════════════════════════════════════════ */
+    .b-row {
+      display: grid;
+      grid-template-columns: 20px 1fr 80px 0;
+      align-items: center;
+      column-gap: 14px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s, grid-template-columns 0.15s;
+      position: relative;
+    }
+    .b-row:last-child { border-bottom: none; }
+    .b-row:hover {
+      background: rgba(255,255,255,0.02);
+      grid-template-columns: 20px 1fr 80px 84px;
+    }
+    .b-row.compact { padding: 9px 18px; }
+    .b-row.compact .b-line2 { display: none; }
+    .b-pip-col { display: inline-flex; justify-content: center; }
+    .b-main { min-width: 0; }
+    .b-line1 {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .b-title {
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 0 1 auto;
+      min-width: 0;
+    }
+    .b-row.compact .b-title { font-size: 13px; }
+    .b-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-very-muted);
+      flex-shrink: 0;
+    }
+    .b-badge.active { color: var(--green); }
+    .b-badge.waiting { color: var(--amber); }
+    .b-line2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 3px;
+      flex-wrap: wrap;
+    }
+    .b-project { color: var(--accent-bright); display: inline-flex; align-items: center; gap: 5px; }
+    .b-agent { color: var(--orange); display: inline-flex; align-items: center; gap: 5px; }
+    .b-agent .pip { width: 5px; height: 5px; background: var(--orange); box-shadow: none; }
+    .b-sep { color: var(--text-very-muted); }
+    .b-time {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .b-action {
+      font-family: var(--font-body);
+      font-size: 12px;
+      color: var(--accent-bright);
+      background: rgba(124, 107, 255, 0.08);
+      border: 1px solid rgba(124, 107, 255, 0.28);
+      border-radius: 6px;
+      padding: 5px 12px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+    }
+    .b-row:hover .b-action { opacity: 1; }
+
+    /* ════════════════════════════════════════════════════════
+       OPTION C — COMPACT inlines extras into one line
+       ════════════════════════════════════════════════════════ */
+    .c-row {
+      display: grid;
+      grid-template-columns: 20px 1fr 80px 84px;
+      align-items: center;
+      column-gap: 14px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .c-row:hover { background: rgba(255,255,255,0.02); }
+    .c-row:last-child { border-bottom: none; }
+    .c-row.compact { padding: 9px 18px; }
+    .c-pip-col { display: inline-flex; justify-content: center; }
+    .c-main { min-width: 0; }
+    .c-line1 {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .c-title {
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 0 1 auto;
+      min-width: 0;
+    }
+    .c-row.compact .c-title { font-size: 13px; }
+    .c-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .c-badge.active { color: var(--green); }
+    .c-badge.waiting { color: var(--amber); }
+    .c-line2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 3px;
+      flex-wrap: wrap;
+    }
+    .c-row.compact .c-line2 {
+      display: inline-flex;
+      margin-top: 0;
+      margin-left: 12px;
+      flex-wrap: nowrap;
+      overflow: hidden;
+    }
+    .c-row.compact .c-line1 {
+      display: inline-flex;
+      align-items: baseline;
+      flex-wrap: nowrap;
+    }
+    .c-row.compact .c-main {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: nowrap;
+      gap: 6px;
+      overflow: hidden;
+    }
+    .c-row.compact .c-line2-extra { display: none; }
+    .c-project { color: var(--accent-bright); display: inline-flex; align-items: center; gap: 5px; }
+    .c-agent { color: var(--orange); display: inline-flex; align-items: center; gap: 5px; }
+    .c-agent .pip { width: 5px; height: 5px; background: var(--orange); box-shadow: none; }
+    .c-sep { color: var(--text-very-muted); }
+    .c-reason { color: var(--text-muted); font-style: italic; }
+    .c-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      color: var(--accent-bright);
+      background: rgba(124, 107, 255, 0.08);
+      border: 1px solid rgba(124, 107, 255, 0.18);
+      border-radius: 999px;
+      padding: 1px 8px 1px 7px;
+    }
+    .c-time {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .c-action {
+      font-family: var(--font-body);
+      font-size: 12px;
+      color: var(--text-dim);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 14px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+    }
+    .c-action:hover {
+      color: var(--accent-bright);
+      border-color: var(--border-accent);
+      background: rgba(124, 107, 255, 0.08);
+    }
+
+    .branch-icon { width: 10px; height: 10px; opacity: 0.6; }
+
+    .compare-note {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.65;
+      padding: 16px 20px;
+      background: rgba(124, 107, 255, 0.06);
+      border: 1px solid rgba(124, 107, 255, 0.18);
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    .compare-note strong { color: var(--accent-bright); font-weight: 600; }
+    .compare-note code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: rgba(255,255,255,0.05);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--text);
+    }
+    .twin-header {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 8px;
+    }
+    .twin-header div {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .twin {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="page">
+    <h1 class="page-title">Sessions — unify FULL and COMPACT layouts</h1>
+    <p class="page-subtitle">
+      Right now the two modes have <strong>different column orders</strong> — time on the LEFT in FULL, on the RIGHT in COMPACT; state pip in its own column in COMPACT but inline with title in FULL.
+      Three options below unify the skeleton so toggling FULL ↔ COMPACT only changes density, not layout.
+      Every option uses the same skeleton: <code>● Title (badge) … time [action]</code> — what differs is whether a second line below the title renders (FULL) or not (COMPACT).
+    </p>
+
+    <!-- ══════════════════════════════════════════════════
+         OPTION A
+         ══════════════════════════════════════════════════ -->
+    <div class="scene">
+      <div class="scene-label">Option A · Recommended</div>
+      <div class="scene-title">Same skeleton; COMPACT drops line 2</div>
+      <div class="scene-desc">
+        Skeleton: <code>pip · title · time · action</code>. FULL adds a second line below the title (project + agent + reason + artifact chips). COMPACT just hides that line; everything else stays in place. Pip, time, action are in the same column on both views.
+      </div>
+
+      <div class="twin-header">
+        <div>Full</div>
+        <div>Compact</div>
+      </div>
+      <div class="twin">
+        <!-- FULL column -->
+        <div class="sessions-list">
+          <div class="a-row">
+            <div class="a-pip-col"><span class="pip pip-green"></span></div>
+            <div class="a-main">
+              <div class="a-line1">
+                <span class="a-title">refactor-splash-styles-dedup</span>
+                <span class="a-badge active">active</span>
+              </div>
+              <div class="a-line2">
+                <span class="a-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+                <span class="a-sep">·</span>
+                <span class="a-agent"><span class="pip"></span>claude-code</span>
+                <span class="a-sep">·</span>
+                <span class="a-chip">¶ install.md</span>
+              </div>
+            </div>
+            <div class="a-time">6s ago</div>
+            <button class="a-action">Open</button>
+          </div>
+
+          <div class="a-row">
+            <div class="a-pip-col"><span class="pip pip-amber"></span></div>
+            <div class="a-main">
+              <div class="a-line1">
+                <span class="a-title">1.0 sessions-first first run</span>
+                <span class="a-badge waiting">waiting</span>
+              </div>
+              <div class="a-line2">
+                <span class="a-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+                <span class="a-sep">·</span>
+                <span class="a-agent"><span class="pip"></span>claude-code</span>
+              </div>
+            </div>
+            <div class="a-time">2m</div>
+            <button class="a-action">Open</button>
+          </div>
+
+          <div class="a-row">
+            <div class="a-pip-col"><span class="pip pip-dim"></span></div>
+            <div class="a-main">
+              <div class="a-line1">
+                <span class="a-title">polish home tile design</span>
+              </div>
+              <div class="a-line2">
+                <span class="a-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+                <span class="a-sep">·</span>
+                <span class="a-agent"><span class="pip"></span>claude-code</span>
+                <span class="a-sep">·</span>
+                <span class="a-chip">¶ home-mock.html</span>
+              </div>
+            </div>
+            <div class="a-time">50m</div>
+            <button class="a-action">Open</button>
+          </div>
+        </div>
+
+        <!-- COMPACT column (same rows, .compact class hides line 2) -->
+        <div class="sessions-list">
+          <div class="a-row compact">
+            <div class="a-pip-col"><span class="pip pip-green"></span></div>
+            <div class="a-main">
+              <div class="a-line1">
+                <span class="a-title">refactor-splash-styles-dedup</span>
+                <span class="a-badge active">active</span>
+              </div>
+              <div class="a-line2">
+                <span class="a-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+              </div>
+            </div>
+            <div class="a-time">6s ago</div>
+            <button class="a-action">Open</button>
+          </div>
+
+          <div class="a-row compact">
+            <div class="a-pip-col"><span class="pip pip-amber"></span></div>
+            <div class="a-main">
+              <div class="a-line1">
+                <span class="a-title">1.0 sessions-first first run</span>
+                <span class="a-badge waiting">waiting</span>
+              </div>
+              <div class="a-line2"></div>
+            </div>
+            <div class="a-time">2m</div>
+            <button class="a-action">Open</button>
+          </div>
+
+          <div class="a-row compact">
+            <div class="a-pip-col"><span class="pip pip-dim"></span></div>
+            <div class="a-main">
+              <div class="a-line1"><span class="a-title">polish home tile design</span></div>
+            </div>
+            <div class="a-time">50m</div>
+            <button class="a-action">Open</button>
+          </div>
+
+          <div class="a-row compact">
+            <div class="a-pip-col"><span class="pip pip-dim"></span></div>
+            <div class="a-main">
+              <div class="a-line1"><span class="a-title" style="color: var(--text-muted); font-style: italic;">Untitled</span></div>
+            </div>
+            <div class="a-time">7h</div>
+            <button class="a-action">Open</button>
+          </div>
+
+          <div class="a-row compact">
+            <div class="a-pip-col"><span class="pip pip-dim"></span></div>
+            <div class="a-main">
+              <div class="a-line1"><span class="a-title">awesome-list PRs + launch drafts</span></div>
+            </div>
+            <div class="a-time">17h</div>
+            <button class="a-action">Open</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-note">
+        <strong>Why this works.</strong>
+        The pip column, title, time, and Open button are in the <em>same column</em> regardless of view. Toggling FULL → COMPACT only changes whether line 2 renders. The eye learns one layout; the toggle just adjusts density. The COMPACT view loses some context (project/agent/reason all gone) — accepting that as the trade-off, since the user can hover or click into the row for detail.
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════
+         OPTION B
+         ══════════════════════════════════════════════════ -->
+    <div class="scene">
+      <div class="scene-label">Option B</div>
+      <div class="scene-title">Same skeleton — action button only on hover</div>
+      <div class="scene-desc">
+        Same as A, but the Open button is hidden by default and slides in on hover. Cleaner resting state. Trade-off: less discoverable for a first-time user.
+      </div>
+
+      <div class="twin-header">
+        <div>Full</div>
+        <div>Compact</div>
+      </div>
+      <div class="twin">
+        <div class="sessions-list">
+          <div class="b-row">
+            <div class="b-pip-col"><span class="pip pip-green"></span></div>
+            <div class="b-main">
+              <div class="b-line1">
+                <span class="b-title">refactor-splash-styles-dedup</span>
+                <span class="b-badge active">active</span>
+              </div>
+              <div class="b-line2">
+                <span class="b-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+                <span class="b-sep">·</span>
+                <span class="b-agent"><span class="pip"></span>claude-code</span>
+              </div>
+            </div>
+            <div class="b-time">6s ago</div>
+            <button class="b-action">Open</button>
+          </div>
+          <div class="b-row">
+            <div class="b-pip-col"><span class="pip pip-amber"></span></div>
+            <div class="b-main">
+              <div class="b-line1">
+                <span class="b-title">1.0 sessions-first first run</span>
+                <span class="b-badge waiting">waiting</span>
+              </div>
+              <div class="b-line2">
+                <span class="b-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+              </div>
+            </div>
+            <div class="b-time">2m</div>
+            <button class="b-action">Open</button>
+          </div>
+          <div class="b-row">
+            <div class="b-pip-col"><span class="pip pip-dim"></span></div>
+            <div class="b-main">
+              <div class="b-line1"><span class="b-title">polish home tile design</span></div>
+              <div class="b-line2">
+                <span class="b-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+              </div>
+            </div>
+            <div class="b-time">50m</div>
+            <button class="b-action">Open</button>
+          </div>
+        </div>
+
+        <div class="sessions-list">
+          <div class="b-row compact">
+            <div class="b-pip-col"><span class="pip pip-green"></span></div>
+            <div class="b-main">
+              <div class="b-line1"><span class="b-title">refactor-splash-styles-dedup</span><span class="b-badge active">active</span></div>
+            </div>
+            <div class="b-time">6s ago</div>
+            <button class="b-action">Open</button>
+          </div>
+          <div class="b-row compact">
+            <div class="b-pip-col"><span class="pip pip-amber"></span></div>
+            <div class="b-main">
+              <div class="b-line1"><span class="b-title">1.0 sessions-first first run</span><span class="b-badge waiting">waiting</span></div>
+            </div>
+            <div class="b-time">2m</div>
+            <button class="b-action">Open</button>
+          </div>
+          <div class="b-row compact">
+            <div class="b-pip-col"><span class="pip pip-dim"></span></div>
+            <div class="b-main">
+              <div class="b-line1"><span class="b-title">polish home tile design</span></div>
+            </div>
+            <div class="b-time">50m</div>
+            <button class="b-action">Open</button>
+          </div>
+          <div class="b-row compact">
+            <div class="b-pip-col"><span class="pip pip-dim"></span></div>
+            <div class="b-main">
+              <div class="b-line1"><span class="b-title" style="color: var(--text-muted); font-style: italic;">Untitled</span></div>
+            </div>
+            <div class="b-time">7h</div>
+            <button class="b-action">Open</button>
+          </div>
+          <div class="b-row compact">
+            <div class="b-pip-col"><span class="pip pip-dim"></span></div>
+            <div class="b-main">
+              <div class="b-line1"><span class="b-title">awesome-list PRs + launch drafts</span></div>
+            </div>
+            <div class="b-time">17h</div>
+            <button class="b-action">Open</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-note">
+        <strong>Hover to see the button.</strong> Move your cursor over a row above — the Open button slides in. Quieter resting state, more polished, but newcomers may not know it's there. Better for power users.
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════
+         OPTION C
+         ══════════════════════════════════════════════════ -->
+    <div class="scene">
+      <div class="scene-label">Option C</div>
+      <div class="scene-title">COMPACT keeps project inline next to title</div>
+      <div class="scene-desc">
+        FULL: project + agent + chips on line 2 below the title. COMPACT: project name slides up next to the title (inline, dim). Keeps "which project did this happen in" visible in both views — a denser COMPACT that still tells the story.
+      </div>
+
+      <div class="twin-header">
+        <div>Full</div>
+        <div>Compact</div>
+      </div>
+      <div class="twin">
+        <div class="sessions-list">
+          <div class="c-row">
+            <div class="c-pip-col"><span class="pip pip-green"></span></div>
+            <div class="c-main">
+              <div class="c-line1">
+                <span class="c-title">refactor-splash-styles-dedup</span>
+                <span class="c-badge active">active</span>
+              </div>
+              <div class="c-line2 c-line2-extra">
+                <span class="c-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+                <span class="c-sep">·</span>
+                <span class="c-agent"><span class="pip"></span>claude-code</span>
+                <span class="c-sep">·</span>
+                <span class="c-chip">¶ install.md</span>
+              </div>
+            </div>
+            <div class="c-time">6s ago</div>
+            <button class="c-action">Open</button>
+          </div>
+          <div class="c-row">
+            <div class="c-pip-col"><span class="pip pip-amber"></span></div>
+            <div class="c-main">
+              <div class="c-line1">
+                <span class="c-title">1.0 sessions-first first run</span>
+                <span class="c-badge waiting">waiting</span>
+              </div>
+              <div class="c-line2 c-line2-extra">
+                <span class="c-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+                <span class="c-sep">·</span>
+                <span class="c-agent"><span class="pip"></span>claude-code</span>
+              </div>
+            </div>
+            <div class="c-time">2m</div>
+            <button class="c-action">Open</button>
+          </div>
+          <div class="c-row">
+            <div class="c-pip-col"><span class="pip pip-dim"></span></div>
+            <div class="c-main">
+              <div class="c-line1"><span class="c-title">polish home tile design</span></div>
+              <div class="c-line2 c-line2-extra">
+                <span class="c-project"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+                <span class="c-sep">·</span>
+                <span class="c-agent"><span class="pip"></span>claude-code</span>
+              </div>
+            </div>
+            <div class="c-time">50m</div>
+            <button class="c-action">Open</button>
+          </div>
+        </div>
+
+        <div class="sessions-list">
+          <div class="c-row compact">
+            <div class="c-pip-col"><span class="pip pip-green"></span></div>
+            <div class="c-main">
+              <div class="c-line1">
+                <span class="c-title">refactor-splash-styles-dedup</span>
+                <span class="c-badge active">active</span>
+              </div>
+              <div class="c-line2">
+                <span class="c-sep">·</span>
+                <span class="c-project" style="font-size: 11px;"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+              </div>
+            </div>
+            <div class="c-time">6s ago</div>
+            <button class="c-action">Open</button>
+          </div>
+          <div class="c-row compact">
+            <div class="c-pip-col"><span class="pip pip-amber"></span></div>
+            <div class="c-main">
+              <div class="c-line1">
+                <span class="c-title">1.0 sessions-first first run</span>
+                <span class="c-badge waiting">waiting</span>
+              </div>
+              <div class="c-line2">
+                <span class="c-sep">·</span>
+                <span class="c-project" style="font-size: 11px;"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+              </div>
+            </div>
+            <div class="c-time">2m</div>
+            <button class="c-action">Open</button>
+          </div>
+          <div class="c-row compact">
+            <div class="c-pip-col"><span class="pip pip-dim"></span></div>
+            <div class="c-main">
+              <div class="c-line1">
+                <span class="c-title">polish home tile design</span>
+              </div>
+              <div class="c-line2">
+                <span class="c-sep">·</span>
+                <span class="c-project" style="font-size: 11px;"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+              </div>
+            </div>
+            <div class="c-time">50m</div>
+            <button class="c-action">Open</button>
+          </div>
+          <div class="c-row compact">
+            <div class="c-pip-col"><span class="pip pip-dim"></span></div>
+            <div class="c-main">
+              <div class="c-line1">
+                <span class="c-title" style="color: var(--text-muted); font-style: italic;">Untitled</span>
+              </div>
+              <div class="c-line2">
+                <span class="c-sep">·</span>
+                <span class="c-project" style="font-size: 11px;"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>tokinvest-client-portal</span>
+              </div>
+            </div>
+            <div class="c-time">7h</div>
+            <button class="c-action">Open</button>
+          </div>
+          <div class="c-row compact">
+            <div class="c-pip-col"><span class="pip pip-dim"></span></div>
+            <div class="c-main">
+              <div class="c-line1">
+                <span class="c-title">awesome-list PRs + launch drafts</span>
+              </div>
+              <div class="c-line2">
+                <span class="c-sep">·</span>
+                <span class="c-project" style="font-size: 11px;"><svg class="branch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8m0-4h6a4 4 0 0 0 4-4"/></svg>oyster-dev</span>
+              </div>
+            </div>
+            <div class="c-time">17h</div>
+            <button class="c-action">Open</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-note">
+        <strong>Keeps project visible in both.</strong>
+        Same skeleton; the only thing that changes is whether project + agent + chips wrap to a new line (FULL) or stay inline next to the title (COMPACT — just the project, dim). The session row always tells you <em>which project</em>. Best for users with sessions across many projects.
+      </div>
+    </div>
+
+    <div class="compare-note" style="background: rgba(74, 222, 128, 0.04); border-color: rgba(74, 222, 128, 0.18);">
+      <strong style="color: var(--green);">Recommendation: A.</strong>
+      Cleanest model: <em>"COMPACT is FULL minus line 2."</em> A user toggling between them sees no column reorder, no item-position shift — just the second line of context appearing or disappearing. The trade-off (project name lost in COMPACT) is acceptable because hover or click reveals it anyway. C is tempting if "which project" matters at every scan, but adds visual complexity to COMPACT's line. B is the most polished but discoverability suffers.
+    </div>
+  </div>
+</body>
+</html>
