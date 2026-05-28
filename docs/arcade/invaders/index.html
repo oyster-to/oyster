@@ -545,6 +545,111 @@
     border-color: #ff3aa1;
     color: #fff;
   }
+
+  /* Player JOIN / LEFT toast — fired by a snapshot diff in handle()
+     when a non-local seat transitions between empty and occupied.
+     Two layouts share the same DOM:
+       .is-lobby — central pop card (shown while the prescreen is up)
+       .is-game  — corner badge sliding in from the right (during play)
+     Joiner colour comes from --toast-accent set inline per fire so
+     a name with HTML in it can't influence the gradient/border. */
+  .player-toast {
+    position: absolute;
+    z-index: 12;                            /* above prescreen + canvas, below endscreen */
+    pointer-events: none;
+    background: rgba(10, 10, 30, 0.92);
+    border: 2px solid var(--toast-accent, rgba(255,255,255,0.3));
+    border-radius: 8px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .player-toast[hidden] { display: none; }
+  .player-toast.is-visible { opacity: 1; }
+
+  .player-toast__avatar {
+    image-rendering: pixelated;
+    border-radius: 3px;
+    box-shadow: 0 0 0 2px var(--toast-accent, rgba(255,255,255,0.3));
+    display: block;
+    flex: none;
+  }
+  .player-toast__body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.2;
+  }
+  .player-toast__verb {
+    font-size: 7px;
+    letter-spacing: 0.18em;
+    color: rgba(255, 255, 255, 0.55);
+  }
+  .player-toast__name {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--toast-accent, #fff);
+  }
+
+  /* Lobby variant — central pop, larger. */
+  .player-toast.is-lobby {
+    top: 50%; left: 50%;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 22px 14px;
+    min-width: 180px;
+    text-align: center;
+    transform: translate(-50%, -50%) scale(0.6);
+    box-shadow: 0 0 32px var(--toast-glow, rgba(255,255,255,0.25)),
+                inset 0 0 18px rgba(0,0,0,0.5);
+  }
+  .player-toast.is-lobby.is-visible {
+    animation: player-toast-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+  .player-toast.is-lobby .player-toast__avatar { width: 56px; height: 56px; }
+  .player-toast.is-lobby .player-toast__name   { font-size: 18px; letter-spacing: 0.22em; }
+  .player-toast.is-lobby .player-toast__verb   { font-size: 8px; }
+
+  /* In-game variant — top-right corner, slides in. */
+  .player-toast.is-game {
+    top: 12px; right: 12px;
+    padding: 8px 10px;
+    min-width: 130px;
+    transform: translateX(120%);
+    box-shadow: 0 0 18px var(--toast-glow, rgba(0,0,0,0.6));
+  }
+  .player-toast.is-game.is-visible {
+    animation: player-toast-slide 0.4s ease-out forwards;
+  }
+  .player-toast.is-game .player-toast__avatar { width: 28px; height: 28px; }
+
+  /* Leave variant — muted, slightly desaturated avatar. */
+  .player-toast.is-leave .player-toast__avatar {
+    filter: grayscale(0.7);
+  }
+
+  @keyframes player-toast-pop {
+    0%   { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
+    70%  { transform: translate(-50%, -50%) scale(1.08); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+  @keyframes player-toast-slide {
+    from { transform: translateX(120%); opacity: 0; }
+    to   { transform: translateX(0); opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .player-toast.is-lobby.is-visible,
+    .player-toast.is-game.is-visible {
+      animation: none;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    .player-toast.is-game.is-visible {
+      transform: translateX(0);
+    }
+  }
 </style>
 </head>
 <body>
@@ -559,6 +664,14 @@
     <canvas id="cv" width="260" height="280"></canvas>
     <div class="overlay"></div>
     <div class="vignette"></div>
+
+    <!-- Social-moment toast: fires when another seat transitions between
+         empty and occupied. Two presentation modes — central pop on the
+         lobby (when prescreen is visible), corner slide-in on the canvas
+         (when prescreen is faded for countdown/running). Body is built
+         with DOM nodes in showPlayerToast() to keep wire-derived names
+         away from innerHTML. -->
+    <div id="playerToast" class="player-toast" hidden></div>
     <div class="touch-controls">
       <div class="tc-group">
         <button type="button" class="tc-btn" id="tc-left"  aria-label="Move left"  tabindex="-1">◀</button>
@@ -1581,6 +1694,7 @@
         // occupancy so refreshLobby + maybeCreatePeers fire when a
         // friend joins via the DO. Without this, the WebRTC handshake
         // never starts and the joiner sits in 'waiting' forever.
+        detectSeatChanges(lastState, msg);
         lastState = msg;
         refreshLobby();
         maybeCreatePeers();
@@ -1637,6 +1751,11 @@
       // silent because the "you won" overlay carries the moment).
       // prevState is captured BEFORE overwriting lastState below.
       const prev = lastState;
+      // Seat-occupancy diff drives the JOIN / LEFT toast — has to
+      // happen before any `return` paths and before we overwrite
+      // lastState. Safe if prev is null (first snapshot establishes
+      // baseline without firing).
+      detectSeatChanges(prev, msg);
       const seatIdx = mySeat ? SEATS.indexOf(mySeat) : -1;
       if (prev) {
         // "Any kill happened this tick" = sum of all per-player
@@ -1844,6 +1963,108 @@
       } else if (!isYou && youEl) {
         youEl.remove();
       }
+    }
+  }
+
+  // Player JOIN / LEFT toast — fires when a non-local seat transitions
+  // between empty and occupied. The visual mode (central lobby pop vs
+  // corner in-game slide) is picked from .tube.is-ready, which the
+  // existing lobby code already toggles on countdown/running. Names
+  // and avatars come from the snapshot players[]; we never push wire-
+  // derived strings through innerHTML.
+  const playerToastEl = document.getElementById('playerToast');
+  const TOAST_HOLD_MS  = 2800;
+  const TOAST_FADE_MS  = 300;
+  // Two timers: hold (until fade begins) + fade (until display:none).
+  // Both have to be cleared on a new toast — otherwise a stray
+  // fade timer from the previous toast can hide the new one mid-life.
+  let toastHoldTimer = 0;
+  let toastFadeTimer = 0;
+
+  function rgba(hex, alpha) {
+    // Cheap hex → rgba for the glow halo. Accepts '#rrggbb' or 'rrggbb'.
+    const h = hex.replace('#', '');
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  function showPlayerToast(seatIdx, rawName, kind) {
+    if (seatIdx < 0 || seatIdx >= MAX_SEATS) return;
+    const isGame = tube.classList.contains('is-ready');
+    const accent = kind === 'leave' ? '#a0a0b0' : (SHIP_COLORS[seatIdx] || '#ffffff');
+    const glow   = rgba(accent, kind === 'leave' ? 0.25 : 0.55);
+    const display = ((rawName || '').trim() || 'P' + (seatIdx + 1)).toUpperCase();
+    const verb = kind === 'join' ? 'JOINED' : 'LEFT';
+    // For the avatar src: leavers' faces are gone from the wire by the
+    // time we render, so the salt from the *previous* snapshot is
+    // carried in by the caller via rawSalt below. For joiners, the
+    // snapshot is fresh, but we still allow the caller to pass it.
+    const salt = (showPlayerToast._lastSalt | 0) || 1;
+    const avatarSrc = avatarUrl(seatIdx, salt);
+
+    playerToastEl.replaceChildren();
+    playerToastEl.classList.remove('is-lobby', 'is-game', 'is-join', 'is-leave', 'is-visible');
+    playerToastEl.style.setProperty('--toast-accent', accent);
+    playerToastEl.style.setProperty('--toast-glow', glow);
+    playerToastEl.classList.add(isGame ? 'is-game' : 'is-lobby');
+    playerToastEl.classList.add(kind === 'leave' ? 'is-leave' : 'is-join');
+
+    const img = document.createElement('img');
+    img.className = 'player-toast__avatar';
+    img.alt = '';
+    img.referrerPolicy = 'no-referrer';
+    img.src = avatarSrc;
+    playerToastEl.appendChild(img);
+
+    const body = document.createElement('div');
+    body.className = 'player-toast__body';
+    const verbEl = document.createElement('div');
+    verbEl.className = 'player-toast__verb';
+    verbEl.textContent = verb;
+    const nameEl = document.createElement('div');
+    nameEl.className = 'player-toast__name';
+    nameEl.textContent = display;
+    body.appendChild(verbEl);
+    body.appendChild(nameEl);
+    playerToastEl.appendChild(body);
+
+    playerToastEl.hidden = false;
+    void playerToastEl.offsetWidth;          // restart the entrance animation
+    playerToastEl.classList.add('is-visible');
+
+    clearTimeout(toastHoldTimer);
+    clearTimeout(toastFadeTimer);
+    toastHoldTimer = setTimeout(() => {
+      playerToastEl.classList.remove('is-visible');
+      toastFadeTimer = setTimeout(() => { playerToastEl.hidden = true; }, TOAST_FADE_MS);
+    }, TOAST_HOLD_MS);
+  }
+
+  // Diff seat occupancy between two consecutive snapshots. Fires a toast
+  // per non-local seat that transitioned this tick. Returning early on
+  // a null prev means the very first snapshot establishes baseline
+  // state without flooding toasts for everyone already in the room.
+  function detectSeatChanges(prev, msg) {
+    if (!prev || !msg || !msg.players) return;
+    const prevSeats = prev.seats || {};
+    const newSeats  = msg.seats  || {};
+    for (let i = 0; i < MAX_SEATS; i++) {
+      const s = SEATS[i];
+      if (s === mySeat) continue;
+      // Authoritative seats map landed in Phase D; fall back to alive
+      // for the rare snapshot from before it (own snapshots don't ship
+      // seats but those don't reach here anyway).
+      const was = (prev.seats != null) ? !!prevSeats[s] : !!prev.players[i]?.alive;
+      const now = (msg.seats  != null) ? !!newSeats[s]  : !!msg.players[i]?.alive;
+      if (was === now) continue;
+      // JOIN: pull salt from the new snapshot; LEAVE: pull from prev
+      // because the leaver's player slot is masked in msg.
+      const src = now ? msg : prev;
+      const name = (src.players[i]?.name || '').trim();
+      showPlayerToast._lastSalt = (src.players[i]?.avatarSalt | 0) || 1;
+      showPlayerToast(i, name, now ? 'join' : 'leave');
     }
   }
 
