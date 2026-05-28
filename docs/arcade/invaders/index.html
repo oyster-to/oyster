@@ -822,10 +822,7 @@
   // identical on p2's iPad.
   const SHIP_COLORS = ['#2dd4ff', '#ff3aa1', '#6bff8c', '#ffd84a'];
 
-  // Storage keys keep the legacy `invaders-mp.` prefix from when this
-  // folder was /invaders-mp/. Renaming them would wipe existing
-  // players' saved names + avatar salts, so the fossil stays.
-  const NAME_STORAGE_KEY = 'invaders-mp.name';
+  const NAME_STORAGE_KEY = 'invaders.name';
   const NAME_MAX_CHARS = 12;
 
   // Netcode version — bump on any wire/protocol or behaviour change.
@@ -1030,7 +1027,7 @@
   // reloads + room hops; published on seat assignment + on every
   // SHUFFLE tap. 0 isn't used as a salt (engine treats 0 as "no avatar
   // chosen"), so first launch picks a random positive value.
-  const AVATAR_STORAGE_KEY = 'invaders-mp.avatar-salt'; // see NAME_STORAGE_KEY
+  const AVATAR_STORAGE_KEY = 'invaders.avatar-salt';
   function randomSalt() { return 1 + Math.floor(Math.random() * 999999); }
   let myAvatarSalt = 0;
   try {
