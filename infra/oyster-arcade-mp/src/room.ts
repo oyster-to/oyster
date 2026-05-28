@@ -1,5 +1,5 @@
 // InvadersRoom — a Durable Object that owns one Invaders match for
-// one room code (e.g. /invaders-mp/FROG). Each connection is
+// one room code (e.g. /invaders/FROG). Each connection is
 // assigned the first free seat (p1 → p4); the MAX_SEATS+1-th
 // connection receives `room_full` and is closed.
 //
@@ -11,7 +11,7 @@
 // In v17+ the DO also relays opaque WebRTC signalling between seats
 // and acts as a cloud-relay fallback when host-mode P2P can't
 // establish (e.g. captive-portal Wi-Fi, late joiner before retry).
-// The game engine itself lives in docs/arcade/invaders-mp/engine.js
+// The game engine itself lives in docs/arcade/invaders/engine.js
 // and is shared verbatim with the host-mode client.
 
 import {
@@ -24,12 +24,12 @@ import {
   SHIP_W,
   SEATS,
   MAX_SEATS,
-} from '../../../docs/arcade/invaders-mp/engine.js';
+} from '../../../docs/arcade/invaders/engine.js';
 import type {
   GameState,
   Input,
   Seat,
-} from '../../../docs/arcade/invaders-mp/engine.js';
+} from '../../../docs/arcade/invaders/engine.js';
 import type { Env } from './worker';
 
 const TICK_HZ = 60;
