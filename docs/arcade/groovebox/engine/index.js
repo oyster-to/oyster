@@ -1,6 +1,6 @@
 import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
-import { eventsForStep, swingOffset } from './scheduler.js';
+import { eventsForStep } from './scheduler.js';
 import { createVoiceForType, trigger } from './voices.js';
 import { normalizeLanes, cachePoolsByType, laneByType, setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloExclusive, captureScene as _captureScene, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane, moveLane as _moveLane } from './lanes.js';
 import { sectionAt } from './arrangement.js';
@@ -8,7 +8,6 @@ import { sectionAt } from './arrangement.js';
 export function createEngine() {
   let song = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, pendingFill = null, activeFill = null, fillQueue = [];
   let mode = 'live', songBar = 0;
-  let swing = 0;
   let keyQuantize = false, pendingTranspose = null;
   let masterComp = null, masterRev = null, masterVol = null, masterPan = null, masterWidth = null, masterEQ = null;
   let _widthOn = false;   // is the StereoWidener spliced into the master chain?
@@ -178,10 +177,9 @@ export function createEngine() {
           }
         }
         const fillPat = activeFill ? (song.fills?.[activeFill] ?? null) : null;
-        const swung = swingOffset(step, swing, sixteenth);
         for (const ev of eventsForStep(song, song.lanes, step, fillPat)) {
           const v = voices[ev.laneId];
-          if (v) trigger(v, ev, t + swung, sixteenth, barSeconds);
+          if (v) trigger(v, ev, t, sixteenth, barSeconds);
         }
         if (onStepCb) {
           const s = step; const sb = songBar; const qSnap = fillQueue.slice();
@@ -424,7 +422,5 @@ export function createEngine() {
     getTranspose() { return song ? (song.transpose || 0) : 0; },
     setKeyQuantize(on) { keyQuantize = !!on; },
     getKeyQuantize() { return keyQuantize; },
-    setSwing(v01) { swing = Math.max(0, Math.min(1, +v01 || 0)); },
-    getSwing() { return swing; },
   };
 }

@@ -1112,22 +1112,6 @@ input[type=range] {
     inset 0 1px 0 rgba(84,240,200,0.06);
 }
 
-/* ─── transport swing group ──────────────────────────────────────────────── */
-.transport-swing {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.transport-swing input[type="range"] {
-  width: 72px;
-}
-.transport-swing #swingv {
-  font-size: 13px;
-  color: var(--ink);
-  min-width: 3ch;
-  text-align: right;
-}
-
 /* ─── transport: shared label style (muted) ──────────────────────────────── */
 .transport-lbl {
   font-size: 11px;
@@ -1197,7 +1181,7 @@ input[type=range] {
   gap: 2px;
 }
 
-/* ─── transport-bpm-unit / swing % unit: muted ──────────────────────────── */
+/* ─── transport-bpm-unit: muted ─────────────────────────────────────────── */
 .transport-bpm-unit {
   font-size: 9px;
   color: var(--faint);

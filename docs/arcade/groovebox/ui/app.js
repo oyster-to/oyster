@@ -642,7 +642,6 @@ document.getElementById('play').onclick = async function() {
   }
 };
 document.getElementById('bpm').oninput = e => { eng.setTempo(+e.target.value); document.getElementById('bpmv').textContent = e.target.value; };
-document.getElementById('swing').oninput = e => { eng.setSwing(+e.target.value / 100); document.getElementById('swingv').textContent = e.target.value + '%'; };
 
 // ─── KEY / transpose ─────────────────────────────────────────────────────────
 let transpose = 0;
