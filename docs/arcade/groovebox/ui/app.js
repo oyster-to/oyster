@@ -2,7 +2,6 @@ import { createEngine } from '../engine/index.js';
 import { laneAudible } from '../engine/song.js';
 import { kids } from '../songs/kids.js';
 import { risingSun } from '../songs/rising-sun.js';
-import { blueDanube } from '../songs/blue-danube.js';
 import { electricFeel } from '../songs/electric-feel.js';
 import { heartbeats } from '../songs/heartbeats.js';
 import { makeViz } from './viz.js';
@@ -13,7 +12,7 @@ const LANES = ['drums','bass','chords','melody'];
 const chordModes = ['pad','arp','stab'];
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
 
-const SONGS = { kids, 'rising-sun': risingSun, 'blue-danube': blueDanube, 'electric-feel': electricFeel, heartbeats };
+const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, heartbeats };
 
 // Module-level refs — reassigned by mount() on every song switch.
 let song;
