@@ -361,12 +361,17 @@ input[type=range] {
 #fills,
 #master,
 #arrange {
-  background: var(--panel);
+  /* soft top-light → bottom-shade sheen (derived from --panel) so panels read
+     as smooth surfaces in every theme, not flat matte cards on dark */
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--panel) 86%, #fff) 0%,
+    var(--panel) 48%,
+    color-mix(in srgb, var(--panel) 92%, #000) 100%);
   border-radius: 10px;
   border: 1px solid var(--line);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.04),
-    0 1px 3px rgba(0,0,0,0.4);
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 1px 4px rgba(0,0,0,0.45);
   margin-bottom: 12px;
 }
 
