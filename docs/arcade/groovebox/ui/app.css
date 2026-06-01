@@ -1246,6 +1246,19 @@ input[type=range] {
   margin-left: 3px;
   letter-spacing: 0;
 }
+/* Game Boy is a two-accent palette: navy BLUE for the silkscreened labels/logo,
+   magenta for the interactive controls (A/B buttons → play, knobs, active states).
+   Tint the body section labels blue to match the console. */
+[data-theme="gameboy"] .lane .name,
+[data-theme="gameboy"] .kgroup-lbl,
+[data-theme="gameboy"] .fillsrow .flbl,
+[data-theme="gameboy"] .masterfx .mlbl,
+[data-theme="gameboy"] .albl,
+[data-theme="gameboy"] .transport-tempo,
+[data-theme="gameboy"] .transport-song,
+[data-theme="gameboy"] .transport-theme {
+  color: #2a2a78;
+}
 
 [data-theme="amber"] {
   --bg:          #080500;
