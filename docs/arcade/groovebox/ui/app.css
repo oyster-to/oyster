@@ -151,11 +151,53 @@ body {
   border-radius: 18px;
 }
 
-/* ─── § 2 — app title ───────────────────────────────────────────────────── */
+/* ─── § 2 — title bar (tier 1) ──────────────────────────────────────────── */
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 12px;
+}
+.titlebar-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+/* Tool chrome — smaller, visually secondary vs transport */
+.titlebar-tools select,
+.titlebar-tools button {
+  height: 26px;
+  font-size: 11px;
+  padding: 0 10px;
+  color: var(--dim);
+  background: transparent;
+  border-color: var(--line);
+  box-shadow: none;
+}
+.titlebar-tools select {
+  padding-right: 26px;
+}
+.titlebar-tools button {
+  width: 26px;
+  padding: 0;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.titlebar-tools button:hover,
+.titlebar-tools select:hover {
+  background-color: var(--panel-2);
+  border-color: var(--acc-dim);
+  color: var(--ink);
+}
+
 h1 {
   font-size: 18px;
   font-weight: 700;
-  margin: 0 0 14px;
+  margin: 0;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--dim);
@@ -251,14 +293,14 @@ select {
 }
 
 /* ─── § 3 — segmented tab control ──────────────────────────────────────── */
-/* song credit / attribution line */
+/* song credit — inline subtitle below the song selector */
 #credit {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--faint);
-  margin: -6px 0 12px;
-  min-height: 14px;
+  min-height: 12px;
   letter-spacing: 0.02em;
   font-style: italic;
+  line-height: 1.2;
 }
 #credit:not(:empty)::before { content: '♪ '; font-style: normal; opacity: 0.7; }
 
@@ -337,11 +379,6 @@ input[type=range] {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--faint);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 .transport-bpm-val {
   font-size: 13px;
@@ -350,23 +387,11 @@ input[type=range] {
   min-width: 3ch;
   text-align: right;
 }
-.transport-bpm-unit {
-  font-size: 9px;
-  color: var(--faint);
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
 .transport-song {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-left: auto;
-  color: var(--faint);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 /* ─── § 4 — section panels ──────────────────────────────────────────────── */
@@ -1067,35 +1092,7 @@ input[type=range] {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--faint);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
-.transport-key #keyv {
-  font-size: 13px;
-  color: var(--ink);
-  min-width: 3ch;
-  text-align: center;
-}
-.transport-key button {
-  background: var(--panel-3);
-  border: 1px solid var(--line);
-  color: var(--ink);
-  border-radius: 4px;
-  width: 20px;
-  height: 20px;
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.transport-key button:hover { background: var(--panel-2); border-color: var(--acc-dim); }
-.transport-key button:active { background: var(--acc-dim); }
 
 /* KEY quantize toggle */
 .key-q {
@@ -1120,11 +1117,6 @@ input[type=range] {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--faint);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 .transport-swing input[type="range"] {
   width: 72px;
@@ -1136,15 +1128,81 @@ input[type=range] {
   text-align: right;
 }
 
-/* ─── transport theme group ──────────────────────────────────────────────── */
-.transport-theme {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--faint);
+/* ─── transport: shared label style (muted) ──────────────────────────────── */
+.transport-lbl {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* ─── transport: vertical dividers between chunks ───────────────────────── */
+.transport-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* ─── key stepper: tight unit wrapping − value + ───────────────────────── */
+.key-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--panel-3);
+}
+.key-stepper button {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1;
+  box-shadow: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.key-stepper button:hover { background: var(--panel-2); border-color: transparent; }
+.key-stepper button:active { background: var(--acc-dim); }
+.key-stepper #keyv {
+  font-size: 12px;
+  font-family: ui-monospace, Menlo, monospace;
+  color: var(--ink);
+  min-width: 3ch;
+  text-align: center;
+  padding: 0 2px;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  line-height: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ─── song-wrap: selector + inline credit stacked ───────────────────────── */
+.song-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ─── transport-bpm-unit / swing % unit: muted ──────────────────────────── */
+.transport-bpm-unit {
+  font-size: 9px;
+  color: var(--faint);
+  font-weight: 600;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -1390,10 +1448,7 @@ input[type=range] {
 [data-theme="gameboy"] .fillsrow .flbl,
 [data-theme="gameboy"] .masterfx .mlbl,
 [data-theme="gameboy"] .albl,
-[data-theme="gameboy"] .transport-tempo,
-[data-theme="gameboy"] .transport-song,
-[data-theme="gameboy"] .transport-theme,
-[data-theme="gameboy"] .transport-key {
+[data-theme="gameboy"] .transport-lbl {
   color: #2a2a78;
   font-weight: 800;
 }

@@ -9,23 +9,10 @@
         <span class="screw bl"></span>
         <span class="screw br"></span>
       </div>
-      <h1>oyster groovebox</h1>
-      <div class="transport">
-        <button id="play">▶ play</button>
-        <div class="transport-tempo">
-          <span>Tempo</span>
-          <input type="range" id="bpm" min="80" max="180" value="120">
-          <span id="bpmv" class="transport-bpm-val">120</span>
-          <span class="transport-bpm-unit">BPM</span>
-        </div>
-        <div class="transport-key"><span>Key</span><button id="key-dn">−</button><span id="keyv" class="mono">0</span><button id="key-up">＋</button><button id="key-q" class="key-q" title="Quantize key change to the bar" aria-pressed="false">⟳ bar</button></div>
-        <div class="transport-swing"><span>Swing</span><input type="range" id="swing" min="0" max="100" value="0"><span id="swingv" class="mono">0%</span></div>
-        <div class="transport-song">
-          <span>Song</span>
-          <select id="songsel"><option value="kids">Kids</option><option value="rising-sun">House of the Rising Sun</option><option value="electric-feel">Electric Feel</option><option value="heartbeats">Heartbeats</option><option value="digital-love">Digital Love</option><option value="memory-reboot">Memory Reboot</option><option value="take-on-me">Take On Me</option></select>
-        </div>
-        <div class="transport-theme">
-          <span>Theme</span>
+      <!-- Tier 1 — title bar -->
+      <div class="titlebar">
+        <h1>oyster groovebox</h1>
+        <div class="titlebar-tools">
           <select id="themesel">
             <option value="dark" selected>Dark</option>
             <option value="light">Light</option>
@@ -36,16 +23,46 @@
             <option value="amber">Amber</option>
             <option value="r1">Rabbit</option>
           </select>
-        </div>
-        <div class="transport-actions">
           <div class="vs-wrap">
-            <button id="viewsettings-btn" title="Show / hide knob types">⚙ View</button>
+            <button id="viewsettings-btn" title="View settings">⚙</button>
             <div id="viewsettings" hidden>
               <span class="vs-title">Visible knobs</span>
               <div id="viewsettings-checks"></div>
             </div>
           </div>
-          <button id="help-btn" title="Open help">? Help</button>
+          <button id="help-btn" title="Open help">?</button>
+        </div>
+      </div>
+
+      <!-- Tier 2 — transport (performance controls only) -->
+      <div class="transport">
+        <button id="play">▶ play</button>
+        <div class="transport-divider"></div>
+        <div class="transport-tempo">
+          <span class="transport-lbl">Tempo</span>
+          <input type="range" id="bpm" min="80" max="180" value="120">
+          <span id="bpmv" class="transport-bpm-val">120</span>
+          <span class="transport-bpm-unit">BPM</span>
+        </div>
+        <div class="transport-key">
+          <span class="transport-lbl">Key</span>
+          <div class="key-stepper">
+            <button id="key-dn">−</button><span id="keyv" class="mono">0</span><button id="key-up">＋</button>
+          </div>
+          <button id="key-q" class="key-q" title="Quantize key change to the bar" aria-pressed="false">⟳ bar</button>
+        </div>
+        <div class="transport-swing">
+          <span class="transport-lbl">Swing</span>
+          <input type="range" id="swing" min="0" max="100" value="0">
+          <span id="swingv" class="mono">0%</span>
+        </div>
+        <div class="transport-divider"></div>
+        <div class="transport-song">
+          <span class="transport-lbl">Song</span>
+          <div class="song-wrap">
+            <select id="songsel"><option value="kids">Kids</option><option value="rising-sun">House of the Rising Sun</option><option value="electric-feel">Electric Feel</option><option value="heartbeats">Heartbeats</option><option value="digital-love">Digital Love</option><option value="memory-reboot">Memory Reboot</option><option value="take-on-me">Take On Me</option></select>
+            <div id="credit"></div>
+          </div>
         </div>
       </div>
 
@@ -100,7 +117,7 @@
           </div>
         </div>
       </div>
-      <div id="credit"></div>
+      <!-- Tier 3 — views (built by renderViewTabs) -->
       <div class="vtabs"><span class="vtabs-lbl">VIEW</span><button data-view="scope">📈 Scope</button></div>
       <div id="viz"></div>
       <div id="strips"></div>
