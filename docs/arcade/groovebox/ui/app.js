@@ -82,6 +82,9 @@ function stopMeterLoop() {
       if (fill) fill.style.height = '0%';
     }
   }
+  // Also zero the master L/R stereo meter (else it looks like audio is still playing).
+  const masterHost = document.getElementById('master');
+  if (masterHost) masterHost.querySelectorAll('.lvl-stereo .lvl-fill').forEach(f => f.style.height = '0%');
 }
 
 function makeKgroup(label, knobDefs) {

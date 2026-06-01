@@ -36,6 +36,7 @@ export function eventsForStep(song, lanes, absStep, fillPat = null) {
         if (s === step) ev.push({ laneId: lane.id, type: 'bass', note: tr ? transposeNote(note, tr) : note, dur });
       }
     } else if (lane.type === 'chords') {
+      if (!chord || !Array.isArray(chord.voicing) || !chord.voicing.length) continue;
       const mode = lane.selection;
       if (mode === 'pad' && step === 0) ev.push({ laneId: lane.id, type: 'chords', mode, notes: tr ? chord.voicing.map(n => transposeNote(n, tr)) : chord.voicing, dur: 'bar' });
       if (mode === 'stab' && (step === 0 || step === spb / 2)) ev.push({ laneId: lane.id, type: 'chords', mode, notes: tr ? chord.voicing.map(n => transposeNote(n, tr)) : chord.voicing, dur: 2 });

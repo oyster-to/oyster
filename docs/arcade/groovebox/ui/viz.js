@@ -1,5 +1,5 @@
 import { stepsPerBar, beatStarts } from '../engine/meter.js';
-import { resolveDrumPattern, hasDrumHit, drumVoiceAudible, chordAt } from '../engine/song.js';
+import { resolveDrumPattern, hasDrumHit, drumVoiceAudible, laneAudible, chordAt } from '../engine/song.js';
 import { laneByType } from '../engine/lanes.js';
 
 // ─── Canvas theme colour cache ────────────────────────────────────────────────
@@ -508,9 +508,10 @@ export function makeViz(host, song, eng) {
       const playingBar = ((bar % cyc) + cyc) % cyc;
       const headVisible = (playingBar === pb);
 
+      const laneOK = laneAudible(eng.getLanes(), getTargetLane());   // whole-lane mute/solo
       host.querySelectorAll('.vrow').forEach(row => {
         const k = row.dataset.k;
-        const audible = drumVoiceAudible(getTargetLane(), k);
+        const audible = laneOK && drumVoiceAudible(getTargetLane(), k);
         row.classList.toggle('silenced', !audible);
         const mBtn = row.querySelector('.dvm');
         const sBtn = row.querySelector('.dvs');
