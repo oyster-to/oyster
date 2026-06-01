@@ -19,12 +19,14 @@ function renderStrips() {
       : '';
     return `<div class="lane" data-lane="${lane}"><span class="name">${lane}</span>
       <div class="mctl"><select data-lane="${lane}">${opts}</select>${tone}</div>
-      <button class="mute" data-lane="${lane}">mute</button></div>`;
+      <button class="mute" data-lane="${lane}" aria-label="mute ${lane}" title="mute"></button></div>`;
   }).join('');
   host.querySelectorAll('select[data-lane]').forEach(s => s.onchange = e => eng.setLane(e.target.dataset.lane, e.target.value));
   host.querySelectorAll('select[data-tone]').forEach(s => s.onchange = e => eng.setTone(e.target.value));
   host.querySelectorAll('.mute').forEach(b => b.onclick = () => {
-    const m = eng.toggleMute(b.dataset.lane); b.classList.toggle('on', m); b.textContent = m ? 'muted' : 'mute';
+    const m = eng.toggleMute(b.dataset.lane);
+    b.classList.toggle('muted', m);
+    b.closest('.lane').classList.toggle('muted', m);
   });
   // Append FX knobs to each lane row (before the mute button)
   host.querySelectorAll('.lane').forEach(row => {

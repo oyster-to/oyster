@@ -464,3 +464,25 @@ input[type=range] { accent-color: var(--acc); }
   box-shadow:0 0 4px var(--acc);
 }
 .knob-lbl{font-size:8px;color:var(--dim);letter-spacing:0.04em;text-transform:uppercase}
+
+/* ─── mute = hardware toggle switch (live → muted) ───────────────────────── */
+.mute{
+  width:48px; height:24px; flex:0 0 48px; padding:0; border-radius:13px; position:relative;
+  border:1px solid #2c3044; cursor:pointer; transition:background .15s, border-color .15s;
+  background:linear-gradient(180deg,#0f2a22,#0a1d18);              /* live = dark teal track */
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.6), inset 0 -1px 0 rgba(255,255,255,.04);
+}
+.mute::after{
+  content:''; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%;
+  background:radial-gradient(circle at 38% 32%, #7affd9, #34c8a4);  /* live thumb = teal, slid right */
+  transform:translateX(24px); transition:transform .15s, background .15s;
+  box-shadow:0 1px 2px rgba(0,0,0,.55), 0 0 6px rgba(84,240,200,.5);
+}
+.mute.muted{ background:linear-gradient(180deg,#2c0f17,#1a0a10); border-color:#5a2030; }
+.mute.muted::after{
+  transform:translateX(0);
+  background:radial-gradient(circle at 38% 32%, #ff8ab4, #d63e7e);  /* muted thumb = red, slid left */
+  box-shadow:0 1px 2px rgba(0,0,0,.55), 0 0 6px rgba(255,91,158,.5);
+}
+/* dim the rest of the lane when muted (keep the switch bright) */
+.lane.muted > :not(.mute){ opacity:.4; transition:opacity .15s; }
