@@ -19,16 +19,23 @@ export function chordAt(progression, bar) {
   return progression[((bar % n) + n) % n];
 }
 
-export function laneAudible(song, lane) {
-  const anySolo = Object.values(song.lanes).some(l => l.soloed);
-  const L = song.lanes[lane];
-  return !L.muted && (!anySolo || !!L.soloed);
+/**
+ * laneAudible(lanes, lane)
+ * lanes — the lane list (array)
+ * lane  — the lane object to test
+ */
+export function laneAudible(lanes, lane) {
+  const anySolo = lanes.some(l => l.soloed);
+  return !lane.muted && (!anySolo || !!lane.soloed);
 }
 
-export function drumVoiceAudible(song, voice) {
-  const dl = song.lanes.drums;
-  const anySolo = Object.values(dl.voiceSolo || {}).some(Boolean);
-  return !(dl.voiceMute || {})[voice] && (!anySolo || !!(dl.voiceSolo || {})[voice]);
+/**
+ * drumVoiceAudible(drumsLane, voice)
+ * drumsLane — the drums-type lane object
+ */
+export function drumVoiceAudible(drumsLane, voice) {
+  const anySolo = Object.values(drumsLane.voiceSolo || {}).some(Boolean);
+  return !(drumsLane.voiceMute || {})[voice] && (!anySolo || !!(drumsLane.voiceSolo || {})[voice]);
 }
 
 export { DRUM_KEYS };

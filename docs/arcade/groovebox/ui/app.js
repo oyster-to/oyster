@@ -1,5 +1,6 @@
 import { createEngine } from '../engine/index.js';
 import { laneAudible } from '../engine/song.js';
+import { laneByType } from '../engine/lanes.js';
 import { kids } from '../songs/kids.js';
 import { risingSun } from '../songs/rising-sun.js';
 import { electricFeel } from '../songs/electric-feel.js';
@@ -10,7 +11,6 @@ import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
 
 const eng = createEngine();
-const LANES = ['drums','bass','chords','melody'];
 const chordModes = ['pad','arp','stab'];
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
 
@@ -21,17 +21,18 @@ let song;
 let viz;
 
 function options(lane) {
-  return lane === 'chords' ? chordModes : Object.keys(song.lanes[lane].pool);
+  return lane.type === 'chords' ? chordModes : Object.keys(lane.pool || {});
 }
 
 function refreshStates() {
   const host = document.getElementById('strips');
-  for (const lane of LANES) {
-    const row = host.querySelector(`.lane[data-lane="${lane}"]`);
+  const lanes = eng.getLanes();
+  for (const lane of lanes) {
+    const row = host.querySelector(`.lane[data-lane="${lane.id}"]`);
     if (!row) continue;
-    row.querySelector(`.mute[data-lane="${lane}"]`).classList.toggle('muted', !!song.lanes[lane].muted);
-    row.querySelector(`.solo[data-lane="${lane}"]`).classList.toggle('soloed', !!song.lanes[lane].soloed);
-    row.classList.toggle('silenced', !laneAudible(song, lane));
+    row.querySelector(`.mute[data-lane="${lane.id}"]`).classList.toggle('muted', !!lane.muted);
+    row.querySelector(`.solo[data-lane="${lane.id}"]`).classList.toggle('soloed', !!lane.soloed);
+    row.classList.toggle('silenced', !laneAudible(lanes, lane));
   }
 }
 
@@ -43,9 +44,9 @@ function startMeterLoop() {
   function tick() {
     const host = document.getElementById('strips');
     if (host) {
-      for (const lane of LANES) {
-        const fill = host.querySelector(`.lane[data-lane="${lane}"] .lvl-fill`);
-        if (fill) fill.style.height = (eng.getLevel(lane) * 100) + '%';
+      for (const lane of eng.getLanes()) {
+        const fill = host.querySelector(`.lane[data-lane="${lane.id}"] .lvl-fill`);
+        if (fill) fill.style.height = (eng.getLevel(lane.id) * 100) + '%';
       }
     }
     // Master L/R stereo meters
@@ -66,8 +67,8 @@ function stopMeterLoop() {
   // Zero out fills when stopped
   const host = document.getElementById('strips');
   if (host) {
-    for (const lane of LANES) {
-      const fill = host.querySelector(`.lane[data-lane="${lane}"] .lvl-fill`);
+    for (const lane of eng.getLanes()) {
+      const fill = host.querySelector(`.lane[data-lane="${lane.id}"] .lvl-fill`);
       if (fill) fill.style.height = '0%';
     }
   }
@@ -89,24 +90,29 @@ function makeKgroup(label, knobDefs) {
 
 function renderStrips() {
   const host = document.getElementById('strips');
-  host.innerHTML = LANES.map(lane => {
-    const opts = options(lane).map(n => `<option${n===song.lanes[lane].selection?' selected':''}>${n}</option>`).join('');
-    const tone = lane === 'melody'
-      ? `<select data-tone>${TONES.map(t=>`<option value="${t}"${t==='pulse'?' selected':''}>${t==='fatsawtooth'?'fat saw':t}</option>`).join('')}</select>`
+  const lanes = eng.getLanes();
+  host.innerHTML = lanes.map(lane => {
+    const opts = options(lane).map(n => `<option${n===lane.selection?' selected':''}>${n}</option>`).join('');
+    const tone = lane.type === 'melody'
+      ? `<select data-tone data-lane="${lane.id}">${TONES.map(t=>`<option value="${t}"${t===(lane.tone||'pulse')?' selected':''}>${t==='fatsawtooth'?'fat saw':t}</option>`).join('')}</select>`
       : '';
     // Grid columns: name | pattern-select | meter | MIX | TONE | FX | M/S
-    return `<div class="lane" data-lane="${lane}">
-      <span class="name">${lane}</span>
-      <div class="mctl"><select data-lane="${lane}">${opts}</select>${tone}</div>
+    return `<div class="lane" data-lane="${lane.id}">
+      <span class="name">${lane.name}</span>
+      <div class="mctl"><select data-lane="${lane.id}">${opts}</select>${tone}</div>
       <div class="lvl"><div class="lvl-fill"></div></div>
       <div class="msgroup">
-        <button class="mute" data-lane="${lane}" aria-label="mute ${lane}" title="Mute">M</button>
-        <button class="solo" data-lane="${lane}" aria-label="solo ${lane}" title="Solo">S</button>
+        <button class="mute" data-lane="${lane.id}" aria-label="mute ${lane.name}" title="Mute">M</button>
+        <button class="solo" data-lane="${lane.id}" aria-label="solo ${lane.name}" title="Solo">S</button>
       </div>
     </div>`;
   }).join('');
-  host.querySelectorAll('select[data-lane]').forEach(s => s.onchange = e => eng.setLane(e.target.dataset.lane, e.target.value));
-  host.querySelectorAll('select[data-tone]').forEach(s => s.onchange = e => eng.setTone(e.target.value));
+  host.querySelectorAll('select[data-lane]').forEach(s => {
+    // skip tone selects (they also have data-tone)
+    if (s.dataset.tone !== undefined) return;
+    s.onchange = e => eng.setLane(e.target.dataset.lane, e.target.value);
+  });
+  host.querySelectorAll('select[data-tone]').forEach(s => s.onchange = e => eng.setTone(s.dataset.lane, e.target.value));
   host.querySelectorAll('.mute').forEach(b => b.onclick = () => {
     eng.toggleMute(b.dataset.lane);
     refreshStates();
@@ -117,22 +123,22 @@ function renderStrips() {
   });
   // Build grouped knobs and insert before the M/S group
   host.querySelectorAll('.lane').forEach(row => {
-    const lane = row.dataset.lane;
+    const id = row.dataset.lane;
     const msgroup = row.querySelector('.msgroup');
 
     const mixGrp = makeKgroup('MIX', [
-      { label: 'vol', value: 1.0, onChange: v => eng.setLaneFX(lane, 'vol',   v) },
-      { label: 'pan', value: 0.5, onChange: v => eng.setLaneFX(lane, 'pan',   v) },
+      { label: 'vol', value: 1.0, onChange: v => eng.setLaneFX(id, 'vol',   v) },
+      { label: 'pan', value: 0.5, onChange: v => eng.setLaneFX(id, 'pan',   v) },
     ]);
     const toneGrp = makeKgroup('TONE', [
-      { label: 'cut', value: 0.5, onChange: v => eng.setLaneFX(lane, 'cut',   v) },
-      { label: 'drv', value: 0,   onChange: v => eng.setLaneFX(lane, 'drive', v) },
+      { label: 'cut', value: 0.5, onChange: v => eng.setLaneFX(id, 'cut',   v) },
+      { label: 'drv', value: 0,   onChange: v => eng.setLaneFX(id, 'drive', v) },
     ]);
     const fxGrp = makeKgroup('FX', [
-      { label: 'dly', value: 0,   onChange: v => eng.setLaneFX(lane, 'delay',  v) },
-      { label: 'cru', value: 0,   onChange: v => eng.setLaneFX(lane, 'crush',  v) },
-      { label: 'vrb', value: 0,   onChange: v => eng.setLaneFX(lane, 'reverb', v) },
-      { label: 'cmp', value: 0,   onChange: v => eng.setLaneFX(lane, 'comp',   v) },
+      { label: 'dly', value: 0,   onChange: v => eng.setLaneFX(id, 'delay',  v) },
+      { label: 'cru', value: 0,   onChange: v => eng.setLaneFX(id, 'crush',  v) },
+      { label: 'vrb', value: 0,   onChange: v => eng.setLaneFX(id, 'reverb', v) },
+      { label: 'cmp', value: 0,   onChange: v => eng.setLaneFX(id, 'comp',   v) },
     ]);
 
     msgroup.before(mixGrp, toneGrp, fxGrp);
@@ -290,6 +296,7 @@ function renderArrange() {
     const color = SECTION_COLORS[i % SECTION_COLORS.length];
     cell.style.background = color + '22';
     cell.style.borderColor = color + '66';
+    // section.lanes is type-keyed (drums/bass/chords/melody) for back-compat
     const label = section.lanes && section.lanes.drums ? section.lanes.drums : String(i + 1);
     cell.innerHTML = `<span class="tcell-name">${label}</span>${section.fill ? '<span class="tcell-fill">+f</span>' : ''}`;
     timeline.appendChild(cell);
@@ -299,15 +306,15 @@ function renderArrange() {
 
 // ─── Reset FX to neutral (call before mount on song switch) ──────────────────
 function resetFX() {
-  for (const lane of LANES) {
-    eng.setLaneFX(lane, 'cut',    0.5);
-    eng.setLaneFX(lane, 'drive',  0);
-    eng.setLaneFX(lane, 'delay',  0);
-    eng.setLaneFX(lane, 'crush',  0);
-    eng.setLaneFX(lane, 'vol',    1);
-    eng.setLaneFX(lane, 'pan',    0.5);
-    eng.setLaneFX(lane, 'reverb', 0);
-    eng.setLaneFX(lane, 'comp',   0);
+  for (const lane of eng.getLanes()) {
+    eng.setLaneFX(lane.id, 'cut',    0.5);
+    eng.setLaneFX(lane.id, 'drive',  0);
+    eng.setLaneFX(lane.id, 'delay',  0);
+    eng.setLaneFX(lane.id, 'crush',  0);
+    eng.setLaneFX(lane.id, 'vol',    1);
+    eng.setLaneFX(lane.id, 'pan',    0.5);
+    eng.setLaneFX(lane.id, 'reverb', 0);
+    eng.setLaneFX(lane.id, 'comp',   0);
   }
   eng.setMasterFX('vol',    1);
   eng.setMasterFX('bal',    0.5);
@@ -401,10 +408,10 @@ eng.onStep(({absStep, bar, stepInBar, fill, mode, songIndex, queue}) => {
   if (mode === 'song') {
     const strips = document.getElementById('strips');
     if (strips) {
-      LANES.forEach(lane => {
-        const sel = strips.querySelector(`select[data-lane="${lane}"]`);
-        if (sel && sel.value !== song.lanes[lane].selection) sel.value = song.lanes[lane].selection;
-      });
+      for (const lane of eng.getLanes()) {
+        const sel = strips.querySelector(`select[data-lane="${lane.id}"]:not([data-tone])`);
+        if (sel && sel.value !== lane.selection) sel.value = lane.selection;
+      }
     }
     refreshStates();
   }

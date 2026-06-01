@@ -1,20 +1,13 @@
 import { test, expect } from 'vitest';
-import { captureScene } from '../engine/lanes.js';
+import { captureScene, normalizeLanes } from '../engine/lanes.js';
 
-function makeSong(drums, bass, chords, melody) {
-  return {
-    lanes: {
-      drums:  { selection: drums,  muted: false },
-      bass:   { selection: bass,   muted: false },
-      chords: { selection: chords, muted: false },
-      melody: { selection: melody, muted: false },
-    },
-  };
+function makeLanes(drums, bass, chords, melody) {
+  return normalizeLanes({ drums: { selection: drums, muted: false }, bass: { selection: bass, muted: false }, chords: { selection: chords, muted: false }, melody: { selection: melody, muted: false } });
 }
 
-test('captureScene snapshots all four lane selections', () => {
-  const song = makeSong('house', '16ths', 'stab', 'hook');
-  const scene = captureScene(song);
+test('captureScene snapshots all four lane selections by id', () => {
+  const lanes = makeLanes('house', '16ths', 'stab', 'hook');
+  const scene = captureScene(lanes);
   expect(scene.lanes.drums).toBe('house');
   expect(scene.lanes.bass).toBe('16ths');
   expect(scene.lanes.chords).toBe('stab');
@@ -22,15 +15,15 @@ test('captureScene snapshots all four lane selections', () => {
 });
 
 test('captureScene defaults bars to 4 and fill to null', () => {
-  const song = makeSong('four', 'octave', 'pad', 'hook');
-  const scene = captureScene(song);
+  const lanes = makeLanes('four', 'octave', 'pad', 'hook');
+  const scene = captureScene(lanes);
   expect(scene.bars).toBe(4);
   expect(scene.fill).toBeNull();
 });
 
-test('captureScene is a snapshot — mutations to song do not change captured scene', () => {
-  const song = makeSong('four', 'octave', 'pad', 'hook');
-  const scene = captureScene(song);
-  song.lanes.drums.selection = 'NIN';
+test('captureScene is a snapshot — mutations to lanes do not change captured scene', () => {
+  const lanes = makeLanes('four', 'octave', 'pad', 'hook');
+  const scene = captureScene(lanes);
+  lanes[0].selection = 'NIN';
   expect(scene.lanes.drums).toBe('four');
 });
