@@ -102,8 +102,71 @@ const mk = document.createElement('div'); mk.className = 'knobs';
 mk.appendChild(makeKnob({ label:'verb', value:0, onChange: v => eng.setMasterFX('reverb', v) }));
 mk.appendChild(makeKnob({ label:'comp', value:0, onChange: v => eng.setMasterFX('comp', v) }));
 mwrap.appendChild(mk); masterHost.appendChild(mwrap);
+// ─── Arrangement UI ──────────────────────────────────────────────────────────
+// Section colors — cycle through a set for visual variety
+const SECTION_COLORS = ['#54f0c8','#5aa9ff','#ffb054','#ff5b9e','#b98cff','#ffd24a','#7af0a0','#f08a54'];
+
+function renderArrange() {
+  const host = document.getElementById('arrange');
+  if (!host) return;
+  host.innerHTML = '';
+
+  const currentMode = eng.getMode();
+
+  // Header row
+  const head = document.createElement('div');
+  head.className = 'arrange-head';
+
+  const lbl = document.createElement('span');
+  lbl.className = 'albl';
+  lbl.textContent = 'ARRANGEMENT';
+  head.appendChild(lbl);
+
+  const modeBtn = document.createElement('button');
+  modeBtn.id = 'modeBtn';
+  modeBtn.textContent = currentMode === 'song' ? 'Song' : 'Live';
+  if (currentMode === 'song') modeBtn.classList.add('song');
+  modeBtn.onclick = () => {
+    const next = eng.getMode() === 'live' ? 'song' : 'live';
+    eng.setMode(next);
+    renderArrange();
+  };
+  head.appendChild(modeBtn);
+
+  const captureBtn = document.createElement('button');
+  captureBtn.textContent = '＋ capture scene';
+  captureBtn.onclick = () => { eng.captureScene(); renderArrange(); };
+  head.appendChild(captureBtn);
+
+  const clearBtn = document.createElement('button');
+  clearBtn.textContent = 'clear';
+  clearBtn.onclick = () => { eng.clearArrangement(); renderArrange(); };
+  head.appendChild(clearBtn);
+
+  host.appendChild(head);
+
+  // Timeline
+  const timeline = document.createElement('div');
+  timeline.className = 'timeline';
+  const arrangement = eng.getSong().arrangement || [];
+  arrangement.forEach((section, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'tcell';
+    cell.dataset.idx = i;
+    const color = SECTION_COLORS[i % SECTION_COLORS.length];
+    cell.style.background = color + '22';
+    cell.style.borderColor = color + '66';
+    const label = section.lanes && section.lanes.drums ? section.lanes.drums : String(i + 1);
+    cell.innerHTML = `<span class="tcell-name">${label}</span>${section.fill ? '<span class="tcell-fill">+f</span>' : ''}`;
+    timeline.appendChild(cell);
+  });
+  host.appendChild(timeline);
+}
+
+renderArrange();
+
 const viz = makeViz(document.getElementById('viz'), song, eng);
-eng.onStep(({absStep, bar, stepInBar, fill}) => {
+eng.onStep(({absStep, bar, stepInBar, fill, mode, songIndex}) => {
   viz.setStep(absStep, bar, stepInBar);
   const fillsHost = document.getElementById('fills');
   if (fillsHost) {
@@ -112,6 +175,26 @@ eng.onStep(({absStep, bar, stepInBar, fill}) => {
       btn.classList.toggle('firing', isFiring);
       if (isFiring) btn.classList.remove('armed');
     });
+  }
+  // Timeline highlight
+  const timeline = document.querySelector('.timeline');
+  if (timeline) {
+    timeline.querySelectorAll('.tcell').forEach(cell => cell.classList.remove('on'));
+    if (mode === 'song' && songIndex >= 0) {
+      const active = timeline.querySelector(`.tcell[data-idx="${songIndex}"]`);
+      if (active) active.classList.add('on');
+    }
+  }
+  // Sync lane selects in song mode
+  if (mode === 'song') {
+    const strips = document.getElementById('strips');
+    if (strips) {
+      LANES.forEach(lane => {
+        const sel = strips.querySelector(`select[data-lane="${lane}"]`);
+        if (sel && sel.value !== song.lanes[lane].selection) sel.value = song.lanes[lane].selection;
+      });
+    }
+    refreshStates();
   }
 });
 document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {

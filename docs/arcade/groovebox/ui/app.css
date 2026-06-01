@@ -504,3 +504,18 @@ input[type=range] { accent-color: var(--acc); }
 /* ─── master FX strip ────────────────────────────────────────────────────── */
 .masterfx{display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:12px;border-top:1px solid #2c3044}
 .masterfx .mlbl{font-size:10px;letter-spacing:.12em;color:var(--dim);font-weight:700}
+
+/* ─── arrangement UI ─────────────────────────────────────────────────────── */
+.arrange-head{display:flex;gap:10px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid #2c3044;flex-wrap:wrap}
+.albl{font-size:10px;letter-spacing:.12em;color:var(--dim);font-weight:700;text-transform:uppercase}
+#modeBtn.song{background:#16261f;border-color:var(--acc);color:var(--acc)}
+.timeline{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+.tcell{
+  flex:0 0 auto;min-width:54px;padding:8px 10px;
+  border-radius:6px;background:#1a1e2c;border:1px solid #2c3044;
+  font-size:10px;color:var(--dim);text-align:center;opacity:.7;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+}
+.tcell.on{opacity:1;outline:2px solid #fff;outline-offset:1px;color:var(--ink)}
+.tcell-name{font-weight:600;font-size:10px;letter-spacing:.04em}
+.tcell-fill{font-size:8px;color:var(--acc);opacity:.8}
