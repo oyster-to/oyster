@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8">
+<title>groovebox engine — dev harness</title>
+<script type="module">
+  import { createEngine } from './engine/index.js';
+  import { kids } from './songs/kids.js';
+  const eng = createEngine(); eng.load(kids);
+  document.body.innerHTML = '<button id=p>▶ play</button> <button id=s>⏹ stop</button>';
+  p.onclick = () => eng.play();
+  s.onclick = () => eng.stop();
+</script>
