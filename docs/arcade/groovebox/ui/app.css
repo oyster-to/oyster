@@ -1227,6 +1227,25 @@ input[type=range] {
     0 0 0 1px rgba(0,0,0,0.3),
     0 0 16px var(--screen-glow);
 }
+/* Game Boy theme: GROOVEBOX™ as a navy rounded plastic-stamped wordmark,
+   in the spirit of the console's silkscreened logo on the grey shell. */
+[data-theme="gameboy"] h1 {
+  color: #2a2a78;
+  font-family: 'Arial Rounded MT Bold', 'Helvetica Rounded', 'Trebuchet MS', system-ui, sans-serif;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.45);   /* embossed-on-plastic */
+}
+[data-theme="gameboy"] h1::after {
+  content: '™';
+  font-size: 0.42em;
+  font-style: normal;
+  font-weight: 600;
+  vertical-align: 0.7em;
+  margin-left: 3px;
+  letter-spacing: 0;
+}
 
 [data-theme="amber"] {
   --bg:          #080500;
