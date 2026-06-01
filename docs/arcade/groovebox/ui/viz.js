@@ -67,6 +67,11 @@ export function makeViz(host, song, eng) {
   let scopeSource = 'master';
   let scopeRafId = null;
 
+  // Piano ⇄ Blocks toggle state (persisted across reloads).
+  let rollMode = (() => {
+    try { return localStorage.getItem('gb-rollmode') || 'piano'; } catch (_) { return 'piano'; }
+  })();
+
   // Current edit target lane (set by editLane(id)).
   // Falls back to laneByType for the initial state.
   let _targetLane = null;
@@ -396,6 +401,196 @@ export function makeViz(host, song, eng) {
     ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
   }
 
+  // ─── Roll-mode toggle bar (melody + bass only) ───────────────────────────
+  // Returns an HTML string for the segmented Piano/Blocks toggle.
+  function rollModeToggleHTML() {
+    const pa = rollMode === 'piano'  ? ' rm-on' : '';
+    const ba = rollMode === 'blocks' ? ' rm-on' : '';
+    return `<div class="roll-mode-bar">`
+      + `<span class="roll-mode-lbl">VIEW</span>`
+      + `<button class="roll-mode-btn${pa}" data-rm="piano">Piano</button>`
+      + `<button class="roll-mode-btn${ba}" data-rm="blocks">Blocks</button>`
+      + `</div>`;
+  }
+
+  // Wire the toggle buttons inside host after build() injects them.
+  function wireRollModeToggle() {
+    host.querySelectorAll('.roll-mode-btn').forEach(btn => {
+      btn.onclick = () => {
+        rollMode = btn.dataset.rm;
+        try { localStorage.setItem('gb-rollmode', rollMode); } catch (_) {}
+        build();
+        paint(lastBar, lastStepInBar);
+      };
+    });
+  }
+
+  // ─── Blocks grid (pitch × step DOM grid) ─────────────────────────────────
+  // Shared by melody (editable) and bass (read-only).
+
+  // Pitch range + label helpers.
+  function blocksRange(laneView) {
+    return laneView === 'bass'
+      ? { lo: BASS_LO, hi: BASS_HI, rows: BASS_ROWS }
+      : { lo: ROLL_LO, hi: ROLL_HI, rows: ROLL_ROWS };
+  }
+
+  // Return the label for a midi pitch row (e.g. "C4"), or '' if none.
+  function pitchLabel(midi) {
+    const deg = ((midi % 12) + 12) % 12;
+    if (deg === 0) return 'C' + (Math.floor(midi / 12) - 1);
+    return '';
+  }
+
+  // Build the full DOM for a blocks grid and inject into host.
+  // `laneView` is 'melody' or 'bass'.
+  function buildBlocksGrid(laneView) {
+    const { lo, hi } = blocksRange(laneView);
+    const spb = stepsPerBar(song.meter);
+    const BARS = 4;
+    const totalSteps = BARS * spb;
+    const beats = beatStarts(song.meter);
+    const beatSet = new Set(beats);
+    const beatsArr = beats;
+    function beatIndexOf(step) {
+      let idx = 0;
+      for (let b = 0; b < beatsArr.length; b++) {
+        if (step >= beatsArr[b]) idx = b;
+      }
+      return idx;
+    }
+
+    // Header row: label spacer + one hcell per absolute step.
+    let headerRow = '<div class="bg-row bg-head-row"><div class="bg-lbl"></div>';
+    for (let absStep = 0; absStep < totalSteps; absStep++) {
+      const stepInBar = absStep % spb;
+      const beatClass = beatSet.has(stepInBar) ? ' beat' : '';
+      const downClass = stepInBar === 0 ? ' downbeat' : '';
+      // Show bar number at bar boundary.
+      const barLabel = (stepInBar === 0) ? (Math.floor(absStep / spb) + 1) : '';
+      headerRow += `<div class="bg-hcell${beatClass}${downClass}">${barLabel}</div>`;
+    }
+    headerRow += '</div>';
+
+    let html = rollModeToggleHTML();
+    html += `<div class="bg-scroll"><div class="bg-grid" data-lv="${laneView}">`;
+    html += headerRow;
+
+    // One row per pitch, top = highest.
+    for (let midi = hi; midi >= lo; midi--) {
+      const deg = ((midi % 12) + 12) % 12;
+      const blk = BLACK_DEGREES.has(deg);
+      const lbl = pitchLabel(midi);
+      const rowClass = blk ? ' bg-blk' : '';
+      let cells = `<div class="bg-lbl${rowClass}">${lbl}</div>`;
+      for (let absStep = 0; absStep < totalSteps; absStep++) {
+        const stepInBar = absStep % spb;
+        const beatIdx  = beatIndexOf(stepInBar);
+        const beatClass = beatSet.has(stepInBar) ? ' beat' : '';
+        const altClass  = beatIdx % 2 === 1 ? ' bar-alt' : '';
+        const downClass = stepInBar === 0 ? ' downbeat' : '';
+        cells += `<div class="vc${beatClass}${downClass}${altClass}" data-midi="${midi}" data-step="${absStep}"></div>`;
+      }
+      html += `<div class="bg-row${rowClass}">${cells}</div>`;
+    }
+    html += '</div></div>';
+    host.innerHTML = html;
+    wireRollModeToggle();
+    paintBlocksGrid(laneView, lastBar, lastStepInBar);
+
+    if (laneView === 'melody') {
+      // Wire clicks for melody editing.
+      host.querySelectorAll('.bg-grid .vc').forEach(cell => {
+        cell.onclick = () => {
+          const midi = +cell.dataset.midi;
+          const absStep = +cell.dataset.step;
+          blocksEdit(midi, absStep);
+        };
+      });
+    }
+    // Bass: no clicks (read-only).
+  }
+
+  // Repaint the blocks grid cells to reflect current note data + playhead.
+  function paintBlocksGrid(laneView, bar, stepInBar) {
+    const grid = host.querySelector('.bg-grid');
+    if (!grid) return;
+    const spb = stepsPerBar(song.meter);
+    const BARS = 4;
+    const totalSteps = BARS * spb;
+    const { lo, hi } = blocksRange(laneView);
+    const playheadAbsStep = bar * spb + stepInBar;
+
+    // Collect notes: melody reads pool directly; bass resolves per-bar via generator.
+    // We build a Set of "midi:absStep" strings for O(1) lookup.
+    const hitSet = new Set();
+    if (laneView === 'melody') {
+      const L = getTargetLane();
+      const bars = L.pool[L.selection] || [];
+      for (let bi = 0; bi < BARS; bi++) {
+        const barNotes = bars[bi] || [];
+        for (const [st, noteName] of barNotes) {
+          const midi = noteToMidi(noteName);
+          hitSet.add(midi + ':' + (bi * spb + st));
+        }
+      }
+    } else {
+      // Bass: resolve each bar separately via generator.
+      const L = getTargetLane();
+      const gen = L.pool[L.selection];
+      for (let bi = 0; bi < BARS; bi++) {
+        let notes = [];
+        if (typeof gen === 'function') {
+          const chord = chordAt(song.harmony.progression, bi);
+          try { notes = gen(bi, chord) || []; } catch (_) { notes = []; }
+        }
+        for (const [st, noteName] of notes) {
+          const midi = noteToMidi(noteName);
+          hitSet.add(midi + ':' + (bi * spb + st));
+        }
+      }
+    }
+
+    host.querySelectorAll('.bg-grid .vc').forEach(cell => {
+      const midi = +cell.dataset.midi;
+      const absStep = +cell.dataset.step;
+      const isHit = hitSet.has(midi + ':' + absStep);
+      const isNow = absStep === playheadAbsStep;
+      cell.classList.toggle('hit', isHit);
+      cell.classList.toggle('now', isNow);
+    });
+  }
+
+  // Edit handler for melody blocks mode (mirrors rollClick semantics).
+  function blocksEdit(midi, absStep) {
+    const spb = stepsPerBar(song.meter);
+    const bar = Math.floor(absStep / spb);
+    const st = absStep % spb;
+
+    if (midi < ROLL_LO || midi > ROLL_HI) return;
+
+    const noteName = NMG[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
+
+    // Fork to custom if needed — exactly the same logic as rollClick.
+    const L = getTargetLane();
+    if (L.selection !== 'custom') {
+      const src = L.pool[L.selection] || [];
+      L.pool.custom = src.map(b => b.map(n => n.slice()));
+      eng.setLane(L.id, 'custom');
+    }
+
+    const arr = L.pool.custom[bar] || (L.pool.custom[bar] = []);
+    const i = arr.findIndex(x => x[0] === st);
+    if (i >= 0 && arr[i][1] === noteName) {
+      arr.splice(i, 1);                        // click same note → remove
+    } else {
+      if (i >= 0) arr.splice(i, 1);           // monophonic: remove any existing note at this step
+      arr.push([st, noteName, 2]);
+    }
+
+    paintBlocksGrid('melody', lastBar, lastStepInBar);
+  }
+
   function build() {
     const spb = stepsPerBar(song.meter);
     const beats = new Set(beatStarts(song.meter));
@@ -458,13 +653,18 @@ export function makeViz(host, song, eng) {
         btn.onclick = e => { e.stopPropagation(); eng.toggleDrumSolo(btn.dataset.voice); paint(lastBar, lastStepInBar); };
       });
     } else if (view === 'melody') {
-      // Melody view: canvas piano-roll.
-      host.innerHTML = '<canvas id="mroll"></canvas>';
-      const cv = host.querySelector('#mroll');
-      cv.width = host.clientWidth || 680;
-      cv.height = 170;
-      cv.onclick = rollClick;
-      drawRoll(-1);
+      if (rollMode === 'blocks') {
+        buildBlocksGrid('melody');
+      } else {
+        // Melody view: canvas piano-roll.
+        host.innerHTML = rollModeToggleHTML() + '<canvas id="mroll"></canvas>';
+        wireRollModeToggle();
+        const cv = host.querySelector('#mroll');
+        cv.width = host.clientWidth || 680;
+        cv.height = 170;
+        cv.onclick = rollClick;
+        drawRoll(-1);
+      }
     } else if (view === 'scope') {
       // Build source list: master + each lane (id as value, name as label).
       const laneSources = eng.getLanes().map(l => ({ value: l.id, label: l.name }));
@@ -480,11 +680,16 @@ export function makeViz(host, song, eng) {
       host.querySelector('#scope-src').onchange = e => { scopeSource = e.target.value; };
       startScopeLoop();
     } else if (view === 'bass') {
-      host.innerHTML = '<canvas id="broll"></canvas>';
-      const cv = host.querySelector('#broll');
-      cv.width = host.clientWidth || 680;
-      cv.height = 160;
-      drawBassRoll(lastStepInBar);
+      if (rollMode === 'blocks') {
+        buildBlocksGrid('bass');
+      } else {
+        host.innerHTML = rollModeToggleHTML() + '<canvas id="broll"></canvas>';
+        wireRollModeToggle();
+        const cv = host.querySelector('#broll');
+        cv.width = host.clientWidth || 680;
+        cv.height = 160;
+        drawBassRoll(lastStepInBar);
+      }
     }
   }
 
@@ -532,11 +737,19 @@ export function makeViz(host, song, eng) {
         b.classList.toggle('playing', isCustom && +b.dataset.b === playingBar);
       });
     } else if (view === 'melody') {
-      // Melody view: redraw the piano-roll canvas with current playhead.
-      const spb = stepsPerBar(song.meter);
-      drawRoll(bar * spb + stepInBar);
+      if (rollMode === 'blocks') {
+        paintBlocksGrid('melody', bar, stepInBar);
+      } else {
+        // Melody view: redraw the piano-roll canvas with current playhead.
+        const spb = stepsPerBar(song.meter);
+        drawRoll(bar * spb + stepInBar);
+      }
     } else if (view === 'bass') {
-      drawBassRoll(stepInBar);
+      if (rollMode === 'blocks') {
+        paintBlocksGrid('bass', bar, stepInBar);
+      } else {
+        drawBassRoll(stepInBar);
+      }
     }
     // Scope view is driven by its own rAF loop — no paint needed here.
   }

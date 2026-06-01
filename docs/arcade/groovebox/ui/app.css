@@ -1637,6 +1637,117 @@ input[type=range] {
     0 2px 8px rgba(84,240,200,0.25);
 }
 
+/* ─── Piano ⇄ Blocks roll-mode toggle ──────────────────────────────────────── */
+.roll-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.roll-mode-lbl {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding-right: 4px;
+  user-select: none;
+}
+.roll-mode-btn {
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--dim);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 -1px 0 rgba(0,0,0,0.2);
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.roll-mode-btn:hover {
+  background: var(--panel-3);
+  border-color: var(--acc-dim);
+  color: var(--ink);
+}
+.roll-mode-btn.rm-on {
+  background: rgba(84,240,200,0.10);
+  border-color: var(--acc);
+  color: var(--acc);
+  box-shadow:
+    inset 0 -2px 0 var(--acc),
+    inset 0 1px 0 rgba(84,240,200,0.08);
+}
+
+/* ─── Blocks grid (pitch × step DOM grid) ───────────────────────────────────── */
+/* Outer scroll wrapper: constrain height so ~25 pitch rows fit */
+.bg-scroll {
+  overflow-y: auto;
+  max-height: 200px;
+  border-radius: 4px;
+}
+/* The grid container: rows are stacked flex lines */
+.bg-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+/* Each row (header + pitch rows) is a flex line */
+.bg-row {
+  display: flex;
+  gap: 1px;
+  align-items: center;
+}
+/* Header row (bar numbers) */
+.bg-head-row {
+  margin-bottom: 2px;
+}
+.bg-hcell {
+  flex: 1;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: transparent;
+  user-select: none;
+  pointer-events: none;
+}
+.bg-hcell.beat { color: var(--dim); font-weight: 600; }
+.bg-hcell.downbeat { color: var(--acc); font-weight: 700; }
+
+/* Pitch label cell (left column) */
+.bg-lbl {
+  flex: 0 0 30px;
+  height: 10px;
+  font-size: 7px;
+  font-family: ui-monospace, Menlo, monospace;
+  color: transparent;          /* only C-notes get visible labels */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 3px;
+  user-select: none;
+  pointer-events: none;
+}
+/* Show label only on C rows (non-empty lbl text) */
+.bg-lbl:not(:empty) { color: var(--faint); }
+.bg-blk .bg-lbl:not(:empty) { color: var(--dim); }
+
+/* Step cells — compact height for pitch-density */
+.bg-grid .vc {
+  flex: 1;
+  height: 10px;
+  border-radius: 2px;
+  min-width: 0;
+  cursor: default;
+}
+.bg-grid[data-lv="melody"] .vc { cursor: crosshair; }
+
 /* ─── § 4 — pin button ───────────────────────────────────────────────────────── */
 /* Pinnable sections need relative positioning for the absolute pin button */
 #viz, #fills, #master {
