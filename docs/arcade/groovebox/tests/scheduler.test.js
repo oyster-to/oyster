@@ -40,3 +40,9 @@ test('muted lane fires nothing', () => {
   const ev = eventsForStep(s2, 0);
   expect(ev.some(e => e.lane === 'drums')).toBe(false);
 });
+test('drum lane with missing pool selection does not throw and returns no drum events', () => {
+  const s2 = { ...song, lanes: { ...song.lanes, drums: { ...song.lanes.drums, selection: 'nonexistent', muted: false } } };
+  let ev;
+  expect(() => { ev = eventsForStep(s2, 0); }).not.toThrow();
+  expect(ev.some(e => e.lane === 'drums')).toBe(false);
+});

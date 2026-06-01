@@ -2,7 +2,7 @@ import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
 import { eventsForStep } from './scheduler.js';
 import { createVoices, trigger } from './voices.js';
-import { setLane as _setLane, toggleMute as _toggleMute, toggleSolo as _toggleSolo } from './lanes.js';
+import { setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloExclusive } from './lanes.js';
 
 export function createEngine() {
   let song = null, voices = null, master = null, fx = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, toneType = 'pulse';
@@ -21,7 +21,7 @@ export function createEngine() {
     started = true;
   }
   return {
-    load(s) { song = s; tempo = s.bpm; },
+    load(s) { song = s; tempo = (typeof s.bpm === 'number' && isFinite(s.bpm)) ? s.bpm : tempo; },
     async play() {
       if (!song) throw new Error('no song loaded');
       if (playing) return;                                   // ignore double-play (don't stack callbacks)
@@ -45,12 +45,12 @@ export function createEngine() {
       if (repeatId !== null) { Tone.Transport.clear(repeatId); repeatId = null; }
       step = 0; playing = false;
     },
-    setTempo(bpm) { tempo = bpm; Tone.Transport.bpm.value = bpm; },
+    setTempo(bpm) { if (typeof bpm === 'number' && isFinite(bpm)) { tempo = bpm; Tone.Transport.bpm.value = bpm; } },
     onStep(cb) { onStepCb = cb; },
     getSong() { return song; },
     setLane(lane, selection) { if (song) _setLane(song, lane, selection); },
     toggleMute(lane) { return song ? _toggleMute(song, lane) : false; },
-    toggleSolo(lane) { return song ? _toggleSolo(song, lane) : false; },
+    toggleSolo(lane) { return song ? _soloExclusive(song, lane) : false; },
     setTone(type) { toneType = type; if (voices) voices.lead.set({ oscillator:{ type, width: 0.3 } }); },
     setLaneFX(lane, param, v01) {
       if (!fx || !fx[lane]) return;

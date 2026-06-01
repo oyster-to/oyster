@@ -5,6 +5,6 @@
   import { kids } from './songs/kids.js';
   const eng = createEngine(); eng.load(kids);
   document.body.innerHTML = '<button id=p>▶ play</button> <button id=s>⏹ stop</button>';
-  p.onclick = () => eng.play();
-  s.onclick = () => eng.stop();
+  document.getElementById('p').onclick = () => eng.play();
+  document.getElementById('s').onclick = () => eng.stop();
 </script>

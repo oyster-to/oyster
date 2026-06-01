@@ -10,9 +10,9 @@ export function eventsForStep(song, absStep) {
   const L = song.lanes, ev = [];
 
   if (laneAudible(song, 'drums')) {
-    const pat = resolveDrumPattern(L.drums.pool[L.drums.selection], bar, L.drums.cycleLen);
+    const pat = resolveDrumPattern(L.drums.pool[L.drums.selection], bar, L.drums.cycleLen) || {};
     for (const k of DRUM_KEYS) if (hasDrumHit(pat, k, step)) ev.push({ lane:'drums', voice:k });
-    if (pat.tom) for (const [s, semi] of pat.tom) if (s === step) ev.push({ lane:'drums', voice:'tom', semi });
+    if (pat.tom) for (const [s, semi] of pat.tom) if (s === step) ev.push({ lane:'drums', voice:'tom', semi: semi ?? 0 });
   }
   if (laneAudible(song, 'bass')) {
     const gen = L.bass.pool[L.bass.selection];

@@ -37,6 +37,6 @@ export function trigger(v, ev, t, sixteenth, barSeconds) {
     v.lead.triggerAttackRelease(ev.note, (ev.dur || 2) * sixteenth, t, 0.82);
   } else if (ev.lane === 'chords') {
     if (ev.mode === 'arp') v.chordSyn.triggerAttackRelease(ev.note, sixteenth, t, 0.34);
-    else v.chordSyn.triggerAttackRelease(ev.notes, ev.dur === 'bar' ? barSeconds : ev.dur * sixteenth, t, 0.3);
+    else v.chordSyn.triggerAttackRelease(ev.notes, ev.dur === 'bar' ? barSeconds : (ev.dur || 2) * sixteenth, t, 0.3);
   }
 }
