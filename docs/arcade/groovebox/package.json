@@ -1,0 +1,8 @@
+{
+  "name": "arcade-groovebox-engine",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "vitest run", "test:watch": "vitest" },
+  "devDependencies": { "vitest": "^2.0.0" },
+  "dependencies": { "tone": "^14.8.49" }
+}
