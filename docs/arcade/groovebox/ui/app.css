@@ -395,16 +395,19 @@ input[type=range] {
   position: relative;
   padding: 10px 10px 8px;
   background: var(--screen-bg);
+  /* Frame the screen with the theme hairline so the bezel reads on EVERY theme —
+     on dark a black ring vanished against the near-black body. */
+  border: 1px solid var(--line);
 
   box-shadow:
-    inset 0 0 0 1px rgba(255,255,255,0.04),
-    inset 0 2px 12px rgba(0,0,0,0.8),
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    inset 0 2px 14px rgba(0,0,0,0.85),
     inset 0 0 40px rgba(0,0,0,0.5),
-    0 0 0 1px rgba(0,0,0,0.6),
+    0 0 0 1px var(--line),
     0 0 24px var(--screen-glow);
 
-  outline: 2px solid rgba(0,0,0,0.35);
-  outline-offset: -1px;
+  outline: 1px solid rgba(0,0,0,0.30);
+  outline-offset: -2px;
 }
 
 /* ─── lane strips panel ──────────────────────────────────────────────────── */
@@ -699,8 +702,8 @@ input[type=range] {
 .lane {
   display: grid;
   /* drag | name | pattern-select | meter | MIX | TONE | FX | M/S | actions */
-  grid-template-columns: 16px 64px minmax(180px,300px) 10px auto auto auto 56px auto;
-  column-gap: 16px;
+  grid-template-columns: 16px 64px minmax(150px,220px) 10px auto auto auto 56px auto;
+  column-gap: 12px;
   align-items: center;
   background: var(--panel-2);
   border: 1px solid var(--line);
@@ -758,7 +761,8 @@ input[type=range] {
 /* hairline divider between groups (not on the first) */
 .kgroup + .kgroup {
   border-left: 1px solid var(--line);
-  padding-left: 16px;
+  padding-left: 12px;
+  margin-left: 2px;
 }
 
 /* legacy .knobs kept for master strip compatibility */
