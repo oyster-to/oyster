@@ -1923,13 +1923,15 @@ input[type=range] {
   margin-bottom: 5px;
 }
 .vs-preset-btns {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
-.vs-preset-btn {
-  width: 100%;
-  height: 24px;
+#viewsettings .vs-preset-btn {
+  display: block !important;
+  width: 100% !important;
+  box-sizing: border-box;
+  height: 26px;
   padding: 4px 10px;
   border-radius: 5px;
   border: 1px solid var(--line);
@@ -1938,6 +1940,7 @@ input[type=range] {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.03em;
+  text-align: center;
   white-space: nowrap;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.04),
