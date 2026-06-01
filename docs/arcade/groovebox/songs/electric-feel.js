@@ -1,4 +1,4 @@
-// Electric Feel (MGMT) — auto-imported from MIDI (4/4 @ 102bpm, 16-bar loop).
+// Electric Feel (MGMT) — auto-imported from MIDI (4/4 @ 110bpm, 3-bar loop).
 // PLACEHOLDER / copyright: swap before any public release. Auto-transcription —
 // melody=top-note, drums=GM-mapped, chords=inferred; audition + tweak as needed.
 function transposeNote(note, semis) {
@@ -9,30 +9,17 @@ function transposeNote(note, semis) {
   return N[((t % 12) + 12) % 12] + (Math.floor(t / 12) - 1);
 }
 const BASS = [
-    [[12,'C3',1],[14,'C3',2]],
-    [[2,'C3',2],[4,'G2',1],[8,'G#2',8]],
-    [[4,'A#1',2],[6,'A#2',1],[8,'C2',2],[10,'C3',1],[12,'G2',2]],
-    [[0,'G#2',8],[12,'C3',1],[14,'C3',2]],
-    [[2,'C3',2],[4,'G2',1],[8,'G#2',8]],
-    [[4,'A#1',2],[6,'A#2',1],[8,'C2',2],[10,'C3',1],[12,'G2',2]],
-    [[0,'G#2',8],[12,'C3',1],[14,'C3',2]],
-    [[2,'C3',2],[4,'G2',1],[8,'G#2',8]],
-    [[4,'A#1',2],[6,'A#2',1],[8,'C2',2],[10,'C3',1],[12,'G2',2]],
-    [[0,'G#2',8],[12,'C3',1],[14,'C3',2]],
-    [[2,'C3',2],[4,'G2',1],[8,'G#2',8]],
-    [[4,'A#1',2],[6,'A#2',1],[8,'C2',2],[10,'C3',1],[12,'G2',2]],
-    [[0,'G#2',8],[12,'C3',1],[14,'C3',2]],
-    [[2,'C3',2],[4,'G2',1],[8,'G#2',8]],
-    [[4,'A#1',2],[6,'A#2',1],[8,'C2',2],[10,'C3',1],[12,'G2',2]],
-    [[0,'G#2',8],[12,'C3',1],[14,'C3',2]]
+    [[0,'C2',1],[2,'C2',1],[4,'C2',1],[6,'C2',1],[8,'C2',1],[10,'C2',1],[12,'G#1',1],[14,'G#1',1]],
+    [[0,'G#1',1],[2,'G#1',1],[4,'G#1',1],[6,'G#1',1],[8,'A#1',1],[10,'A#1',1],[12,'A#1',1],[14,'A#1',1]],
+    [[0,'A#1',1],[2,'A#1',1],[4,'G1',1],[6,'G1',1],[8,'G1',1],[10,'G1',1],[12,'G1',1],[14,'G1',1]]
   ];
 
 export const electricFeel = {
   meter: { beatsPerBar:4, beatUnit:4, stepsPerBeat:4 },
-  bpm: 102,
+  bpm: 110,
   arrangement: [
-    { bars:16, lanes:{ drums:'midi', bass:'midi', chords:'pad', melody:'lead' }, fill:'snare roll' },
-    { bars:16, lanes:{ drums:'four', bass:'octave', chords:'arp', melody:'lead' }, fill:'crash build' },
+    { bars:3, lanes:{ drums:'midi', bass:'midi', chords:'pad', melody:'lead' }, fill:'snare roll' },
+    { bars:3, lanes:{ drums:'four', bass:'octave', chords:'arp', melody:'lead' }, fill:'crash build' },
   ],
   fills: {
     'snare roll': { kick:[0], snare:[8,9,10,11,12,13,14,15] },
@@ -40,43 +27,17 @@ export const electricFeel = {
     'tom roll':   { kick:[0,4], tom:[[8,7],[10,3],[12,2],[14,-2]] },
   },
   harmony: { progression: [
-    { name:'C', root:'C2', voicing:['C3','E3','G3'] },
-    { name:'D#', root:'D#2', voicing:['D#3','G3','A#3'] },
-    { name:'Cm', root:'C2', voicing:['C3','D#3','G3'] },
-    { name:'A#', root:'A#2', voicing:['A#3','D3','F3'] },
-    { name:'D#', root:'D#2', voicing:['D#3','G3','A#3'] },
-    { name:'Cm', root:'C2', voicing:['C3','D#3','G3'] },
-    { name:'A#', root:'A#2', voicing:['A#3','D3','F3'] },
-    { name:'D#', root:'D#2', voicing:['D#3','G3','A#3'] },
-    { name:'Cm', root:'C2', voicing:['C3','D#3','G3'] },
-    { name:'A#', root:'A#2', voicing:['A#3','D3','F3'] },
-    { name:'D#', root:'D#2', voicing:['D#3','G3','A#3'] },
-    { name:'Cm', root:'C2', voicing:['C3','D#3','G3'] },
-    { name:'Cm', root:'C2', voicing:['C3','D#3','G3'] },
-    { name:'Gm', root:'G2', voicing:['G3','A#3','D3'] },
-    { name:'Gm', root:'G2', voicing:['G3','A#3','D3'] },
     { name:'G#', root:'G#2', voicing:['G#3','C3','D#3'] },
+    { name:'G#', root:'G#2', voicing:['G#3','C3','D#3'] },
+    { name:'Gm', root:'G2', voicing:['G3','A#3','D3'] },
   ]},
   lanes: {
-    drums:  { selection:'midi', muted:false, cycleLen:16,
+    drums:  { selection:'midi', muted:false, cycleLen:3,
               pool:{
                 midi: [
-        {crash:[12], hat:[12,14], kick:[12]},
-        {hat:[0,2,4,6,8,10,12,14], snare:[0,12], kick:[4,8]},
-        {hat:[0,2,4,6,8,10,12,14], snare:[0,8], kick:[4,12]},
-        {hat:[0,2,4,6,8,10,12,14], kick:[0,12], snare:[4,8]},
-        {hat:[0,2,4,6,8,10,12,14], snare:[0,12], kick:[4,8]},
-        {hat:[0,2,4,6,8,10,12,14], snare:[0,8], kick:[4,12]},
-        {hat:[0,2,4,6,8,10,12,14], kick:[0,12], snare:[4,8], crash:[12]},
-        {hat:[0,2,4,6,8,10,12,14], snare:[0,12], kick:[4,8]},
-        {hat:[0,2,4,6,8,10,12,14], snare:[0,8], kick:[4,12]},
-        {hat:[0,2,4,6,8,10,12,14], kick:[0,12], snare:[4,8]},
-        {hat:[0,2,4,6,8,10,12,14], snare:[0,12], kick:[4,8]},
-        {hat:[0,2,4,6,8,10,12,14], snare:[0,8], kick:[4,12]},
-        {hat:[0,2,4,6,8,10], kick:[0,12], snare:[4,8], tom:[[12,0],[14,0],[15,0]]},
-        {snare:[0,8], tom:[[2,0],[3,0],[4,0],[6,0],[7,0],[10,0],[11,0],[12,0],[14,0],[15,0]], kick:[4,12]},
-        {snare:[0,8], tom:[[2,0],[3,0],[4,0],[6,0],[7,0],[10,0],[11,0],[12,0],[14,0],[15,0]], kick:[4,12]},
-        {snare:[0,8], tom:[[2,0],[3,0],[4,0],[6,0],[7,0],[10,0],[11,0],[12,0],[14,0],[15,0]], kick:[4,12]}
+        {hat:[0,2,4,6,8,10,12,14], crash:[0,8,12], kick:[0,12], snare:[4,8]},
+        {snare:[0,4,12], hat:[0,2,4,6,8,10,12,14], crash:[4,8], kick:[8]},
+        {snare:[0,8,12], hat:[0,2,4,6,8,10,12], crash:[0,4], kick:[4]}
       ],
                 four:     { kick:[0,4,8,12], snare:[4,12], hat:[0,2,4,6,8,10,12,14] },
                 backbeat: { kick:[0,8], snare:[4,12], hat:[2,6,10,14] },
@@ -90,22 +51,9 @@ export const electricFeel = {
     chords: { selection:'pad', muted:false },
     melody: { selection:'lead', muted:false, pool:{
       lead: [
-      [[12,'C5',2]],
-      [[0,'C5',2],[4,'C5',2],[8,'C5',2],[12,'C5',2]],
-      [[0,'C5',2],[4,'C5',2],[8,'C5',2],[12,'C5',2]],
-      [[0,'C5',2],[4,'C5',2],[8,'C5',2],[12,'C5',2]],
-      [[0,'C5',2],[4,'C5',2],[8,'C5',2],[12,'C5',2]],
-      [[0,'C5',2],[4,'C5',2],[8,'C5',2],[12,'C5',2]],
-      [[0,'C5',2],[4,'C5',2],[8,'C5',2],[12,'C5',2]],
-      [[0,'C5',2],[4,'C5',2],[8,'C5',2],[12,'C5',2]],
-      [[0,'C5',2],[4,'C5',2],[8,'C5',2],[12,'C5',2]],
-      [[0,'C5',2],[4,'C5',2],[8,'C5',2],[12,'C5',2]],
-      [[0,'C5',2],[4,'C5',2],[8,'C5',2],[12,'C5',2]],
-      [[0,'C5',2],[4,'C5',2],[8,'C5',2],[12,'C5',2]],
-      [[0,'C5',2],[4,'C5',2],[8,'C5',2]],
-      [],
-      [],
-      []
+      [[4,'D#5',1],[6,'F5',1],[7,'F5',1],[8,'G5',1],[10,'A#5',1],[11,'A#5',1],[12,'F5',1],[14,'G5',1],[15,'G5',1]],
+      [[0,'D#5',1],[2,'F5',1],[3,'F5',1],[4,'C5',1],[6,'D#5',1],[7,'D#5',1],[8,'F5',1],[12,'F5',1],[14,'D#5',1],[15,'D#5',1]],
+      [[0,'G5',1],[2,'F5',1],[3,'F5',1],[4,'D#5',1],[6,'F5',1],[7,'F5',1],[8,'C5',1],[10,'D#5',1],[11,'D#5',1],[12,'A#4',1],[14,'C5',1],[15,'C5',1]]
     ],
     } },
   },
