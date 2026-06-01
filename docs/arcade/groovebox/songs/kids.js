@@ -42,6 +42,12 @@ export const kids = {
     'snare 8ths': { kick:[0], snare:[0,2,4,6,8,10,12,14] },
     'snare stutter':{ kick:[0,8], snare:[12,13,14,15] },
     'kick build': { kick:[0,2,4,6,8,10,12,14], snare:[15] },
+    '16th roll':  { snare:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15] },
+    'tom run':    { kick:[0], tom:[[6,7],[7,5],[8,3],[10,2],[12,0],[14,-3]], crash:[0] },
+    'flam':       { kick:[0,8], snare:[3,4,11,12] },
+    'crash stabs':{ kick:[0,4,8,12], crash:[0,4,8,12] },
+    'crash + tom':{ kick:[0,8], tom:[[10,5],[12,2]], crash:[0,14] },
+    'gated glitch':{ snare:[0,1,4,5,8,9,12,13], kick:[6,14], crash:[2,10] },
   },
   harmony: { progression: [
     { name:'F#m',  root:'F#2', voicing:['F#3','A3','C#4','E4'] },
