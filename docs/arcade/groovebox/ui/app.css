@@ -222,36 +222,9 @@ input[type=range] { accent-color: var(--acc); }
   outline-offset: -1px;
 }
 
-/* ─── full-cabinet CRT overlay ───────────────────────────────────────────── */
-/* Scanlines + RGB sub-pixel tint across the whole groovebox surface.         */
-/* pointer-events:none on both elements so every control below stays          */
-/* fully clickable.                                                            */
-.crt-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 50;
-}
-.crt-overlay::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.35) 50%),
-    linear-gradient(90deg, rgba(255,0,0,0.1), rgba(0,255,0,0.04), rgba(0,0,255,0.1));
-  background-size: 100% 3px, 3px 100%;
-  pointer-events: none;
-}
-.crt-overlay::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: url('../../assets/crt.png');
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-  opacity: 0.4;
-  pointer-events: none;
-}
+/* ─── soft cabinet vignette ──────────────────────────────────────────────── */
+/* Scanlines/CRT texture removed (too distracting); just a gentle corner       */
+/* darkening for depth. pointer-events:none so controls below stay clickable.  */
 .crt-vignette {
   position: absolute;
   inset: 0;
