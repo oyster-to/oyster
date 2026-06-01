@@ -2,9 +2,10 @@ import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
 import { eventsForStep } from './scheduler.js';
 import { createVoices, trigger } from './voices.js';
+import { setLane as _setLane, toggleMute as _toggleMute } from './lanes.js';
 
 export function createEngine() {
-  let song = null, voices = null, master = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false;
+  let song = null, voices = null, master = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null;
   function ensure() {
     if (started) return;
     master = new Tone.Limiter(-1).toDestination();
@@ -24,6 +25,8 @@ export function createEngine() {
         const sixteenth = Tone.Time('16n').toSeconds();
         const barSeconds = stepsPerBar(song.meter) * sixteenth;
         for (const ev of eventsForStep(song, step)) trigger(voices, ev, t, sixteenth, barSeconds);
+        if (onStepCb) { const spb = stepsPerBar(song.meter); const s = step;
+          Tone.Draw.schedule(() => onStepCb({ absStep: s, bar: Math.floor(s/spb), stepInBar: s % spb }), t); }
         step++;
       }, '16n');
       Tone.Transport.start();
@@ -35,5 +38,9 @@ export function createEngine() {
       step = 0; playing = false;
     },
     setTempo(bpm) { tempo = bpm; Tone.Transport.bpm.value = bpm; },
+    onStep(cb) { onStepCb = cb; },
+    getSong() { return song; },
+    setLane(lane, selection) { if (song) _setLane(song, lane, selection); },
+    toggleMute(lane) { return song ? _toggleMute(song, lane) : false; },
   };
 }
