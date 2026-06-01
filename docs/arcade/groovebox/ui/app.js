@@ -1,5 +1,6 @@
 import { createEngine } from '../engine/index.js';
 import { kids } from '../songs/kids.js';
+import { makeViz } from './viz.js';
 
 const eng = createEngine(); eng.load(kids);
 const song = eng.getSong();
@@ -26,3 +27,9 @@ document.getElementById('play').onclick = async function() {
 };
 document.getElementById('bpm').oninput = e => { eng.setTempo(+e.target.value); document.getElementById('bpmv').textContent = e.target.value; };
 renderStrips();
+const viz = makeViz(document.getElementById('viz'), song);
+eng.onStep(({absStep, bar, stepInBar}) => viz.setStep(absStep, bar, stepInBar));
+document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('on', x===b));
+  viz.setView(b.dataset.view);
+});

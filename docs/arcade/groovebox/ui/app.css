@@ -12,3 +12,12 @@ input[type=range]{accent-color:var(--acc)}
 .lane .name{font-weight:600;font-size:13px}
 .lane select{width:100%}
 .mute.on{background:#3a1622;border-color:#5a2030;color:#ff7da6}
+.vtabs{display:flex;gap:6px;margin-bottom:8px}
+.vtabs button.on{background:#16261f;border-color:var(--acc);color:var(--acc)}
+#viz{margin-bottom:6px}
+.vrow{display:flex;gap:3px;align-items:center;margin:3px 0}
+.vrow .vl{width:46px;font-size:10px;color:var(--dim);text-align:right;padding-right:6px;flex:0 0 46px}
+.vc{flex:1;height:18px;border-radius:3px;background:#161a28;display:flex;align-items:center;justify-content:center;font-size:9px;color:#cfe0ff}
+.vc.beat{background:#1b2030}
+.vc.hit{background:#39507a}
+.vc.now{outline:2px solid #fff;outline-offset:-2px}
