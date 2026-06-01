@@ -381,7 +381,7 @@ function renderMaster() {
     { label: 'bal', value: 0.5, onChange: v => eng.setMasterFX('bal',   v) },
     { label: 'wid', value: 0.5, onChange: v => eng.setMasterFX('width', v) },
   ]);
-  const toneGrp = makeKgroup('TONE', [
+  const toneGrp = makeKgroup('EQ', [
     { label: 'lo', value: 0.5, onChange: v => eng.setMasterFX('lo', v) },
     { label: 'hi', value: 0.5, onChange: v => eng.setMasterFX('hi', v) },
   ]);
