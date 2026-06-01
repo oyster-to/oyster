@@ -6,9 +6,8 @@ import { setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloE
 import { sectionAt } from './arrangement.js';
 
 export function createEngine() {
-  let song = null, voices = null, master = null, fx = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, toneType = 'pulse', pendingFill = null, activeFill = null, queuedFill = null;
+  let song = null, voices = null, master = null, fx = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, toneType = 'pulse', pendingFill = null, activeFill = null, fillQueue = [];
   let mode = 'live', songBar = 0;
-  const PHRASE = 4;
   let masterComp = null, masterRev = null;
   let scopeMaster = null, scopeLane = {};
   function ensure() {
@@ -66,19 +65,16 @@ export function createEngine() {
             pendingFill = null;
             songBar++;
           } else {
-            const barIdx = step / spb;
-            if (queuedFill && (barIdx % PHRASE) === PHRASE - 1) { activeFill = queuedFill; queuedFill = null; }
-            else { activeFill = pendingFill; }
+            activeFill = fillQueue.length ? fillQueue.shift() : pendingFill;
             pendingFill = null;
           }
           if (prevFill && !activeFill && voices) voices.crash.triggerAttackRelease('8n', t, 0.9);
         }
         const fillPat = activeFill ? (song.fills?.[activeFill] ?? null) : null;
         for (const ev of eventsForStep(song, step, fillPat)) trigger(voices, ev, t, sixteenth, barSeconds);
-        if (onStepCb) { const s = step; const sb = songBar; const qf = queuedFill;
+        if (onStepCb) { const s = step; const sb = songBar; const qSnap = fillQueue.slice();
           Tone.Draw.schedule(() => {
             const bar = Math.floor(s/spb);
-            const barsToFill = qf ? ((PHRASE - 1 - (bar % PHRASE)) + PHRASE) % PHRASE : -1;
             onStepCb({
               absStep: s,
               bar,
@@ -88,8 +84,7 @@ export function createEngine() {
               songIndex: (mode === 'song' && song.arrangement && song.arrangement.length)
                 ? sectionAt(song.arrangement, Math.max(0, sb - 1)).index
                 : -1,
-              queued: qf,
-              barsToFill,
+              queue: qSnap,
             });
           }, t); }
         step++;
@@ -100,7 +95,7 @@ export function createEngine() {
     stop() {
       Tone.Transport.stop();
       if (repeatId !== null) { Tone.Transport.clear(repeatId); repeatId = null; }
-      step = 0; playing = false; pendingFill = null; activeFill = null; queuedFill = null;
+      step = 0; playing = false; pendingFill = null; activeFill = null; fillQueue = [];
     },
     setTempo(bpm) { if (typeof bpm === 'number' && isFinite(bpm)) { tempo = bpm; Tone.Transport.bpm.value = bpm; } },
     onStep(cb) { onStepCb = cb; },
@@ -109,8 +104,9 @@ export function createEngine() {
     toggleMute(lane) { return song ? _toggleMute(song, lane) : false; },
     toggleSolo(lane) { return song ? _soloExclusive(song, lane) : false; },
     triggerFill(name) { pendingFill = name; },
-    queueFill(name) { queuedFill = (queuedFill === name) ? null : name; return queuedFill; },
-    clearQueue() { queuedFill = null; },
+    queueFill(name) { fillQueue.push(name); return fillQueue.length; },
+    unqueueAt(i) { if (i >= 0 && i < fillQueue.length) fillQueue.splice(i, 1); return fillQueue.slice(); },
+    clearQueue() { fillQueue = []; },
     toggleDrumMute(voice) { return song ? _toggleDrumMute(song, voice) : false; },
     toggleDrumSolo(voice) { return song ? _toggleDrumSolo(song, voice) : false; },
     clearFill() { pendingFill = null; activeFill = null; },

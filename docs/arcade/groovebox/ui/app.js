@@ -75,10 +75,31 @@ function renderStrips() {
 }
 
 // ─── Fills row ───────────────────────────────────────────────────────────────
+let _lastChainJSON = '';
+
+function renderChain(queue) {
+  const chainEl = document.querySelector('.fillchain');
+  if (!chainEl) return;
+  const json = JSON.stringify(queue);
+  if (json === _lastChainJSON) return;
+  _lastChainJSON = json;
+
+  chainEl.innerHTML = '';
+  queue.forEach((name, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'fillchip' + (i === 0 ? ' next' : '');
+    chip.textContent = name;
+    chip.title = 'click to remove';
+    chip.onclick = () => renderChain(eng.unqueueAt(i));
+    chainEl.appendChild(chip);
+  });
+}
+
 function renderFills() {
   const host = document.getElementById('fills');
   if (!host || !song.fills) return;
   host.innerHTML = '';
+  _lastChainJSON = '';
   const row = document.createElement('div');
   row.className = 'fillsrow';
   const lbl = document.createElement('span');
@@ -89,16 +110,20 @@ function renderFills() {
     const btn = document.createElement('button');
     btn.className = 'fillbtn';
     btn.dataset.fill = name;
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'fill-name';
-    nameSpan.textContent = name;
-    const countSpan = document.createElement('span');
-    countSpan.className = 'fill-count';
-    btn.appendChild(nameSpan);
-    btn.appendChild(countSpan);
-    btn.onclick = () => { eng.queueFill(name); };
+    btn.textContent = name;
+    btn.onclick = () => { eng.queueFill(name); renderChain(eng.unqueueAt(Infinity)); };
     row.appendChild(btn);
   }
+  // Chain display + clear button
+  const chainEl = document.createElement('div');
+  chainEl.className = 'fillchain';
+  row.appendChild(chainEl);
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'fillclear';
+  clearBtn.textContent = '✕';
+  clearBtn.title = 'clear fill chain';
+  clearBtn.onclick = () => { eng.clearQueue(); renderChain([]); };
+  row.appendChild(clearBtn);
   host.appendChild(row);
 }
 
@@ -236,25 +261,14 @@ document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
 });
 
 // ─── Step callback (registered once; closes over module-level song/viz) ──────
-eng.onStep(({absStep, bar, stepInBar, fill, mode, songIndex, queued, barsToFill}) => {
+eng.onStep(({absStep, bar, stepInBar, fill, mode, songIndex, queue}) => {
   viz.setStep(absStep, bar, stepInBar);
   const fillsHost = document.getElementById('fills');
   if (fillsHost) {
     fillsHost.querySelectorAll('.fillbtn').forEach(btn => {
-      const countSpan = btn.querySelector('.fill-count');
-      if (btn.dataset.fill === fill) {
-        btn.classList.add('firing');
-        btn.classList.remove('queued');
-        if (countSpan) countSpan.textContent = '';
-      } else if (btn.dataset.fill === queued) {
-        btn.classList.add('queued');
-        btn.classList.remove('firing');
-        if (countSpan) countSpan.textContent = barsToFill > 0 ? ('fires in ' + barsToFill) : 'now';
-      } else {
-        btn.classList.remove('queued', 'firing');
-        if (countSpan) countSpan.textContent = '';
-      }
+      btn.classList.toggle('firing', btn.dataset.fill === fill);
     });
+    renderChain(queue);
   }
   // Timeline highlight
   const timeline = document.querySelector('.timeline');
