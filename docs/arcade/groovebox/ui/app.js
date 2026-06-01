@@ -1,6 +1,7 @@
 import { createEngine } from '../engine/index.js';
 import { kids } from '../songs/kids.js';
 import { makeViz } from './viz.js';
+import { makeKnob } from './knob.js';
 
 const eng = createEngine(); eng.load(kids);
 const song = eng.getSong();
@@ -16,7 +17,7 @@ function renderStrips() {
     const tone = lane === 'melody'
       ? `<select data-tone>${TONES.map(t=>`<option value="${t}"${t==='pulse'?' selected':''}>${t==='fatsawtooth'?'fat saw':t}</option>`).join('')}</select>`
       : '';
-    return `<div class="lane"><span class="name">${lane}</span>
+    return `<div class="lane" data-lane="${lane}"><span class="name">${lane}</span>
       <div class="mctl"><select data-lane="${lane}">${opts}</select>${tone}</div>
       <button class="mute" data-lane="${lane}">mute</button></div>`;
   }).join('');
@@ -24,6 +25,16 @@ function renderStrips() {
   host.querySelectorAll('select[data-tone]').forEach(s => s.onchange = e => eng.setTone(e.target.value));
   host.querySelectorAll('.mute').forEach(b => b.onclick = () => {
     const m = eng.toggleMute(b.dataset.lane); b.classList.toggle('on', m); b.textContent = m ? 'muted' : 'mute';
+  });
+  // Append FX knobs to each lane row (before the mute button)
+  host.querySelectorAll('.lane').forEach(row => {
+    const lane = row.dataset.lane;
+    const knobs = document.createElement('div');
+    knobs.className = 'knobs';
+    knobs.appendChild(makeKnob({ label: 'cut',  value: 1, onChange: v => eng.setLaneFX(lane, 'cut',   v) }));
+    knobs.appendChild(makeKnob({ label: 'drv',  value: 0, onChange: v => eng.setLaneFX(lane, 'drive', v) }));
+    knobs.appendChild(makeKnob({ label: 'dly',  value: 0, onChange: v => eng.setLaneFX(lane, 'delay', v) }));
+    row.querySelector('.mute').before(knobs);
   });
 }
 document.getElementById('play').onclick = async function() {
