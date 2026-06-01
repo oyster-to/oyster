@@ -44,6 +44,7 @@ body {
   border-radius: 18px;
   padding: 28px 26px 32px;
   position: relative;
+  overflow: hidden;
 
   /* layered brushed-metal gradients */
   background:
@@ -221,33 +222,46 @@ input[type=range] { accent-color: var(--acc); }
   outline-offset: -1px;
 }
 
-/* scanline overlay — pointer-events:none so clicks pass through to grid cells */
-#viz::after {
-  content: '';
+/* ─── full-cabinet CRT overlay ───────────────────────────────────────────── */
+/* Scanlines + RGB sub-pixel tint across the whole groovebox surface.         */
+/* pointer-events:none on both elements so every control below stays          */
+/* fully clickable.                                                            */
+.crt-overlay {
   position: absolute;
   inset: 0;
-  border-radius: 8px;
   pointer-events: none;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(0,0,0,0.13) 0px,
-    rgba(0,0,0,0.13) 1px,
-    transparent 1px,
-    transparent 3px
-  );
-  /* vignette blended on top */
-  box-shadow: inset 0 0 60px rgba(0,0,0,0.45);
-  z-index: 1;
+  z-index: 50;
 }
-
-/* very subtle screen flicker — honour reduced-motion */
-@keyframes crt-flicker {
-  0%, 100% { opacity: 1; }
-  92%       { opacity: 0.97; }
-  94%       { opacity: 1; }
+.crt-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.35) 50%),
+    linear-gradient(90deg, rgba(255,0,0,0.1), rgba(0,255,0,0.04), rgba(0,0,255,0.1));
+  background-size: 100% 3px, 3px 100%;
+  pointer-events: none;
 }
-@media (prefers-reduced-motion: no-preference) {
-  #viz { animation: crt-flicker 6s infinite; }
+.crt-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url('../../assets/crt.png');
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  opacity: 0.4;
+  pointer-events: none;
+}
+.crt-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 51;
+  background: radial-gradient(ellipse at center,
+    transparent 55%,
+    rgba(0,0,0,0.22) 80%,
+    rgba(0,0,0,0.45) 100%);
+  border-radius: 18px;
 }
 
 /* ─── beat-number header row ────────────────────────────────────────────── */
