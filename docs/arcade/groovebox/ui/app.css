@@ -439,3 +439,8 @@ input[type=range] { accent-color: var(--acc); }
   border-color: #5a2030;
   color: #ff7da6;
 }
+
+.mctl{display:flex;gap:8px;align-items:center}
+.mctl select{width:auto}
+.mctl select[data-lane]{flex:1}
+.mctl select[data-tone]{flex:0 0 auto;color:var(--dim)}
