@@ -7,6 +7,7 @@ import { electricFeel } from '../songs/electric-feel.js';
 import { heartbeats } from '../songs/heartbeats.js';
 import { digitalLove } from '../songs/digital-love.js';
 import { memoryReboot } from '../songs/memory-reboot.js';
+import { takeOnMe } from '../songs/take-on-me.js';
 import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
 
@@ -14,7 +15,7 @@ const eng = createEngine();
 const chordModes = ['pad','arp','stab'];
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
 
-const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, heartbeats, 'digital-love': digitalLove, 'memory-reboot': memoryReboot };
+const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, heartbeats, 'digital-love': digitalLove, 'memory-reboot': memoryReboot, 'take-on-me': takeOnMe };
 
 // Module-level refs — reassigned by mount() on every song switch.
 let song;
