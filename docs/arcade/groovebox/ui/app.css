@@ -18,6 +18,18 @@
   --meter-mid: #ffd24a;
   --meter-hi:  #ff5b6b;
 
+  /* component tokens — themed per [data-theme] */
+  --cell:         #0d1020;   /* empty drum cell */
+  --cell-alt:     #111828;   /* bar-alt cell */
+  --hit1:         #3a5890;   /* groove hit gradient top */
+  --hit2:         #1c2f54;   /* groove hit gradient bottom */
+  --roll-bg:      #0f121a;   /* piano-roll / bass lane (white key) */
+  --roll-bg-blk:  #0c0e14;   /* piano-roll / bass lane (black key) */
+  --roll-note:    var(--acc); /* note blocks + bass notes */
+  --grid-line:    #2a2e3a;   /* roll / scope gridlines */
+  --scope:        #7dffe0;   /* scope trace */
+  --playhead:     #ffffff;   /* roll / scope playhead */
+
   /* screen / glow */
   --screen-bg:   #07080d;
   --screen-glow: rgba(84,240,200,0.06);
@@ -452,7 +464,7 @@ input[type=range] {
   flex: 1;
   height: 18px;
   border-radius: 3px;
-  background: #0d1020;
+  background: var(--cell);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -465,14 +477,14 @@ input[type=range] {
 }
 
 /* § 6 — alternating beat-group shading: odd beat-groups slightly lighter */
-.vc.bar-alt { background: #111828; }
+.vc.bar-alt { background: var(--cell-alt); }
 
 /* § 6 — beat lines: stronger left border at beat starts */
 .vc.beat {
-  background: #111526;
+  background: var(--cell);
   box-shadow: inset 1px 0 0 rgba(255,255,255,0.10);
 }
-.vc.bar-alt.beat { background: #141e30; }
+.vc.bar-alt.beat { background: var(--cell-alt); }
 
 /* § 6 — downbeat (step 0): even stronger marker */
 .vc.downbeat {
@@ -481,7 +493,7 @@ input[type=range] {
 
 /* § 6 — hit cells: subtle vertical gradient + soft teal glow */
 .vc.hit {
-  background: linear-gradient(180deg, #3a5890 0%, #243d6e 60%, #1c2f54 100%);
+  background: linear-gradient(180deg, var(--hit1) 0%, color-mix(in srgb, var(--hit1) 60%, var(--hit2)) 60%, var(--hit2) 100%);
   color: #cfe0ff;
   box-shadow:
     0 0 6px rgba(84,240,200,0.35),
@@ -489,7 +501,8 @@ input[type=range] {
     inset 0 -1px 0 rgba(0,0,0,0.3);
 }
 .vc.hit.bar-alt {
-  background: linear-gradient(180deg, #3e5e96 0%, #284370 60%, #1e3058 100%);
+  background: linear-gradient(180deg, var(--hit1) 0%, color-mix(in srgb, var(--hit1) 60%, var(--hit2)) 60%, var(--hit2) 100%);
+  filter: brightness(1.05);
 }
 
 /* § 6 — added cells: amber gradient, distinct from hit */
@@ -504,12 +517,12 @@ input[type=range] {
 
 /* § 6 — removed cells: ghost outline, clearly distinct */
 .vc.removed {
-  background: #0d1020;
+  background: var(--cell);
   outline: 1px dashed rgba(180,140,60,0.55);
   outline-offset: -2px;
 }
 .vc.removed.bar-alt {
-  background: #111828;
+  background: var(--cell-alt);
 }
 
 /* § 6 — playhead: crisp --acc ring + faint column tint */
@@ -981,3 +994,231 @@ input[type=range] {
 }
 .tcell-name { font-weight: 600; font-size: 10px; letter-spacing: 0.04em; }
 .tcell-fill { font-size: 8px; color: var(--acc); opacity: 0.8; }
+
+/* ─── transport theme group ──────────────────────────────────────────────── */
+.transport-theme {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ─── colour themes — each block overrides design tokens only ────────────── */
+
+[data-theme="light"] {
+  --bg:          #e8eaef;
+  --panel:       #ffffff;
+  --panel-2:     #f1f3f7;
+  --panel-3:     #e3e6ec;
+  --line:        rgba(0,0,0,.12);
+  --line-dk:     rgba(0,0,0,.18);
+  --ink:         #1b1e26;
+  --dim:         #565c6b;
+  --faint:       #9298a8;
+  --acc:         #0e9c80;
+  --acc-dim:     #5cc3ad;
+  --hot:         #d8357d;
+  --warn:        #b8860a;
+  --meter-lo:    #0e9c80;
+  --meter-mid:   #b8860a;
+  --meter-hi:    #d8357d;
+  --cell:        #dfe3ea;
+  --cell-alt:    #e8ebf1;
+  --hit1:        #5b86d6;
+  --hit2:        #3f6bc0;
+  --roll-bg:     #eef1f6;
+  --roll-bg-blk: #e2e6ee;
+  --grid-line:   #c4ccd8;
+  --scope:       #0e9c80;
+  --playhead:    #1b1e26;
+  --screen-bg:   #eef1f6;
+  --screen-glow: transparent;
+  --chrome-hi:   #d0d3dc;
+  --chrome-mid:  #c0c4cd;
+  --chrome-lo:   #b0b4bd;
+  --bevel-hi:    rgba(255,255,255,0.6);
+  --bevel-lo:    rgba(0,0,0,0.1);
+}
+/* disable dark glows on light theme */
+[data-theme="light"] #viz,
+[data-theme="light"] .vc.hit { box-shadow: none; }
+[data-theme="light"] h1 { text-shadow: none; }
+
+[data-theme="beige"] {
+  --bg:          #cfc6b0;
+  --panel:       #efe9d8;
+  --panel-2:     #e5dec9;
+  --panel-3:     #d7cfb6;
+  --line:        rgba(70,58,34,.18);
+  --line-dk:     rgba(70,58,34,.30);
+  --ink:         #2c281e;
+  --dim:         #6a6250;
+  --faint:       #948b74;
+  --acc:         #b06a22;
+  --acc-dim:     #cf9b5e;
+  --hot:         #b0405f;
+  --warn:        #8a7212;
+  --meter-lo:    #b06a22;
+  --meter-mid:   #8a7212;
+  --meter-hi:    #b0405f;
+  --cell:        #c9c0a8;
+  --cell-alt:    #d3cab2;
+  --hit1:        #b58a4a;
+  --hit2:        #8f6a2e;
+  --roll-bg:     #ded6c0;
+  --roll-bg-blk: #d3cab2;
+  --grid-line:   #b7ad92;
+  --scope:       #b06a22;
+  --playhead:    #2c281e;
+  --screen-bg:   #ded6c0;
+  --screen-glow: transparent;
+  --chrome-hi:   #b8ae98;
+  --chrome-mid:  #a8a090;
+  --chrome-lo:   #988e78;
+  --bevel-hi:    rgba(255,255,255,0.4);
+  --bevel-lo:    rgba(0,0,0,0.15);
+}
+[data-theme="beige"] #viz,
+[data-theme="beige"] .vc.hit { box-shadow: none; }
+[data-theme="beige"] h1 { text-shadow: none; }
+
+[data-theme="playdate"] {
+  --bg:          #e8c200;
+  --panel:       #ffd11a;
+  --panel-2:     #ffda47;
+  --panel-3:     #ffe784;
+  --line:        rgba(0,0,0,.32);
+  --line-dk:     rgba(0,0,0,.45);
+  --ink:         #1a1500;
+  --dim:         #5a4900;
+  --faint:       #8a7400;
+  --acc:         #141100;
+  --acc-dim:     #4a3e00;
+  --hot:         #c8005a;
+  --warn:        #8a5a00;
+  --meter-lo:    #141100;
+  --meter-mid:   #8a5a00;
+  --meter-hi:    #c8005a;
+  --cell:        #f0c200;
+  --cell-alt:    #ffce14;
+  --hit1:        #1a1500;
+  --hit2:        #141100;
+  --roll-bg:     #ffd11a;
+  --roll-bg-blk: #f5c800;
+  --grid-line:   rgba(0,0,0,.25);
+  --scope:       #141100;
+  --playhead:    #c8005a;
+  --screen-bg:   #ffd11a;
+  --screen-glow: transparent;
+  --chrome-hi:   #d0a800;
+  --chrome-mid:  #c09800;
+  --chrome-lo:   #b08a00;
+  --bevel-hi:    rgba(255,255,255,0.3);
+  --bevel-lo:    rgba(0,0,0,0.2);
+}
+[data-theme="playdate"] #viz,
+[data-theme="playdate"] .vc.hit { box-shadow: none; }
+[data-theme="playdate"] h1 { text-shadow: none; }
+
+[data-theme="purple"] {
+  --bg:          #140a22;
+  --panel:       #1e1034;
+  --panel-2:     #291745;
+  --panel-3:     #38215c;
+  --line:        rgba(255,255,255,.09);
+  --line-dk:     rgba(0,0,0,.5);
+  --ink:         #f1e7ff;
+  --dim:         #b29cd2;
+  --faint:       #7a6a9c;
+  --acc:         #c77dff;
+  --acc-dim:     #8a4fd0;
+  --hot:         #ff5bb0;
+  --warn:        #ffd24a;
+  --meter-lo:    #c77dff;
+  --meter-mid:   #ffd24a;
+  --meter-hi:    #ff5bb0;
+  --cell:        #1a0f2e;
+  --cell-alt:    #221340;
+  --hit1:        #7d4fd0;
+  --hit2:        #4f2e8a;
+  --roll-bg:     #190d2c;
+  --roll-bg-blk: #140a22;
+  --grid-line:   #3a2860;
+  --scope:       #e0a8ff;
+  --playhead:    #ffffff;
+  --screen-bg:   #0d0718;
+  --screen-glow: rgba(199,125,255,0.08);
+  --chrome-hi:   #3a2060;
+  --chrome-mid:  #2a1448;
+  --chrome-lo:   #1c0e30;
+}
+
+[data-theme="gameboy"] {
+  --bg:          #0f380f;
+  --panel:       #14431a;
+  --panel-2:     #1d521d;
+  --panel-3:     #2a6230;
+  --line:        rgba(155,188,15,.22);
+  --line-dk:     rgba(0,0,0,.5);
+  --ink:         #9bbc0f;
+  --dim:         #6f8f12;
+  --faint:       #4f6a10;
+  --acc:         #8bac0f;
+  --acc-dim:     #4f6a10;
+  --hot:         #cfe05a;
+  --warn:        #cfe05a;
+  --meter-lo:    #8bac0f;
+  --meter-mid:   #cfe05a;
+  --meter-hi:    #cfe05a;
+  --cell:        #123c12;
+  --cell-alt:    #184718;
+  --hit1:        #6f8f12;
+  --hit2:        #4f6a10;
+  --roll-bg:     #123c12;
+  --roll-bg-blk: #0f380f;
+  --grid-line:   #2a6230;
+  --scope:       #cfe05a;
+  --playhead:    #e8f0a0;
+  --screen-bg:   #0a2a0a;
+  --screen-glow: rgba(155,188,15,0.10);
+  --chrome-hi:   #2a6230;
+  --chrome-mid:  #1d521d;
+  --chrome-lo:   #0f380f;
+}
+
+[data-theme="amber"] {
+  --bg:          #080500;
+  --panel:       #110c03;
+  --panel-2:     #1b1408;
+  --panel-3:     #2a200e;
+  --line:        rgba(255,176,0,.16);
+  --line-dk:     rgba(0,0,0,.5);
+  --ink:         #ffcf7a;
+  --dim:         #b87f20;
+  --faint:       #7a5410;
+  --acc:         #ffb000;
+  --acc-dim:     #a06e00;
+  --hot:         #ff6a3d;
+  --warn:        #ffd24a;
+  --meter-lo:    #ffb000;
+  --meter-mid:   #ffd24a;
+  --meter-hi:    #ff6a3d;
+  --cell:        #140d02;
+  --cell-alt:    #1e1506;
+  --hit1:        #b87f20;
+  --hit2:        #7a5410;
+  --roll-bg:     #140d02;
+  --roll-bg-blk: #0d0800;
+  --grid-line:   #3a2c0e;
+  --scope:       #ffd24a;
+  --playhead:    #ffcf7a;
+  --screen-bg:   #050300;
+  --screen-glow: rgba(255,176,0,0.08);
+  --chrome-hi:   #3a2c0e;
+  --chrome-mid:  #2a200e;
+  --chrome-lo:   #1b1408;
+}

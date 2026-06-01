@@ -316,6 +316,14 @@ document.getElementById('play').onclick = async function() {
 };
 document.getElementById('bpm').oninput = e => { eng.setTempo(+e.target.value); document.getElementById('bpmv').textContent = e.target.value; };
 document.getElementById('songsel').onchange = e => loadSong(e.target.value);
+document.getElementById('themesel').onchange = e => {
+  const t = e.target.value;
+  if (t === 'dark') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = t;
+  localStorage.setItem('gb-theme', t);
+  // Invalidate canvas colour cache + repaint active view with new colours.
+  viz.invalidateThemeColors?.();
+};
 
 // ─── Tab buttons (registered once; reference module-level viz) ───────────────
 document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
@@ -354,6 +362,16 @@ eng.onStep(({absStep, bar, stepInBar, fill, mode, songIndex, queue}) => {
     refreshStates();
   }
 });
+
+// ─── Restore saved theme ──────────────────────────────────────────────────────
+(function () {
+  const saved = localStorage.getItem('gb-theme');
+  if (saved && saved !== 'dark') {
+    document.documentElement.dataset.theme = saved;
+    const sel = document.getElementById('themesel');
+    if (sel) sel.value = saved;
+  }
+})();
 
 // ─── Initial load ─────────────────────────────────────────────────────────────
 eng.load(kids);

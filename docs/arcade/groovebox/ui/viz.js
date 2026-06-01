@@ -1,6 +1,31 @@
 import { stepsPerBar, beatStarts } from '../engine/meter.js';
 import { resolveDrumPattern, hasDrumHit, drumVoiceAudible, chordAt } from '../engine/song.js';
 
+// ─── Canvas theme colour cache ────────────────────────────────────────────────
+// Canvas ctx.fillStyle/strokeStyle cannot read CSS vars, so we resolve them
+// once from getComputedStyle and cache. Call invalidateThemeColors() on theme
+// change to force a fresh read on the next draw.
+let _tc = null;
+function themeColors() {
+  if (_tc) return _tc;
+  const cs = getComputedStyle(document.documentElement);
+  const g = n => cs.getPropertyValue(n).trim() || '#888';
+  _tc = {
+    acc:     g('--acc'),
+    scope:   g('--scope'),
+    note:    g('--roll-note'),
+    grid:    g('--grid-line'),
+    playhead:g('--playhead'),
+    rollBg:  g('--roll-bg'),
+    rollBlk: g('--roll-bg-blk'),
+    ink:     g('--ink'),
+    dim:     g('--dim'),
+    faint:   g('--faint'),
+  };
+  return _tc;
+}
+export function invalidateThemeColors() { _tc = null; }
+
 const DROWS = [['kick','Kick'],['snare','Snare'],['hat','HH'],['tom','Tom'],['crash','Crash']];
 
 // Piano-roll helpers (ported from prototype).
@@ -130,20 +155,22 @@ export function makeViz(host, song, eng) {
     const kbW = ROLL_KB, gW = W - kbW;
     const rh = H / ROLL_ROWS;
 
+    const tc = themeColors();
+
     // Draw pitch rows (keyboard column + grid background).
     for (let mm = ROLL_LO; mm <= ROLL_HI; mm++) {
       const y = (ROLL_HI - mm) * rh;
       const deg = ((mm % 12) + 12) % 12;
       const blk = BLACK_DEGREES.has(deg);
-      // Keyboard column.
-      ctx.fillStyle = blk ? '#14171e' : '#1c2029';
+      // Keyboard column — slightly darker than the roll bg.
+      ctx.fillStyle = blk ? tc.rollBlk : tc.rollBg;
       ctx.fillRect(0, y, kbW, rh - 0.5);
       // Grid cell background.
-      ctx.fillStyle = blk ? '#0c0e14' : '#0f121a';
+      ctx.fillStyle = blk ? tc.rollBlk : tc.rollBg;
       ctx.fillRect(kbW, y, gW, rh - 0.5);
       // C label.
       if (deg === 0) {
-        ctx.fillStyle = '#4a4f5c';
+        ctx.fillStyle = tc.faint;
         ctx.font = '8px monospace';
         ctx.fillText('C' + (Math.floor(mm / 12) - 1), 3, y + rh - 2);
       }
@@ -152,7 +179,7 @@ export function makeViz(host, song, eng) {
     // Bar gridlines.
     for (let bar = 0; bar <= 4; bar++) {
       const x = kbW + (bar * spb) / totalSteps * gW;
-      ctx.strokeStyle = '#2a2e3a';
+      ctx.strokeStyle = tc.grid;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(x, 0);
@@ -172,7 +199,7 @@ export function makeViz(host, song, eng) {
         const x = kbW + absStep / totalSteps * gW;
         const w = Math.max(3, (dur || 2) / totalSteps * gW - 1);
         const y = (ROLL_HI - midi) * rh;
-        ctx.fillStyle = '#54f0c8';
+        ctx.fillStyle = tc.note;
         ctx.fillRect(x + 1, y + 1, w - 1, rh - 2);
       }
     }
@@ -180,7 +207,7 @@ export function makeViz(host, song, eng) {
     // Playhead.
     if (playheadAbsStep >= 0) {
       const px = kbW + playheadAbsStep / totalSteps * gW;
-      ctx.strokeStyle = '#fff';
+      ctx.strokeStyle = tc.playhead;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(px, 0);
@@ -239,24 +266,25 @@ export function makeViz(host, song, eng) {
     const ctx = cv.getContext('2d');
     const W = cv.width, H = cv.height;
     ctx.clearRect(0, 0, W, H);
+    const tc = themeColors();
     // Background.
-    ctx.fillStyle = '#0b0d12';
+    ctx.fillStyle = tc.rollBg;
     ctx.fillRect(0, 0, W, H);
     // Center line.
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = '#244';
+    ctx.strokeStyle = tc.grid;
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
 
     const data = eng.getScope(scopeSource);
-    // Bright glowing trace. NOTE: canvas strokeStyle can't read CSS vars — use a literal colour.
+    // Bright glowing trace — resolved via themeColors() (not CSS vars, which canvas can't read).
     const GAIN = 1.6;                              // amplify so quiet signals still read
     ctx.lineWidth = 2.5;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    ctx.shadowColor = '#54f0c8';
+    ctx.shadowColor = tc.scope;
     ctx.shadowBlur = 10;
-    ctx.strokeStyle = '#7dffe0';
+    ctx.strokeStyle = tc.scope;
     ctx.beginPath();
     if (!data || data.length === 0) {
       // flat line when no audio yet
@@ -300,22 +328,24 @@ export function makeViz(host, song, eng) {
     const gW = W - kbW;
     const rh = H / BASS_ROWS;
 
+    const tc = themeColors();
+
     // Draw pitch rows.
     for (let mm = BASS_LO; mm <= BASS_HI; mm++) {
       const y = (BASS_HI - mm) * rh;
       const deg = ((mm % 12) + 12) % 12;
       const blk = BLACK_DEGREES.has(deg);
-      ctx.fillStyle = blk ? '#14171e' : '#1c2029';
+      ctx.fillStyle = blk ? tc.rollBlk : tc.rollBg;
       ctx.fillRect(0, y, kbW, rh - 0.5);
-      ctx.fillStyle = blk ? '#0c0e14' : '#0f121a';
+      ctx.fillStyle = blk ? tc.rollBlk : tc.rollBg;
       ctx.fillRect(kbW, y, gW, rh - 0.5);
       // Label E and B and octave roots (E = deg 4, B = deg 11, C = deg 0).
       if (deg === 0) {
-        ctx.fillStyle = '#4a4f5c';
+        ctx.fillStyle = tc.faint;
         ctx.font = '8px monospace';
         ctx.fillText('C' + (Math.floor(mm / 12) - 1), 3, y + rh - 2);
       } else if (deg === 4) {
-        ctx.fillStyle = '#2e3545';
+        ctx.fillStyle = tc.faint;
         ctx.font = '8px monospace';
         ctx.fillText('E' + (Math.floor(mm / 12) - 1), 3, y + rh - 2);
       }
@@ -324,7 +354,7 @@ export function makeViz(host, song, eng) {
     // Beat gridlines.
     for (let s = 0; s <= spb; s++) {
       const x = kbW + (s / spb) * gW;
-      ctx.strokeStyle = s % 4 === 0 ? '#2a2e3a' : '#181b23';
+      ctx.strokeStyle = tc.grid;
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
     }
@@ -339,7 +369,7 @@ export function makeViz(host, song, eng) {
     }
 
     // Draw note blocks.
-    ctx.fillStyle = '#54f0c8';
+    ctx.fillStyle = tc.note;
     for (const [st, noteName, dur] of notes) {
       const midi = noteToMidi(noteName);
       if (midi < BASS_LO || midi > BASS_HI) continue;
@@ -351,7 +381,7 @@ export function makeViz(host, song, eng) {
 
     // Playhead.
     const px = kbW + (stepInBar / spb) * gW;
-    ctx.strokeStyle = '#fff';
+    ctx.strokeStyle = tc.playhead;
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
   }
@@ -505,5 +535,11 @@ export function makeViz(host, song, eng) {
       build();
     },
     setStep(_abs, bar, stepInBar) { paint(bar, stepInBar); },
+    invalidateThemeColors() {
+      invalidateThemeColors();
+      // Rebuild the current view so canvas draws pick up new colours immediately.
+      if (view !== 'scope') stopScopeLoop();
+      build();
+    },
   };
 }
