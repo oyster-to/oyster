@@ -5,6 +5,7 @@ import { risingSun } from '../songs/rising-sun.js';
 import { electricFeel } from '../songs/electric-feel.js';
 import { heartbeats } from '../songs/heartbeats.js';
 import { digitalLove } from '../songs/digital-love.js';
+import { memoryReboot } from '../songs/memory-reboot.js';
 import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
 
@@ -13,7 +14,7 @@ const LANES = ['drums','bass','chords','melody'];
 const chordModes = ['pad','arp','stab'];
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
 
-const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, heartbeats, 'digital-love': digitalLove };
+const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, heartbeats, 'digital-love': digitalLove, 'memory-reboot': memoryReboot };
 
 // Module-level refs — reassigned by mount() on every song switch.
 let song;
@@ -320,6 +321,8 @@ function resetFX() {
 // ─── Mount: (re)build all per-song UI ────────────────────────────────────────
 function mount() {
   song = eng.getSong();
+  const creditEl = document.getElementById('credit');
+  if (creditEl) creditEl.textContent = song.artist ? `${song.title || ''} — ${song.artist}` : '';
   renderStrips();
   renderFills();
   renderMaster();

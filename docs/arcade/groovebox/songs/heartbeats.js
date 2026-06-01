@@ -20,6 +20,8 @@ const BASS = [
   ];
 
 export const heartbeats = {
+  title: 'Heartbeats',
+  artist: 'The Knife',
   meter: { beatsPerBar:4, beatUnit:4, stepsPerBeat:4 },
   bpm: 88,
   arrangement: [

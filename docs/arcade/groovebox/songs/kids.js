@@ -25,6 +25,8 @@ function low(n) { return transposeNote(n, -24); }
 const CHOP_STEPS = [0,1,2,4,6,7,8,10,11,14,15];
 
 export const kids = {
+  title: 'Kids',
+  artist: 'MGMT',
   meter: { beatsPerBar:4, beatUnit:4, stepsPerBeat:4 },
   bpm: 120,
   arrangement: [

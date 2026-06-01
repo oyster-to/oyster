@@ -14,6 +14,8 @@ const BASS = [
   ];
 
 export const digitalLove = {
+  title: 'Digital Love',
+  artist: 'Daft Punk',
   meter: { beatsPerBar:4, beatUnit:4, stepsPerBeat:4 },
   bpm: 124,
   arrangement: [

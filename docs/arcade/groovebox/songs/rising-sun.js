@@ -49,6 +49,8 @@ const LEAD_SPARSE = [
 ];
 
 export const risingSun = {
+  title: 'House of the Rising Sun',
+  artist: 'Traditional',
   meter: { beatsPerBar:6, beatUnit:8, stepsPerBeat:2, group:3 },
   bpm: 90,
 

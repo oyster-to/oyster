@@ -251,6 +251,17 @@ select {
 }
 
 /* ─── § 3 — segmented tab control ──────────────────────────────────────── */
+/* song credit / attribution line */
+#credit {
+  font-size: 11px;
+  color: var(--faint);
+  margin: -6px 0 12px;
+  min-height: 14px;
+  letter-spacing: 0.02em;
+  font-style: italic;
+}
+#credit:not(:empty)::before { content: '♪ '; font-style: normal; opacity: 0.7; }
+
 .vtabs {
   display: flex;
   gap: 3px;

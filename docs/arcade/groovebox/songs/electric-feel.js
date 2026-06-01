@@ -15,6 +15,8 @@ const BASS = [
   ];
 
 export const electricFeel = {
+  title: 'Electric Feel',
+  artist: 'MGMT',
   meter: { beatsPerBar:4, beatUnit:4, stepsPerBeat:4 },
   bpm: 110,
   arrangement: [
