@@ -463,39 +463,76 @@ input[type=range] {
   z-index: 2;
   transition: box-shadow 0.08s;
 }
-.vc.beat { background: #111526; }
+
+/* § 6 — alternating beat-group shading: odd beat-groups slightly lighter */
+.vc.bar-alt { background: #111828; }
+
+/* § 6 — beat lines: stronger left border at beat starts */
+.vc.beat {
+  background: #111526;
+  box-shadow: inset 1px 0 0 rgba(255,255,255,0.10);
+}
+.vc.bar-alt.beat { background: #141e30; }
+
+/* § 6 — downbeat (step 0): even stronger marker */
+.vc.downbeat {
+  box-shadow: inset 2px 0 0 rgba(84,240,200,0.35);
+}
+
+/* § 6 — hit cells: subtle vertical gradient + soft teal glow */
 .vc.hit {
-  background: #2b3f6a;
+  background: linear-gradient(180deg, #3a5890 0%, #243d6e 60%, #1c2f54 100%);
   color: #cfe0ff;
   box-shadow:
-    0 0 6px rgba(84,180,255,0.4),
-    inset 0 1px 0 rgba(100,160,255,0.2);
+    0 0 6px rgba(84,240,200,0.35),
+    inset 0 1px 0 rgba(100,180,255,0.25),
+    inset 0 -1px 0 rgba(0,0,0,0.3);
 }
+.vc.hit.bar-alt {
+  background: linear-gradient(180deg, #3e5e96 0%, #284370 60%, #1e3058 100%);
+}
+
+/* § 6 — added cells: amber gradient, distinct from hit */
 .vc.added {
-  background: #ffd24a;
-  color: #2a2400;
-  box-shadow: 0 0 8px rgba(255,210,74,0.45);
+  background: linear-gradient(180deg, #ffdd70 0%, #e8b830 60%, #c49420 100%);
+  color: #2a1a00;
+  box-shadow:
+    0 0 7px rgba(255,210,74,0.45),
+    inset 0 1px 0 rgba(255,255,200,0.35),
+    inset 0 -1px 0 rgba(0,0,0,0.2);
 }
+
+/* § 6 — removed cells: ghost outline, clearly distinct */
 .vc.removed {
   background: #0d1020;
-  outline: 1px dashed #6b5a2e;
+  outline: 1px dashed rgba(180,140,60,0.55);
   outline-offset: -2px;
 }
+.vc.removed.bar-alt {
+  background: #111828;
+}
+
+/* § 6 — playhead: crisp --acc ring + faint column tint */
 .vc.now {
-  outline: 2px solid rgba(255,255,255,0.9);
+  outline: 2px solid var(--acc);
   outline-offset: -2px;
-  box-shadow: 0 0 10px rgba(255,255,255,0.2);
+  box-shadow: 0 0 8px rgba(84,240,200,0.30);
+  background: rgba(84,240,200,0.06);
 }
 .vc.hit.now {
+  outline: 2px solid var(--acc);
+  outline-offset: -2px;
   box-shadow:
-    0 0 10px rgba(84,180,255,0.6),
-    0 0 4px rgba(255,255,255,0.4),
-    inset 0 1px 0 rgba(100,160,255,0.25);
+    0 0 10px rgba(84,240,200,0.55),
+    0 0 4px rgba(255,255,255,0.25),
+    inset 0 1px 0 rgba(100,220,200,0.3);
 }
 .vc.added.now {
+  outline: 2px solid var(--acc);
+  outline-offset: -2px;
   box-shadow:
     0 0 10px rgba(255,210,74,0.65),
-    0 0 4px rgba(255,255,255,0.35);
+    0 0 4px rgba(84,240,200,0.35);
 }
 
 /* ─── bar selector ───────────────────────────────────────────────────────── */
@@ -756,9 +793,10 @@ input[type=range] {
 /* ─── fills row (panel chrome via #fills) ───────────────────────────────── */
 .fillsrow {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   flex-wrap: wrap;
+  row-gap: 6px;
 }
 /* § 2 — section header */
 .fillsrow .flbl {
@@ -767,36 +805,96 @@ input[type=range] {
   letter-spacing: 0.12em;
   color: var(--faint);
   text-transform: uppercase;
-}
-.fillbtn.firing {
-  background: var(--hot);
-  border-color: var(--hot);
-  color: #2a0316;
-  font-weight: 700;
+  flex: 0 0 auto;
+  margin-right: 2px;
 }
 
-/* fill chain chips */
-.fillchain { display:flex; gap:4px; flex-wrap:wrap; align-items:center; min-height:22px; }
+/* § 8 — fill trigger buttons: unified control base, compact */
+.fillbtn {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 -1px 0 rgba(0,0,0,0.25),
+    0 1px 2px rgba(0,0,0,0.3);
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.fillbtn:hover {
+  background: var(--panel-3);
+  border-color: var(--acc-dim);
+  color: var(--ink);
+}
+.fillbtn:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+.fillbtn.firing {
+  background: linear-gradient(180deg, #ff7ab8 0%, #e03e84 50%, #be1f65 100%);
+  border-color: #be1f65;
+  color: #fff;
+  font-weight: 700;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.25),
+    0 0 10px rgba(255,91,158,0.5);
+}
+
+/* § 8 — fill chain chips: small --panel-2 pills */
+.fillchain {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  min-height: 24px;
+  margin-left: 4px;
+}
 .fillchip {
-  display: inline-flex; align-items: center;
-  padding: 2px 8px; border-radius: 10px;
-  font-size: 10px; letter-spacing: .04em;
-  background: var(--panel-2); border: 1px solid var(--line); color: var(--dim);
-  cursor: pointer; user-select: none;
-  transition: background .1s, border-color .1s;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 10px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--dim);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s, border-color 0.1s;
 }
 .fillchip:hover { background: var(--panel-3); border-color: var(--acc-dim); color: var(--ink); }
+/* § 8 — .next chip: --acc ring (next-to-fire) */
 .fillchip.next {
-  border-color: var(--acc); color: var(--acc);
-  box-shadow: 0 0 6px rgba(84,240,200,0.3);
+  border-color: var(--acc);
+  color: var(--acc);
+  box-shadow: 0 0 0 1px rgba(84,240,200,0.25), 0 0 6px rgba(84,240,200,0.2);
 }
+
+/* § 8 — clear button: subtle icon button */
 .fillclear {
-  padding: 0 7px; border-radius: 6px; height: 22px;
-  font-size: 10px; color: var(--dim);
-  background: var(--panel); border: 1px solid var(--line);
-  opacity: .6;
+  padding: 0 8px;
+  border-radius: 6px;
+  height: 24px;
+  font-size: 12px;
+  color: var(--faint);
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+  opacity: 0.7;
+  transition: opacity 0.1s, color 0.1s, border-color 0.1s;
 }
-.fillclear:hover { opacity:1; color: var(--hot); border-color: var(--hot); }
+.fillclear:hover {
+  opacity: 1;
+  color: var(--hot);
+  border-color: rgba(255,91,158,0.4);
+  background: transparent;
+}
 
 /* ─── master FX strip (panel chrome via #master) ────────────────────────── */
 .masterfx {
@@ -816,7 +914,7 @@ input[type=range] {
 /* ─── arrangement UI (panel chrome via #arrange) ────────────────────────── */
 .arrange-head {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
   flex-wrap: wrap;
   margin-bottom: 8px;
@@ -828,15 +926,58 @@ input[type=range] {
   letter-spacing: 0.12em;
   color: var(--faint);
   text-transform: uppercase;
+  margin-right: 4px;
 }
-#modeBtn.song { background: rgba(84,240,200,0.10); border-color: var(--acc); color: var(--acc); }
-.timeline { display:flex; gap:4px; flex-wrap:wrap; }
+
+/* § 8 — Live/Song mode button: segmented-control style consistent with view tabs */
+#modeBtn {
+  /* base styles inherited from button {}; tweak to match segmented-control look */
+  min-width: 80px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--dim);
+}
+/* Song mode: teal accent — matches the active vtabs tab style */
+#modeBtn.song {
+  background: rgba(84,240,200,0.10);
+  border-color: var(--acc);
+  color: var(--acc);
+  box-shadow:
+    inset 0 -2px 0 var(--acc),
+    inset 0 1px 0 rgba(84,240,200,0.08);
+}
+
+/* § 8 — timeline cells: panel radius/border, section accent colors, --acc on active */
+.timeline { display: flex; gap: 4px; flex-wrap: wrap; }
 .tcell {
-  flex: 0 0 auto; min-width: 54px; padding: 8px 10px;
-  border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line);
-  font-size: 10px; color: var(--dim); text-align: center; opacity: .7;
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  flex: 0 0 auto;
+  min-width: 54px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  font-size: 10px;
+  color: var(--dim);
+  text-align: center;
+  opacity: 0.7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: opacity 0.1s, box-shadow 0.1s, outline-color 0.1s;
 }
-.tcell.on { opacity:1; outline:2px solid #fff; outline-offset:1px; color: var(--ink); }
-.tcell-name { font-weight:600; font-size:10px; letter-spacing:.04em; }
-.tcell-fill { font-size:8px; color: var(--acc); opacity:.8; }
+/* § 8 — active cell: --acc ring consistent with the rest of the control system */
+.tcell.on {
+  opacity: 1;
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+  color: var(--ink);
+  box-shadow: 0 0 8px rgba(84,240,200,0.2);
+}
+.tcell-name { font-weight: 600; font-size: 10px; letter-spacing: 0.04em; }
+.tcell-fill { font-size: 8px; color: var(--acc); opacity: 0.8; }

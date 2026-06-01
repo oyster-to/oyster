@@ -359,7 +359,24 @@ export function makeViz(host, song, eng) {
   function build() {
     const spb = stepsPerBar(song.meter);
     const beats = new Set(beatStarts(song.meter));
-    const cells = n => Array.from({length:n}, (_,i) => `<div class="vc${beats.has(i)?' beat':''}"></div>`).join('');
+    // Compute beat index for each step (which beat group it belongs to).
+    // Used for alternating bar shading: odd beat-groups get `.bar-alt` tint
+    // so the 4/4 | 3/4 | 6/8 structure reads clearly.
+    const beatsArr = beatStarts(song.meter);
+    function beatIndexOf(step) {
+      let idx = 0;
+      for (let b = 0; b < beatsArr.length; b++) {
+        if (step >= beatsArr[b]) idx = b;
+      }
+      return idx;
+    }
+    const cells = n => Array.from({length:n}, (_,i) => {
+      const beatIdx = beatIndexOf(i);
+      const altClass = beatIdx % 2 === 1 ? ' bar-alt' : '';
+      const beatClass = beats.has(i) ? ' beat' : '';
+      const downbeatClass = i === 0 ? ' downbeat' : '';
+      return `<div class="vc${beatClass}${downbeatClass}${altClass}"></div>`;
+    }).join('');
     if (view === 'drums') {
       const barSel = buildBarSelector();
       host.innerHTML = barSel
