@@ -32,6 +32,50 @@ function refreshStates() {
   }
 }
 
+// ─── Per-lane level meter rAF loop ───────────────────────────────────────────
+let _meterRafId = null;
+
+function startMeterLoop() {
+  if (_meterRafId !== null) return;   // already running — don't stack
+  function tick() {
+    const host = document.getElementById('strips');
+    if (host) {
+      for (const lane of LANES) {
+        const fill = host.querySelector(`.lane[data-lane="${lane}"] .lvl-fill`);
+        if (fill) fill.style.height = (eng.getLevel(lane) * 100) + '%';
+      }
+    }
+    _meterRafId = requestAnimationFrame(tick);
+  }
+  _meterRafId = requestAnimationFrame(tick);
+}
+
+function stopMeterLoop() {
+  if (_meterRafId !== null) { cancelAnimationFrame(_meterRafId); _meterRafId = null; }
+  // Zero out fills when stopped
+  const host = document.getElementById('strips');
+  if (host) {
+    for (const lane of LANES) {
+      const fill = host.querySelector(`.lane[data-lane="${lane}"] .lvl-fill`);
+      if (fill) fill.style.height = '0%';
+    }
+  }
+}
+
+function makeKgroup(label, knobDefs) {
+  const grp = document.createElement('div');
+  grp.className = 'kgroup';
+  const lbl = document.createElement('span');
+  lbl.className = 'kgroup-lbl';
+  lbl.textContent = label;
+  grp.appendChild(lbl);
+  const row = document.createElement('div');
+  row.className = 'kgroup-knobs';
+  for (const def of knobDefs) row.appendChild(makeKnob(def));
+  grp.appendChild(row);
+  return grp;
+}
+
 function renderStrips() {
   const host = document.getElementById('strips');
   host.innerHTML = LANES.map(lane => {
@@ -39,12 +83,16 @@ function renderStrips() {
     const tone = lane === 'melody'
       ? `<select data-tone>${TONES.map(t=>`<option value="${t}"${t==='pulse'?' selected':''}>${t==='fatsawtooth'?'fat saw':t}</option>`).join('')}</select>`
       : '';
-    return `<div class="lane" data-lane="${lane}"><span class="name">${lane}</span>
+    // Grid columns: name | pattern-select | meter | MIX | TONE | FX | M/S
+    return `<div class="lane" data-lane="${lane}">
+      <span class="name">${lane}</span>
       <div class="mctl"><select data-lane="${lane}">${opts}</select>${tone}</div>
+      <div class="lvl"><div class="lvl-fill"></div></div>
       <div class="msgroup">
-        <div class="ctrl"><button class="mute" data-lane="${lane}" aria-label="mute ${lane}" title="mute">M</button><span class="ctrl-lbl">mute</span></div>
-        <div class="ctrl"><button class="solo" data-lane="${lane}" aria-label="solo ${lane}" title="solo">S</button><span class="ctrl-lbl">solo</span></div>
-      </div></div>`;
+        <button class="mute" data-lane="${lane}" aria-label="mute ${lane}" title="Mute">M</button>
+        <button class="solo" data-lane="${lane}" aria-label="solo ${lane}" title="Solo">S</button>
+      </div>
+    </div>`;
   }).join('');
   host.querySelectorAll('select[data-lane]').forEach(s => s.onchange = e => eng.setLane(e.target.dataset.lane, e.target.value));
   host.querySelectorAll('select[data-tone]').forEach(s => s.onchange = e => eng.setTone(e.target.value));
@@ -56,20 +104,27 @@ function renderStrips() {
     eng.toggleSolo(b.dataset.lane);
     refreshStates();
   });
-  // Append FX knobs to each lane row (before the msgroup)
+  // Build grouped knobs and insert before the M/S group
   host.querySelectorAll('.lane').forEach(row => {
     const lane = row.dataset.lane;
-    const knobs = document.createElement('div');
-    knobs.className = 'knobs';
-    knobs.appendChild(makeKnob({ label: 'vol',  value: 1.0, onChange: v => eng.setLaneFX(lane, 'vol',    v) }));
-    knobs.appendChild(makeKnob({ label: 'pan',  value: 0.5, onChange: v => eng.setLaneFX(lane, 'pan',    v) }));
-    knobs.appendChild(makeKnob({ label: 'cut',  value: 0.5, onChange: v => eng.setLaneFX(lane, 'cut',    v) }));
-    knobs.appendChild(makeKnob({ label: 'drv',  value: 0,   onChange: v => eng.setLaneFX(lane, 'drive',  v) }));
-    knobs.appendChild(makeKnob({ label: 'dly',  value: 0,   onChange: v => eng.setLaneFX(lane, 'delay',  v) }));
-    knobs.appendChild(makeKnob({ label: 'cru',  value: 0,   onChange: v => eng.setLaneFX(lane, 'crush',  v) }));
-    knobs.appendChild(makeKnob({ label: 'vrb',  value: 0,   onChange: v => eng.setLaneFX(lane, 'reverb', v) }));
-    knobs.appendChild(makeKnob({ label: 'cmp',  value: 0,   onChange: v => eng.setLaneFX(lane, 'comp',   v) }));
-    row.querySelector('.msgroup').before(knobs);
+    const msgroup = row.querySelector('.msgroup');
+
+    const mixGrp = makeKgroup('MIX', [
+      { label: 'vol', value: 1.0, onChange: v => eng.setLaneFX(lane, 'vol',   v) },
+      { label: 'pan', value: 0.5, onChange: v => eng.setLaneFX(lane, 'pan',   v) },
+    ]);
+    const toneGrp = makeKgroup('TONE', [
+      { label: 'cut', value: 0.5, onChange: v => eng.setLaneFX(lane, 'cut',   v) },
+      { label: 'drv', value: 0,   onChange: v => eng.setLaneFX(lane, 'drive', v) },
+    ]);
+    const fxGrp = makeKgroup('FX', [
+      { label: 'dly', value: 0,   onChange: v => eng.setLaneFX(lane, 'delay',  v) },
+      { label: 'cru', value: 0,   onChange: v => eng.setLaneFX(lane, 'crush',  v) },
+      { label: 'vrb', value: 0,   onChange: v => eng.setLaneFX(lane, 'reverb', v) },
+      { label: 'cmp', value: 0,   onChange: v => eng.setLaneFX(lane, 'comp',   v) },
+    ]);
+
+    msgroup.before(mixGrp, toneGrp, fxGrp);
   });
   refreshStates();
 }
@@ -133,10 +188,12 @@ function renderMaster() {
   masterHost.innerHTML = '';
   const mwrap = document.createElement('div'); mwrap.className = 'masterfx';
   mwrap.innerHTML = '<span class="mlbl">MASTER</span>';
-  const mk = document.createElement('div'); mk.className = 'knobs';
-  mk.appendChild(makeKnob({ label:'verb', value:0, onChange: v => eng.setMasterFX('reverb', v) }));
-  mk.appendChild(makeKnob({ label:'comp', value:0, onChange: v => eng.setMasterFX('comp', v) }));
-  mwrap.appendChild(mk); masterHost.appendChild(mwrap);
+  const masterFxGrp = makeKgroup('FX', [
+    { label:'verb', value:0, onChange: v => eng.setMasterFX('reverb', v) },
+    { label:'comp', value:0, onChange: v => eng.setMasterFX('comp', v) },
+  ]);
+  mwrap.appendChild(masterFxGrp);
+  masterHost.appendChild(mwrap);
 }
 
 // ─── Arrangement UI ──────────────────────────────────────────────────────────
@@ -232,6 +289,7 @@ function mount() {
 // ─── Load a different song ────────────────────────────────────────────────────
 function loadSong(key) {
   eng.stop();
+  stopMeterLoop();
   const play = document.getElementById('play');
   play.classList.remove('on');
   play.textContent = '▶ play';
@@ -248,8 +306,13 @@ function loadSong(key) {
 
 // ─── Transport ───────────────────────────────────────────────────────────────
 document.getElementById('play').onclick = async function() {
-  if (this.classList.contains('on')) { eng.stop(); this.classList.remove('on'); this.textContent='▶ play'; }
-  else { await eng.play(); this.classList.add('on'); this.textContent='⏹ stop'; }
+  if (this.classList.contains('on')) {
+    eng.stop(); this.classList.remove('on'); this.textContent='▶ play';
+    stopMeterLoop();
+  } else {
+    await eng.play(); this.classList.add('on'); this.textContent='⏹ stop';
+    startMeterLoop();
+  }
 };
 document.getElementById('bpm').oninput = e => { eng.setTempo(+e.target.value); document.getElementById('bpmv').textContent = e.target.value; };
 document.getElementById('songsel').onchange = e => loadSong(e.target.value);

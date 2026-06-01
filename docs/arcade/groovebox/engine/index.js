@@ -10,6 +10,7 @@ export function createEngine() {
   let mode = 'live', songBar = 0;
   let masterComp = null, masterRev = null;
   let scopeMaster = null, scopeLane = {};
+  let meters = {};
   function ensure() {
     if (started) return;
     const out = new Tone.Limiter(-1).toDestination();
@@ -36,6 +37,9 @@ export function createEngine() {
     for (const lane of ['drums','bass','chords','melody']) {
       scopeLane[lane] = new Tone.Waveform(1024);
       fx[lane].vol.connect(scopeLane[lane]);
+      // Per-lane level meters (silent sinks — don't alter audio chain).
+      meters[lane] = new Tone.Meter({ normalRange: false });
+      fx[lane].vol.connect(meters[lane]);
     }
     started = true;
   }
@@ -115,6 +119,13 @@ export function createEngine() {
     captureScene() { if (song) { song.arrangement = song.arrangement || []; song.arrangement.push(_captureScene(song)); } return song ? song.arrangement.length : 0; },
     clearArrangement() { if (song) song.arrangement = []; },
     setTone(type) { toneType = type; if (voices) voices.lead.set({ oscillator:{ type, width: 0.3 } }); },
+    getLevel(lane) {
+      if (!started || !meters[lane]) return 0;
+      let db = meters[lane].getValue();
+      if (Array.isArray(db)) db = db[0];
+      if (!isFinite(db)) return 0;
+      return Math.max(0, Math.min(1, (db + 60) / 60));
+    },
     getScope(source) {
       if (!started) return null;
       if (source === 'master') return scopeMaster ? scopeMaster.getValue() : null;

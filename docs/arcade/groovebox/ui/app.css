@@ -596,11 +596,11 @@ input[type=range] {
   height: 26px;
 }
 
-/* ─── lane strips — panel chrome only (grid unchanged for Stage B) ───────── */
+/* ─── § 5 — lane strips: aligned shared grid ────────────────────────────── */
 .lane {
   display: grid;
-  grid-template-columns: 80px 1fr auto auto;
-  gap: 10px;
+  grid-template-columns: 64px minmax(180px,300px) 10px auto auto auto 56px;
+  column-gap: 16px;
   align-items: center;
   background: var(--panel-2);
   border: 1px solid var(--line);
@@ -634,13 +634,39 @@ input[type=range] {
 .mctl select[data-lane] { flex:1; }
 .mctl select[data-tone] { flex:0 0 auto; color:var(--dim); }
 
-/* ─── FX knobs (layout unchanged for Stage B) ───────────────────────────── */
-.knobs {
-  display: grid;
-  grid-template-columns: repeat(4,auto);
-  gap: 6px 10px;
+/* ─── § 5 — knob groups ─────────────────────────────────────────────────── */
+.kgroup {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-items: center;
+  gap: 3px;
+}
+.kgroup-lbl {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.kgroup-knobs {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: center;
+}
+/* hairline divider between groups (not on the first) */
+.kgroup + .kgroup {
+  border-left: 1px solid var(--line);
+  padding-left: 16px;
+}
+
+/* legacy .knobs kept for master strip compatibility */
+.knobs {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: center;
 }
 .knob {
   display: flex;
@@ -695,10 +721,37 @@ input[type=range] {
   text-shadow: 0 1px 0 rgba(255,255,255,.2);
 }
 
-/* ─── mute/solo group ────────────────────────────────────────────────────── */
-.msgroup { display:flex; gap:6px; align-items:flex-start; }
-.ctrl { display:flex; flex-direction:column; align-items:center; gap:3px; }
-.ctrl-lbl { font-size: 8px; color: var(--faint); letter-spacing: .04em; text-transform: uppercase; }
+/* ─── § 5 — mute/solo group (no caption labels; letters + tooltip suffice) ── */
+.msgroup { display:flex; gap:6px; align-items:center; justify-content:center; }
+/* .ctrl-lbl suppressed — captions removed per §3 */
+.ctrl-lbl { display: none; }
+
+/* ─── § 7 — per-lane level meter ────────────────────────────────────────── */
+.lvl {
+  width: 8px;
+  height: 40px;
+  background: var(--screen-bg);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+  align-self: center;
+}
+.lvl-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 0%;
+  background: linear-gradient(
+    to top,
+    var(--meter-lo)  0%,
+    var(--meter-mid) 65%,
+    var(--meter-hi)  100%
+  );
+  border-radius: 2px;
+  transition: height 0.04s linear;
+}
 
 /* ─── fills row (panel chrome via #fills) ───────────────────────────────── */
 .fillsrow {
