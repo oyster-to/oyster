@@ -81,7 +81,7 @@ body {
   border-radius: 18px;
   padding: 24px 22px 28px;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 
   /* subtle sheen only — no loud brushed-metal stripes */
   background: linear-gradient(
@@ -698,8 +698,8 @@ input[type=range] {
 /* ─── § 5 — lane strips: aligned shared grid ────────────────────────────── */
 .lane {
   display: grid;
-  /* name | pattern-select | meter | MIX | TONE | FX | M/S | actions */
-  grid-template-columns: 64px minmax(180px,300px) 10px auto auto auto 56px auto;
+  /* drag | name | pattern-select | meter | MIX | TONE | FX | M/S | actions */
+  grid-template-columns: 16px 64px minmax(180px,300px) 10px auto auto auto 56px auto;
   column-gap: 16px;
   align-items: center;
   background: var(--panel-2);
@@ -1548,4 +1548,98 @@ input[type=range] {
   background: var(--panel-2);
   color: var(--ink);
   border-color: transparent;
+}
+
+/* ─── § 5 — drag handle ─────────────────────────────────────────────────────── */
+.lane-drag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 24px;
+  font-size: 14px;
+  color: var(--faint);
+  cursor: grab;
+  user-select: none;
+  opacity: 0.45;
+  transition: opacity 0.1s, color 0.1s;
+  line-height: 1;
+}
+.lane-drag:hover { opacity: 1; color: var(--dim); }
+.lane-drag:active { cursor: grabbing; }
+
+/* ─── Dragging state ─────────────────────────────────────────────────────────── */
+.lane.dragging {
+  opacity: 0.45;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.03),
+    0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* ─── Drop-position indicators ───────────────────────────────────────────────── */
+.lane.drop-above {
+  border-top: 2px solid var(--acc);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.03),
+    0 1px 2px rgba(0,0,0,0.3),
+    0 -2px 8px rgba(84,240,200,0.25);
+}
+.lane.drop-below {
+  border-bottom: 2px solid var(--acc);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.03),
+    0 1px 2px rgba(0,0,0,0.3),
+    0 2px 8px rgba(84,240,200,0.25);
+}
+
+/* ─── § 4 — pin button ───────────────────────────────────────────────────────── */
+/* Pinnable sections need relative positioning for the absolute pin button */
+#viz, #fills, #master {
+  position: relative;
+}
+
+.pin-btn {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--faint);
+  opacity: 0.4;
+  cursor: pointer;
+  z-index: 5;
+  transition: opacity 0.12s, border-color 0.12s, background 0.12s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pin-btn:hover {
+  opacity: 1;
+  background: var(--panel-3);
+  border-color: var(--line);
+}
+.pin-btn.pinned {
+  opacity: 1;
+  color: var(--acc);
+  background: rgba(84,240,200,0.10);
+  border-color: var(--acc);
+  box-shadow: 0 0 6px rgba(84,240,200,0.25);
+}
+
+/* ─── Pinned section: sticky float + lifted shadow ───────────────────────────── */
+#viz.pinned,
+#fills.pinned,
+#master.pinned {
+  border-color: var(--acc-dim);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 4px 20px rgba(0,0,0,0.6),
+    0 0 0 1px rgba(84,240,200,0.12);
 }

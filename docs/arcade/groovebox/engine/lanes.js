@@ -209,6 +209,21 @@ export function soloExclusive(lanes, id) {
   return turningOn;
 }
 
+/**
+ * moveLane(song, fromId, toIndex) — reorders song.lanes in place.
+ * Removes the lane with `fromId`, then splices it in at `toIndex` (clamped).
+ * No-op if `fromId` is not found. Returns the lane if moved, null otherwise.
+ */
+export function moveLane(song, fromId, toIndex) {
+  const lanes = song.lanes;
+  const fromIdx = lanes.findIndex(l => l.id === fromId);
+  if (fromIdx < 0) return null;
+  const [lane] = lanes.splice(fromIdx, 1);
+  const clampedTo = Math.max(0, Math.min(toIndex, lanes.length));
+  lanes.splice(clampedTo, 0, lane);
+  return lane;
+}
+
 // ─── Per-drum-voice mute/solo (reads the drums-type lane object directly) ─────
 
 export function toggleDrumMute(drumsLane, voice) {

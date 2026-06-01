@@ -2,7 +2,7 @@ import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
 import { eventsForStep } from './scheduler.js';
 import { createVoiceForType, trigger } from './voices.js';
-import { normalizeLanes, cachePoolsByType, laneByType, setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloExclusive, captureScene as _captureScene, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane } from './lanes.js';
+import { normalizeLanes, cachePoolsByType, laneByType, setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloExclusive, captureScene as _captureScene, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane, moveLane as _moveLane } from './lanes.js';
 import { sectionAt } from './arrangement.js';
 
 export function createEngine() {
@@ -288,6 +288,9 @@ export function createEngine() {
     },
     renameLane(id, name) {
       if (song) _renameLane(song, id, name);
+    },
+    moveLane(id, toIndex) {
+      if (song) _moveLane(song, id, toIndex);
     },
   };
 }

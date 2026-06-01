@@ -7,6 +7,7 @@ import {
   duplicateLane,
   removeLane,
   renameLane,
+  moveLane,
 } from '../engine/lanes.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -272,6 +273,57 @@ test('cachePoolsByType: pools match the authored pools by reference', () => {
   const song = makeSong();
   const drumsLane = song.lanes.find(l => l.id === 'drums');
   expect(song._poolsByType.drums).toBe(drumsLane.pool);
+});
+
+// ─── moveLane ─────────────────────────────────────────────────────────────────
+
+test('moveLane: moves a lane to a new index', () => {
+  const song = makeSong();
+  // drums(0) bass(1) chords(2) melody(3) → move drums to index 3
+  moveLane(song, 'drums', 3);
+  expect(song.lanes.map(l => l.id)).toEqual(['bass', 'chords', 'melody', 'drums']);
+});
+
+test('moveLane: moves a lane earlier in the list', () => {
+  const song = makeSong();
+  // drums(0) bass(1) chords(2) melody(3) → move melody to index 0
+  moveLane(song, 'melody', 0);
+  expect(song.lanes.map(l => l.id)).toEqual(['melody', 'drums', 'bass', 'chords']);
+});
+
+test('moveLane: no-op for unknown id', () => {
+  const song = makeSong();
+  const before = song.lanes.map(l => l.id);
+  const result = moveLane(song, 'ghost', 0);
+  expect(result).toBeNull();
+  expect(song.lanes.map(l => l.id)).toEqual(before);
+});
+
+test('moveLane: clamps toIndex above length to end', () => {
+  const song = makeSong();
+  moveLane(song, 'drums', 999);
+  // drums was at 0, clamped to end
+  expect(song.lanes[song.lanes.length - 1].id).toBe('drums');
+});
+
+test('moveLane: clamps toIndex below 0 to start', () => {
+  const song = makeSong();
+  moveLane(song, 'melody', -5);
+  expect(song.lanes[0].id).toBe('melody');
+});
+
+test('moveLane: returns the moved lane object', () => {
+  const song = makeSong();
+  const result = moveLane(song, 'bass', 0);
+  expect(result).toBeDefined();
+  expect(result.id).toBe('bass');
+});
+
+test('moveLane: preserves total lane count', () => {
+  const song = makeSong();
+  const before = song.lanes.length;
+  moveLane(song, 'chords', 1);
+  expect(song.lanes.length).toBe(before);
 });
 
 // ─── Two-melody-lane coexistence (headline use case) ─────────────────────────

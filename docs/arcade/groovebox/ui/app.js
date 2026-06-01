@@ -23,6 +23,13 @@ let viz;
 // Track which lane is currently open in the viz (for edit-button highlight).
 let _editingLaneId = null;
 
+// ─── Drag-reorder state ───────────────────────────────────────────────────────
+let _draggedLaneId = null;
+
+// ─── Pin-a-section state ──────────────────────────────────────────────────────
+const PINNABLE = ['viz', 'fills', 'master'];
+let _pinnedSectionId = localStorage.getItem('gb-pinned') || null;
+
 function options(lane) {
   return lane.type === 'chords' ? chordModes : Object.keys(lane.pool || {});
 }
@@ -171,8 +178,9 @@ function renderStrips() {
     const editBtn = hasEditor
       ? `<button class="lane-edit" data-lane="${lane.id}" title="Edit ${lane.name} in viz">✎</button>`
       : `<button class="lane-edit" data-lane="${lane.id}" title="No editor for ${lane.name}" disabled>✎</button>`;
-    // Grid columns: name | pattern-select | meter | MIX | TONE | FX | M/S | actions
+    // Grid columns: drag | name | pattern-select | meter | MIX | TONE | FX | M/S | actions
     return `<div class="lane" data-lane="${lane.id}" data-type="${lane.type}">
+      <span class="lane-drag" title="Drag to reorder">⠿</span>
       <span class="name" title="double-click to rename">${lane.name}</span>
       <div class="mctl"><select data-lane="${lane.id}">${opts}</select>${tone}</div>
       <div class="lvl"><div class="lvl-fill"></div></div>
@@ -296,6 +304,56 @@ function renderStrips() {
 
     msgroup.before(mixGrp, toneGrp, fxGrp);
   });
+  // ─── Drag-to-reorder ────────────────────────────────────────────────────────
+  host.querySelectorAll('.lane-drag').forEach(handle => {
+    const row = handle.closest('.lane');
+    // Only the handle initiates drag
+    handle.addEventListener('mousedown', () => { row.draggable = true; });
+    handle.addEventListener('mouseup',   () => { row.draggable = false; });
+
+    row.addEventListener('dragstart', e => {
+      _draggedLaneId = row.dataset.lane;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      row.draggable = false;
+      _draggedLaneId = null;
+      // Clear all drop indicators
+      host.querySelectorAll('.lane').forEach(r => r.classList.remove('drop-above', 'drop-below'));
+    });
+
+    row.addEventListener('dragover', e => {
+      if (!_draggedLaneId || _draggedLaneId === row.dataset.lane) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const rect = row.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      host.querySelectorAll('.lane').forEach(r => r.classList.remove('drop-above', 'drop-below'));
+      if (e.clientY < midY) row.classList.add('drop-above');
+      else                   row.classList.add('drop-below');
+    });
+
+    row.addEventListener('dragleave', () => {
+      row.classList.remove('drop-above', 'drop-below');
+    });
+
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      if (!_draggedLaneId || _draggedLaneId === row.dataset.lane) return;
+      const lanes = eng.getLanes();
+      const targetIdx = lanes.findIndex(l => l.id === row.dataset.lane);
+      const rect = row.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      const insertBefore = e.clientY < midY;
+      const toIndex = insertBefore ? targetIdx : targetIdx + 1;
+      eng.moveLane(_draggedLaneId, toIndex);
+      renderStrips();
+    });
+  });
+
   refreshStates();
   renderViewTabs();   // rebuild quick-edit tabs to track the current lane list
 }
@@ -458,6 +516,47 @@ function renderArrange() {
   host.appendChild(timeline);
 }
 
+// ─── Pin-a-section ───────────────────────────────────────────────────────────
+function applyPinState() {
+  for (const id of PINNABLE) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const pinned = id === _pinnedSectionId;
+    el.classList.toggle('pinned', pinned);
+    const btn = el.querySelector('.pin-btn');
+    if (btn) btn.classList.toggle('pinned', pinned);
+    if (pinned) {
+      el.style.position = 'sticky';
+      el.style.top = '6px';
+      el.style.zIndex = '30';
+    } else {
+      el.style.position = '';
+      el.style.top = '';
+      el.style.zIndex = '';
+    }
+  }
+}
+
+function setupPinButtons() {
+  for (const id of PINNABLE) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    // Avoid duplicate buttons on re-mount
+    if (el.querySelector('.pin-btn')) continue;
+    const btn = document.createElement('button');
+    btn.className = 'pin-btn';
+    btn.title = 'Pin this section to the top';
+    btn.textContent = '📌';
+    btn.onclick = () => {
+      _pinnedSectionId = _pinnedSectionId === id ? null : id;
+      localStorage.setItem('gb-pinned', _pinnedSectionId || '');
+      applyPinState();
+    };
+    el.appendChild(btn);
+  }
+  applyPinState();
+}
+
 // ─── Reset FX to neutral (call before mount on song switch) ──────────────────
 function resetFX() {
   for (const lane of eng.getLanes()) {
@@ -488,6 +587,7 @@ function mount() {
   renderFills();
   renderMaster();
   renderArrange();
+  setupPinButtons();
   viz = makeViz(document.getElementById('viz'), song, eng);
   // Scope tab off — lane editor takes over.
   document.querySelectorAll('[data-view]').forEach(x => x.classList.remove('on'));
