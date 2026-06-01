@@ -14,6 +14,7 @@ import { makeKnob } from './knob.js';
 const eng = createEngine();
 const chordModes = ['pad','arp','stab'];
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
+const LANE_EMOJI = { drums:'🥁', bass:'🎸', chords:'🎹', melody:'🎺' };
 
 const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, heartbeats, 'digital-love': digitalLove, 'memory-reboot': memoryReboot, 'take-on-me': takeOnMe };
 
@@ -91,7 +92,7 @@ function makeKgroup(label, knobDefs) {
   return grp;
 }
 
-// Highlight the editing strip and clear scope tab active state.
+// Highlight the editing strip + the matching quick-edit tab; clear scope.
 function updateEditHighlight(id) {
   _editingLaneId = id;
   const host = document.getElementById('strips');
@@ -103,8 +104,51 @@ function updateEditHighlight(id) {
       if (editBtn) editBtn.classList.toggle('editing', isEditing);
     });
   }
-  // Deactivate scope tab when opening a lane editor.
-  document.querySelectorAll('[data-view]').forEach(x => x.classList.remove('on'));
+  const bar = document.querySelector('.vtabs');
+  if (bar) {
+    bar.querySelectorAll('.vtab-lane').forEach(t => t.classList.toggle('on', t.dataset.edit === id));
+    bar.querySelectorAll('[data-view]').forEach(x => x.classList.remove('on'));
+  }
+}
+
+// Quick-edit tabs in the VIEW bar: one per editable lane (emoji + name) + Scope.
+// Rebuilt on every renderStrips() so it tracks add/dup/remove/rename.
+function renderViewTabs() {
+  const bar = document.querySelector('.vtabs');
+  if (!bar) return;
+  bar.innerHTML = '<span class="vtabs-lbl">VIEW</span>';
+  for (const lane of eng.getLanes()) {
+    if (lane.type === 'chords') continue;   // chords has no grid/roll editor
+    const b = document.createElement('button');
+    b.className = 'vtab-lane';
+    b.dataset.edit = lane.id;
+    b.textContent = `${LANE_EMOJI[lane.type] || ''} ${lane.name}`.trim();
+    b.onclick = () => activateEditLane(lane.id);
+    bar.appendChild(b);
+  }
+  const scope = document.createElement('button');
+  scope.dataset.view = 'scope';
+  scope.textContent = '📈 Scope';
+  scope.onclick = () => toggleScope(scope);
+  bar.appendChild(scope);
+  if (_editingLaneId) updateEditHighlight(_editingLaneId);
+}
+
+// Scope toggle: on → show oscilloscope; off (click again) → back to last lane editor.
+function toggleScope(btn) {
+  if (btn.classList.contains('on')) {
+    btn.classList.remove('on');
+    if (_editingLaneId) activateEditLane(_editingLaneId);
+  } else {
+    document.querySelector('.vtabs').querySelectorAll('button').forEach(x => x.classList.remove('on'));
+    btn.classList.add('on');
+    const host = document.getElementById('strips');
+    if (host) {
+      host.querySelectorAll('.lane').forEach(row => row.classList.remove('editing'));
+      host.querySelectorAll('.lane-edit').forEach(b => b.classList.remove('editing'));
+    }
+    viz.setView('scope');
+  }
 }
 
 // Open a lane editor in the viz + update highlight.
@@ -129,7 +173,7 @@ function renderStrips() {
       ? `<button class="lane-edit" data-lane="${lane.id}" title="Edit ${lane.name} in viz">✎</button>`
       : `<button class="lane-edit" data-lane="${lane.id}" title="No editor for ${lane.name}" disabled>✎</button>`;
     // Grid columns: name | pattern-select | meter | MIX | TONE | FX | M/S | actions
-    return `<div class="lane" data-lane="${lane.id}">
+    return `<div class="lane" data-lane="${lane.id}" data-type="${lane.type}">
       <span class="name" title="double-click to rename">${lane.name}</span>
       <div class="mctl"><select data-lane="${lane.id}">${opts}</select>${tone}</div>
       <div class="lvl"><div class="lvl-fill"></div></div>
@@ -254,6 +298,7 @@ function renderStrips() {
     msgroup.before(mixGrp, toneGrp, fxGrp);
   });
   refreshStates();
+  renderViewTabs();   // rebuild quick-edit tabs to track the current lane list
 }
 
 // ─── Fills row ───────────────────────────────────────────────────────────────
@@ -492,28 +537,7 @@ document.getElementById('themesel').onchange = e => {
   viz.invalidateThemeColors?.();
 };
 
-// ─── Scope tab (only [data-view] button remaining) ───────────────────────────
-// Clicking Scope toggles the oscilloscope; clicking again returns to the last
-// lane editor.
-document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
-  const isOn = b.classList.contains('on');
-  if (isOn) {
-    // Toggle off → return to last lane editor.
-    b.classList.remove('on');
-    if (_editingLaneId) activateEditLane(_editingLaneId);
-  } else {
-    // Toggle on → show scope, clear lane edit highlight.
-    document.querySelectorAll('[data-view]').forEach(x => x.classList.toggle('on', x === b));
-    _editingLaneId = _editingLaneId; // keep it so we can return
-    // Remove editing highlights from strips.
-    const host = document.getElementById('strips');
-    if (host) {
-      host.querySelectorAll('.lane').forEach(row => row.classList.remove('editing'));
-      host.querySelectorAll('.lane-edit').forEach(btn => btn.classList.remove('editing'));
-    }
-    viz.setView('scope');
-  }
-});
+// (Scope + quick-edit lane tabs are built and wired in renderViewTabs().)
 
 // ─── Step callback (registered once; closes over module-level song/viz) ──────
 eng.onStep(({absStep, bar, stepInBar, fill, mode, songIndex, queue}) => {
