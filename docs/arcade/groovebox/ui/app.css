@@ -14,6 +14,8 @@
   --acc-dim:   #2e8a74;
   --hot:       #ff5b9e;
   --warn:      #ffd24a;
+  --ink-on-acc: #04201a;  /* text colour on --acc background; override per theme */
+  --tab-on-ink: var(--acc); /* active-tab text colour; override when --panel-3 is dark */
   --meter-lo:  #54f0c8;
   --meter-mid: #ffd24a;
   --meter-hi:  #ff5b6b;
@@ -204,37 +206,46 @@ select {
 
 /* ─── § 3 — play button ─────────────────────────────────────────────────── */
 #play {
-  background: linear-gradient(180deg, #63f8d4 0%, #3dd6b0 50%, #2eaa8a 100%);
-  color: #04201a;
-  border-color: #2eaa8a;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--acc) 82%, #fff) 0%,
+    var(--acc) 55%,
+    color-mix(in srgb, var(--acc) 80%, #000) 100%);
+  color: var(--ink-on-acc);
+  border-color: color-mix(in srgb, var(--acc) 70%, #000);
   font-weight: 700;
   min-width: 100px;
   letter-spacing: 0.05em;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.2);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.35),
     inset 0 -2px 0 rgba(0,0,0,0.25),
-    0 0 12px rgba(84,240,200,0.35),
+    0 0 12px color-mix(in srgb, var(--acc) 50%, transparent),
     0 2px 6px rgba(0,0,0,0.45);
 }
 #play:hover {
-  background: linear-gradient(180deg, #74fada 0%, #4ae0bc 50%, #38c09c 100%);
-  border-color: #38c09c;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--acc) 90%, #fff) 0%,
+    color-mix(in srgb, var(--acc) 95%, #fff) 50%,
+    color-mix(in srgb, var(--acc) 85%, #000) 100%);
+  border-color: color-mix(in srgb, var(--acc) 75%, #000);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.4),
     inset 0 -2px 0 rgba(0,0,0,0.2),
-    0 0 20px rgba(84,240,200,0.55),
+    0 0 20px color-mix(in srgb, var(--acc) 65%, transparent),
     0 2px 6px rgba(0,0,0,0.4);
 }
 #play.on {
-  background: linear-gradient(180deg, #ff7ab8 0%, #e03e84 50%, #be1f65 100%);
-  border-color: #be1f65;
-  color: #2a0316;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.25);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--hot) 82%, #fff) 0%,
+    var(--hot) 55%,
+    color-mix(in srgb, var(--hot) 80%, #000) 100%);
+  border-color: color-mix(in srgb, var(--hot) 70%, #000);
+  color: #fff;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.35);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.3),
     inset 0 -2px 0 rgba(0,0,0,0.25),
-    0 0 16px rgba(255,91,158,0.5),
+    0 0 16px color-mix(in srgb, var(--hot) 55%, transparent),
     0 2px 6px rgba(0,0,0,0.45);
 }
 
@@ -271,7 +282,7 @@ select {
 .vtabs button.on {
   /* raised, integrated pill — not a stuck-on bordered box */
   background: var(--panel-3);
-  color: var(--acc);
+  color: var(--tab-on-ink);
   box-shadow:
     0 1px 2px rgba(0,0,0,0.40),
     inset 0 1px 0 rgba(255,255,255,0.06);
@@ -1028,6 +1039,7 @@ input[type=range] {
   --acc:         #0e9c80;
   --acc-dim:     #5cc3ad;
   --hot:         #d8357d;
+  --ink-on-acc:  #ffffff;
   --warn:        #b8860a;
   --meter-lo:    #0e9c80;
   --meter-mid:   #b8860a;
@@ -1067,6 +1079,7 @@ input[type=range] {
   --acc:         #b06a22;
   --acc-dim:     #cf9b5e;
   --hot:         #b0405f;
+  --ink-on-acc:  #ffffff;
   --warn:        #8a7212;
   --meter-lo:    #b06a22;
   --meter-mid:   #8a7212;
@@ -1093,11 +1106,11 @@ input[type=range] {
 [data-theme="beige"] h1 { text-shadow: none; }
 
 [data-theme="playdate"] {
-  --bg:          #e8c200;
+  --bg:          #caa600;
   --panel:       #ffd11a;
-  --panel-2:     #ffda47;
-  --panel-3:     #ffe784;
-  --line:        rgba(0,0,0,.32);
+  --panel-2:     #f4c200;
+  --panel-3:     #1a1500;
+  --line:        rgba(0,0,0,.30);
   --line-dk:     rgba(0,0,0,.45);
   --ink:         #1a1500;
   --dim:         #5a4900;
@@ -1109,8 +1122,10 @@ input[type=range] {
   --meter-lo:    #141100;
   --meter-mid:   #8a5a00;
   --meter-hi:    #c8005a;
-  --cell:        #f0c200;
-  --cell-alt:    #ffce14;
+  --cell:        #e8c200;
+  --cell-alt:    #f4cf14;
+  --ink-on-acc:  #ffe27a;
+  --tab-on-ink:  #ffe27a;
   --hit1:        #1a1500;
   --hit2:        #141100;
   --roll-bg:     #ffd11a;
@@ -1143,6 +1158,7 @@ input[type=range] {
   --acc:         #c77dff;
   --acc-dim:     #8a4fd0;
   --hot:         #ff5bb0;
+  --ink-on-acc:  #1a0f2e;
   --warn:        #ffd24a;
   --meter-lo:    #c77dff;
   --meter-mid:   #ffd24a;
@@ -1176,6 +1192,7 @@ input[type=range] {
   --acc:         #8bac0f;
   --acc-dim:     #4f6a10;
   --hot:         #cfe05a;
+  --ink-on-acc:  #0f380f;
   --warn:        #cfe05a;
   --meter-lo:    #8bac0f;
   --meter-mid:   #cfe05a;
@@ -1209,6 +1226,7 @@ input[type=range] {
   --acc:         #ffb000;
   --acc-dim:     #a06e00;
   --hot:         #ff6a3d;
+  --ink-on-acc:  #1b1400;
   --warn:        #ffd24a;
   --meter-lo:    #ffb000;
   --meter-mid:   #ffd24a;
