@@ -1799,3 +1799,164 @@ input[type=range] {
     0 4px 20px rgba(0,0,0,0.6),
     0 0 0 1px rgba(84,240,200,0.12);
 }
+
+/* ─── Transport actions group (View + Help) ──────────────────────────────────── */
+.transport-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+}
+
+/* ─── View-settings popover ──────────────────────────────────────────────────── */
+.vs-wrap {
+  position: relative;
+}
+#viewsettings {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 200;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  min-width: 170px;
+}
+#viewsettings[hidden] { display: none; }
+.vs-title {
+  display: block;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 8px;
+}
+.vs-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.vs-row input[type="checkbox"] {
+  accent-color: var(--acc);
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+/* ─── Help modal ─────────────────────────────────────────────────────────────── */
+#help-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#help-modal[hidden] { display: none; }
+#help-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+}
+#help-modal-box {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px 28px 28px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  max-width: 640px;
+  width: calc(100vw - 48px);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  z-index: 1;
+}
+#help-modal-box h2 {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin: 0 0 18px;
+}
+#help-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--faint);
+  font-size: 13px;
+  box-shadow: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s;
+}
+#help-modal-close:hover {
+  background: var(--panel-3);
+  color: var(--ink);
+}
+.help-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px 28px;
+}
+.help-section h3 {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 0 0 8px;
+}
+.help-section dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  row-gap: 4px;
+  align-items: baseline;
+}
+.help-section dt {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.help-section dd {
+  font-size: 11px;
+  color: var(--dim);
+  margin: 0;
+}
+
+/* ─── Global hide-knob rules ─────────────────────────────────────────────────── */
+body.hide-k-vol  .knob[data-k="vol"]  { display: none; }
+body.hide-k-pan  .knob[data-k="pan"]  { display: none; }
+body.hide-k-cut  .knob[data-k="cut"]  { display: none; }
+body.hide-k-res  .knob[data-k="res"]  { display: none; }
+body.hide-k-drv  .knob[data-k="drv"]  { display: none; }
+body.hide-k-dly  .knob[data-k="dly"]  { display: none; }
+body.hide-k-fdbk .knob[data-k="fdbk"] { display: none; }
+body.hide-k-cho  .knob[data-k="cho"]  { display: none; }
+body.hide-k-wob  .knob[data-k="wob"]  { display: none; }
+body.hide-k-cru  .knob[data-k="cru"]  { display: none; }
+body.hide-k-vrb  .knob[data-k="vrb"]  { display: none; }
+body.hide-k-cmp  .knob[data-k="cmp"]  { display: none; }
+body.hide-k-bal  .knob[data-k="bal"]  { display: none; }
+body.hide-k-wid  .knob[data-k="wid"]  { display: none; }
+body.hide-k-lo   .knob[data-k="lo"]   { display: none; }
+body.hide-k-hi   .knob[data-k="hi"]   { display: none; }

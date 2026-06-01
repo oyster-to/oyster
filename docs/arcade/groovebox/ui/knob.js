@@ -4,12 +4,14 @@
  * value: 0..1; indicator rotates from -135deg (0) to +135deg (1).
  * Double-click resets to initial value.
  */
-export function makeKnob({ label, value = 0, onChange }) {
+export function makeKnob({ label, value = 0, onChange, tip, k }) {
   const initial = value;
   let current = value;
 
   const wrapper = document.createElement('div');
   wrapper.className = 'knob';
+  if (tip) wrapper.title = tip;
+  if (k)   wrapper.dataset.k = k;
 
   const dial = document.createElement('div');
   dial.className = 'knob-dial';

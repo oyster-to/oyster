@@ -36,6 +36,68 @@
             <option value="r1">Rabbit</option>
           </select>
         </div>
+        <div class="transport-actions">
+          <div class="vs-wrap">
+            <button id="viewsettings-btn" title="Show / hide knob types">⚙ View</button>
+            <div id="viewsettings" hidden>
+              <span class="vs-title">Visible knobs</span>
+              <div id="viewsettings-checks"></div>
+            </div>
+          </div>
+          <button id="help-btn" title="Open help">? Help</button>
+        </div>
+      </div>
+
+      <!-- Help modal -->
+      <div id="help-modal" hidden>
+        <div id="help-modal-backdrop"></div>
+        <div id="help-modal-box" role="dialog" aria-modal="true" aria-label="Groovebox help">
+          <button id="help-modal-close" aria-label="Close help">✕</button>
+          <h2>Groovebox — Quick Reference</h2>
+          <div class="help-sections">
+            <div class="help-section">
+              <h3>Mix</h3>
+              <dl>
+                <dt>Volume</dt><dd>Lane output level</dd>
+                <dt>Pan</dt><dd>Left / right placement</dd>
+                <dt>Balance</dt><dd>Master left / right</dd>
+                <dt>Width</dt><dd>Stereo width (mono ↔ wide)</dd>
+              </dl>
+            </div>
+            <div class="help-section">
+              <h3>Tone</h3>
+              <dl>
+                <dt>Cutoff</dt><dd>Filter sweep — left = low-pass (darker), right = high-pass (thinner), centre = open</dd>
+                <dt>Resonance</dt><dd>Emphasis at the filter cutoff (squelch)</dd>
+                <dt>Drive</dt><dd>Overdrive / distortion</dd>
+                <dt>Low EQ</dt><dd>Master bass shelf</dd>
+                <dt>High EQ</dt><dd>Master treble shelf</dd>
+              </dl>
+            </div>
+            <div class="help-section">
+              <h3>FX</h3>
+              <dl>
+                <dt>Delay</dt><dd>Echo send amount</dd>
+                <dt>Feedback</dt><dd>How many times the delay repeats (slap → wash)</dd>
+                <dt>Chorus</dt><dd>Shimmer / width</dd>
+                <dt>Wobble</dt><dd>LFO auto-filter movement</dd>
+                <dt>Crush</dt><dd>Bit-crusher (lo-fi)</dd>
+                <dt>Reverb</dt><dd>Space / room send</dd>
+                <dt>Comp</dt><dd>Compression — evens out dynamics</dd>
+              </dl>
+            </div>
+            <div class="help-section">
+              <h3>Controls</h3>
+              <dl>
+                <dt>M</dt><dd>Mute a lane (silences it; FX state preserved)</dd>
+                <dt>S</dt><dd>Solo a lane (silences all others)</dd>
+                <dt>VIEW</dt><dd>Open that lane in the step editor / piano roll</dd>
+                <dt>FILLS</dt><dd>Queue fill patterns — click a chip to remove it from the queue</dd>
+                <dt>KEY ± </dt><dd>Transpose the whole song up or down in semitones</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
       </div>
       <div id="credit"></div>
       <div class="vtabs"><span class="vtabs-lbl">VIEW</span><button data-view="scope">📈 Scope</button></div>

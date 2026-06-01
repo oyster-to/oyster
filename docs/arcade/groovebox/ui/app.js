@@ -15,6 +15,31 @@ const eng = createEngine();
 const chordModes = ['pad','arp','stab'];
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
 
+// ─── Knob info map (single source of truth) ───────────────────────────────────
+const KNOB_INFO = {
+  vol:  ['Volume',   'Lane output level'],
+  pan:  ['Pan',      'Left / right placement'],
+  cut:  ['Cutoff',   'Filter sweep — left = low-pass (darker), right = high-pass (thinner), centre = open'],
+  res:  ['Resonance','Emphasis at the filter cutoff (squelch)'],
+  drv:  ['Drive',    'Overdrive / distortion'],
+  dly:  ['Delay',    'Echo send amount'],
+  fdbk: ['Feedback', 'How many times the delay repeats (slap → wash)'],
+  cho:  ['Chorus',   'Shimmer / width'],
+  wob:  ['Wobble',   'LFO auto-filter movement'],
+  cru:  ['Crush',    'Bit-crusher (lo-fi)'],
+  vrb:  ['Reverb',   'Space / room send'],
+  cmp:  ['Comp',     'Compression — evens out dynamics'],
+  bal:  ['Balance',  'Master left / right'],
+  wid:  ['Width',    'Stereo width (mono ↔ wide)'],
+  lo:   ['Low EQ',   'Master bass shelf'],
+  hi:   ['High EQ',  'Master treble shelf'],
+};
+
+function knobTip(k) {
+  const info = KNOB_INFO[k];
+  return info ? info[0] + ' — ' + info[1] : k;
+}
+
 const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, heartbeats, 'digital-love': digitalLove, 'memory-reboot': memoryReboot, 'take-on-me': takeOnMe };
 
 // Module-level refs — reassigned by mount() on every song switch.
@@ -291,22 +316,22 @@ function renderStrips() {
     const msgroup = row.querySelector('.msgroup');
 
     const mixGrp = makeKgroup('MIX', [
-      { label: 'vol', value: 1.0, onChange: v => eng.setLaneFX(id, 'vol',   v) },
-      { label: 'pan', value: 0.5, onChange: v => eng.setLaneFX(id, 'pan',   v) },
+      { label: 'vol', value: 1.0, onChange: v => eng.setLaneFX(id, 'vol',   v), tip: knobTip('vol'), k: 'vol' },
+      { label: 'pan', value: 0.5, onChange: v => eng.setLaneFX(id, 'pan',   v), tip: knobTip('pan'), k: 'pan' },
     ]);
     const toneGrp = makeKgroup('TONE', [
-      { label: 'cut', value: 0.5, onChange: v => eng.setLaneFX(id, 'cut',   v) },
-      { label: 'res', value: 0,   onChange: v => eng.setLaneFX(id, 'res',   v) },
-      { label: 'drv', value: 0,   onChange: v => eng.setLaneFX(id, 'drive', v) },
+      { label: 'cut', value: 0.5, onChange: v => eng.setLaneFX(id, 'cut',   v), tip: knobTip('cut'), k: 'cut' },
+      { label: 'res', value: 0,   onChange: v => eng.setLaneFX(id, 'res',   v), tip: knobTip('res'), k: 'res' },
+      { label: 'drv', value: 0,   onChange: v => eng.setLaneFX(id, 'drive', v), tip: knobTip('drv'), k: 'drv' },
     ]);
     const fxGrp = makeKgroup('FX', [
-      { label: 'dly',  value: 0,   onChange: v => eng.setLaneFX(id, 'delay',  v) },
-      { label: 'fdbk', value: 0.3, onChange: v => eng.setLaneFX(id, 'fdbk',   v) },
-      { label: 'cho',  value: 0,   onChange: v => eng.setLaneFX(id, 'cho',    v) },
-      { label: 'wob',  value: 0,   onChange: v => eng.setLaneFX(id, 'wob',    v) },
-      { label: 'cru',  value: 0,   onChange: v => eng.setLaneFX(id, 'crush',  v) },
-      { label: 'vrb',  value: 0,   onChange: v => eng.setLaneFX(id, 'reverb', v) },
-      { label: 'cmp',  value: 0,   onChange: v => eng.setLaneFX(id, 'comp',   v) },
+      { label: 'dly',  value: 0,   onChange: v => eng.setLaneFX(id, 'delay',  v), tip: knobTip('dly'),  k: 'dly'  },
+      { label: 'fdbk', value: 0.3, onChange: v => eng.setLaneFX(id, 'fdbk',   v), tip: knobTip('fdbk'), k: 'fdbk' },
+      { label: 'cho',  value: 0,   onChange: v => eng.setLaneFX(id, 'cho',    v), tip: knobTip('cho'),  k: 'cho'  },
+      { label: 'wob',  value: 0,   onChange: v => eng.setLaneFX(id, 'wob',    v), tip: knobTip('wob'),  k: 'wob'  },
+      { label: 'cru',  value: 0,   onChange: v => eng.setLaneFX(id, 'crush',  v), tip: knobTip('cru'),  k: 'cru'  },
+      { label: 'vrb',  value: 0,   onChange: v => eng.setLaneFX(id, 'reverb', v), tip: knobTip('vrb'),  k: 'vrb'  },
+      { label: 'cmp',  value: 0,   onChange: v => eng.setLaneFX(id, 'comp',   v), tip: knobTip('cmp'),  k: 'cmp'  },
     ]);
 
     msgroup.before(mixGrp, toneGrp, fxGrp);
@@ -442,17 +467,17 @@ function renderMaster() {
 
   // Knob groups mirroring lane strip layout
   const mixGrp = makeKgroup('MIX', [
-    { label: 'vol', value: 1.0, onChange: v => eng.setMasterFX('vol',   v) },
-    { label: 'bal', value: 0.5, onChange: v => eng.setMasterFX('bal',   v) },
-    { label: 'wid', value: 0.5, onChange: v => eng.setMasterFX('width', v) },
+    { label: 'vol', value: 1.0, onChange: v => eng.setMasterFX('vol',   v), tip: knobTip('vol'), k: 'vol' },
+    { label: 'bal', value: 0.5, onChange: v => eng.setMasterFX('bal',   v), tip: knobTip('bal'), k: 'bal' },
+    { label: 'wid', value: 0.5, onChange: v => eng.setMasterFX('width', v), tip: knobTip('wid'), k: 'wid' },
   ]);
   const toneGrp = makeKgroup('EQ', [
-    { label: 'lo', value: 0.5, onChange: v => eng.setMasterFX('lo', v) },
-    { label: 'hi', value: 0.5, onChange: v => eng.setMasterFX('hi', v) },
+    { label: 'lo', value: 0.5, onChange: v => eng.setMasterFX('lo', v), tip: knobTip('lo'), k: 'lo' },
+    { label: 'hi', value: 0.5, onChange: v => eng.setMasterFX('hi', v), tip: knobTip('hi'), k: 'hi' },
   ]);
   const fxGrp = makeKgroup('FX', [
-    { label: 'vrb', value: 0, onChange: v => eng.setMasterFX('reverb', v) },
-    { label: 'cmp', value: 0, onChange: v => eng.setMasterFX('comp',   v) },
+    { label: 'vrb', value: 0, onChange: v => eng.setMasterFX('reverb', v), tip: knobTip('vrb'), k: 'vrb' },
+    { label: 'cmp', value: 0, onChange: v => eng.setMasterFX('comp',   v), tip: knobTip('cmp'), k: 'cmp' },
   ]);
   mwrap.appendChild(mixGrp);
   mwrap.appendChild(toneGrp);
@@ -709,6 +734,72 @@ eng.onStep(({absStep, bar, stepInBar, fill, mode, songIndex, queue}) => {
     if (sel) sel.value = saved;
   }
 })();
+
+// ─── View-settings: hidden-knob persistence ───────────────────────────────────
+// Apply persisted hidden-knob body classes before first render.
+(function () {
+  const hidden = JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]');
+  for (const k of hidden) document.body.classList.add('hide-k-' + k);
+})();
+
+// ─── Help modal ───────────────────────────────────────────────────────────────
+document.getElementById('help-btn').onclick = () => {
+  document.getElementById('help-modal').hidden = false;
+};
+document.getElementById('help-modal-close').onclick = () => {
+  document.getElementById('help-modal').hidden = true;
+};
+document.getElementById('help-modal-backdrop').onclick = () => {
+  document.getElementById('help-modal').hidden = true;
+};
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.getElementById('help-modal').hidden = true;
+});
+
+// ─── View-settings popover ────────────────────────────────────────────────────
+const _vsBtn  = document.getElementById('viewsettings-btn');
+const _vsPanel = document.getElementById('viewsettings');
+
+// Build checkbox rows from KNOB_INFO
+const _vsForm = document.getElementById('viewsettings-checks');
+const _vsKnobs = ['vol','pan','cut','res','drv','dly','fdbk','cho','wob','cru','vrb','cmp','bal','wid','lo','hi'];
+for (const k of _vsKnobs) {
+  const info = KNOB_INFO[k];
+  const row = document.createElement('label');
+  row.className = 'vs-row';
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.dataset.vsK = k;
+  const hidden = JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]');
+  cb.checked = !hidden.includes(k);
+  cb.addEventListener('change', () => {
+    const nowHidden = JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]');
+    if (cb.checked) {
+      document.body.classList.remove('hide-k-' + k);
+      const idx = nowHidden.indexOf(k);
+      if (idx !== -1) nowHidden.splice(idx, 1);
+    } else {
+      document.body.classList.add('hide-k-' + k);
+      if (!nowHidden.includes(k)) nowHidden.push(k);
+    }
+    localStorage.setItem('gb-hidden-knobs', JSON.stringify(nowHidden));
+  });
+  const lbl = document.createElement('span');
+  lbl.textContent = info ? info[0] : k;
+  row.appendChild(cb);
+  row.appendChild(lbl);
+  _vsForm.appendChild(row);
+}
+
+_vsBtn.onclick = e => {
+  e.stopPropagation();
+  _vsPanel.hidden = !_vsPanel.hidden;
+};
+document.addEventListener('click', e => {
+  if (!_vsPanel.contains(e.target) && e.target !== _vsBtn) {
+    _vsPanel.hidden = true;
+  }
+});
 
 // ─── Initial load ─────────────────────────────────────────────────────────────
 eng.load(kids);
