@@ -86,10 +86,12 @@ export function createEngine() {
       const dl = new Tone.FeedbackDelay({ delayTime: '8n', feedback: 0.28, wet: 0 }).connect(pan);
       const rev = new Tone.Reverb({ decay: 2.0, wet: 0 }).connect(dl);
       const comp = new Tone.Compressor({ threshold: 0, ratio: 1, attack: 0.01, release: 0.2 }).connect(rev);
-      const cr = new Tone.BitCrusher(4).connect(comp); cr.wet.value = 0;
+      const auto = new Tone.AutoFilter({ frequency: '8n', depth: 0.7, baseFrequency: 200, octaves: 4, wet: 0 }).start(); auto.connect(comp);
+      const chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.7, wet: 0 }).start(); chorus.connect(auto);
+      const cr = new Tone.BitCrusher(4).connect(chorus); cr.wet.value = 0;
       const dr = new Tone.Distortion({ distortion: 0.4, oversample: '4x' }).connect(cr); dr.wet.value = 0;
       const ft = new Tone.Filter({ type: 'lowpass', frequency: 14000, Q: 0.7 }).connect(dr);
-      return { filter: ft, drive: dr, crush: cr, comp, reverb: rev, delay: dl, panner: pan, vol, input: ft, _cutType: 'lowpass' };
+      return { filter: ft, drive: dr, crush: cr, chorus, auto, comp, reverb: rev, delay: dl, panner: pan, vol, input: ft, _cutType: 'lowpass' };
     };
     _masterIn = masterIn;
     // Waveform analyser for master (sink — doesn't alter audio chain).
@@ -247,6 +249,10 @@ export function createEngine() {
       else if (param === 'pan')    c.panner.pan.rampTo((v01 - 0.5) * 2, 0.08);
       else if (param === 'reverb') c.reverb.wet.rampTo(v01 * 0.6, 0.08);
       else if (param === 'comp')   { c.comp.threshold.value = -30 * v01; c.comp.ratio.value = 1 + 7 * v01; }
+      else if (param === 'res')    c.filter.Q.rampTo(0.7 + v01 * 14, 0.05);
+      else if (param === 'fdbk')   c.delay.feedback.rampTo(v01 * 0.9, 0.05);
+      else if (param === 'cho')    c.chorus.wet.rampTo(v01, 0.05);
+      else if (param === 'wob')    c.auto.wet.rampTo(v01, 0.05);
     },
     setMasterFX(param, v01) {
       if      (param === 'reverb' && masterRev)   masterRev.wet.rampTo(v01 * 0.6, 0.05);

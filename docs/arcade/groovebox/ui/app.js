@@ -293,13 +293,17 @@ function renderStrips() {
     ]);
     const toneGrp = makeKgroup('TONE', [
       { label: 'cut', value: 0.5, onChange: v => eng.setLaneFX(id, 'cut',   v) },
+      { label: 'res', value: 0,   onChange: v => eng.setLaneFX(id, 'res',   v) },
       { label: 'drv', value: 0,   onChange: v => eng.setLaneFX(id, 'drive', v) },
     ]);
     const fxGrp = makeKgroup('FX', [
-      { label: 'dly', value: 0,   onChange: v => eng.setLaneFX(id, 'delay',  v) },
-      { label: 'cru', value: 0,   onChange: v => eng.setLaneFX(id, 'crush',  v) },
-      { label: 'vrb', value: 0,   onChange: v => eng.setLaneFX(id, 'reverb', v) },
-      { label: 'cmp', value: 0,   onChange: v => eng.setLaneFX(id, 'comp',   v) },
+      { label: 'dly',  value: 0,   onChange: v => eng.setLaneFX(id, 'delay',  v) },
+      { label: 'fdbk', value: 0.3, onChange: v => eng.setLaneFX(id, 'fdbk',   v) },
+      { label: 'cho',  value: 0,   onChange: v => eng.setLaneFX(id, 'cho',    v) },
+      { label: 'wob',  value: 0,   onChange: v => eng.setLaneFX(id, 'wob',    v) },
+      { label: 'cru',  value: 0,   onChange: v => eng.setLaneFX(id, 'crush',  v) },
+      { label: 'vrb',  value: 0,   onChange: v => eng.setLaneFX(id, 'reverb', v) },
+      { label: 'cmp',  value: 0,   onChange: v => eng.setLaneFX(id, 'comp',   v) },
     ]);
 
     msgroup.before(mixGrp, toneGrp, fxGrp);
@@ -561,8 +565,12 @@ function setupPinButtons() {
 function resetFX() {
   for (const lane of eng.getLanes()) {
     eng.setLaneFX(lane.id, 'cut',    0.5);
+    eng.setLaneFX(lane.id, 'res',    0);
     eng.setLaneFX(lane.id, 'drive',  0);
     eng.setLaneFX(lane.id, 'delay',  0);
+    eng.setLaneFX(lane.id, 'fdbk',   0.3);
+    eng.setLaneFX(lane.id, 'cho',    0);
+    eng.setLaneFX(lane.id, 'wob',    0);
     eng.setLaneFX(lane.id, 'crush',  0);
     eng.setLaneFX(lane.id, 'vol',    1);
     eng.setLaneFX(lane.id, 'pan',    0.5);
