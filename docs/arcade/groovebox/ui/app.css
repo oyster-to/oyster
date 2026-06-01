@@ -554,9 +554,19 @@ input[type=range] { accent-color: var(--acc); }
 /* ─── fills row ──────────────────────────────────────────────────────────── */
 .fillsrow{display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap}
 .fillsrow .flbl{font-size:10px;letter-spacing:.12em;color:var(--dim);font-weight:700;text-transform:uppercase}
-.fillbtn{}
-.fillbtn.armed{border-color:var(--warn);color:var(--warn);box-shadow:0 0 0 1px var(--warn) inset}
+.fillbtn{display:flex;flex-direction:column;align-items:center;gap:2px}
+.fillbtn.queued{
+  border-color:#e8920a;
+  color:#ffd24a;
+  box-shadow:0 0 0 1px #e8920a inset, 0 0 10px rgba(232,146,10,0.4);
+  animation:fill-queue-pulse 1.2s ease-in-out infinite;
+}
+@keyframes fill-queue-pulse{
+  0%,100%{box-shadow:0 0 0 1px #e8920a inset, 0 0 10px rgba(232,146,10,0.4)}
+  50%{box-shadow:0 0 0 1px #e8920a inset, 0 0 18px rgba(232,146,10,0.7)}
+}
 .fillbtn.firing{background:var(--hot);border-color:var(--hot);color:#2a0316;font-weight:700}
+.fill-count{font-size:8px;color:var(--dim);letter-spacing:.02em;line-height:1;min-height:9px}
 
 /* ─── master FX strip ────────────────────────────────────────────────────── */
 .masterfx{display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:12px;border-top:1px solid #2c3044}

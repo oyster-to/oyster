@@ -75,7 +75,6 @@ function renderStrips() {
 }
 
 // ─── Fills row ───────────────────────────────────────────────────────────────
-let armedFill = null;
 function renderFills() {
   const host = document.getElementById('fills');
   if (!host || !song.fills) return;
@@ -89,13 +88,15 @@ function renderFills() {
   for (const name of Object.keys(song.fills)) {
     const btn = document.createElement('button');
     btn.className = 'fillbtn';
-    btn.textContent = name;
     btn.dataset.fill = name;
-    btn.onclick = () => {
-      armedFill = name;
-      eng.triggerFill(name);
-      host.querySelectorAll('.fillbtn').forEach(b => b.classList.toggle('armed', b === btn));
-    };
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'fill-name';
+    nameSpan.textContent = name;
+    const countSpan = document.createElement('span');
+    countSpan.className = 'fill-count';
+    btn.appendChild(nameSpan);
+    btn.appendChild(countSpan);
+    btn.onclick = () => { eng.queueFill(name); };
     row.appendChild(btn);
   }
   host.appendChild(row);
@@ -235,14 +236,24 @@ document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
 });
 
 // ─── Step callback (registered once; closes over module-level song/viz) ──────
-eng.onStep(({absStep, bar, stepInBar, fill, mode, songIndex}) => {
+eng.onStep(({absStep, bar, stepInBar, fill, mode, songIndex, queued, barsToFill}) => {
   viz.setStep(absStep, bar, stepInBar);
   const fillsHost = document.getElementById('fills');
   if (fillsHost) {
     fillsHost.querySelectorAll('.fillbtn').forEach(btn => {
-      const isFiring = btn.dataset.fill === fill;
-      btn.classList.toggle('firing', isFiring);
-      if (isFiring) btn.classList.remove('armed');
+      const countSpan = btn.querySelector('.fill-count');
+      if (btn.dataset.fill === fill) {
+        btn.classList.add('firing');
+        btn.classList.remove('queued');
+        if (countSpan) countSpan.textContent = '';
+      } else if (btn.dataset.fill === queued) {
+        btn.classList.add('queued');
+        btn.classList.remove('firing');
+        if (countSpan) countSpan.textContent = barsToFill > 0 ? ('fires in ' + barsToFill) : 'now';
+      } else {
+        btn.classList.remove('queued', 'firing');
+        if (countSpan) countSpan.textContent = '';
+      }
     });
   }
   // Timeline highlight
