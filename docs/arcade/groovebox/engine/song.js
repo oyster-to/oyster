@@ -18,4 +18,10 @@ export function chordAt(progression, bar) {
   return progression[((bar % n) + n) % n];
 }
 
+export function laneAudible(song, lane) {
+  const anySolo = Object.values(song.lanes).some(l => l.soloed);
+  const L = song.lanes[lane];
+  return !L.muted && (!anySolo || !!L.soloed);
+}
+
 export { DRUM_KEYS };

@@ -2,7 +2,7 @@ import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
 import { eventsForStep } from './scheduler.js';
 import { createVoices, trigger } from './voices.js';
-import { setLane as _setLane, toggleMute as _toggleMute } from './lanes.js';
+import { setLane as _setLane, toggleMute as _toggleMute, toggleSolo as _toggleSolo } from './lanes.js';
 
 export function createEngine() {
   let song = null, voices = null, master = null, fx = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, toneType = 'pulse';
@@ -50,6 +50,7 @@ export function createEngine() {
     getSong() { return song; },
     setLane(lane, selection) { if (song) _setLane(song, lane, selection); },
     toggleMute(lane) { return song ? _toggleMute(song, lane) : false; },
+    toggleSolo(lane) { return song ? _toggleSolo(song, lane) : false; },
     setTone(type) { toneType = type; if (voices) voices.lead.set({ oscillator:{ type, width: 0.3 } }); },
     setLaneFX(lane, param, v01) {
       if (!fx || !fx[lane]) return;

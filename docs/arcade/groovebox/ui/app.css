@@ -415,7 +415,7 @@ input[type=range] { accent-color: var(--acc); }
 }
 .lane {
   display: grid;
-  grid-template-columns: 80px 1fr auto 70px;
+  grid-template-columns: 80px 1fr auto auto;
   gap: 10px;
   align-items: center;
   background: #0f1119;
@@ -439,6 +439,8 @@ input[type=range] { accent-color: var(--acc); }
   border-color: #5a2030;
   color: #ff7da6;
 }
+/* dim non-audible lane; keep mute/solo controls bright */
+.lane.silenced > :not(.msgroup) { opacity: .4; transition: opacity .15s; }
 
 .mctl{display:flex;gap:8px;align-items:center}
 .mctl select{width:auto}
@@ -465,20 +467,29 @@ input[type=range] { accent-color: var(--acc); }
 }
 .knob-lbl{font-size:8px;color:var(--dim);letter-spacing:0.04em;text-transform:uppercase}
 
-/* ─── mute = illuminated "M" button (mixer/DAW standard) ─────────────────── */
-.mute{
+/* ─── mute/solo button shared base ──────────────────────────────────────── */
+.mute, .solo {
   width:30px; height:30px; flex:0 0 30px; padding:0; border-radius:7px;
   font:700 12px ui-monospace,Menlo,monospace; color:var(--dim);
   border:1px solid #2c3044; cursor:pointer; transition:.12s;
   background:linear-gradient(180deg,#22252f,#15171f);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.05), inset 0 -1px 2px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.4);
 }
-.mute:hover{ border-color:#3a4060; }
-.mute.muted{                                                      /* engaged = lit amber-red */
+.mute:hover, .solo:hover { border-color:#3a4060; }
+.mute.muted {                                                      /* engaged = lit amber-red */
   color:#fff1e8; border-color:#a8391c;
   background:linear-gradient(180deg,#ff7a3d,#d6481e);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 0 12px rgba(255,90,40,.6), 0 1px 2px rgba(0,0,0,.4);
   text-shadow:0 1px 0 rgba(0,0,0,.3);
 }
-/* dim the rest of the lane when muted (keep the M button bright) */
-.lane.muted > :not(.mute){ opacity:.4; transition:opacity .15s; }
+.solo.soloed {                                                     /* engaged = lit teal */
+  color:#04201a; border-color:#2eaa8a;
+  background:linear-gradient(180deg,#63f8d4,#3dd6b0);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 0 12px rgba(84,240,200,.6), 0 1px 2px rgba(0,0,0,.4);
+  text-shadow:0 1px 0 rgba(255,255,255,.2);
+}
+
+/* ─── mute/solo group ────────────────────────────────────────────────────── */
+.msgroup { display:flex; gap:8px; align-items:flex-start; }
+.ctrl { display:flex; flex-direction:column; align-items:center; gap:3px; }
+.ctrl-lbl { font-size:8px; color:var(--dim); letter-spacing:.04em; text-transform:uppercase; }
