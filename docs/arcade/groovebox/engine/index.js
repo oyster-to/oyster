@@ -8,15 +8,27 @@ import { sectionAt } from './arrangement.js';
 export function createEngine() {
   let song = null, voices = null, master = null, fx = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, toneType = 'pulse', pendingFill = null, activeFill = null, fillQueue = [];
   let mode = 'live', songBar = 0;
-  let masterComp = null, masterRev = null;
+  let masterComp = null, masterRev = null, masterVol = null, masterPan = null, masterWidth = null, masterEQ = null;
+  let meterL = null, meterR = null;
   let scopeMaster = null, scopeLane = {};
   let meters = {};
   function ensure() {
     if (started) return;
     const out = new Tone.Limiter(-1).toDestination();
-    masterComp = new Tone.Compressor({ threshold: 0, ratio: 1, attack: 0.01, release: 0.2 }).connect(out);
+    masterVol  = new Tone.Gain(1).connect(out);
+    masterPan  = new Tone.Panner(0).connect(masterVol);
+    masterComp = new Tone.Compressor({ threshold: 0, ratio: 1, attack: 0.01, release: 0.2 }).connect(masterPan);
     masterRev  = new Tone.Reverb({ decay: 2.2, wet: 0 }).connect(masterComp);
-    const masterIn = masterRev;
+    masterWidth = new Tone.StereoWidener(0.5).connect(masterRev);
+    masterEQ   = new Tone.EQ3({ low: 0, mid: 0, high: 0 }).connect(masterWidth);
+    const masterIn = masterEQ;
+    // Stereo output meters — tapped post-volume (silent sinks, don't alter audio chain).
+    const split = new Tone.Split();
+    masterVol.connect(split);
+    meterL = new Tone.Meter({ normalRange: false });
+    meterR = new Tone.Meter({ normalRange: false });
+    split.connect(meterL, 0, 0);
+    split.connect(meterR, 1, 0);
     const makeFX = dest => {
       const vol = new Tone.Gain(1).connect(dest);
       const pan = new Tone.Panner(0).connect(vol);
@@ -147,8 +159,23 @@ export function createEngine() {
       else if (param === 'comp')   { c.comp.threshold.value = -30 * v01; c.comp.ratio.value = 1 + 7 * v01; }
     },
     setMasterFX(param, v01) {
-      if (param === 'reverb' && masterRev) masterRev.wet.rampTo(v01 * 0.6, 0.05);
-      else if (param === 'comp' && masterComp) { masterComp.threshold.value = -30 * v01; masterComp.ratio.value = 1 + 7 * v01; }
+      if      (param === 'reverb' && masterRev)   masterRev.wet.rampTo(v01 * 0.6, 0.05);
+      else if (param === 'comp'   && masterComp)  { masterComp.threshold.value = -30 * v01; masterComp.ratio.value = 1 + 7 * v01; }
+      else if (param === 'vol'    && masterVol)   masterVol.gain.rampTo(v01, 0.05);
+      else if (param === 'bal'    && masterPan)   masterPan.pan.rampTo((v01 - 0.5) * 2, 0.05);
+      else if (param === 'width'  && masterWidth) masterWidth.width.rampTo(v01, 0.05);
+      else if (param === 'lo'     && masterEQ)    masterEQ.low.value  = (v01 - 0.5) * 24;
+      else if (param === 'hi'     && masterEQ)    masterEQ.high.value = (v01 - 0.5) * 24;
+    },
+    getMasterLevel() {
+      if (!started || !meterL || !meterR) return [0, 0];
+      function toLevel(meter) {
+        let db = meter.getValue();
+        if (Array.isArray(db)) db = db[0];
+        if (!isFinite(db)) return 0;
+        return Math.max(0, Math.min(1, (db + 60) / 60));
+      }
+      return [toLevel(meterL), toLevel(meterR)];
     },
   };
 }

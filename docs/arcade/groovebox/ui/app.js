@@ -46,6 +46,14 @@ function startMeterLoop() {
         if (fill) fill.style.height = (eng.getLevel(lane) * 100) + '%';
       }
     }
+    // Master L/R stereo meters
+    const masterHost = document.getElementById('master');
+    if (masterHost) {
+      const [l, r] = eng.getMasterLevel();
+      const fills = masterHost.querySelectorAll('.lvl-stereo .lvl-fill');
+      if (fills[0]) fills[0].style.height = (l * 100) + '%';
+      if (fills[1]) fills[1].style.height = (r * 100) + '%';
+    }
     _meterRafId = requestAnimationFrame(tick);
   }
   _meterRafId = requestAnimationFrame(tick);
@@ -188,12 +196,41 @@ function renderMaster() {
   const masterHost = document.getElementById('master');
   masterHost.innerHTML = '';
   const mwrap = document.createElement('div'); mwrap.className = 'masterfx';
-  mwrap.innerHTML = '<span class="mlbl">MASTER</span>';
-  const masterFxGrp = makeKgroup('FX', [
-    { label:'verb', value:0, onChange: v => eng.setMasterFX('reverb', v) },
-    { label:'comp', value:0, onChange: v => eng.setMasterFX('comp', v) },
+
+  // Label
+  const lbl = document.createElement('span'); lbl.className = 'mlbl'; lbl.textContent = 'MASTER';
+  mwrap.appendChild(lbl);
+
+  // Stereo L/R meters
+  const stereoMeter = document.createElement('div'); stereoMeter.className = 'lvl-stereo';
+  const meterLEl = document.createElement('div'); meterLEl.className = 'lvl';
+  const meterLFill = document.createElement('div'); meterLFill.className = 'lvl-fill';
+  meterLEl.appendChild(meterLFill);
+  const meterREl = document.createElement('div'); meterREl.className = 'lvl';
+  const meterRFill = document.createElement('div'); meterRFill.className = 'lvl-fill';
+  meterREl.appendChild(meterRFill);
+  stereoMeter.appendChild(meterLEl);
+  stereoMeter.appendChild(meterREl);
+  mwrap.appendChild(stereoMeter);
+
+  // Knob groups mirroring lane strip layout
+  const mixGrp = makeKgroup('MIX', [
+    { label: 'vol', value: 1.0, onChange: v => eng.setMasterFX('vol',   v) },
+    { label: 'bal', value: 0.5, onChange: v => eng.setMasterFX('bal',   v) },
+    { label: 'wid', value: 0.5, onChange: v => eng.setMasterFX('width', v) },
   ]);
-  mwrap.appendChild(masterFxGrp);
+  const toneGrp = makeKgroup('TONE', [
+    { label: 'lo', value: 0.5, onChange: v => eng.setMasterFX('lo', v) },
+    { label: 'hi', value: 0.5, onChange: v => eng.setMasterFX('hi', v) },
+  ]);
+  const fxGrp = makeKgroup('FX', [
+    { label: 'vrb', value: 0, onChange: v => eng.setMasterFX('reverb', v) },
+    { label: 'cmp', value: 0, onChange: v => eng.setMasterFX('comp',   v) },
+  ]);
+  mwrap.appendChild(mixGrp);
+  mwrap.appendChild(toneGrp);
+  mwrap.appendChild(fxGrp);
+
   masterHost.appendChild(mwrap);
 }
 
@@ -270,8 +307,13 @@ function resetFX() {
     eng.setLaneFX(lane, 'reverb', 0);
     eng.setLaneFX(lane, 'comp',   0);
   }
+  eng.setMasterFX('vol',    1);
+  eng.setMasterFX('bal',    0.5);
+  eng.setMasterFX('width',  0.5);
+  eng.setMasterFX('lo',     0.5);
+  eng.setMasterFX('hi',     0.5);
   eng.setMasterFX('reverb', 0);
-  eng.setMasterFX('comp', 0);
+  eng.setMasterFX('comp',   0);
 }
 
 // ─── Mount: (re)build all per-song UI ────────────────────────────────────────

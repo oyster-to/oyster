@@ -821,6 +821,14 @@ input[type=range] {
   transition: height 0.04s linear;
 }
 
+/* ─── master stereo meter wrapper (two .lvl bars side by side) ─────────── */
+.lvl-stereo {
+  display: flex;
+  flex-direction: row;
+  gap: 3px;
+  align-items: center;
+}
+
 /* ─── fills row (panel chrome via #fills) ───────────────────────────────── */
 .fillsrow {
   display: flex;
