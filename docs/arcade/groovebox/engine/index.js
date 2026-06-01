@@ -14,7 +14,7 @@ export function createEngine() {
   // Per-lane keyed maps (by lane.id)
   let voices = {}, fx = {}, meters = {};
   // Stored after ensure() so buildLane can be called post-graph-init
-  let _makeFX = null, _masterIn = null;
+  let _makeFX = null, _masterIn = null, _laneReverb = null;
 
   function buildLane(lane) {
     fx[lane.id]     = _makeFX(_masterIn);
@@ -73,6 +73,8 @@ export function createEngine() {
     masterWidth = new Tone.StereoWidener(0.5).connect(masterRev);
     masterEQ   = new Tone.EQ3({ low: 0, mid: 0, high: 0 }).connect(masterWidth);
     const masterIn = masterEQ;
+    // Shared reverb bus — one convolver for all lanes (per-lane send gain controls amount).
+    _laneReverb = new Tone.Reverb({ decay: 2.4, wet: 1 }).connect(masterIn);
     // Stereo output meters — tapped post-volume (silent sinks, don't alter audio chain).
     const split = new Tone.Split();
     masterVol.connect(split);
@@ -84,14 +86,15 @@ export function createEngine() {
       const vol = new Tone.Gain(1).connect(dest);
       const pan = new Tone.Panner(0).connect(vol);
       const dl = new Tone.FeedbackDelay({ delayTime: '8n', feedback: 0.28, wet: 0 }).connect(pan);
-      const rev = new Tone.Reverb({ decay: 2.0, wet: 0 }).connect(dl);
-      const comp = new Tone.Compressor({ threshold: 0, ratio: 1, attack: 0.01, release: 0.2 }).connect(rev);
+      const comp = new Tone.Compressor({ threshold: 0, ratio: 1, attack: 0.01, release: 0.2 }).connect(dl);
       const auto = new Tone.AutoFilter({ frequency: '8n', depth: 0.7, baseFrequency: 200, octaves: 4, wet: 0 }).start(); auto.connect(comp);
       const chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.7, wet: 0 }).start(); chorus.connect(auto);
       const cr = new Tone.BitCrusher(4).connect(chorus); cr.wet.value = 0;
-      const dr = new Tone.Distortion({ distortion: 0.4, oversample: '4x' }).connect(cr); dr.wet.value = 0;
+      const dr = new Tone.Distortion({ distortion: 0.4, oversample: 'none' }).connect(cr); dr.wet.value = 0;
       const ft = new Tone.Filter({ type: 'lowpass', frequency: 14000, Q: 0.7 }).connect(dr);
-      return { filter: ft, drive: dr, crush: cr, chorus, auto, comp, reverb: rev, delay: dl, panner: pan, vol, input: ft, _cutType: 'lowpass' };
+      // Post-fader send to shared reverb bus; gain=0 → dry by default.
+      const reverbSend = new Tone.Gain(0); vol.connect(reverbSend); reverbSend.connect(_laneReverb);
+      return { filter: ft, drive: dr, crush: cr, chorus, auto, comp, reverbSend, delay: dl, panner: pan, vol, input: ft, _cutType: 'lowpass' };
     };
     _masterIn = masterIn;
     // Waveform analyser for master (sink — doesn't alter audio chain).
@@ -242,12 +245,12 @@ export function createEngine() {
         if (v01 < 0.5) { if (c._cutType !== 'lowpass')  { c.filter.type = 'lowpass';  c._cutType = 'lowpass';  } const a = (0.5 - v01) / 0.5; c.filter.frequency.rampTo(20000 * Math.pow(200 / 20000, a), 0.08); }
         else           { if (c._cutType !== 'highpass') { c.filter.type = 'highpass'; c._cutType = 'highpass'; } const a = (v01 - 0.5) / 0.5; c.filter.frequency.rampTo(20 * Math.pow(8000 / 20, a), 0.08); }
       }
-      else if (param === 'drive')  c.drive.wet.rampTo(v01 * 0.85, 0.08);
+      else if (param === 'drive')  { c.drive.wet.rampTo(v01 * 0.85, 0.08); c.drive.oversample = v01 > 0 ? '2x' : 'none'; }
       else if (param === 'crush')  c.crush.wet.rampTo(v01, 0.08);
       else if (param === 'delay')  c.delay.wet.rampTo(v01 * 0.5, 0.08);
       else if (param === 'vol')    c.vol.gain.rampTo(v01, 0.08);
       else if (param === 'pan')    c.panner.pan.rampTo((v01 - 0.5) * 2, 0.08);
-      else if (param === 'reverb') c.reverb.wet.rampTo(v01 * 0.6, 0.08);
+      else if (param === 'reverb') c.reverbSend.gain.rampTo(v01 * 0.6, 0.05);
       else if (param === 'comp')   { c.comp.threshold.value = -30 * v01; c.comp.ratio.value = 1 + 7 * v01; }
       else if (param === 'res')    c.filter.Q.rampTo(0.7 + v01 * 14, 0.05);
       else if (param === 'fdbk')   c.delay.feedback.rampTo(v01 * 0.9, 0.05);
