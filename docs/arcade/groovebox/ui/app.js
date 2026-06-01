@@ -4,6 +4,7 @@ import { kids } from '../songs/kids.js';
 import { risingSun } from '../songs/rising-sun.js';
 import { electricFeel } from '../songs/electric-feel.js';
 import { heartbeats } from '../songs/heartbeats.js';
+import { digitalLove } from '../songs/digital-love.js';
 import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
 
@@ -12,7 +13,7 @@ const LANES = ['drums','bass','chords','melody'];
 const chordModes = ['pad','arp','stab'];
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
 
-const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, heartbeats };
+const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, heartbeats, 'digital-love': digitalLove };
 
 // Module-level refs — reassigned by mount() on every song switch.
 let song;
