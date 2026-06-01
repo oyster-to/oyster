@@ -1427,23 +1427,24 @@ input[type=range] {
 }
 
 /* ─── § 5 — lane edit button ───────────────────────────────────────────────── */
+/* Old-school radio-SELECT push button: raised at rest, latched (pushed-in + lit)
+   when this lane is the one open in the editor. Only one latched at a time. */
 .lane-edit {
-  width: 24px; height: 24px; flex: 0 0 24px;
+  width: 40px; height: 24px; flex: 0 0 40px;
   padding: 0;
-  border-radius: 5px;
-  font-size: 13px;
+  border-radius: 4px;
+  font-size: 8px; font-weight: 700; letter-spacing: 0.08em;
   line-height: 1;
   border: 1px solid var(--line);
-  background: transparent;
+  background: linear-gradient(180deg, var(--panel-3), var(--panel-2));
   color: var(--faint);
-  box-shadow: none;
-  transition: background 0.1s, color 0.1s, border-color 0.1s, box-shadow 0.12s;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 1px 2px rgba(0,0,0,0.4);
+  transition: background 0.1s, color 0.1s, border-color 0.1s, box-shadow 0.12s, transform 0.06s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 .lane-edit:hover:not(:disabled) {
-  background: var(--panel-3);
   border-color: var(--acc-dim);
   color: var(--acc);
 }
@@ -1451,12 +1452,15 @@ input[type=range] {
   opacity: 0.2;
   cursor: not-allowed;
 }
-/* Active edit state — the lane whose editor is currently open */
+/* Latched/lit state — the lane whose editor is currently open (the "selected" one) */
 .lane-edit.editing {
-  background: rgba(84,240,200,0.12);
-  border-color: var(--acc);
-  color: var(--acc);
-  box-shadow: 0 0 6px rgba(84,240,200,0.30);
+  background: var(--acc);
+  border-color: color-mix(in srgb, var(--acc) 60%, #000);
+  color: var(--ink-on-acc);
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.4),
+    0 0 8px color-mix(in srgb, var(--acc) 55%, transparent);
 }
 
 /* Editing lane strip: subtle teal left border highlight */

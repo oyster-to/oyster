@@ -176,8 +176,8 @@ function renderStrips() {
     // Edit button — present for types with an editor (drums, melody, bass); skip chords.
     const hasEditor = lane.type !== 'chords';
     const editBtn = hasEditor
-      ? `<button class="lane-edit" data-lane="${lane.id}" title="Edit ${lane.name} in viz">✎</button>`
-      : `<button class="lane-edit" data-lane="${lane.id}" title="No editor for ${lane.name}" disabled>✎</button>`;
+      ? `<button class="lane-edit" data-lane="${lane.id}" title="Select ${lane.name} for the editor">EDIT</button>`
+      : `<button class="lane-edit" data-lane="${lane.id}" title="No editor for ${lane.name}" disabled>EDIT</button>`;
     // Grid columns: drag | name | pattern-select | meter | MIX | TONE | FX | M/S | actions
     return `<div class="lane" data-lane="${lane.id}" data-type="${lane.type}">
       <span class="lane-drag" title="Drag to reorder">⠿</span>
