@@ -18,6 +18,12 @@ function transposeNote(note, semis) {
   return NAMES[((total % 12) + 12) % 12] + (Math.floor(total / 12) - 1);
 }
 
+// Lower chord voicings (which sit around octave 3–4) into bass register (~octave 1–2).
+function low(n) { return transposeNote(n, -24); }
+
+// Chop steps from the prototype's MEL.chopped (CH array).
+const CHOP_STEPS = [0,1,2,4,6,7,8,10,11,14,15];
+
 export const kids = {
   meter: { beatsPerBar:4, beatUnit:4, stepsPerBeat:4 },
   bpm: 120,
@@ -45,20 +51,77 @@ export const kids = {
                 four:     { kick:[0,4,8,12], snare:[4,12],  hat:[0,2,4,6,8,10,12,14] },
                 backbeat: { kick:[0,8],       snare:[4,12],  hat:[2,6,10,14] },
                 'boom-cha':{ kick:[0,4,8,12], snare:[2,6,10,14] },
+                'boom-cha roll': [
+                  { kick:[0,4,8,12], snare:[2,6,10,14] },
+                  { kick:[0,4,8],    snare:[2,6,10,13,14,15] },
+                ],
+                'boom-bap': { kick:[0,7,10], snare:[4,12], hat:[0,2,4,6,8,10,12,14] },
+                'half-time':{ kick:[0], snare:[8], hat:[0,2,4,6,8,10,12,14] },
+                'tribal toms':{ kick:[0,8], snare:[8], tom:[[2,7],[4,5],[6,3],[10,7],[12,5],[14,0]] },
+                breaks:   { kick:[0,6,10], snare:[4,12], hat:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15] },
                 house:    { kick:[0,4,8,12], snare:[4,12],  hat:[2,6,10,14] },
                 NIN:      { kick:[0,3,4,7,8,11,12,15], snare:[2,6,10,14],
                             hat:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], crash:[0] },
               } },
     bass:   { selection:'octave', muted:false,
               pool:{
-                octave:  (bar,chord) => [0,2,4,6,8,10,12,14].map((s,i) =>
-                           [s, i%2 ? transposeNote(chord.root, 12) : chord.root, 2]),
-                eighths: (bar,chord) => [0,2,4,6,8,10,12,14].map(s => [s, chord.root, 2]),
-                '16ths': (bar,chord) => Array.from({length:16},(_,s) => [s, chord.root, 1]),
+                octave:   (bar,chord) => [0,2,4,6,8,10,12,14].map((s,i) =>
+                            [s, i%2 ? transposeNote(chord.root, 12) : chord.root, 2]),
+                eighths:  (bar,chord) => [0,2,4,6,8,10,12,14].map(s => [s, chord.root, 2]),
+                '16ths':  (bar,chord) => Array.from({length:16},(_,s) => [s, chord.root, 1]),
                 'on-beat':(bar,chord) => [0,4,8,12].map(s => [s, chord.root, 4]),
-                whole:   (bar,chord) => [[0, chord.root, 16]],
+                whole:    (bar,chord) => [[0, chord.root, 16]],
+                offbeat:  (bar,chord) => [2,6,10,14].map(s => [s, chord.root, 2]),
+                walking:  (bar,chord) => [0,4,8,12].map((s,i) =>
+                            [s, low(chord.voicing[i % chord.voicing.length]), 4]),
+                counter:  (bar,chord) => {
+                  const v = chord.voicing;
+                  return [
+                    [0,  chord.root,                    2],
+                    [3,  low(v[2] || v[0]),             2],
+                    [6,  low(v[1] || v[0]),             2],
+                    [10, chord.root,                    2],
+                    [12, low(v[1] || v[0]),             2],
+                    [14, low(v[0]),                     2],
+                  ];
+                },
+                'scale run': (bar,chord) => {
+                  const v = chord.voicing;
+                  const scale = [
+                    chord.root,
+                    low(v[1] || v[0]),
+                    low(v[2] || v[1] || v[0]),
+                    transposeNote(chord.root, 12),
+                    low(v[0]),
+                    low(v[1] || v[0]),
+                    low(v[2] || v[1] || v[0]),
+                    transposeNote(chord.root, 24),
+                  ];
+                  return [0,2,4,6,8,10,12,14].map((s,i) => [s, scale[i], 2]);
+                },
+                busy:     (bar,chord) => {
+                  const v = chord.voicing;
+                  const r = chord.root, r8 = transposeNote(chord.root, 12);
+                  return [
+                    [0,  r,                 2],
+                    [2,  low(v[0]),         1],
+                    [3,  low(v[1] || v[0]), 1],
+                    [6,  low(v[2] || v[0]), 2],
+                    [8,  r,                 2],
+                    [10, low(v[1] || v[0]), 1],
+                    [11, low(v[0]),         1],
+                    [14, r8,                2],
+                  ];
+                },
               } },
     chords: { selection:'pad', muted:false },
-    melody: { selection:'hook', muted:false, pool:{ hook: RIFF } },
+    melody: { selection:'hook', muted:false, pool:{
+      hook: RIFF,
+      chopped: RIFF.map(bar => {
+        if (!bar.length) return [];
+        const notes = bar.map(x => x[1]);
+        return CHOP_STEPS.map((st, i) => [st, notes[i % notes.length], 1]);
+      }),
+    } },
   },
 };
