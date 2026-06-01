@@ -493,3 +493,7 @@ input[type=range] { accent-color: var(--acc); }
 .msgroup { display:flex; gap:8px; align-items:flex-start; }
 .ctrl { display:flex; flex-direction:column; align-items:center; gap:3px; }
 .ctrl-lbl { font-size:8px; color:var(--dim); letter-spacing:.04em; text-transform:uppercase; }
+
+/* ─── master FX strip ────────────────────────────────────────────────────── */
+.masterfx{display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:12px;border-top:1px solid #2c3044}
+.masterfx .mlbl{font-size:10px;letter-spacing:.12em;color:var(--dim);font-weight:700}

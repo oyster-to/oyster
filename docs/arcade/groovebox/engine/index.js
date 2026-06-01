@@ -6,16 +6,21 @@ import { setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloE
 
 export function createEngine() {
   let song = null, voices = null, master = null, fx = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, toneType = 'pulse';
+  let masterComp = null, masterRev = null;
   function ensure() {
     if (started) return;
-    master = new Tone.Limiter(-1).toDestination();
+    const out = new Tone.Limiter(-1).toDestination();
+    masterComp = new Tone.Compressor({ threshold: 0, ratio: 1, attack: 0.01, release: 0.2 }).connect(out);
+    masterRev  = new Tone.Reverb({ decay: 2.2, wet: 0 }).connect(masterComp);
+    const masterIn = masterRev;
     const makeFX = dest => {
       const dl = new Tone.FeedbackDelay({ delayTime:'8n', feedback:0.28, wet:0 }).connect(dest);
-      const dr = new Tone.Distortion(0.4).connect(dl); dr.wet.value = 0;
+      const cr = new Tone.BitCrusher(4).connect(dl);  cr.wet.value = 0;
+      const dr = new Tone.Distortion(0.4).connect(cr); dr.wet.value = 0;
       const ft = new Tone.Filter({ type:'lowpass', frequency:14000, Q:1 }).connect(dr);
-      return { filter:ft, drive:dr, delay:dl, input:ft };
+      return { filter:ft, drive:dr, crush:cr, delay:dl, input:ft };
     };
-    fx = { drums:makeFX(master), bass:makeFX(master), chords:makeFX(master), melody:makeFX(master) };
+    fx = { drums:makeFX(masterIn), bass:makeFX(masterIn), chords:makeFX(masterIn), melody:makeFX(masterIn) };
     voices = createVoices({ drums:fx.drums.input, bass:fx.bass.input, chords:fx.chords.input, melody:fx.melody.input });
     voices.lead.set({ oscillator:{ type: toneType, width: 0.3 } });
     started = true;
@@ -60,7 +65,12 @@ export function createEngine() {
         else           { c.filter.type = 'highpass'; const a = (v01 - 0.5) / 0.5; c.filter.frequency.rampTo(20 * Math.pow(8000/20, a), 0.05); }
       }
       else if (param === 'drive') c.drive.wet.rampTo(v01 * 0.85, 0.05);
+      else if (param === 'crush') c.crush.wet.rampTo(v01, 0.05);
       else if (param === 'delay') c.delay.wet.rampTo(v01 * 0.5, 0.05);
+    },
+    setMasterFX(param, v01) {
+      if (param === 'reverb' && masterRev) masterRev.wet.rampTo(v01 * 0.6, 0.05);
+      else if (param === 'comp' && masterComp) { masterComp.threshold.value = -30 * v01; masterComp.ratio.value = 1 + 7 * v01; }
     },
   };
 }

@@ -55,16 +55,25 @@ function renderStrips() {
     knobs.appendChild(makeKnob({ label: 'cut',  value: 0.5, onChange: v => eng.setLaneFX(lane, 'cut',   v) }));
     knobs.appendChild(makeKnob({ label: 'drv',  value: 0, onChange: v => eng.setLaneFX(lane, 'drive', v) }));
     knobs.appendChild(makeKnob({ label: 'dly',  value: 0, onChange: v => eng.setLaneFX(lane, 'delay', v) }));
+    knobs.appendChild(makeKnob({ label: 'cru',  value: 0, onChange: v => eng.setLaneFX(lane, 'crush', v) }));
     row.querySelector('.msgroup').before(knobs);
   });
   refreshStates();
 }
+
 document.getElementById('play').onclick = async function() {
   if (this.classList.contains('on')) { eng.stop(); this.classList.remove('on'); this.textContent='▶ play'; }
   else { await eng.play(); this.classList.add('on'); this.textContent='⏹ stop'; }
 };
 document.getElementById('bpm').oninput = e => { eng.setTempo(+e.target.value); document.getElementById('bpmv').textContent = e.target.value; };
 renderStrips();
+const masterHost = document.getElementById('master');
+const mwrap = document.createElement('div'); mwrap.className = 'masterfx';
+mwrap.innerHTML = '<span class="mlbl">MASTER</span>';
+const mk = document.createElement('div'); mk.className = 'knobs';
+mk.appendChild(makeKnob({ label:'verb', value:0, onChange: v => eng.setMasterFX('reverb', v) }));
+mk.appendChild(makeKnob({ label:'comp', value:0, onChange: v => eng.setMasterFX('comp', v) }));
+mwrap.appendChild(mk); masterHost.appendChild(mwrap);
 const viz = makeViz(document.getElementById('viz'), song, eng);
 eng.onStep(({absStep, bar, stepInBar}) => viz.setStep(absStep, bar, stepInBar));
 document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
