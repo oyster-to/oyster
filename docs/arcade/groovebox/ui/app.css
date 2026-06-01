@@ -849,6 +849,11 @@ input[type=range] {
     var(--meter-mid) 65%,
     var(--meter-hi)  100%
   );
+  /* Size the gradient to the FULL well (40px) anchored at the bottom, so a
+     growing fill REVEALS the fixed gradient upward instead of squashing it. */
+  background-size: 100% 40px;
+  background-position: left bottom;
+  background-repeat: no-repeat;
   border-radius: 2px;
   transition: height 0.04s linear;
 }
