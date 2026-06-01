@@ -26,6 +26,7 @@ document.getElementById('play').onclick = async function() {
   else { await eng.play(); this.classList.add('on'); this.textContent='⏹ stop'; }
 };
 document.getElementById('bpm').oninput = e => { eng.setTempo(+e.target.value); document.getElementById('bpmv').textContent = e.target.value; };
+document.getElementById('tone').onchange = e => eng.setTone(e.target.value);
 renderStrips();
 const viz = makeViz(document.getElementById('viz'), song, eng);
 eng.onStep(({absStep, bar, stepInBar}) => viz.setStep(absStep, bar, stepInBar));
