@@ -3,6 +3,20 @@ import { resolveDrumPattern, hasDrumHit } from '../engine/song.js';
 
 const DROWS = [['kick','Kick'],['snare','Snare'],['hat','HH'],['tom','Tom'],['crash','Crash']];
 
+// Piano-roll helpers (ported from prototype).
+const NMG = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+function noteToMidi(n) {
+  const m = n.match(/^([A-G])(#|b)?(-?\d)$/);
+  if (!m) return 60;
+  const b = {C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1]] + (m[2]==='#' ? 1 : m[2]==='b' ? -1 : 0);
+  return (parseInt(m[3]) + 1) * 12 + b;
+}
+const ROLL_KB = 30;           // keyboard column width in canvas pixels
+const ROLL_LO = 57;           // A3
+const ROLL_HI = 81;           // A5
+const ROLL_ROWS = ROLL_HI - ROLL_LO + 1;
+const BLACK_DEGREES = new Set([1, 3, 6, 8, 10]);  // semitones-mod-12 that are black keys
+
 // Deep-clone a single 1-bar pattern object.
 const clonePat = p => {
   const o = {};
@@ -94,6 +108,121 @@ export function makeViz(host, song, eng) {
     return `<div class="vhead"><div class="vhl"></div>${slots}</div>`;
   }
 
+  // ---- melody piano-roll ----
+
+  function drawRoll(playheadAbsStep) {
+    const cv = host.querySelector('#mroll');
+    if (!cv) return;
+    const ctx = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const spb = stepsPerBar(song.meter);
+    const totalSteps = 4 * spb;
+    const kbW = ROLL_KB, gW = W - kbW;
+    const rh = H / ROLL_ROWS;
+
+    // Draw pitch rows (keyboard column + grid background).
+    for (let mm = ROLL_LO; mm <= ROLL_HI; mm++) {
+      const y = (ROLL_HI - mm) * rh;
+      const deg = ((mm % 12) + 12) % 12;
+      const blk = BLACK_DEGREES.has(deg);
+      // Keyboard column.
+      ctx.fillStyle = blk ? '#14171e' : '#1c2029';
+      ctx.fillRect(0, y, kbW, rh - 0.5);
+      // Grid cell background.
+      ctx.fillStyle = blk ? '#0c0e14' : '#0f121a';
+      ctx.fillRect(kbW, y, gW, rh - 0.5);
+      // C label.
+      if (deg === 0) {
+        ctx.fillStyle = '#4a4f5c';
+        ctx.font = '8px monospace';
+        ctx.fillText('C' + (Math.floor(mm / 12) - 1), 3, y + rh - 2);
+      }
+    }
+
+    // Bar gridlines.
+    for (let bar = 0; bar <= 4; bar++) {
+      const x = kbW + (bar * spb) / totalSteps * gW;
+      ctx.strokeStyle = '#2a2e3a';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+
+    // Note blocks.
+    const L = song.lanes.melody;
+    const bars = L.pool[L.selection] || [];
+    for (let bi = 0; bi < 4; bi++) {
+      const barNotes = bars[bi] || [];
+      for (const [st, noteName, dur] of barNotes) {
+        const midi = noteToMidi(noteName);
+        if (midi < ROLL_LO || midi > ROLL_HI) continue;
+        const absStep = bi * spb + st;
+        const x = kbW + absStep / totalSteps * gW;
+        const w = Math.max(3, (dur || 2) / totalSteps * gW - 1);
+        const y = (ROLL_HI - midi) * rh;
+        ctx.fillStyle = '#54f0c8';
+        ctx.fillRect(x + 1, y + 1, w - 1, rh - 2);
+      }
+    }
+
+    // Playhead.
+    if (playheadAbsStep >= 0) {
+      const px = kbW + playheadAbsStep / totalSteps * gW;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(px, 0);
+      ctx.lineTo(px, H);
+      ctx.stroke();
+    }
+  }
+
+  function rollClick(e) {
+    const cv = host.querySelector('#mroll');
+    if (!cv) return;
+    const rect = cv.getBoundingClientRect();
+    const cx = (e.clientX - rect.left) / rect.width * cv.width;
+    const cy = (e.clientY - rect.top) / rect.height * cv.height;
+    if (cx < ROLL_KB) return;
+
+    const spb = stepsPerBar(song.meter);
+    const totalSteps = 4 * spb;
+    const gW = cv.width - ROLL_KB;
+
+    const absStep = Math.floor((cx - ROLL_KB) / gW * totalSteps);
+    if (absStep < 0 || absStep >= totalSteps) return;
+
+    const midi = ROLL_HI - Math.floor(cy / cv.height * ROLL_ROWS);
+    if (midi < ROLL_LO || midi > ROLL_HI) return;
+
+    const noteName = NMG[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
+
+    // Fork to custom if needed.
+    const L = song.lanes.melody;
+    if (L.selection !== 'custom') {
+      const src = L.pool[L.selection] || [];
+      L.pool.custom = src.map(b => b.map(n => n.slice()));
+      eng.setLane('melody', 'custom');
+    }
+
+    const bar = Math.floor(absStep / spb);
+    const st = absStep % spb;
+    const arr = L.pool.custom[bar] || (L.pool.custom[bar] = []);
+    const i = arr.findIndex(x => x[0] === st);
+    if (i >= 0 && arr[i][1] === noteName) {
+      arr.splice(i, 1);                        // click same note → remove
+    } else {
+      if (i >= 0) arr.splice(i, 1);           // monophonic: remove any existing note at this step
+      arr.push([st, noteName, 2]);
+    }
+
+    drawRoll(lastBar * spb + lastStepInBar);
+  }
+
   function build() {
     const spb = stepsPerBar(song.meter);
     const cells = n => Array.from({length:n}, (_,i) => `<div class="vc${i%4===0?' beat':''}"></div>`).join('');
@@ -129,8 +258,13 @@ export function makeViz(host, song, eng) {
         [...row.querySelectorAll('.vc')].forEach((c, i) => c.onclick = () => drumEdit(k, i));
       });
     } else {
-      host.innerHTML = buildBeatHeader(spb)
-        + `<div class="vrow" data-k="melody"><span class="vl">Notes</span>${cells(spb)}</div>`;
+      // Melody view: canvas piano-roll.
+      host.innerHTML = '<canvas id="mroll"></canvas>';
+      const cv = host.querySelector('#mroll');
+      cv.width = host.clientWidth || 680;
+      cv.height = 170;
+      cv.onclick = rollClick;
+      drawRoll(-1);
     }
   }
 
@@ -171,14 +305,9 @@ export function makeViz(host, song, eng) {
         b.classList.toggle('playing', isCustom && +b.dataset.b === playingBar);
       });
     } else {
-      const bars = song.lanes.melody.pool[song.lanes.melody.selection];
-      const phrase = bars[bar % bars.length] || [];
-      host.querySelectorAll('.vc').forEach((c, i) => {
-        const h = phrase.find(x => x[0] === i);
-        c.classList.toggle('hit', !!h);
-        c.textContent = h ? h[1].replace(/[0-9]/g, '') : '';
-        c.classList.toggle('now', i === stepInBar);
-      });
+      // Melody view: redraw the piano-roll canvas with current playhead.
+      const spb = stepsPerBar(song.meter);
+      drawRoll(bar * spb + stepInBar);
     }
   }
 

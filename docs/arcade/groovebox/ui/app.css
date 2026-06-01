@@ -394,6 +394,17 @@ input[type=range] { accent-color: var(--acc); }
   color: var(--acc);
 }
 
+/* ─── melody piano-roll canvas ──────────────────────────────────────────── */
+#mroll {
+  display: block;
+  width: 100%;
+  background: #07080d;
+  border-radius: 6px;
+  cursor: crosshair;
+  position: relative;
+  z-index: 2;   /* above CRT scanline overlay */
+}
+
 /* ─── lane strips — recessed module slots ───────────────────────────────── */
 #strips {
   display: flex;
