@@ -1,4 +1,4 @@
-import { stepsPerBar } from '../engine/meter.js';
+import { stepsPerBar, beatStarts } from '../engine/meter.js';
 import { resolveDrumPattern, hasDrumHit } from '../engine/song.js';
 
 const DROWS = [['kick','Kick'],['snare','Snare'],['hat','HH'],['tom','Tom'],['crash','Crash']];
@@ -83,12 +83,24 @@ export function makeViz(host, song, eng) {
       + `</div>`;
   }
 
+  function buildBeatHeader(spb) {
+    const beats = beatStarts(song.meter);
+    const beatSet = new Set(beats);
+    const beatNum = new Map(beats.map((s, i) => [s, i + 1]));
+    const slots = Array.from({length: spb}, (_, i) => {
+      if (beatSet.has(i)) return `<div class="vhcell beat">${beatNum.get(i)}</div>`;
+      return `<div class="vhcell"></div>`;
+    }).join('');
+    return `<div class="vhead"><div class="vhl"></div>${slots}</div>`;
+  }
+
   function build() {
     const spb = stepsPerBar(song.meter);
     const cells = n => Array.from({length:n}, (_,i) => `<div class="vc${i%4===0?' beat':''}"></div>`).join('');
     if (view === 'drums') {
       const barSel = buildBarSelector();
       host.innerHTML = barSel
+        + buildBeatHeader(spb)
         + DROWS.map(([k,l]) => `<div class="vrow" data-k="${k}"><span class="vl">${l}</span>${cells(spb)}</div>`).join('');
 
       // Bar selector click handlers.
@@ -117,7 +129,8 @@ export function makeViz(host, song, eng) {
         [...row.querySelectorAll('.vc')].forEach((c, i) => c.onclick = () => drumEdit(k, i));
       });
     } else {
-      host.innerHTML = `<div class="vrow" data-k="melody"><span class="vl">Notes</span>${cells(spb)}</div>`;
+      host.innerHTML = buildBeatHeader(spb)
+        + `<div class="vrow" data-k="melody"><span class="vl">Notes</span>${cells(spb)}</div>`;
     }
   }
 

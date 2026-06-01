@@ -1,31 +1,430 @@
-:root{--bg:#0c0d12;--panel:#15171f;--ink:#e8eaf0;--dim:#8b90a3;--acc:#54f0c8;--hot:#ff5b9e}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 ui-monospace,Menlo,monospace;padding:26px 18px}
-h1{font-size:18px;font-weight:600;margin:0 0 16px}
-.transport{display:flex;gap:12px;align-items:center;margin-bottom:18px}
-button,select{font:inherit;cursor:pointer;border-radius:9px;border:1px solid #2c3044;background:#1d2030;color:var(--ink);padding:9px 13px}
-#play{background:var(--acc);color:#04201a;border-color:var(--acc);font-weight:700;min-width:110px}
-#play.on{background:var(--hot);border-color:var(--hot);color:#2a0316}
-input[type=range]{accent-color:var(--acc)}
-#strips{display:flex;flex-direction:column;gap:8px;max-width:560px;margin-top:16px}
-.lane{display:grid;grid-template-columns:80px 1fr 70px;gap:10px;align-items:center;background:var(--panel);border:1px solid #232636;border-radius:10px;padding:8px 12px}
-.lane .name{font-weight:600;font-size:13px}
-.lane select{width:100%}
-.mute.on{background:#3a1622;border-color:#5a2030;color:#ff7da6}
-.vtabs{display:flex;gap:6px;margin-bottom:8px}
-.vtabs button.on{background:#16261f;border-color:var(--acc);color:var(--acc)}
-#viz{margin-bottom:6px}
-.vrow{display:flex;gap:3px;align-items:center;margin:3px 0}
-.vrow .vl{width:46px;font-size:10px;color:var(--dim);text-align:right;padding-right:6px;flex:0 0 46px}
-.vc{flex:1;height:18px;border-radius:3px;background:#161a28;display:flex;align-items:center;justify-content:center;font-size:9px;color:#cfe0ff}
-.vc.beat{background:#1b2030}
-.vc.hit{background:#39507a;color:#cfe0ff}
-.vc.added{background:#ffd24a;color:#2a2400}
-.vc.removed{background:#161a28;outline:1px dashed #6b5a2e;outline-offset:-2px}
-.vc.now{outline:2px solid #fff;outline-offset:-2px}
-.barsel{display:flex;gap:6px;align-items:center;margin-bottom:8px;font-size:11px;color:var(--dim)}
-.bsel{padding:4px 11px;border-radius:6px;border:1px solid #2c3044;background:#1d2030;color:var(--ink);cursor:pointer;font-size:12px}
-.bsel.on{background:var(--acc);border-color:var(--acc);color:#04201a;font-weight:700}
-.bsel.playing{outline:2px solid var(--hot);outline-offset:2px}
-.cyc{padding:4px 10px;border-radius:6px;border:1px solid #2c3044;background:#1d2030;color:var(--ink);cursor:pointer;font-size:12px}
-.cyc.on{background:#16261f;border-color:var(--acc);color:var(--acc)}
+/* ─── design tokens ─────────────────────────────────────────────────────── */
+:root {
+  --bg:     #0c0d12;
+  --panel:  #15171f;
+  --ink:    #e8eaf0;
+  --dim:    #8b90a3;
+  --acc:    #54f0c8;
+  --hot:    #ff5b9e;
+  --warn:   #ffd24a;
+
+  /* cabinet chrome */
+  --chrome-hi:  #3a3e4e;
+  --chrome-mid: #22252f;
+  --chrome-lo:  #12141a;
+  --bevel-hi:   rgba(255,255,255,0.08);
+  --bevel-lo:   rgba(0,0,0,0.55);
+
+  /* screen */
+  --screen-bg:  #07080d;
+  --screen-glow: rgba(84, 240, 200, 0.06);
+}
+
+/* ─── reset ─────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ─── page background — dark room ──────────────────────────────────────── */
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 32px 16px 48px;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, #0d1120 0%, #05060a 100%);
+  color: var(--ink);
+  font: 13px/1.5 ui-monospace, Menlo, monospace;
+}
+
+/* ─── cabinet frame — brushed chrome bezel ──────────────────────────────── */
+.cabinet {
+  width: 100%;
+  max-width: 780px;
+  border-radius: 18px;
+  padding: 28px 26px 32px;
+  position: relative;
+
+  /* layered brushed-metal gradients */
+  background:
+    /* subtle vertical brushed sheen */
+    repeating-linear-gradient(
+      180deg,
+      rgba(255,255,255,0.015) 0px,
+      rgba(255,255,255,0.015) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    linear-gradient(
+      175deg,
+      var(--chrome-hi)  0%,
+      var(--chrome-mid) 35%,
+      var(--chrome-lo)  65%,
+      #1a1c24           100%
+    );
+
+  /* bevel: outer highlight top-left, shadow bottom-right */
+  box-shadow:
+    inset 0 1px 0 var(--bevel-hi),
+    inset 0 -1px 0 var(--bevel-lo),
+    inset 1px 0 0 var(--bevel-hi),
+    inset -1px 0 0 var(--bevel-lo),
+    0 8px 48px rgba(0,0,0,0.7),
+    0 2px 8px rgba(0,0,0,0.5);
+}
+
+/* screw accents in corners */
+.cabinet-corners { pointer-events: none; }
+.screw {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 35%, #4a4e5e, #1a1c22);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,0.18),
+    inset 0 -1px 1px rgba(0,0,0,0.5),
+    0 0 0 1px rgba(0,0,0,0.4);
+}
+.screw::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 20%; right: 20%;
+  height: 1px;
+  background: rgba(0,0,0,0.5);
+  transform: translateY(-50%) rotate(45deg);
+}
+.screw.tl { top: 12px;  left: 12px;  }
+.screw.tr { top: 12px;  right: 12px; }
+.screw.bl { bottom: 12px; left: 12px; }
+.screw.br { bottom: 12px; right: 12px; }
+
+/* inner panel — slightly recessed within the bezel */
+.cabinet-inner {
+  position: relative;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 18px 18px 20px;
+  box-shadow:
+    inset 0 2px 6px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(0,0,0,0.4);
+}
+
+/* ─── title ─────────────────────────────────────────────────────────────── */
+h1 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 14px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-shadow: 0 0 12px rgba(84,240,200,0.3);
+}
+
+/* ─── transport bar ──────────────────────────────────────────────────────── */
+.transport {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+/* ─── generic button + select base ─────────────────────────────────────── */
+button, select {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 7px;
+  border: 1px solid #2c3044;
+  background: #1a1e2c;
+  color: var(--ink);
+  padding: 7px 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    inset 0 -1px 0 rgba(0,0,0,0.3),
+    0 1px 3px rgba(0,0,0,0.4);
+  transition: background 0.1s, box-shadow 0.1s;
+}
+button:active {
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.5),
+    inset 0 -1px 0 rgba(255,255,255,0.04);
+  transform: translateY(1px);
+}
+
+/* ─── play button — chunky illuminated ──────────────────────────────────── */
+#play {
+  background: linear-gradient(180deg, #63f8d4 0%, #3dd6b0 50%, #2eaa8a 100%);
+  color: #04201a;
+  border-color: #2eaa8a;
+  font-weight: 700;
+  min-width: 110px;
+  letter-spacing: 0.05em;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    inset 0 -2px 0 rgba(0,0,0,0.25),
+    0 0 12px rgba(84,240,200,0.35),
+    0 2px 6px rgba(0,0,0,0.45);
+}
+#play:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.4),
+    inset 0 -2px 0 rgba(0,0,0,0.2),
+    0 0 20px rgba(84,240,200,0.55),
+    0 2px 6px rgba(0,0,0,0.4);
+}
+#play.on {
+  background: linear-gradient(180deg, #ff7ab8 0%, #e03e84 50%, #be1f65 100%);
+  border-color: #be1f65;
+  color: #2a0316;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.25);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.3),
+    inset 0 -2px 0 rgba(0,0,0,0.25),
+    0 0 16px rgba(255,91,158,0.5),
+    0 2px 6px rgba(0,0,0,0.45);
+}
+
+/* ─── tempo range ────────────────────────────────────────────────────────── */
+input[type=range] { accent-color: var(--acc); }
+
+/* ─── view tabs ──────────────────────────────────────────────────────────── */
+.vtabs { display: flex; gap: 6px; margin-bottom: 8px; }
+.vtabs button.on {
+  background: #0e1e18;
+  border-color: var(--acc);
+  color: var(--acc);
+  box-shadow:
+    inset 0 1px 0 rgba(84,240,200,0.1),
+    0 0 8px rgba(84,240,200,0.2);
+}
+
+/* ─── CRT screen — the viz area ─────────────────────────────────────────── */
+#viz {
+  position: relative;
+  margin-bottom: 6px;
+  background: var(--screen-bg);
+  border-radius: 8px;
+  padding: 10px 10px 8px;
+
+  /* inset shadow for glass depth + screen glow */
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.04),
+    inset 0 2px 12px rgba(0,0,0,0.8),
+    inset 0 0 40px rgba(0,0,0,0.5),
+    0 0 0 1px rgba(0,0,0,0.6),
+    0 0 24px var(--screen-glow);
+
+  /* screen vignette via border-image won't work easily; use outline instead */
+  outline: 2px solid rgba(0,0,0,0.35);
+  outline-offset: -1px;
+}
+
+/* scanline overlay — pointer-events:none so clicks pass through to grid cells */
+#viz::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0,0,0,0.13) 0px,
+    rgba(0,0,0,0.13) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  /* vignette blended on top */
+  box-shadow: inset 0 0 60px rgba(0,0,0,0.45);
+  z-index: 1;
+}
+
+/* very subtle screen flicker — honour reduced-motion */
+@keyframes crt-flicker {
+  0%, 100% { opacity: 1; }
+  92%       { opacity: 0.97; }
+  94%       { opacity: 1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  #viz { animation: crt-flicker 6s infinite; }
+}
+
+/* ─── beat-number header row ────────────────────────────────────────────── */
+.vhead {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  margin: 0 0 2px;
+}
+.vhl {
+  width: 46px;
+  flex: 0 0 46px;
+}
+.vhcell {
+  flex: 1;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: transparent;
+  user-select: none;
+  pointer-events: none;
+}
+.vhcell.beat {
+  color: var(--dim);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 6px rgba(84,240,200,0.4);
+}
+
+/* ─── grid rows ──────────────────────────────────────────────────────────── */
+.vrow {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  margin: 3px 0;
+}
+.vrow .vl {
+  width: 46px;
+  font-size: 10px;
+  color: var(--dim);
+  text-align: right;
+  padding-right: 6px;
+  flex: 0 0 46px;
+  letter-spacing: 0.04em;
+}
+
+/* ─── step cells ─────────────────────────────────────────────────────────── */
+.vc {
+  flex: 1;
+  height: 18px;
+  border-radius: 3px;
+  background: #0d1020;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: #cfe0ff;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;            /* above scanline overlay (z-index:1) */
+  transition: box-shadow 0.08s;
+}
+.vc.beat { background: #111526; }
+
+.vc.hit {
+  background: #2b3f6a;
+  color: #cfe0ff;
+  box-shadow:
+    0 0 6px rgba(84,180,255,0.4),
+    inset 0 1px 0 rgba(100,160,255,0.2);
+}
+.vc.added {
+  background: #ffd24a;
+  color: #2a2400;
+  box-shadow: 0 0 8px rgba(255,210,74,0.45);
+}
+.vc.removed {
+  background: #0d1020;
+  outline: 1px dashed #6b5a2e;
+  outline-offset: -2px;
+}
+.vc.now {
+  outline: 2px solid rgba(255,255,255,0.9);
+  outline-offset: -2px;
+  box-shadow: 0 0 10px rgba(255,255,255,0.2);
+}
+/* extra bloom when a cell is both lit and the playhead */
+.vc.hit.now {
+  box-shadow:
+    0 0 10px rgba(84,180,255,0.6),
+    0 0 4px rgba(255,255,255,0.4),
+    inset 0 1px 0 rgba(100,160,255,0.25);
+}
+.vc.added.now {
+  box-shadow:
+    0 0 10px rgba(255,210,74,0.65),
+    0 0 4px rgba(255,255,255,0.35);
+}
+
+/* ─── bar selector ───────────────────────────────────────────────────────── */
+.barsel {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--dim);
+}
+.bsel {
+  padding: 4px 11px;
+  border-radius: 6px;
+  border: 1px solid #2c3044;
+  background: #141720;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+}
+.bsel.on {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: #04201a;
+  font-weight: 700;
+  box-shadow: 0 0 8px rgba(84,240,200,0.35);
+}
+.bsel.playing {
+  outline: 2px solid var(--hot);
+  outline-offset: 2px;
+  box-shadow: 0 0 8px rgba(255,91,158,0.3);
+}
+.cyc {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #2c3044;
+  background: #141720;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+}
+.cyc.on {
+  background: #0e1e18;
+  border-color: var(--acc);
+  color: var(--acc);
+}
+
+/* ─── lane strips — recessed module slots ───────────────────────────────── */
+#strips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 100%;
+  margin-top: 14px;
+}
+.lane {
+  display: grid;
+  grid-template-columns: 80px 1fr 70px;
+  gap: 10px;
+  align-items: center;
+  background: #0f1119;
+  border: 1px solid #1e2130;
+  border-radius: 8px;
+  padding: 7px 12px;
+  box-shadow:
+    inset 0 2px 6px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(0,0,0,0.3);
+}
+.lane .name {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--dim);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.lane select { width: 100%; }
+.mute.on {
+  background: #3a1622;
+  border-color: #5a2030;
+  color: #ff7da6;
+}

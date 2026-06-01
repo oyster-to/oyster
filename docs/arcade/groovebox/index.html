@@ -1,11 +1,21 @@
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Groovebox</title><link rel="stylesheet" href="ui/app.css"></head>
 <body>
-  <h1>groovebox</h1>
-  <div class="transport"><button id="play">▶ play</button>
-    Tempo <input type="range" id="bpm" min="80" max="160" value="120"><b id="bpmv">120</b></div>
-  <div class="vtabs"><button data-view="drums" class="on">🥁 Drums</button><button data-view="melody">🎺 Melody</button></div>
-  <div id="viz"></div>
-  <div id="strips"></div>
+  <div class="cabinet">
+    <div class="cabinet-inner">
+      <div class="cabinet-corners">
+        <span class="screw tl"></span>
+        <span class="screw tr"></span>
+        <span class="screw bl"></span>
+        <span class="screw br"></span>
+      </div>
+      <h1>groovebox</h1>
+      <div class="transport"><button id="play">▶ play</button>
+        Tempo <input type="range" id="bpm" min="80" max="160" value="120"><b id="bpmv">120</b></div>
+      <div class="vtabs"><button data-view="drums" class="on">🥁 Drums</button><button data-view="melody">🎺 Melody</button></div>
+      <div id="viz"></div>
+      <div id="strips"></div>
+    </div>
+  </div>
   <script type="module" src="ui/app.js"></script>
 </body></html>
