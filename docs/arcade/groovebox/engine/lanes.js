@@ -18,7 +18,10 @@ export function toggleDrumMute(song, voice) {
 }
 export function toggleDrumSolo(song, voice) {
   song.lanes.drums.voiceSolo ||= {};
-  return (song.lanes.drums.voiceSolo[voice] = !song.lanes.drums.voiceSolo[voice]);
+  const turningOn = !song.lanes.drums.voiceSolo[voice];   // exclusive: only one drum voice solo at a time
+  for (const v in song.lanes.drums.voiceSolo) song.lanes.drums.voiceSolo[v] = false;
+  song.lanes.drums.voiceSolo[voice] = turningOn;
+  return turningOn;
 }
 export function toggleSolo(song, lane) { return (song.lanes[lane].soloed = !song.lanes[lane].soloed); }
 export function soloExclusive(song, lane) {

@@ -43,7 +43,7 @@ test('drumVoiceAudible: solo kick → only kick audible', () => {
   expect(drumVoiceAudible(song, 'crash')).toBe(false);
 });
 
-test('drumVoiceAudible: solo kick+snare (additive) → kick & snare audible, others not', () => {
+test('drumVoiceAudible: multiple soloed voices → all soloed audible, others not', () => {
   const song = makeDrumsSong({}, { kick: true, snare: true });
   expect(drumVoiceAudible(song, 'kick')).toBe(true);
   expect(drumVoiceAudible(song, 'snare')).toBe(true);
@@ -82,11 +82,11 @@ test('toggleDrumSolo: flips solo state and returns new value', () => {
   expect(song.lanes.drums.voiceSolo.kick).toBe(false);
 });
 
-test('toggleDrumSolo: additive — soloing kick then snare leaves both soloed', () => {
+test('toggleDrumSolo: exclusive — soloing snare clears kick (one at a time)', () => {
   const song = makeSongForLanes();
   toggleDrumSolo(song, 'kick');
   toggleDrumSolo(song, 'snare');
-  expect(song.lanes.drums.voiceSolo.kick).toBe(true);
+  expect(song.lanes.drums.voiceSolo.kick).toBe(false);
   expect(song.lanes.drums.voiceSolo.snare).toBe(true);
 });
 
