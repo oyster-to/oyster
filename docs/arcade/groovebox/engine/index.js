@@ -132,6 +132,10 @@ export function createEngine() {
       if (playing) return;                                   // ignore double-play (don't stack callbacks)
       await Tone.start(); ensure();
       step = 0; songBar = 0;
+      // Widen the scheduler lookahead: profiling showed events landing ~30-50ms
+      // in the past under main-thread load (negative lead) with the default 100ms.
+      // 300ms gives the lookahead scheduler enough buffer to stay ahead of jank.
+      Tone.getContext().lookAhead = 0.3;
       Tone.Transport.bpm.value = tempo;
       if (repeatId !== null) Tone.Transport.clear(repeatId);
       // Gated perf probe (?perf in URL): measures per-step callback duration and
@@ -141,7 +145,9 @@ export function createEngine() {
       const _pf = { n: 0, sum: 0, max: 0, minLead: Infinity, late: 0 };
       repeatId = Tone.Transport.scheduleRepeat((t) => {
         const _cb0 = PERF ? performance.now() : 0;
-        const sixteenth = Tone.Time('16n').toSeconds();
+        // Cheap arithmetic instead of Tone.Time('16n').toSeconds() — avoids a
+        // string-parse + object alloc on every single step (GC-pressure spikes).
+        const sixteenth = (60 / Tone.Transport.bpm.value) / 4;
         const barSeconds = stepsPerBar(song.meter) * sixteenth;
         const spb = stepsPerBar(song.meter);
         if (step % spb === 0) {
@@ -195,7 +201,7 @@ export function createEngine() {
           _pf.n++; _pf.sum += dur;
           if (dur > _pf.max) _pf.max = dur;
           if (lead < _pf.minLead) _pf.minLead = lead;
-          if (lead < 0.012) _pf.late++;
+          if (lead < -Tone.getContext().lookAhead) _pf.late++;   // scheduled in the PAST = genuinely late
           if (_pf.n >= 64) {
             console.log('[gbperf]', JSON.stringify({
               lanes: song.lanes.length,
