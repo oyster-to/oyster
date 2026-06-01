@@ -1106,7 +1106,7 @@ input[type=range] {
 [data-theme="beige"] h1 { text-shadow: none; }
 
 [data-theme="playdate"] {
-  /* BODY — yellow plastic */
+  /* BODY — yellow plastic, with Panic's signature PURPLE as the accent */
   --bg:          #caa600;
   --panel:       #ffd11a;
   --panel-2:     #f4c200;
@@ -1116,35 +1116,46 @@ input[type=range] {
   --ink:         #1a1500;
   --dim:         #5a4900;
   --faint:       #8a7400;
-  --acc:         #141100;
-  --acc-dim:     #4a3e00;
-  --hot:         #c8005a;
+  --acc:         #6a2ce0;   /* Panic purple — play, knobs, selection */
+  --acc-dim:     #4a1ea0;
+  --hot:         #ff4d8d;
   --warn:        #8a5a00;
-  --meter-lo:    #141100;
-  --meter-mid:   #8a5a00;
-  --meter-hi:    #c8005a;
-  --ink-on-acc:  #ffe27a;
-  --tab-on-ink:  #ffe27a;
+  --meter-lo:    #6a2ce0;
+  --meter-mid:   #c8a000;
+  --meter-hi:    #ff4d8d;
+  --ink-on-acc:  #ffffff;   /* white text on the purple play button */
+  --tab-on-ink:  #ffe27a;   /* yellow label on the near-black active pill */
   --chrome-hi:   #d0a800;
   --chrome-mid:  #c09800;
   --chrome-lo:   #b08a00;
   --bevel-hi:    rgba(255,255,255,0.3);
   --bevel-lo:    rgba(0,0,0,0.2);
-  /* SCREEN — near-black with warm-light content */
-  --screen-bg:   #1c1a0e;
-  --screen-glow: rgba(255,209,26,0.08);
-  --roll-bg:     #201d10;
-  --roll-bg-blk: #16140a;
-  --roll-note:   #ffd11a;
-  --grid-line:   #3a3520;
-  --scope:       #ffd11a;
-  --playhead:    #fff4c0;
-  --cell:        #201d10;
-  --cell-alt:    #2a2614;
-  --hit1:        #ffd11a;
-  --hit2:        #c8a000;
+  /* SCREEN — reflective 1-bit Sharp LCD: silvery grey with dark content */
+  --screen-bg:   #b6b8ac;
+  --screen-glow: rgba(0,0,0,0.05);
+  --roll-bg:     #bcbeb2;
+  --roll-bg-blk: #b0b2a6;
+  --roll-note:   #1a1a12;
+  --grid-line:   #989a8c;
+  --scope:       #2a2a1e;
+  --playhead:    #6a2ce0;   /* purple playhead pops on the grey screen */
+  --cell:        #b6b8ac;
+  --cell-alt:    #bec0b4;
+  --hit1:        #3a3a2e;
+  --hit2:        #1a1a12;
 }
 [data-theme="playdate"] h1 { text-shadow: none; }
+/* Signature purple surround behind the yellow device (Panic marketing look). */
+[data-theme="playdate"] body {
+  background: radial-gradient(ellipse 90% 70% at 50% 0%, #7b3cff 0%, #5b22d6 100%);
+}
+/* Light 1-bit screen: soften the deep inset glow so #viz reads as a pale LCD. */
+[data-theme="playdate"] #viz {
+  box-shadow:
+    inset 0 0 0 1px rgba(0,0,0,0.15),
+    inset 0 2px 8px rgba(0,0,0,0.18),
+    0 0 0 1px rgba(0,0,0,0.3);
+}
 
 [data-theme="purple"] {
   --bg:          #140a22;
@@ -1258,6 +1269,7 @@ input[type=range] {
 [data-theme="gameboy"] .transport-song,
 [data-theme="gameboy"] .transport-theme {
   color: #2a2a78;
+  font-weight: 800;
 }
 
 [data-theme="amber"] {
