@@ -751,9 +751,84 @@ document.addEventListener('keydown', e => {
 const _vsBtn  = document.getElementById('viewsettings-btn');
 const _vsPanel = document.getElementById('viewsettings');
 
+// All 12 lane knob keys (master-only keys excluded from presets).
+const ALL_LANE_KNOBS = ['vol','pan','cut','res','drv','dly','fdbk','cho','wob','cru','vrb','cmp'];
+
+// Preset definitions: name → visible lane-knob keys.
+const PRESETS = [
+  { name: 'All',      visible: ['vol','pan','cut','res','drv','dly','fdbk','cho','wob','cru','vrb','cmp'] },
+  { name: 'Standard', visible: ['vol','pan','cut','drv','vrb','cmp'] },
+  { name: 'Simple',   visible: ['vol','pan','cut'] },
+  { name: 'Mixer',    visible: ['vol','pan'] },
+];
+
+// Return the matching preset name for the given hidden-set (array), or null.
+function matchPreset(hiddenArr) {
+  const hiddenSet = new Set(hiddenArr);
+  for (const p of PRESETS) {
+    const expectedHidden = ALL_LANE_KNOBS.filter(k => !p.visible.includes(k));
+    if (
+      expectedHidden.length === hiddenSet.size &&
+      expectedHidden.every(k => hiddenSet.has(k))
+    ) return p.name;
+  }
+  return null;
+}
+
+// Single path for all hidden-set changes: apply body classes, sync checkboxes,
+// persist to localStorage, and update the active preset highlight.
+function setHiddenSet(hiddenArr) {
+  // Apply body classes for ALL known knobs (not just lane knobs).
+  const allKnobs = Object.keys(KNOB_INFO);
+  for (const k of allKnobs) {
+    document.body.classList.toggle('hide-k-' + k, hiddenArr.includes(k));
+  }
+  // Sync checkboxes.
+  const _vsForm = document.getElementById('viewsettings-checks');
+  if (_vsForm) {
+    _vsForm.querySelectorAll('input[data-vs-k]').forEach(cb => {
+      cb.checked = !hiddenArr.includes(cb.dataset.vsK);
+    });
+  }
+  // Persist.
+  localStorage.setItem('gb-hidden-knobs', JSON.stringify(hiddenArr));
+  // Highlight matching preset (or none = Custom).
+  const active = matchPreset(hiddenArr);
+  document.querySelectorAll('.vs-preset-btn').forEach(btn => {
+    btn.classList.toggle('on', btn.dataset.preset === active);
+  });
+}
+
 // Build checkbox rows from KNOB_INFO
 const _vsForm = document.getElementById('viewsettings-checks');
 const _vsKnobs = ['vol','pan','cut','res','drv','dly','fdbk','cho','wob','cru','vrb','cmp','bal','wid','lo','hi'];
+
+// ── Preset row (inserted before the checkboxes) ──
+const _vsPresetRow = document.createElement('div');
+_vsPresetRow.className = 'vs-presets';
+const _vsPresetLbl = document.createElement('span');
+_vsPresetLbl.className = 'vs-preset-lbl';
+_vsPresetLbl.textContent = 'Presets';
+_vsPresetRow.appendChild(_vsPresetLbl);
+const _vsPresetBtns = document.createElement('div');
+_vsPresetBtns.className = 'vs-preset-btns';
+for (const p of PRESETS) {
+  const btn = document.createElement('button');
+  btn.className = 'vs-preset-btn';
+  btn.dataset.preset = p.name;
+  btn.textContent = p.name;
+  btn.onclick = () => {
+    const hidden = ALL_LANE_KNOBS.filter(k => !p.visible.includes(k));
+    // Preserve master-knob hidden state (bal/wid/lo/hi stay unchanged).
+    const current = JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]');
+    const masterHidden = current.filter(k => !ALL_LANE_KNOBS.includes(k));
+    setHiddenSet([...hidden, ...masterHidden]);
+  };
+  _vsPresetBtns.appendChild(btn);
+}
+_vsPresetRow.appendChild(_vsPresetBtns);
+_vsForm.before(_vsPresetRow);
+
 for (const k of _vsKnobs) {
   const info = KNOB_INFO[k];
   const row = document.createElement('label');
@@ -766,20 +841,27 @@ for (const k of _vsKnobs) {
   cb.addEventListener('change', () => {
     const nowHidden = JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]');
     if (cb.checked) {
-      document.body.classList.remove('hide-k-' + k);
       const idx = nowHidden.indexOf(k);
       if (idx !== -1) nowHidden.splice(idx, 1);
     } else {
-      document.body.classList.add('hide-k-' + k);
       if (!nowHidden.includes(k)) nowHidden.push(k);
     }
-    localStorage.setItem('gb-hidden-knobs', JSON.stringify(nowHidden));
+    setHiddenSet(nowHidden);
   });
   const lbl = document.createElement('span');
   lbl.textContent = info ? info[0] : k;
   row.appendChild(cb);
   row.appendChild(lbl);
   _vsForm.appendChild(row);
+}
+
+// Highlight the matching preset on load (based on already-restored hidden set).
+{
+  const initialHidden = JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]');
+  const active = matchPreset(initialHidden);
+  document.querySelectorAll('.vs-preset-btn').forEach(btn => {
+    btn.classList.toggle('on', btn.dataset.preset === active);
+  });
 }
 
 _vsBtn.onclick = e => {
