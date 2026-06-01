@@ -796,6 +796,20 @@ function updateEmptyGroups() {
   });
 }
 
+// FX-type knobs only (vol/pan/cut are always-on routing — hiding stays visual).
+// Maps knob key → [engine param, off value].
+const FX_KNOB_MAP = {
+  res:  ['res',   0],
+  drv:  ['drive', 0],
+  dly:  ['delay', 0],
+  fdbk: ['fdbk',  0],
+  cho:  ['cho',   0],
+  wob:  ['wob',   0],
+  cru:  ['crush', 0],
+  vrb:  ['reverb',0],
+  cmp:  ['comp',  0],
+};
+
 // Single path for all hidden-set changes: apply body classes, sync checkboxes,
 // persist to localStorage, and update the active preset highlight.
 function setHiddenSet(hiddenArr) {
@@ -831,6 +845,17 @@ function setHiddenSet(hiddenArr) {
       btn.classList.toggle('on', btn.dataset.preset === active);
     }
   });
+  // Disengage FX-type knobs that are now hidden: zero their engine param on every
+  // current lane. Lanes added later start with defaults (all FX off) so they're
+  // already consistent. Re-enabling a knob does nothing here — the user re-dials.
+  const hiddenSet = new Set(hiddenArr);
+  for (const lane of eng.getLanes()) {
+    for (const [k, [param, offVal]] of Object.entries(FX_KNOB_MAP)) {
+      if (hiddenSet.has(k)) {
+        eng.setLaneFX(lane.id, param, offVal);
+      }
+    }
+  }
   // Hide groups where all knobs are now hidden.
   updateEmptyGroups();
 }
