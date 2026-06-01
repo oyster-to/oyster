@@ -21,6 +21,12 @@ function transposeNote(note, semis) {
 export const kids = {
   meter: { beatsPerBar:4, beatUnit:4, stepsPerBeat:4 },
   bpm: 120,
+  arrangement: [
+    { bars:4, lanes:{ drums:'four',     bass:'octave',  chords:'pad',  melody:'hook' }, fill:'tom roll' },
+    { bars:4, lanes:{ drums:'backbeat', bass:'eighths', chords:'pad',  melody:'hook' }, fill:'snare roll' },
+    { bars:4, lanes:{ drums:'NIN',      bass:'16ths',   chords:'stab', melody:'hook' }, fill:'crash build' },
+    { bars:4, lanes:{ drums:'four',     bass:'octave',  chords:'arp',  melody:'hook' }, fill:'glitch' },
+  ],
   fills: {
     'tom roll':   { kick:[0,4], tom:[[8,7],[9,5],[10,3],[11,4],[12,2],[13,0],[14,-2],[15,-4]] },
     'snare roll': { kick:[0], snare:[8,9,10,11,12,13,14,15] },

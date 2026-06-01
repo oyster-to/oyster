@@ -2,10 +2,12 @@ import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
 import { eventsForStep } from './scheduler.js';
 import { createVoices, trigger } from './voices.js';
-import { setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloExclusive } from './lanes.js';
+import { setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloExclusive, captureScene as _captureScene } from './lanes.js';
+import { sectionAt } from './arrangement.js';
 
 export function createEngine() {
   let song = null, voices = null, master = null, fx = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, toneType = 'pulse', pendingFill = null, activeFill = null;
+  let mode = 'live', songBar = 0;
   let masterComp = null, masterRev = null;
   function ensure() {
     if (started) return;
@@ -31,7 +33,7 @@ export function createEngine() {
       if (!song) throw new Error('no song loaded');
       if (playing) return;                                   // ignore double-play (don't stack callbacks)
       await Tone.start(); ensure();
-      step = 0;
+      step = 0; songBar = 0;
       Tone.Transport.bpm.value = tempo;
       if (repeatId !== null) Tone.Transport.clear(repeatId);
       repeatId = Tone.Transport.scheduleRepeat((t) => {
@@ -39,14 +41,35 @@ export function createEngine() {
         const barSeconds = stepsPerBar(song.meter) * sixteenth;
         const spb = stepsPerBar(song.meter);
         if (step % spb === 0) {
-          const prev = activeFill;
-          activeFill = pendingFill; pendingFill = null;
-          if (prev && !activeFill && voices) voices.crash.triggerAttackRelease('8n', t, 0.9);
+          const prevFill = activeFill;
+          if (mode === 'song' && song.arrangement && song.arrangement.length) {
+            const at = sectionAt(song.arrangement, songBar);
+            const L = at.section.lanes;
+            song.lanes.drums.selection  = L.drums;
+            song.lanes.bass.selection   = L.bass;
+            song.lanes.chords.selection = L.chords;
+            song.lanes.melody.selection = L.melody;
+            activeFill = at.isLastBar ? (at.section.fill || null) : null;
+            pendingFill = null;
+            songBar++;
+          } else {
+            activeFill = pendingFill; pendingFill = null;
+          }
+          if (prevFill && !activeFill && voices) voices.crash.triggerAttackRelease('8n', t, 0.9);
         }
         const fillPat = activeFill ? (song.fills?.[activeFill] ?? null) : null;
         for (const ev of eventsForStep(song, step, fillPat)) trigger(voices, ev, t, sixteenth, barSeconds);
-        if (onStepCb) { const s = step;
-          Tone.Draw.schedule(() => onStepCb({ absStep: s, bar: Math.floor(s/spb), stepInBar: s % spb, fill: activeFill }), t); }
+        if (onStepCb) { const s = step; const sb = songBar;
+          Tone.Draw.schedule(() => onStepCb({
+            absStep: s,
+            bar: Math.floor(s/spb),
+            stepInBar: s % spb,
+            fill: activeFill,
+            mode,
+            songIndex: (mode === 'song' && song.arrangement && song.arrangement.length)
+              ? sectionAt(song.arrangement, Math.max(0, sb - 1)).index
+              : -1,
+          }), t); }
         step++;
       }, '16n');
       Tone.Transport.start();
@@ -65,6 +88,10 @@ export function createEngine() {
     toggleSolo(lane) { return song ? _soloExclusive(song, lane) : false; },
     triggerFill(name) { pendingFill = name; },
     clearFill() { pendingFill = null; activeFill = null; },
+    setMode(m) { mode = m; songBar = 0; },
+    getMode() { return mode; },
+    captureScene() { if (song) { song.arrangement = song.arrangement || []; song.arrangement.push(_captureScene(song)); } return song ? song.arrangement.length : 0; },
+    clearArrangement() { if (song) song.arrangement = []; },
     setTone(type) { toneType = type; if (voices) voices.lead.set({ oscillator:{ type, width: 0.3 } }); },
     setLaneFX(lane, param, v01) {
       if (!fx || !fx[lane]) return;

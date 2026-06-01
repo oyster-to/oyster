@@ -1,4 +1,16 @@
 export function setLane(song, lane, selection) { song.lanes[lane].selection = selection; }
+export function captureScene(song) {
+  return {
+    bars: 4,
+    lanes: {
+      drums:  song.lanes.drums.selection,
+      bass:   song.lanes.bass.selection,
+      chords: song.lanes.chords.selection,
+      melody: song.lanes.melody.selection,
+    },
+    fill: null,
+  };
+}
 export function toggleMute(song, lane) { return (song.lanes[lane].muted = !song.lanes[lane].muted); }
 export function toggleSolo(song, lane) { return (song.lanes[lane].soloed = !song.lanes[lane].soloed); }
 export function soloExclusive(song, lane) {
