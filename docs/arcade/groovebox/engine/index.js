@@ -2,7 +2,7 @@ import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
 import { eventsForStep } from './scheduler.js';
 import { createVoices, trigger } from './voices.js';
-import { setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloExclusive, captureScene as _captureScene } from './lanes.js';
+import { setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloExclusive, captureScene as _captureScene, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo } from './lanes.js';
 import { sectionAt } from './arrangement.js';
 
 export function createEngine() {
@@ -87,6 +87,8 @@ export function createEngine() {
     toggleMute(lane) { return song ? _toggleMute(song, lane) : false; },
     toggleSolo(lane) { return song ? _soloExclusive(song, lane) : false; },
     triggerFill(name) { pendingFill = name; },
+    toggleDrumMute(voice) { return song ? _toggleDrumMute(song, voice) : false; },
+    toggleDrumSolo(voice) { return song ? _toggleDrumSolo(song, voice) : false; },
     clearFill() { pendingFill = null; activeFill = null; },
     setMode(m) { mode = m; songBar = 0; },
     getMode() { return mode; },

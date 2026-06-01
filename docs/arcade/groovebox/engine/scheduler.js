@@ -1,5 +1,5 @@
 import { stepsPerBar } from './meter.js';
-import { resolveDrumPattern, hasDrumHit, chordAt, DRUM_KEYS, laneAudible } from './song.js';
+import { resolveDrumPattern, hasDrumHit, chordAt, DRUM_KEYS, laneAudible, drumVoiceAudible } from './song.js';
 
 // Given the song and an absolute grid step, return all events to fire on that step.
 // fillPat: optional drum pattern object to use instead of the song's selected drum pattern.
@@ -12,8 +12,8 @@ export function eventsForStep(song, absStep, fillPat = null) {
 
   if (laneAudible(song, 'drums')) {
     const pat = fillPat || (resolveDrumPattern(L.drums.pool[L.drums.selection], bar, L.drums.cycleLen) || {});
-    for (const k of DRUM_KEYS) if (hasDrumHit(pat, k, step)) ev.push({ lane:'drums', voice:k });
-    if (pat.tom) for (const [s, semi] of pat.tom) if (s === step) ev.push({ lane:'drums', voice:'tom', semi: semi ?? 0 });
+    for (const k of DRUM_KEYS) if (hasDrumHit(pat, k, step) && drumVoiceAudible(song, k)) ev.push({ lane:'drums', voice:k });
+    if (pat.tom) for (const [s, semi] of pat.tom) if (s === step && drumVoiceAudible(song, 'tom')) ev.push({ lane:'drums', voice:'tom', semi: semi ?? 0 });
   }
   if (laneAudible(song, 'bass')) {
     const gen = L.bass.pool[L.bass.selection];

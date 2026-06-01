@@ -291,10 +291,43 @@ input[type=range] { accent-color: var(--acc); }
   font-size: 10px;
   color: var(--dim);
   text-align: right;
-  padding-right: 6px;
+  padding-right: 4px;
   flex: 0 0 46px;
   letter-spacing: 0.04em;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
 }
+.vrow .vl-lbl { line-height: 1; }
+.vrow.silenced > .vc,
+.vrow.silenced > .vl > .vl-lbl { opacity: 0.3; transition: opacity .15s; }
+
+/* ─── per-drum mute/solo buttons ─────────────────────────────────────────── */
+.dvm, .dvs {
+  width: 14px; height: 14px; flex: 0 0 14px; padding: 0; border-radius: 3px;
+  font: 700 8px ui-monospace,Menlo,monospace; color: var(--dim);
+  border: 1px solid #2c3044; cursor: pointer; transition: .12s;
+  background: linear-gradient(180deg,#22252f,#15171f);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 1px 2px rgba(0,0,0,.4);
+  line-height: 14px; text-align: center;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.dvm:hover, .dvs:hover { border-color: #3a4060; }
+.dvm.muted {
+  color: #fff1e8; border-color: #a8391c;
+  background: linear-gradient(180deg,#ff7a3d,#d6481e);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 6px rgba(255,90,40,.5);
+}
+.dvs.soloed {
+  color: #04201a; border-color: #2eaa8a;
+  background: linear-gradient(180deg,#63f8d4,#3dd6b0);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 6px rgba(84,240,200,.5);
+}
+/* M+S pair in the label column */
+.vrow .vl .dvm, .vrow .vl .dvs { margin: 0; }
+.vrow .vl > .dvm { display: inline-flex; }
+.vrow .vl > .dvs { display: inline-flex; margin-left: 1px; }
 
 /* ─── step cells ─────────────────────────────────────────────────────────── */
 .vc {

@@ -7,6 +7,7 @@ export function resolveDrumPattern(pattern, bar, cycleLen) {
 }
 
 const DRUM_KEYS = ['kick', 'snare', 'hat', 'crash'];
+export const DRUM_VOICES = ['kick', 'snare', 'hat', 'tom', 'crash'];
 
 export function hasDrumHit(pat, k, step) {
   if (k === 'tom') return !!(pat.tom && pat.tom.some(([s]) => s === step));
@@ -22,6 +23,12 @@ export function laneAudible(song, lane) {
   const anySolo = Object.values(song.lanes).some(l => l.soloed);
   const L = song.lanes[lane];
   return !L.muted && (!anySolo || !!L.soloed);
+}
+
+export function drumVoiceAudible(song, voice) {
+  const dl = song.lanes.drums;
+  const anySolo = Object.values(dl.voiceSolo || {}).some(Boolean);
+  return !(dl.voiceMute || {})[voice] && (!anySolo || !!(dl.voiceSolo || {})[voice]);
 }
 
 export { DRUM_KEYS };

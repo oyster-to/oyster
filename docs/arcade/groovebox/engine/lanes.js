@@ -12,6 +12,14 @@ export function captureScene(song) {
   };
 }
 export function toggleMute(song, lane) { return (song.lanes[lane].muted = !song.lanes[lane].muted); }
+export function toggleDrumMute(song, voice) {
+  song.lanes.drums.voiceMute ||= {};
+  return (song.lanes.drums.voiceMute[voice] = !song.lanes.drums.voiceMute[voice]);
+}
+export function toggleDrumSolo(song, voice) {
+  song.lanes.drums.voiceSolo ||= {};
+  return (song.lanes.drums.voiceSolo[voice] = !song.lanes.drums.voiceSolo[voice]);
+}
 export function toggleSolo(song, lane) { return (song.lanes[lane].soloed = !song.lanes[lane].soloed); }
 export function soloExclusive(song, lane) {
   const turningOn = !song.lanes[lane].soloed;

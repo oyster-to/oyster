@@ -1,5 +1,5 @@
 import { stepsPerBar, beatStarts } from '../engine/meter.js';
-import { resolveDrumPattern, hasDrumHit } from '../engine/song.js';
+import { resolveDrumPattern, hasDrumHit, drumVoiceAudible } from '../engine/song.js';
 
 const DROWS = [['kick','Kick'],['snare','Snare'],['hat','HH'],['tom','Tom'],['crash','Crash']];
 
@@ -230,7 +230,7 @@ export function makeViz(host, song, eng) {
       const barSel = buildBarSelector();
       host.innerHTML = barSel
         + buildBeatHeader(spb)
-        + DROWS.map(([k,l]) => `<div class="vrow" data-k="${k}"><span class="vl">${l}</span>${cells(spb)}</div>`).join('');
+        + DROWS.map(([k,l]) => `<div class="vrow" data-k="${k}"><span class="vl"><span class="vl-lbl">${l}</span><button class="dvm" data-voice="${k}" title="mute ${l}">M</button><button class="dvs" data-voice="${k}" title="solo ${l}">S</button></span>${cells(spb)}</div>`).join('');
 
       // Bar selector click handlers.
       host.querySelectorAll('.bsel').forEach(b => b.onclick = () => {
@@ -256,6 +256,14 @@ export function makeViz(host, song, eng) {
       host.querySelectorAll('.vrow').forEach(row => {
         const k = row.dataset.k;
         [...row.querySelectorAll('.vc')].forEach((c, i) => c.onclick = () => drumEdit(k, i));
+      });
+
+      // Per-voice mute/solo click handlers.
+      host.querySelectorAll('.dvm').forEach(btn => {
+        btn.onclick = e => { e.stopPropagation(); eng.toggleDrumMute(btn.dataset.voice); paint(lastBar, lastStepInBar); };
+      });
+      host.querySelectorAll('.dvs').forEach(btn => {
+        btn.onclick = e => { e.stopPropagation(); eng.toggleDrumSolo(btn.dataset.voice); paint(lastBar, lastStepInBar); };
       });
     } else {
       // Melody view: canvas piano-roll.
@@ -290,6 +298,12 @@ export function makeViz(host, song, eng) {
 
       host.querySelectorAll('.vrow').forEach(row => {
         const k = row.dataset.k;
+        const audible = drumVoiceAudible(song, k);
+        row.classList.toggle('silenced', !audible);
+        const mBtn = row.querySelector('.dvm');
+        const sBtn = row.querySelector('.dvs');
+        if (mBtn) mBtn.classList.toggle('muted', !!(L.voiceMute || {})[k]);
+        if (sBtn) sBtn.classList.toggle('soloed', !!(L.voiceSolo || {})[k]);
         row.querySelectorAll('.vc').forEach((c, i) => {
           const on  = hasDrumHit(pat, k, i);
           const was = base ? hasDrumHit(base, k, i) : on;
