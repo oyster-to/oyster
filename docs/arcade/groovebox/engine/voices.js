@@ -1,24 +1,25 @@
 import * as Tone from 'tone';
 
-// Build all synth voices, each connected to `dest` (a Tone node, e.g. the master limiter).
-export function createVoices(dest) {
-  const lead = new Tone.PolySynth(Tone.Synth).connect(dest);
+// Build all synth voices, routing each to its lane bus.
+// `buses` = { drums, bass, chords, melody } — each a Tone node (e.g. a lane FX input).
+export function createVoices(buses) {
+  const lead = new Tone.PolySynth(Tone.Synth).connect(buses.melody);
   lead.set({ oscillator:{ type:'pulse', width:0.3 }, envelope:{ attack:0.004, decay:0.18, sustain:0.2, release:0.2 } });
   lead.volume.value = -11;
   const bass = new Tone.MonoSynth({ oscillator:{ type:'triangle' },
     envelope:{ attack:0.005, decay:0.18, sustain:0.35, release:0.18 },
-    filterEnvelope:{ attack:0.005, decay:0.12, sustain:0.4, baseFrequency:120, octaves:3 } }).connect(dest);
+    filterEnvelope:{ attack:0.005, decay:0.12, sustain:0.4, baseFrequency:120, octaves:3 } }).connect(buses.bass);
   bass.volume.value = -7;
-  const chordSyn = new Tone.PolySynth(Tone.Synth).connect(new Tone.Filter(4200,'lowpass').connect(dest));
+  const chordSyn = new Tone.PolySynth(Tone.Synth).connect(new Tone.Filter(4200,'lowpass').connect(buses.chords));
   chordSyn.set({ oscillator:{ type:'triangle' }, envelope:{ attack:0.05, decay:0.3, sustain:0.6, release:0.5 } });
   chordSyn.volume.value = -17;
-  const kick  = new Tone.MembraneSynth({ volume:-2 }).connect(dest);
-  const snare = new Tone.NoiseSynth({ volume:-11, envelope:{ attack:0.001, decay:0.16, sustain:0 } }).connect(dest);
+  const kick  = new Tone.MembraneSynth({ volume:-2 }).connect(buses.drums);
+  const snare = new Tone.NoiseSynth({ volume:-11, envelope:{ attack:0.001, decay:0.16, sustain:0 } }).connect(buses.drums);
   const hat   = new Tone.NoiseSynth({ volume:-20, envelope:{ attack:0.001, decay:0.03, sustain:0 } })
-                  .connect(new Tone.Filter(7000,'highpass').connect(dest));
-  const tom   = new Tone.MembraneSynth({ volume:-6, pitchDecay:0.06, octaves:2 }).connect(dest);
+                  .connect(new Tone.Filter(7000,'highpass').connect(buses.drums));
+  const tom   = new Tone.MembraneSynth({ volume:-6, pitchDecay:0.06, octaves:2 }).connect(buses.drums);
   const crash = new Tone.NoiseSynth({ volume:-12, envelope:{ attack:0.001, decay:1.1, sustain:0, release:0.3 } })
-                  .connect(new Tone.Filter(3500,'highpass').connect(dest));
+                  .connect(new Tone.Filter(3500,'highpass').connect(buses.drums));
   return { lead, bass, chordSyn, kick, snare, hat, tom, crash };
 }
 

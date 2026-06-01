@@ -5,11 +5,18 @@ import { createVoices, trigger } from './voices.js';
 import { setLane as _setLane, toggleMute as _toggleMute } from './lanes.js';
 
 export function createEngine() {
-  let song = null, voices = null, master = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, toneType = 'pulse';
+  let song = null, voices = null, master = null, fx = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, toneType = 'pulse';
   function ensure() {
     if (started) return;
     master = new Tone.Limiter(-1).toDestination();
-    voices = createVoices(master);
+    const makeFX = dest => {
+      const dl = new Tone.FeedbackDelay({ delayTime:'8n', feedback:0.28, wet:0 }).connect(dest);
+      const dr = new Tone.Distortion(0.4).connect(dl); dr.wet.value = 0;
+      const ft = new Tone.Filter({ type:'lowpass', frequency:14000, Q:1 }).connect(dr);
+      return { filter:ft, drive:dr, delay:dl, input:ft };
+    };
+    fx = { drums:makeFX(master), bass:makeFX(master), chords:makeFX(master), melody:makeFX(master) };
+    voices = createVoices({ drums:fx.drums.input, bass:fx.bass.input, chords:fx.chords.input, melody:fx.melody.input });
     voices.lead.set({ oscillator:{ type: toneType, width: 0.3 } });
     started = true;
   }
@@ -44,5 +51,12 @@ export function createEngine() {
     setLane(lane, selection) { if (song) _setLane(song, lane, selection); },
     toggleMute(lane) { return song ? _toggleMute(song, lane) : false; },
     setTone(type) { toneType = type; if (voices) voices.lead.set({ oscillator:{ type, width: 0.3 } }); },
+    setLaneFX(lane, param, v01) {
+      if (!fx || !fx[lane]) return;
+      const c = fx[lane];
+      if (param === 'cut')        c.filter.frequency.rampTo(200 * Math.pow(70, v01), 0.05);
+      else if (param === 'drive') c.drive.wet.rampTo(v01 * 0.85, 0.05);
+      else if (param === 'delay') c.delay.wet.rampTo(v01 * 0.5, 0.05);
+    },
   };
 }
