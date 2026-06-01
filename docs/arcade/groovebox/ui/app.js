@@ -31,7 +31,7 @@ function renderStrips() {
     const lane = row.dataset.lane;
     const knobs = document.createElement('div');
     knobs.className = 'knobs';
-    knobs.appendChild(makeKnob({ label: 'cut',  value: 1, onChange: v => eng.setLaneFX(lane, 'cut',   v) }));
+    knobs.appendChild(makeKnob({ label: 'cut',  value: 0.5, onChange: v => eng.setLaneFX(lane, 'cut',   v) }));
     knobs.appendChild(makeKnob({ label: 'drv',  value: 0, onChange: v => eng.setLaneFX(lane, 'drive', v) }));
     knobs.appendChild(makeKnob({ label: 'dly',  value: 0, onChange: v => eng.setLaneFX(lane, 'delay', v) }));
     row.querySelector('.mute').before(knobs);

@@ -54,7 +54,10 @@ export function createEngine() {
     setLaneFX(lane, param, v01) {
       if (!fx || !fx[lane]) return;
       const c = fx[lane];
-      if (param === 'cut')        c.filter.frequency.rampTo(200 * Math.pow(70, v01), 0.05);
+      if (param === 'cut') {                                   // bipolar: center=open, left=lowpass(darker), right=highpass(thinner)
+        if (v01 < 0.5) { c.filter.type = 'lowpass';  const a = (0.5 - v01) / 0.5; c.filter.frequency.rampTo(20000 * Math.pow(200/20000, a), 0.05); }
+        else           { c.filter.type = 'highpass'; const a = (v01 - 0.5) / 0.5; c.filter.frequency.rampTo(20 * Math.pow(8000/20, a), 0.05); }
+      }
       else if (param === 'drive') c.drive.wet.rampTo(v01 * 0.85, 0.05);
       else if (param === 'delay') c.delay.wet.rampTo(v01 * 0.5, 0.05);
     },
