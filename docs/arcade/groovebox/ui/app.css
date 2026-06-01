@@ -16,6 +16,7 @@
   --warn:      #ffd24a;
   --ink-on-acc: #04201a;  /* text colour on --acc background; override per theme */
   --tab-on-ink: var(--acc); /* active-tab text colour; override when --panel-3 is dark */
+  --tab-bg:     var(--panel-3); /* active-tab pill fill; decoupled from hover surface */
   --meter-lo:  #54f0c8;
   --meter-mid: #ffd24a;
   --meter-hi:  #ff5b6b;
@@ -281,7 +282,7 @@ select {
 }
 .vtabs button.on {
   /* raised, integrated pill — not a stuck-on bordered box */
-  background: var(--panel-3);
+  background: var(--tab-bg);
   color: var(--tab-on-ink);
   box-shadow:
     0 1px 2px rgba(0,0,0,0.40),
@@ -1110,7 +1111,8 @@ input[type=range] {
   --bg:          #caa600;
   --panel:       #ffd11a;
   --panel-2:     #f4c200;
-  --panel-3:     #1a1500;
+  --panel-3:     #ffe066;   /* light hover surface (dark text stays legible) */
+  --tab-bg:      #1a1500;   /* active-tab pill stays near-black */
   --line:        rgba(0,0,0,.30);
   --line-dk:     rgba(0,0,0,.45);
   --ink:         #1a1500;
