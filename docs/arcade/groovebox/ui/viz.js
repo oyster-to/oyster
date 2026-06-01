@@ -349,7 +349,8 @@ export function makeViz(host, song, eng) {
 
   function build() {
     const spb = stepsPerBar(song.meter);
-    const cells = n => Array.from({length:n}, (_,i) => `<div class="vc${i%4===0?' beat':''}"></div>`).join('');
+    const beats = new Set(beatStarts(song.meter));
+    const cells = n => Array.from({length:n}, (_,i) => `<div class="vc${beats.has(i)?' beat':''}"></div>`).join('');
     if (view === 'drums') {
       const barSel = buildBarSelector();
       host.innerHTML = barSel

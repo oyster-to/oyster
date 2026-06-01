@@ -1,16 +1,25 @@
 import { createEngine } from '../engine/index.js';
 import { laneAudible } from '../engine/song.js';
 import { kids } from '../songs/kids.js';
+import { risingSun } from '../songs/rising-sun.js';
+import { blueDanube } from '../songs/blue-danube.js';
 import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
 
-const eng = createEngine(); eng.load(kids);
-const song = eng.getSong();
+const eng = createEngine();
 const LANES = ['drums','bass','chords','melody'];
 const chordModes = ['pad','arp','stab'];
-const options = lane => lane === 'chords' ? chordModes : Object.keys(song.lanes[lane].pool);
-
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
+
+const SONGS = { kids, 'rising-sun': risingSun, 'blue-danube': blueDanube };
+
+// Module-level refs — reassigned by mount() on every song switch.
+let song;
+let viz;
+
+function options(lane) {
+  return lane === 'chords' ? chordModes : Object.keys(song.lanes[lane].pool);
+}
 
 function refreshStates() {
   const host = document.getElementById('strips');
@@ -53,26 +62,20 @@ function renderStrips() {
     const knobs = document.createElement('div');
     knobs.className = 'knobs';
     knobs.appendChild(makeKnob({ label: 'cut',  value: 0.5, onChange: v => eng.setLaneFX(lane, 'cut',   v) }));
-    knobs.appendChild(makeKnob({ label: 'drv',  value: 0, onChange: v => eng.setLaneFX(lane, 'drive', v) }));
-    knobs.appendChild(makeKnob({ label: 'dly',  value: 0, onChange: v => eng.setLaneFX(lane, 'delay', v) }));
-    knobs.appendChild(makeKnob({ label: 'cru',  value: 0, onChange: v => eng.setLaneFX(lane, 'crush', v) }));
+    knobs.appendChild(makeKnob({ label: 'drv',  value: 0,   onChange: v => eng.setLaneFX(lane, 'drive', v) }));
+    knobs.appendChild(makeKnob({ label: 'dly',  value: 0,   onChange: v => eng.setLaneFX(lane, 'delay', v) }));
+    knobs.appendChild(makeKnob({ label: 'cru',  value: 0,   onChange: v => eng.setLaneFX(lane, 'crush', v) }));
     row.querySelector('.msgroup').before(knobs);
   });
   refreshStates();
 }
-
-document.getElementById('play').onclick = async function() {
-  if (this.classList.contains('on')) { eng.stop(); this.classList.remove('on'); this.textContent='▶ play'; }
-  else { await eng.play(); this.classList.add('on'); this.textContent='⏹ stop'; }
-};
-document.getElementById('bpm').oninput = e => { eng.setTempo(+e.target.value); document.getElementById('bpmv').textContent = e.target.value; };
-renderStrips();
 
 // ─── Fills row ───────────────────────────────────────────────────────────────
 let armedFill = null;
 function renderFills() {
   const host = document.getElementById('fills');
   if (!host || !song.fills) return;
+  host.innerHTML = '';
   const row = document.createElement('div');
   row.className = 'fillsrow';
   const lbl = document.createElement('span');
@@ -93,15 +96,19 @@ function renderFills() {
   }
   host.appendChild(row);
 }
-renderFills();
 
-const masterHost = document.getElementById('master');
-const mwrap = document.createElement('div'); mwrap.className = 'masterfx';
-mwrap.innerHTML = '<span class="mlbl">MASTER</span>';
-const mk = document.createElement('div'); mk.className = 'knobs';
-mk.appendChild(makeKnob({ label:'verb', value:0, onChange: v => eng.setMasterFX('reverb', v) }));
-mk.appendChild(makeKnob({ label:'comp', value:0, onChange: v => eng.setMasterFX('comp', v) }));
-mwrap.appendChild(mk); masterHost.appendChild(mwrap);
+// ─── Master FX ───────────────────────────────────────────────────────────────
+function renderMaster() {
+  const masterHost = document.getElementById('master');
+  masterHost.innerHTML = '';
+  const mwrap = document.createElement('div'); mwrap.className = 'masterfx';
+  mwrap.innerHTML = '<span class="mlbl">MASTER</span>';
+  const mk = document.createElement('div'); mk.className = 'knobs';
+  mk.appendChild(makeKnob({ label:'verb', value:0, onChange: v => eng.setMasterFX('reverb', v) }));
+  mk.appendChild(makeKnob({ label:'comp', value:0, onChange: v => eng.setMasterFX('comp', v) }));
+  mwrap.appendChild(mk); masterHost.appendChild(mwrap);
+}
+
 // ─── Arrangement UI ──────────────────────────────────────────────────────────
 // Section colors — cycle through a set for visual variety
 const SECTION_COLORS = ['#54f0c8','#5aa9ff','#ffb054','#ff5b9e','#b98cff','#ffd24a','#7af0a0','#f08a54'];
@@ -163,9 +170,63 @@ function renderArrange() {
   host.appendChild(timeline);
 }
 
-renderArrange();
+// ─── Reset FX to neutral (call before mount on song switch) ──────────────────
+function resetFX() {
+  for (const lane of LANES) {
+    eng.setLaneFX(lane, 'cut',   0.5);
+    eng.setLaneFX(lane, 'drive', 0);
+    eng.setLaneFX(lane, 'delay', 0);
+    eng.setLaneFX(lane, 'crush', 0);
+  }
+  eng.setMasterFX('reverb', 0);
+  eng.setMasterFX('comp', 0);
+}
 
-const viz = makeViz(document.getElementById('viz'), song, eng);
+// ─── Mount: (re)build all per-song UI ────────────────────────────────────────
+function mount() {
+  song = eng.getSong();
+  renderStrips();
+  renderFills();
+  renderMaster();
+  renderArrange();
+  viz = makeViz(document.getElementById('viz'), song, eng);
+  // Reset tab buttons to Drums view.
+  document.querySelectorAll('[data-view]').forEach(x => x.classList.toggle('on', x.dataset.view === 'drums'));
+  viz.setView('drums');
+}
+
+// ─── Load a different song ────────────────────────────────────────────────────
+function loadSong(key) {
+  eng.stop();
+  const play = document.getElementById('play');
+  play.classList.remove('on');
+  play.textContent = '▶ play';
+  eng.setMode('live');
+  eng.load(SONGS[key]);
+  const s = eng.getSong();
+  const bpm = document.getElementById('bpm');
+  bpm.value = s.bpm;
+  document.getElementById('bpmv').textContent = s.bpm;
+  eng.setTempo(s.bpm);
+  resetFX();
+  mount();
+}
+
+// ─── Transport ───────────────────────────────────────────────────────────────
+document.getElementById('play').onclick = async function() {
+  if (this.classList.contains('on')) { eng.stop(); this.classList.remove('on'); this.textContent='▶ play'; }
+  else { await eng.play(); this.classList.add('on'); this.textContent='⏹ stop'; }
+};
+document.getElementById('bpm').oninput = e => { eng.setTempo(+e.target.value); document.getElementById('bpmv').textContent = e.target.value; };
+document.getElementById('songsel').onchange = e => loadSong(e.target.value);
+
+// ─── Tab buttons (registered once; reference module-level viz) ───────────────
+document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-view]').forEach(x => x.classList.toggle('on', x === b));
+  viz.setView(b.dataset.view);
+});
+
+// ─── Step callback (registered once; closes over module-level song/viz) ──────
 eng.onStep(({absStep, bar, stepInBar, fill, mode, songIndex}) => {
   viz.setStep(absStep, bar, stepInBar);
   const fillsHost = document.getElementById('fills');
@@ -197,7 +258,11 @@ eng.onStep(({absStep, bar, stepInBar, fill, mode, songIndex}) => {
     refreshStates();
   }
 });
-document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
-  document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('on', x===b));
-  viz.setView(b.dataset.view);
-});
+
+// ─── Initial load ─────────────────────────────────────────────────────────────
+eng.load(kids);
+const initialSong = eng.getSong();
+document.getElementById('bpm').value = initialSong.bpm;
+document.getElementById('bpmv').textContent = initialSong.bpm;
+eng.setTempo(initialSong.bpm);
+mount();
