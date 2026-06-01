@@ -1,6 +1,12 @@
 import { stepsPerBar } from './meter.js';
 import { resolveDrumPattern, hasDrumHit, chordAt, DRUM_KEYS, laneAudible, drumVoiceAudible, transposeNote } from './song.js';
 
+// Seconds to delay a step's events for swing. amount 0..1; only odd 16th steps are delayed.
+// 0.55 cap keeps the off-step strictly before the next step (delay < sixteenth).
+export function swingOffset(step, amount, sixteenth) {
+  return (step % 2 === 1) ? amount * 0.55 * sixteenth : 0;
+}
+
 // Given the song, lane list, and an absolute grid step, return all events to fire on that step.
 // fillPat: optional drum pattern object to use instead of the song's selected drum pattern.
 export function eventsForStep(song, lanes, absStep, fillPat = null) {
