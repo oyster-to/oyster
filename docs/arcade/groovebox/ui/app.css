@@ -1106,6 +1106,7 @@ input[type=range] {
 [data-theme="beige"] h1 { text-shadow: none; }
 
 [data-theme="playdate"] {
+  /* BODY — yellow plastic */
   --bg:          #caa600;
   --panel:       #ffd11a;
   --panel-2:     #f4c200;
@@ -1122,27 +1123,27 @@ input[type=range] {
   --meter-lo:    #141100;
   --meter-mid:   #8a5a00;
   --meter-hi:    #c8005a;
-  --cell:        #e8c200;
-  --cell-alt:    #f4cf14;
   --ink-on-acc:  #ffe27a;
   --tab-on-ink:  #ffe27a;
-  --hit1:        #1a1500;
-  --hit2:        #141100;
-  --roll-bg:     #ffd11a;
-  --roll-bg-blk: #f5c800;
-  --grid-line:   rgba(0,0,0,.25);
-  --scope:       #141100;
-  --playhead:    #c8005a;
-  --screen-bg:   #ffd11a;
-  --screen-glow: transparent;
   --chrome-hi:   #d0a800;
   --chrome-mid:  #c09800;
   --chrome-lo:   #b08a00;
   --bevel-hi:    rgba(255,255,255,0.3);
   --bevel-lo:    rgba(0,0,0,0.2);
+  /* SCREEN — near-black with warm-light content */
+  --screen-bg:   #1c1a0e;
+  --screen-glow: rgba(255,209,26,0.08);
+  --roll-bg:     #201d10;
+  --roll-bg-blk: #16140a;
+  --roll-note:   #ffd11a;
+  --grid-line:   #3a3520;
+  --scope:       #ffd11a;
+  --playhead:    #fff4c0;
+  --cell:        #201d10;
+  --cell-alt:    #2a2614;
+  --hit1:        #ffd11a;
+  --hit2:        #c8a000;
 }
-[data-theme="playdate"] #viz,
-[data-theme="playdate"] .vc.hit { box-shadow: none; }
 [data-theme="playdate"] h1 { text-shadow: none; }
 
 [data-theme="purple"] {
@@ -1180,37 +1181,51 @@ input[type=range] {
 }
 
 [data-theme="gameboy"] {
-  --bg:          #0f380f;
-  --panel:       #14431a;
-  --panel-2:     #1d521d;
-  --panel-3:     #2a6230;
-  --line:        rgba(155,188,15,.22);
-  --line-dk:     rgba(0,0,0,.5);
-  --ink:         #9bbc0f;
-  --dim:         #6f8f12;
-  --faint:       #4f6a10;
-  --acc:         #8bac0f;
-  --acc-dim:     #4f6a10;
-  --hot:         #cfe05a;
-  --ink-on-acc:  #0f380f;
-  --warn:        #cfe05a;
+  /* BODY — light-grey plastic + magenta A/B accent */
+  --bg:          #b0b0a2;
+  --panel:       #d2d2c4;
+  --panel-2:     #c6c6b8;
+  --panel-3:     #adafa0;
+  --line:        rgba(0,0,0,.16);
+  --line-dk:     rgba(0,0,0,.30);
+  --ink:         #2e2e28;
+  --dim:         #5a5a50;
+  --faint:       #86867a;
+  --acc:         #b53a5b;
+  --acc-dim:     #8a2a44;
+  --hot:         #b53a5b;
+  --warn:        #7a7a14;
+  --ink-on-acc:  #ffffff;
+  --tab-on-ink:  #b53a5b;
   --meter-lo:    #8bac0f;
-  --meter-mid:   #cfe05a;
-  --meter-hi:    #cfe05a;
-  --cell:        #123c12;
-  --cell-alt:    #184718;
-  --hit1:        #6f8f12;
-  --hit2:        #4f6a10;
-  --roll-bg:     #123c12;
-  --roll-bg-blk: #0f380f;
-  --grid-line:   #2a6230;
-  --scope:       #cfe05a;
-  --playhead:    #e8f0a0;
-  --screen-bg:   #0a2a0a;
-  --screen-glow: rgba(155,188,15,0.10);
-  --chrome-hi:   #2a6230;
-  --chrome-mid:  #1d521d;
-  --chrome-lo:   #0f380f;
+  --meter-mid:   #6f8f12;
+  --meter-hi:    #b53a5b;
+  --chrome-hi:   #c0c0b2;
+  --chrome-mid:  #aeae9e;
+  --chrome-lo:   #9c9c8c;
+  --bevel-hi:    rgba(255,255,255,0.45);
+  --bevel-lo:    rgba(0,0,0,0.18);
+  /* SCREEN — olive-green LCD, dark-green content */
+  --screen-bg:   #9bbc0f;
+  --screen-glow: rgba(155,188,15,0.12);
+  --roll-bg:     #8bac0f;
+  --roll-bg-blk: #7e9d0d;
+  --roll-note:   #0f380f;
+  --grid-line:   #6f8f0d;
+  --scope:       #0f380f;
+  --playhead:    #0f380f;
+  --cell:        #8bac0f;
+  --cell-alt:    #93b412;
+  --hit1:        #306230;
+  --hit2:        #0f380f;
+}
+/* neutralise dark glows on the olive LCD screen */
+[data-theme="gameboy"] #viz {
+  box-shadow:
+    inset 0 0 0 1px rgba(0,0,0,0.15),
+    inset 0 2px 8px rgba(0,0,0,0.25),
+    0 0 0 1px rgba(0,0,0,0.3),
+    0 0 16px var(--screen-glow);
 }
 
 [data-theme="amber"] {
@@ -1245,4 +1260,44 @@ input[type=range] {
   --chrome-hi:   #3a2c0e;
   --chrome-mid:  #2a200e;
   --chrome-lo:   #1b1408;
+}
+
+[data-theme="r1"] {
+  /* BODY — Rabbit orange + white/black UI */
+  --bg:          #d63e00;
+  --panel:       #fe5000;
+  --panel-2:     #e84800;
+  --panel-3:     #161616;
+  --line:        rgba(0,0,0,.26);
+  --line-dk:     rgba(0,0,0,.40);
+  --ink:         #ffffff;
+  --dim:         #ffd2bf;
+  --faint:       #ffae8c;
+  --acc:         #ffffff;
+  --acc-dim:     #cccccc;
+  --hot:         #ff2d00;
+  --warn:        #ffd24a;
+  --ink-on-acc:  #161616;
+  --tab-on-ink:  #ffffff;
+  --meter-lo:    #ff7836;
+  --meter-mid:   #ffd24a;
+  --meter-hi:    #ff2d00;
+  --chrome-hi:   #ff6a20;
+  --chrome-mid:  #e84800;
+  --chrome-lo:   #c83e00;
+  --bevel-hi:    rgba(255,255,255,0.18);
+  --bevel-lo:    rgba(0,0,0,0.35);
+  /* SCREEN — true black, white content, orange highlight */
+  --screen-bg:   #000000;
+  --screen-glow: rgba(255,80,0,0.10);
+  --roll-bg:     #0a0a0a;
+  --roll-bg-blk: #050505;
+  --roll-note:   #ffffff;
+  --grid-line:   #242424;
+  --scope:       #ffffff;
+  --playhead:    #ff5000;
+  --cell:        #0a0a0a;
+  --cell-alt:    #141414;
+  --hit1:        #ff7836;
+  --hit2:        #d64800;
 }
