@@ -438,6 +438,45 @@ input[type=range] { accent-color: var(--acc); }
   z-index: 2;   /* above CRT scanline overlay */
 }
 
+/* ─── bass roll canvas (read-only) ─────────────────────────────────────── */
+#broll {
+  display: block;
+  width: 100%;
+  background: #07080d;
+  border-radius: 6px;
+  position: relative;
+  z-index: 2;
+}
+
+/* ─── scope oscilloscope canvas + source selector ───────────────────────── */
+#scope-canvas {
+  display: block;
+  width: 100%;
+  background: #0b0d12;
+  border-radius: 6px;
+  position: relative;
+  z-index: 2;
+}
+.scope-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  position: relative;
+  z-index: 2;
+  font-size: 11px;
+  color: var(--dim);
+}
+.scope-bar select {
+  background: #15171f;
+  color: var(--acc);
+  border: 1px solid #2a2e3a;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font: inherit;
+  cursor: pointer;
+}
+
 /* ─── lane strips — recessed module slots ───────────────────────────────── */
 #strips {
   display: flex;

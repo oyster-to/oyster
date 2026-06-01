@@ -9,6 +9,7 @@ export function createEngine() {
   let song = null, voices = null, master = null, fx = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, toneType = 'pulse', pendingFill = null, activeFill = null;
   let mode = 'live', songBar = 0;
   let masterComp = null, masterRev = null;
+  let scopeMaster = null, scopeLane = {};
   function ensure() {
     if (started) return;
     const out = new Tone.Limiter(-1).toDestination();
@@ -25,6 +26,13 @@ export function createEngine() {
     fx = { drums:makeFX(masterIn), bass:makeFX(masterIn), chords:makeFX(masterIn), melody:makeFX(masterIn) };
     voices = createVoices({ drums:fx.drums.input, bass:fx.bass.input, chords:fx.chords.input, melody:fx.melody.input });
     voices.lead.set({ oscillator:{ type: toneType, width: 0.3 } });
+    // Waveform analysers (sinks — don't alter the audio chain).
+    scopeMaster = new Tone.Waveform(1024);
+    masterComp.connect(scopeMaster);
+    for (const lane of ['drums','bass','chords','melody']) {
+      scopeLane[lane] = new Tone.Waveform(1024);
+      fx[lane].delay.connect(scopeLane[lane]);
+    }
     started = true;
   }
   return {
@@ -95,6 +103,11 @@ export function createEngine() {
     captureScene() { if (song) { song.arrangement = song.arrangement || []; song.arrangement.push(_captureScene(song)); } return song ? song.arrangement.length : 0; },
     clearArrangement() { if (song) song.arrangement = []; },
     setTone(type) { toneType = type; if (voices) voices.lead.set({ oscillator:{ type, width: 0.3 } }); },
+    getScope(source) {
+      if (!started) return null;
+      if (source === 'master') return scopeMaster ? scopeMaster.getValue() : null;
+      return scopeLane[source] ? scopeLane[source].getValue() : null;
+    },
     setLaneFX(lane, param, v01) {
       if (!fx || !fx[lane]) return;
       const c = fx[lane];

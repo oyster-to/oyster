@@ -1,5 +1,5 @@
 import { stepsPerBar, beatStarts } from '../engine/meter.js';
-import { resolveDrumPattern, hasDrumHit, drumVoiceAudible } from '../engine/song.js';
+import { resolveDrumPattern, hasDrumHit, drumVoiceAudible, chordAt } from '../engine/song.js';
 
 const DROWS = [['kick','Kick'],['snare','Snare'],['hat','HH'],['tom','Tom'],['crash','Crash']];
 
@@ -27,11 +27,19 @@ const clonePat = p => {
 // Expand any pattern (single bar or array) to a 4-bar editable array.
 const fork4 = src => [0,1,2,3].map(b => clonePat(Array.isArray(src) ? src[b % src.length] : src));
 
+// Bass note range: two octaves roughly centred on bass register.
+const BASS_LO = 28;   // E1
+const BASS_HI = 51;   // Eb3  (covers typical bass lines well)
+const BASS_ROWS = BASS_HI - BASS_LO + 1;
+
 export function makeViz(host, song, eng) {
   let view = 'drums';
   let editBars = new Set([0]);
   let customLen = 4;
   let lastBar = 0, lastStepInBar = 0;
+  // Scope state
+  let scopeSource = 'master';
+  let scopeRafId = null;
 
   function primaryBar() { return Math.min(...editBars); }
 
@@ -223,6 +231,122 @@ export function makeViz(host, song, eng) {
     drawRoll(lastBar * spb + lastStepInBar);
   }
 
+  // ---- scope oscilloscope ----
+
+  function drawScope() {
+    const cv = host.querySelector('#scope-canvas');
+    if (!cv) return;
+    const ctx = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+    // Background.
+    ctx.fillStyle = '#0b0d12';
+    ctx.fillRect(0, 0, W, H);
+    // Center line.
+    ctx.strokeStyle = '#1a2830';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
+
+    const data = eng.getScope(scopeSource);
+    ctx.strokeStyle = 'var(--acc, #54f0c8)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if (!data || data.length === 0) {
+      // flat line when no audio yet
+      ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2);
+    } else {
+      for (let i = 0; i < data.length; i++) {
+        const x = (i / (data.length - 1)) * W;
+        const y = (1 - (data[i] + 1) / 2) * H;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+  }
+
+  function startScopeLoop() {
+    if (scopeRafId !== null) return;
+    function loop() {
+      drawScope();
+      scopeRafId = requestAnimationFrame(loop);
+    }
+    scopeRafId = requestAnimationFrame(loop);
+  }
+
+  function stopScopeLoop() {
+    if (scopeRafId !== null) { cancelAnimationFrame(scopeRafId); scopeRafId = null; }
+  }
+
+  // ---- bass note-row (read-only) ----
+
+  function drawBassRoll(stepInBar) {
+    const cv = host.querySelector('#broll');
+    if (!cv) return;
+    const ctx = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const spb = stepsPerBar(song.meter);
+    const kbW = ROLL_KB;
+    const gW = W - kbW;
+    const rh = H / BASS_ROWS;
+
+    // Draw pitch rows.
+    for (let mm = BASS_LO; mm <= BASS_HI; mm++) {
+      const y = (BASS_HI - mm) * rh;
+      const deg = ((mm % 12) + 12) % 12;
+      const blk = BLACK_DEGREES.has(deg);
+      ctx.fillStyle = blk ? '#14171e' : '#1c2029';
+      ctx.fillRect(0, y, kbW, rh - 0.5);
+      ctx.fillStyle = blk ? '#0c0e14' : '#0f121a';
+      ctx.fillRect(kbW, y, gW, rh - 0.5);
+      // Label E and B and octave roots (E = deg 4, B = deg 11, C = deg 0).
+      if (deg === 0) {
+        ctx.fillStyle = '#4a4f5c';
+        ctx.font = '8px monospace';
+        ctx.fillText('C' + (Math.floor(mm / 12) - 1), 3, y + rh - 2);
+      } else if (deg === 4) {
+        ctx.fillStyle = '#2e3545';
+        ctx.font = '8px monospace';
+        ctx.fillText('E' + (Math.floor(mm / 12) - 1), 3, y + rh - 2);
+      }
+    }
+
+    // Beat gridlines.
+    for (let s = 0; s <= spb; s++) {
+      const x = kbW + (s / spb) * gW;
+      ctx.strokeStyle = s % 4 === 0 ? '#2a2e3a' : '#181b23';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+
+    // Resolve bass notes for current bar.
+    const L = song.lanes.bass;
+    const gen = L.pool[L.selection];
+    let notes = [];
+    if (typeof gen === 'function') {
+      const chord = chordAt(song.harmony.progression, lastBar);
+      try { notes = gen(lastBar, chord) || []; } catch (_) { notes = []; }
+    }
+
+    // Draw note blocks.
+    ctx.fillStyle = '#54f0c8';
+    for (const [st, noteName, dur] of notes) {
+      const midi = noteToMidi(noteName);
+      if (midi < BASS_LO || midi > BASS_HI) continue;
+      const x = kbW + (st / spb) * gW;
+      const w = Math.max(3, ((dur || 2) / spb) * gW - 1);
+      const y = (BASS_HI - midi) * rh;
+      ctx.fillRect(x + 1, y + 1, w - 1, rh - 2);
+    }
+
+    // Playhead.
+    const px = kbW + (stepInBar / spb) * gW;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+  }
+
   function build() {
     const spb = stepsPerBar(song.meter);
     const cells = n => Array.from({length:n}, (_,i) => `<div class="vc${i%4===0?' beat':''}"></div>`).join('');
@@ -265,7 +389,7 @@ export function makeViz(host, song, eng) {
       host.querySelectorAll('.dvs').forEach(btn => {
         btn.onclick = e => { e.stopPropagation(); eng.toggleDrumSolo(btn.dataset.voice); paint(lastBar, lastStepInBar); };
       });
-    } else {
+    } else if (view === 'melody') {
       // Melody view: canvas piano-roll.
       host.innerHTML = '<canvas id="mroll"></canvas>';
       const cv = host.querySelector('#mroll');
@@ -273,6 +397,24 @@ export function makeViz(host, song, eng) {
       cv.height = 170;
       cv.onclick = rollClick;
       drawRoll(-1);
+    } else if (view === 'scope') {
+      const SOURCES = ['master','drums','bass','chords','melody'];
+      const opts = SOURCES.map(s =>
+        `<option value="${s}"${s === scopeSource ? ' selected' : ''}>${s}</option>`
+      ).join('');
+      host.innerHTML = `<div class="scope-bar"><label>source <select id="scope-src">${opts}</select></label></div>`
+        + `<canvas id="scope-canvas"></canvas>`;
+      const cv = host.querySelector('#scope-canvas');
+      cv.width = host.clientWidth || 680;
+      cv.height = 140;
+      host.querySelector('#scope-src').onchange = e => { scopeSource = e.target.value; };
+      startScopeLoop();
+    } else if (view === 'bass') {
+      host.innerHTML = '<canvas id="broll"></canvas>';
+      const cv = host.querySelector('#broll');
+      cv.width = host.clientWidth || 680;
+      cv.height = 160;
+      drawBassRoll(lastStepInBar);
     }
   }
 
@@ -318,16 +460,23 @@ export function makeViz(host, song, eng) {
       host.querySelectorAll('.bsel').forEach(b => {
         b.classList.toggle('playing', isCustom && +b.dataset.b === playingBar);
       });
-    } else {
+    } else if (view === 'melody') {
       // Melody view: redraw the piano-roll canvas with current playhead.
       const spb = stepsPerBar(song.meter);
       drawRoll(bar * spb + stepInBar);
+    } else if (view === 'bass') {
+      drawBassRoll(stepInBar);
     }
+    // Scope view is driven by its own rAF loop — no paint needed here.
   }
 
   build();
   return {
-    setView(v) { view = v; build(); },
+    setView(v) {
+      if (v !== 'scope') stopScopeLoop();
+      view = v;
+      build();
+    },
     setStep(_abs, bar, stepInBar) { paint(bar, stepInBar); },
   };
 }
