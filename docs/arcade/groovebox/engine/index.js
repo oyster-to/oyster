@@ -19,9 +19,9 @@ export function createEngine() {
     const makeFX = dest => {
       const dl = new Tone.FeedbackDelay({ delayTime:'8n', feedback:0.28, wet:0 }).connect(dest);
       const cr = new Tone.BitCrusher(4).connect(dl);  cr.wet.value = 0;
-      const dr = new Tone.Distortion(0.4).connect(cr); dr.wet.value = 0;
-      const ft = new Tone.Filter({ type:'lowpass', frequency:14000, Q:1 }).connect(dr);
-      return { filter:ft, drive:dr, crush:cr, delay:dl, input:ft };
+      const dr = new Tone.Distortion({ distortion:0.4, oversample:'4x' }).connect(cr); dr.wet.value = 0;
+      const ft = new Tone.Filter({ type:'lowpass', frequency:14000, Q:0.7 }).connect(dr);
+      return { filter:ft, drive:dr, crush:cr, delay:dl, input:ft, _cutType:'lowpass' };
     };
     fx = { drums:makeFX(masterIn), bass:makeFX(masterIn), chords:makeFX(masterIn), melody:makeFX(masterIn) };
     voices = createVoices({ drums:fx.drums.input, bass:fx.bass.input, chords:fx.chords.input, melody:fx.melody.input });
@@ -112,12 +112,12 @@ export function createEngine() {
       if (!fx || !fx[lane]) return;
       const c = fx[lane];
       if (param === 'cut') {                                   // bipolar: center=open, left=lowpass(darker), right=highpass(thinner)
-        if (v01 < 0.5) { c.filter.type = 'lowpass';  const a = (0.5 - v01) / 0.5; c.filter.frequency.rampTo(20000 * Math.pow(200/20000, a), 0.05); }
-        else           { c.filter.type = 'highpass'; const a = (v01 - 0.5) / 0.5; c.filter.frequency.rampTo(20 * Math.pow(8000/20, a), 0.05); }
+        if (v01 < 0.5) { if (c._cutType !== 'lowpass')  { c.filter.type = 'lowpass';  c._cutType = 'lowpass';  } const a = (0.5 - v01) / 0.5; c.filter.frequency.rampTo(20000 * Math.pow(200/20000, a), 0.08); }
+        else           { if (c._cutType !== 'highpass') { c.filter.type = 'highpass'; c._cutType = 'highpass'; } const a = (v01 - 0.5) / 0.5; c.filter.frequency.rampTo(20 * Math.pow(8000/20, a), 0.08); }
       }
-      else if (param === 'drive') c.drive.wet.rampTo(v01 * 0.85, 0.05);
-      else if (param === 'crush') c.crush.wet.rampTo(v01, 0.05);
-      else if (param === 'delay') c.delay.wet.rampTo(v01 * 0.5, 0.05);
+      else if (param === 'drive') c.drive.wet.rampTo(v01 * 0.85, 0.08);
+      else if (param === 'crush') c.crush.wet.rampTo(v01, 0.08);
+      else if (param === 'delay') c.delay.wet.rampTo(v01 * 0.5, 0.08);
     },
     setMasterFX(param, v01) {
       if (param === 'reverb' && masterRev) masterRev.wet.rampTo(v01 * 0.6, 0.05);
