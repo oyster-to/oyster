@@ -1053,6 +1053,41 @@ input[type=range] {
 .tcell-name { font-weight: 600; font-size: 10px; letter-spacing: 0.04em; }
 .tcell-fill { font-size: 8px; color: var(--acc); opacity: 0.8; }
 
+/* ─── transport key group ────────────────────────────────────────────────── */
+.transport-key {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.transport-key #keyv {
+  font-size: 13px;
+  color: var(--ink);
+  min-width: 3ch;
+  text-align: center;
+}
+.transport-key button {
+  background: var(--panel-3);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  border-radius: 4px;
+  width: 20px;
+  height: 20px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.transport-key button:hover { background: var(--panel-2); border-color: var(--acc-dim); }
+.transport-key button:active { background: var(--acc-dim); }
+
 /* ─── transport theme group ──────────────────────────────────────────────── */
 .transport-theme {
   display: flex;
@@ -1309,7 +1344,8 @@ input[type=range] {
 [data-theme="gameboy"] .albl,
 [data-theme="gameboy"] .transport-tempo,
 [data-theme="gameboy"] .transport-song,
-[data-theme="gameboy"] .transport-theme {
+[data-theme="gameboy"] .transport-theme,
+[data-theme="gameboy"] .transport-key {
   color: #2a2a78;
   font-weight: 800;
 }

@@ -298,5 +298,7 @@ export function createEngine() {
     moveLane(id, toIndex) {
       if (song) _moveLane(song, id, toIndex);
     },
+    setTranspose(semis) { if (song) song.transpose = (semis | 0); },
+    getTranspose() { return song ? (song.transpose || 0) : 0; },
   };
 }

@@ -1,5 +1,5 @@
 import { stepsPerBar } from './meter.js';
-import { resolveDrumPattern, hasDrumHit, chordAt, DRUM_KEYS, laneAudible, drumVoiceAudible } from './song.js';
+import { resolveDrumPattern, hasDrumHit, chordAt, DRUM_KEYS, laneAudible, drumVoiceAudible, transposeNote } from './song.js';
 
 // Given the song, lane list, and an absolute grid step, return all events to fire on that step.
 // fillPat: optional drum pattern object to use instead of the song's selected drum pattern.
@@ -8,6 +8,7 @@ export function eventsForStep(song, lanes, absStep, fillPat = null) {
   const bar = Math.floor(absStep / spb);
   const step = absStep % spb;
   const chord = chordAt(song.harmony.progression, bar);
+  const tr = song.transpose || 0;
   const ev = [];
 
   for (const lane of lanes) {
@@ -32,19 +33,19 @@ export function eventsForStep(song, lanes, absStep, fillPat = null) {
         ? (gen(bar, chord) || [])
         : (Array.isArray(gen) && gen.length ? (gen[bar % gen.length] || []) : []);
       for (const [s, note, dur] of notes) {
-        if (s === step) ev.push({ laneId: lane.id, type: 'bass', note, dur });
+        if (s === step) ev.push({ laneId: lane.id, type: 'bass', note: tr ? transposeNote(note, tr) : note, dur });
       }
     } else if (lane.type === 'chords') {
       const mode = lane.selection;
-      if (mode === 'pad' && step === 0) ev.push({ laneId: lane.id, type: 'chords', mode, notes: chord.voicing, dur: 'bar' });
-      if (mode === 'stab' && (step === 0 || step === spb / 2)) ev.push({ laneId: lane.id, type: 'chords', mode, notes: chord.voicing, dur: 2 });
-      if (mode === 'arp') ev.push({ laneId: lane.id, type: 'chords', mode, note: chord.voicing[step % chord.voicing.length], dur: 1 });
+      if (mode === 'pad' && step === 0) ev.push({ laneId: lane.id, type: 'chords', mode, notes: tr ? chord.voicing.map(n => transposeNote(n, tr)) : chord.voicing, dur: 'bar' });
+      if (mode === 'stab' && (step === 0 || step === spb / 2)) ev.push({ laneId: lane.id, type: 'chords', mode, notes: tr ? chord.voicing.map(n => transposeNote(n, tr)) : chord.voicing, dur: 2 });
+      if (mode === 'arp') ev.push({ laneId: lane.id, type: 'chords', mode, note: tr ? transposeNote(chord.voicing[step % chord.voicing.length], tr) : chord.voicing[step % chord.voicing.length], dur: 1 });
     } else if (lane.type === 'melody') {
       if (!lane.pool || !lane.pool[lane.selection]) continue;
       const bars = lane.pool[lane.selection];
       const phrase = (Array.isArray(bars) && bars.length ? bars[bar % bars.length] : null) || [];
       for (const [s, note, dur] of phrase) {
-        if (s === step) ev.push({ laneId: lane.id, type: 'melody', note, dur });
+        if (s === step) ev.push({ laneId: lane.id, type: 'melody', note: tr ? transposeNote(note, tr) : note, dur });
       }
     }
   }

@@ -619,6 +619,9 @@ function loadSong(key) {
   bpm.value = s.bpm;
   document.getElementById('bpmv').textContent = s.bpm;
   eng.setTempo(s.bpm);
+  transpose = 0;
+  eng.setTranspose(0);
+  updateKeyDisplay();
   resetFX();
   mount();
 }
@@ -634,6 +637,22 @@ document.getElementById('play').onclick = async function() {
   }
 };
 document.getElementById('bpm').oninput = e => { eng.setTempo(+e.target.value); document.getElementById('bpmv').textContent = e.target.value; };
+
+// ─── KEY / transpose ─────────────────────────────────────────────────────────
+let transpose = 0;
+function fmtKey(n) { return n > 0 ? '+' + n : String(n); }
+function updateKeyDisplay() { document.getElementById('keyv').textContent = fmtKey(transpose); }
+document.getElementById('key-dn').onclick = () => {
+  transpose = Math.max(-12, transpose - 1);
+  eng.setTranspose(transpose);
+  updateKeyDisplay();
+};
+document.getElementById('key-up').onclick = () => {
+  transpose = Math.min(12, transpose + 1);
+  eng.setTranspose(transpose);
+  updateKeyDisplay();
+};
+
 document.getElementById('songsel').onchange = e => loadSong(e.target.value);
 document.getElementById('themesel').onchange = e => {
   const t = e.target.value;

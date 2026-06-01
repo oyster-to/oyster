@@ -39,3 +39,11 @@ export function drumVoiceAudible(drumsLane, voice) {
 }
 
 export { DRUM_KEYS };
+
+export function transposeNote(note, semis) {
+  const m = note.match(/^([A-G]#?)(-?\d+)$/); if (!m) return note;
+  const N = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const i = N.indexOf(m[1]); if (i < 0) return note;
+  const t = i + (parseInt(m[2]) + 1) * 12 + semis;
+  return N[((t % 12) + 12) % 12] + (Math.floor(t / 12) - 1);
+}
