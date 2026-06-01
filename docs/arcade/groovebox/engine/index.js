@@ -14,6 +14,9 @@ export function createEngine() {
   let scopeMaster = null, scopeLane = {};
   // Per-lane keyed maps (by lane.id)
   let voices = {}, fx = {}, meters = {};
+  // Tracks which lazy FX nodes have been inserted into the chain per lane.
+  // Shape: { [laneId]: { cho: bool, wob: bool, crush: bool } }
+  let _fxInserted = {};
   // Stored after ensure() so buildLane can be called post-graph-init
   let _makeFX = null, _masterIn = null, _laneReverb = null;
 
@@ -24,12 +27,13 @@ export function createEngine() {
     if (lane.type === 'melody' && lane.tone) {
       voices[lane.id].lead?.set({ oscillator: { type: lane.tone, width: 0.3 } });
     }
-    // Per-lane scope analyser
-    scopeLane[lane.id] = new Tone.Waveform(1024);
-    fx[lane.id].vol.connect(scopeLane[lane.id]);
+    // Per-lane scope analyser — lazy: created on first getScope(id) call.
+    // scopeLane[lane.id] intentionally NOT created here.
     // Per-lane level meter
     meters[lane.id] = new Tone.Meter({ normalRange: false });
     fx[lane.id].vol.connect(meters[lane.id]);
+    // Track which lazy FX nodes are wired into the chain.
+    _fxInserted[lane.id] = { cho: false, wob: false, crush: false };
   }
 
   function buildLaneGraph(lanes) {
@@ -45,7 +49,7 @@ export function createEngine() {
       }
       delete voices[id];
     }
-    // Dispose FX chain
+    // Dispose FX chain (null lazy nodes are skipped safely)
     const f = fx[id];
     if (f) {
       for (const node of Object.values(f)) {
@@ -58,6 +62,7 @@ export function createEngine() {
     delete meters[id];
     try { scopeLane[id]?.dispose?.(); } catch (_) {}
     delete scopeLane[id];
+    delete _fxInserted[id];
   }
 
   function ensure() {
@@ -88,14 +93,24 @@ export function createEngine() {
       const pan = new Tone.Panner(0).connect(vol);
       const dl = new Tone.FeedbackDelay({ delayTime: '8n', feedback: 0.28, wet: 0 }).connect(pan);
       const comp = new Tone.Compressor({ threshold: 0, ratio: 1, attack: 0.01, release: 0.2 }).connect(dl);
-      const auto = new Tone.AutoFilter({ frequency: '8n', depth: 0.7, baseFrequency: 200, octaves: 4, wet: 0 }).start(); auto.connect(comp);
-      const chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.7, wet: 0 }).start(); chorus.connect(auto);
-      const cr = new Tone.BitCrusher(4).connect(chorus); cr.wet.value = 0;
-      const dr = new Tone.Distortion({ distortion: 0.4, oversample: 'none' }).connect(cr); dr.wet.value = 0;
+      // Three slot gains act as fixed anchor points in the chain for the three
+      // lazy FX nodes (crush → chorus → auto). They cost almost nothing (a
+      // scalar multiply per block) and let us splice in real nodes later without
+      // any ordering ambiguity regardless of which the user activates first.
+      const slotAuto   = new Tone.Gain(1).connect(comp);
+      const slotChorus = new Tone.Gain(1).connect(slotAuto);
+      const slotCrush  = new Tone.Gain(1).connect(slotChorus);
+      const dr = new Tone.Distortion({ distortion: 0.4, oversample: 'none' }).connect(slotCrush); dr.wet.value = 0;
       const ft = new Tone.Filter({ type: 'lowpass', frequency: 14000, Q: 0.7 }).connect(dr);
       // Post-fader send to shared reverb bus; gain=0 → dry by default.
       const reverbSend = new Tone.Gain(0); vol.connect(reverbSend); reverbSend.connect(_laneReverb);
-      return { filter: ft, drive: dr, crush: cr, chorus, auto, comp, reverbSend, delay: dl, panner: pan, vol, input: ft, _cutType: 'lowpass' };
+      // crush/chorus/auto are null until first use (lazy-created by setLaneFX).
+      return {
+        filter: ft, drive: dr,
+        crush: null, chorus: null, auto: null,
+        slotCrush, slotChorus, slotAuto,
+        comp, reverbSend, delay: dl, panner: pan, vol, input: ft, _cutType: 'lowpass',
+      };
     };
     _masterIn = masterIn;
     // Waveform analyser for master (sink — doesn't alter audio chain).
@@ -238,6 +253,11 @@ export function createEngine() {
     getScope(source) {
       if (!started) return null;
       if (source === 'master') return scopeMaster ? scopeMaster.getValue() : null;
+      // Lazy-create per-lane waveform analyser on first scope read.
+      if (!scopeLane[source] && fx[source]) {
+        scopeLane[source] = new Tone.Waveform(1024);
+        fx[source].vol.connect(scopeLane[source]);
+      }
       return scopeLane[source] ? scopeLane[source].getValue() : null;
     },
     setLaneFX(id, param, v01) {
@@ -248,7 +268,21 @@ export function createEngine() {
         else           { if (c._cutType !== 'highpass') { c.filter.type = 'highpass'; c._cutType = 'highpass'; } const a = (v01 - 0.5) / 0.5; c.filter.frequency.rampTo(20 * Math.pow(8000 / 20, a), 0.08); }
       }
       else if (param === 'drive')  { c.drive.wet.rampTo(v01 * 0.85, 0.08); c.drive.oversample = v01 > 0 ? '2x' : 'none'; }
-      else if (param === 'crush')  c.crush.wet.rampTo(v01, 0.08);
+      else if (param === 'crush') {
+        // Lazy-create BitCrusher on first use: splice it in place of slotCrush.
+        if (!c.crush) {
+          c.crush = new Tone.BitCrusher(4);
+          c.crush.wet.value = 0;
+          c.drive.disconnect(c.slotCrush);
+          c.drive.connect(c.crush);
+          c.crush.connect(c.slotChorus);   // slotCrush is no longer needed; slotChorus is now the bridge
+          c.slotCrush.disconnect();
+          c.slotCrush.dispose();
+          c.slotCrush = null;
+          if (_fxInserted[id]) _fxInserted[id].crush = true;
+        }
+        c.crush.wet.rampTo(v01, 0.08);
+      }
       else if (param === 'delay')  c.delay.wet.rampTo(v01 * 0.5, 0.08);
       else if (param === 'vol')    c.vol.gain.rampTo(v01, 0.08);
       else if (param === 'pan')    c.panner.pan.rampTo((v01 - 0.5) * 2, 0.08);
@@ -256,8 +290,38 @@ export function createEngine() {
       else if (param === 'comp')   { c.comp.threshold.value = -30 * v01; c.comp.ratio.value = 1 + 7 * v01; }
       else if (param === 'res')    c.filter.Q.rampTo(0.7 + v01 * 14, 0.05);
       else if (param === 'fdbk')   c.delay.feedback.rampTo(v01 * 0.9, 0.05);
-      else if (param === 'cho')    c.chorus.wet.rampTo(v01, 0.05);
-      else if (param === 'wob')    c.auto.wet.rampTo(v01, 0.05);
+      else if (param === 'cho') {
+        // Lazy-create Chorus on first use: splice it in place of slotChorus.
+        if (!c.chorus) {
+          c.chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.7, wet: 0 }).start();
+          // Find what's currently feeding slotChorus (crush if inserted, else drive).
+          const upstream = c.crush ?? c.drive;
+          upstream.disconnect(c.slotChorus);
+          upstream.connect(c.chorus);
+          c.chorus.connect(c.slotAuto);
+          c.slotChorus.disconnect();
+          c.slotChorus.dispose();
+          c.slotChorus = null;
+          if (_fxInserted[id]) _fxInserted[id].cho = true;
+        }
+        c.chorus.wet.rampTo(v01, 0.05);
+      }
+      else if (param === 'wob') {
+        // Lazy-create AutoFilter on first use: splice it in place of slotAuto.
+        if (!c.auto) {
+          c.auto = new Tone.AutoFilter({ frequency: '8n', depth: 0.7, baseFrequency: 200, octaves: 4, wet: 0 }).start();
+          // Find what's currently feeding slotAuto (chorus if inserted, else slotChorus, else crush, else drive).
+          const upstream = c.chorus ?? c.slotChorus ?? c.crush ?? c.drive;
+          upstream.disconnect(c.slotAuto);
+          upstream.connect(c.auto);
+          c.auto.connect(c.comp);
+          c.slotAuto.disconnect();
+          c.slotAuto.dispose();
+          c.slotAuto = null;
+          if (_fxInserted[id]) _fxInserted[id].wob = true;
+        }
+        c.auto.wet.rampTo(v01, 0.05);
+      }
     },
     setMasterFX(param, v01) {
       if      (param === 'reverb' && masterRev)   masterRev.wet.rampTo(v01 * 0.6, 0.05);

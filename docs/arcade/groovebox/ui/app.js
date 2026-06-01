@@ -73,25 +73,45 @@ function refreshStates() {
 
 // ─── Per-lane level meter rAF loop ───────────────────────────────────────────
 let _meterRafId = null;
+// Cached fill element refs — rebuilt by cacheMeterFills() after renderStrips/renderMaster.
+let _laneFillCache = {};   // { [laneId]: HTMLElement }
+let _masterFillCache = []; // [fillL, fillR]
+
+// Call after any DOM rebuild that touches strips or master to refresh refs.
+function cacheMeterFills() {
+  _laneFillCache = {};
+  const host = document.getElementById('strips');
+  if (host) {
+    for (const lane of eng.getLanes()) {
+      const el = host.querySelector(`.lane[data-lane="${lane.id}"] .lvl-fill`);
+      if (el) _laneFillCache[lane.id] = el;
+    }
+  }
+  _masterFillCache = [];
+  const masterHost = document.getElementById('master');
+  if (masterHost) {
+    const fills = masterHost.querySelectorAll('.lvl-stereo .lvl-fill');
+    _masterFillCache = [fills[0] || null, fills[1] || null];
+  }
+}
 
 function startMeterLoop() {
   if (_meterRafId !== null) return;   // already running — don't stack
+  let _frameCount = 0;
   function tick() {
-    const host = document.getElementById('strips');
-    if (host) {
+    _frameCount++;
+    // Lane meters: throttled to ~30fps (every other frame) — saves half the
+    // Tone.Meter.getValue() calls and style writes per lane per second.
+    if (_frameCount % 2 === 0) {
       for (const lane of eng.getLanes()) {
-        const fill = host.querySelector(`.lane[data-lane="${lane.id}"] .lvl-fill`);
+        const fill = _laneFillCache[lane.id];
         if (fill) fill.style.height = (eng.getLevel(lane.id) * 100) + '%';
       }
     }
-    // Master L/R stereo meters
-    const masterHost = document.getElementById('master');
-    if (masterHost) {
-      const [l, r] = eng.getMasterLevel();
-      const fills = masterHost.querySelectorAll('.lvl-stereo .lvl-fill');
-      if (fills[0]) fills[0].style.height = (l * 100) + '%';
-      if (fills[1]) fills[1].style.height = (r * 100) + '%';
-    }
+    // Master L/R stereo meters: update every frame (only 2 elements, cheap).
+    const [l, r] = eng.getMasterLevel();
+    if (_masterFillCache[0]) _masterFillCache[0].style.height = (l * 100) + '%';
+    if (_masterFillCache[1]) _masterFillCache[1].style.height = (r * 100) + '%';
     _meterRafId = requestAnimationFrame(tick);
   }
   _meterRafId = requestAnimationFrame(tick);
@@ -99,17 +119,12 @@ function startMeterLoop() {
 
 function stopMeterLoop() {
   if (_meterRafId !== null) { cancelAnimationFrame(_meterRafId); _meterRafId = null; }
-  // Zero out fills when stopped
-  const host = document.getElementById('strips');
-  if (host) {
-    for (const lane of eng.getLanes()) {
-      const fill = host.querySelector(`.lane[data-lane="${lane.id}"] .lvl-fill`);
-      if (fill) fill.style.height = '0%';
-    }
+  // Zero out fills using cached refs (no querySelector needed).
+  for (const fill of Object.values(_laneFillCache)) {
+    if (fill) fill.style.height = '0%';
   }
-  // Also zero the master L/R stereo meter (else it looks like audio is still playing).
-  const masterHost = document.getElementById('master');
-  if (masterHost) masterHost.querySelectorAll('.lvl-stereo .lvl-fill').forEach(f => f.style.height = '0%');
+  if (_masterFillCache[0]) _masterFillCache[0].style.height = '0%';
+  if (_masterFillCache[1]) _masterFillCache[1].style.height = '0%';
 }
 
 function makeKgroup(label, knobDefs) {
@@ -387,6 +402,7 @@ function renderStrips() {
   });
 
   refreshStates();
+  cacheMeterFills();  // re-cache .lvl-fill refs after DOM rebuild
   renderViewTabs();   // rebuild quick-edit tabs to track the current lane list
 }
 
@@ -484,6 +500,7 @@ function renderMaster() {
   mwrap.appendChild(fxGrp);
 
   masterHost.appendChild(mwrap);
+  cacheMeterFills();  // re-cache master meter fill refs after DOM rebuild
 }
 
 // ─── Arrangement UI ──────────────────────────────────────────────────────────

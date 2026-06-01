@@ -66,6 +66,13 @@ export function makeViz(host, song, eng) {
   // Scope state
   let scopeSource = 'master';
   let scopeRafId = null;
+  // Per-step playhead cache — populated by build(); cleared on rebuild.
+  // drums: { [voiceKey]: HTMLElement[] }  (index = step within bar)
+  // blocks: HTMLElement[][] indexed by absStep across all 4 bars
+  let _drumVcCache = {};      // { kick: [cell0, cell1, ...], snare: [...], ... }
+  let _blocksColCache = [];   // [absStep] → [cell0 (midi=hi), cell1, ... ]
+  let _lastDrumNowStep = -1;  // last stepInBar with .now for drum grid
+  let _lastBlocksAbsStep = -1; // last absStep with .now for blocks grid
 
   // Piano ⇄ Blocks toggle state (persisted across reloads).
   let rollMode = (() => {
@@ -496,6 +503,13 @@ export function makeViz(host, song, eng) {
     html += '</div></div>';
     host.innerHTML = html;
     wireRollModeToggle();
+    // Cache .vc cells per absStep column for surgical per-step playhead toggle.
+    _blocksColCache = [];
+    host.querySelectorAll('.bg-grid .vc').forEach(cell => {
+      const s = +cell.dataset.step;
+      if (!_blocksColCache[s]) _blocksColCache[s] = [];
+      _blocksColCache[s].push(cell);
+    });
     paintBlocksGrid(laneView, lastBar, lastStepInBar);
 
     if (laneView === 'melody') {
@@ -592,6 +606,9 @@ export function makeViz(host, song, eng) {
   }
 
   function build() {
+    // Clear per-step playhead caches — DOM is about to be rebuilt.
+    _drumVcCache = {}; _lastDrumNowStep = -1;
+    _blocksColCache = []; _lastBlocksAbsStep = -1;
     const spb = stepsPerBar(song.meter);
     const beats = new Set(beatStarts(song.meter));
     // Compute beat index for each step (which beat group it belongs to).
@@ -651,6 +668,12 @@ export function makeViz(host, song, eng) {
       });
       host.querySelectorAll('.dvs').forEach(btn => {
         btn.onclick = e => { e.stopPropagation(); eng.toggleDrumSolo(btn.dataset.voice); paint(lastBar, lastStepInBar); };
+      });
+      // Cache .vc cell refs per voice row for surgical per-step playhead updates.
+      _drumVcCache = {};
+      _lastDrumNowStep = -1;
+      host.querySelectorAll('.vrow').forEach(row => {
+        _drumVcCache[row.dataset.k] = [...row.querySelectorAll('.vc')];
       });
     } else if (view === 'melody') {
       if (rollMode === 'blocks') {
@@ -776,7 +799,59 @@ export function makeViz(host, song, eng) {
       view = nextView;
       build();
     },
-    setStep(_abs, bar, stepInBar) { paint(bar, stepInBar); },
+    setStep(_abs, bar, stepInBar) {
+      lastBar = bar;
+      lastStepInBar = stepInBar;
+      if (view === 'drums') {
+        // Fast path: only move the .now highlight across the drum grid.
+        const L = getTargetLane();
+        const isCustom = L.selection === 'custom';
+        const pb = primaryBar();
+        const cyc = isCustom ? customLen : (Array.isArray(L.pool[L.selection]) ? L.pool[L.selection].length : 1);
+        const playingBar = ((bar % cyc) + cyc) % cyc;
+        const headVisible = (playingBar === pb);
+        const newStep = headVisible ? stepInBar : -1;
+        if (newStep !== _lastDrumNowStep) {
+          // Clear old .now column.
+          if (_lastDrumNowStep >= 0) {
+            for (const cells of Object.values(_drumVcCache)) {
+              const c = cells[_lastDrumNowStep];
+              if (c) c.classList.remove('now');
+            }
+          }
+          // Set new .now column.
+          if (newStep >= 0) {
+            for (const cells of Object.values(_drumVcCache)) {
+              const c = cells[newStep];
+              if (c) c.classList.add('now');
+            }
+          }
+          _lastDrumNowStep = newStep;
+        }
+        // Update bar selector playing highlight (cheap — small node list).
+        const playingBarIdx = ((bar % cyc) + cyc) % cyc;
+        host.querySelectorAll('.bsel').forEach(b => {
+          b.classList.toggle('playing', isCustom && +b.dataset.b === playingBarIdx);
+        });
+      } else if (view === 'melody' || view === 'bass') {
+        if (rollMode === 'blocks') {
+          // Fast path: only flip the .now column in the blocks grid.
+          const spb = stepsPerBar(song.meter);
+          const absStep = bar * spb + stepInBar;
+          if (_lastBlocksAbsStep >= 0 && _blocksColCache[_lastBlocksAbsStep]) {
+            for (const c of _blocksColCache[_lastBlocksAbsStep]) c.classList.remove('now');
+          }
+          if (_blocksColCache[absStep]) {
+            for (const c of _blocksColCache[absStep]) c.classList.add('now');
+          }
+          _lastBlocksAbsStep = absStep;
+        } else {
+          // Canvas views: redraw playhead line only (cheap full canvas redraw).
+          paint(bar, stepInBar);
+        }
+      }
+      // Scope view: rAF loop handles it — nothing to do here.
+    },
     invalidateThemeColors() {
       invalidateThemeColors();
       // Rebuild the current view so canvas draws pick up new colours immediately.
