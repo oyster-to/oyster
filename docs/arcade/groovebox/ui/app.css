@@ -19,5 +19,13 @@ input[type=range]{accent-color:var(--acc)}
 .vrow .vl{width:46px;font-size:10px;color:var(--dim);text-align:right;padding-right:6px;flex:0 0 46px}
 .vc{flex:1;height:18px;border-radius:3px;background:#161a28;display:flex;align-items:center;justify-content:center;font-size:9px;color:#cfe0ff}
 .vc.beat{background:#1b2030}
-.vc.hit{background:#39507a}
+.vc.hit{background:#39507a;color:#cfe0ff}
+.vc.added{background:#ffd24a;color:#2a2400}
+.vc.removed{background:#161a28;outline:1px dashed #6b5a2e;outline-offset:-2px}
 .vc.now{outline:2px solid #fff;outline-offset:-2px}
+.barsel{display:flex;gap:6px;align-items:center;margin-bottom:8px;font-size:11px;color:var(--dim)}
+.bsel{padding:4px 11px;border-radius:6px;border:1px solid #2c3044;background:#1d2030;color:var(--ink);cursor:pointer;font-size:12px}
+.bsel.on{background:var(--acc);border-color:var(--acc);color:#04201a;font-weight:700}
+.bsel.playing{outline:2px solid var(--hot);outline-offset:2px}
+.cyc{padding:4px 10px;border-radius:6px;border:1px solid #2c3044;background:#1d2030;color:var(--ink);cursor:pointer;font-size:12px}
+.cyc.on{background:#16261f;border-color:var(--acc);color:var(--acc)}

@@ -27,7 +27,7 @@ document.getElementById('play').onclick = async function() {
 };
 document.getElementById('bpm').oninput = e => { eng.setTempo(+e.target.value); document.getElementById('bpmv').textContent = e.target.value; };
 renderStrips();
-const viz = makeViz(document.getElementById('viz'), song);
+const viz = makeViz(document.getElementById('viz'), song, eng);
 eng.onStep(({absStep, bar, stepInBar}) => viz.setStep(absStep, bar, stepInBar));
 document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
   document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('on', x===b));
