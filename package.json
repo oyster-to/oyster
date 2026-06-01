@@ -58,7 +58,7 @@
     "@lydell/node-pty": "^1.2.0-beta.12"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
+    "concurrently": "^10.0.0",
     "wait-on": "^9.0.5"
   }
 }
