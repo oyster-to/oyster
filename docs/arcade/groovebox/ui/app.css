@@ -319,12 +319,6 @@ select {
 }
 .vtab-lane { font-size: 11px; text-transform: capitalize; }
 
-/* lane-type emoji prefix on the strip name (matches the quick-edit tabs) */
-.lane[data-type="drums"]  .name::before { content: "🥁 "; }
-.lane[data-type="bass"]   .name::before { content: "🎸 "; }
-.lane[data-type="chords"] .name::before { content: "🎹 "; }
-.lane[data-type="melody"] .name::before { content: "🎺 "; }
-
 /* ─── tempo range ────────────────────────────────────────────────────────── */
 input[type=range] {
   accent-color: var(--acc);

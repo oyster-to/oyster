@@ -14,7 +14,6 @@ import { makeKnob } from './knob.js';
 const eng = createEngine();
 const chordModes = ['pad','arp','stab'];
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
-const LANE_EMOJI = { drums:'🥁', bass:'🎸', chords:'🎹', melody:'🎺' };
 
 const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, heartbeats, 'digital-love': digitalLove, 'memory-reboot': memoryReboot, 'take-on-me': takeOnMe };
 
@@ -122,7 +121,7 @@ function renderViewTabs() {
     const b = document.createElement('button');
     b.className = 'vtab-lane';
     b.dataset.edit = lane.id;
-    b.textContent = `${LANE_EMOJI[lane.type] || ''} ${lane.name}`.trim();
+    b.textContent = lane.name;
     b.onclick = () => activateEditLane(lane.id);
     bar.appendChild(b);
   }
