@@ -61,10 +61,14 @@ function renderStrips() {
     const lane = row.dataset.lane;
     const knobs = document.createElement('div');
     knobs.className = 'knobs';
-    knobs.appendChild(makeKnob({ label: 'cut',  value: 0.5, onChange: v => eng.setLaneFX(lane, 'cut',   v) }));
-    knobs.appendChild(makeKnob({ label: 'drv',  value: 0,   onChange: v => eng.setLaneFX(lane, 'drive', v) }));
-    knobs.appendChild(makeKnob({ label: 'dly',  value: 0,   onChange: v => eng.setLaneFX(lane, 'delay', v) }));
-    knobs.appendChild(makeKnob({ label: 'cru',  value: 0,   onChange: v => eng.setLaneFX(lane, 'crush', v) }));
+    knobs.appendChild(makeKnob({ label: 'vol',  value: 1.0, onChange: v => eng.setLaneFX(lane, 'vol',    v) }));
+    knobs.appendChild(makeKnob({ label: 'pan',  value: 0.5, onChange: v => eng.setLaneFX(lane, 'pan',    v) }));
+    knobs.appendChild(makeKnob({ label: 'cut',  value: 0.5, onChange: v => eng.setLaneFX(lane, 'cut',    v) }));
+    knobs.appendChild(makeKnob({ label: 'drv',  value: 0,   onChange: v => eng.setLaneFX(lane, 'drive',  v) }));
+    knobs.appendChild(makeKnob({ label: 'dly',  value: 0,   onChange: v => eng.setLaneFX(lane, 'delay',  v) }));
+    knobs.appendChild(makeKnob({ label: 'cru',  value: 0,   onChange: v => eng.setLaneFX(lane, 'crush',  v) }));
+    knobs.appendChild(makeKnob({ label: 'vrb',  value: 0,   onChange: v => eng.setLaneFX(lane, 'reverb', v) }));
+    knobs.appendChild(makeKnob({ label: 'cmp',  value: 0,   onChange: v => eng.setLaneFX(lane, 'comp',   v) }));
     row.querySelector('.msgroup').before(knobs);
   });
   refreshStates();
@@ -173,10 +177,14 @@ function renderArrange() {
 // ─── Reset FX to neutral (call before mount on song switch) ──────────────────
 function resetFX() {
   for (const lane of LANES) {
-    eng.setLaneFX(lane, 'cut',   0.5);
-    eng.setLaneFX(lane, 'drive', 0);
-    eng.setLaneFX(lane, 'delay', 0);
-    eng.setLaneFX(lane, 'crush', 0);
+    eng.setLaneFX(lane, 'cut',    0.5);
+    eng.setLaneFX(lane, 'drive',  0);
+    eng.setLaneFX(lane, 'delay',  0);
+    eng.setLaneFX(lane, 'crush',  0);
+    eng.setLaneFX(lane, 'vol',    1);
+    eng.setLaneFX(lane, 'pan',    0.5);
+    eng.setLaneFX(lane, 'reverb', 0);
+    eng.setLaneFX(lane, 'comp',   0);
   }
   eng.setMasterFX('reverb', 0);
   eng.setMasterFX('comp', 0);
