@@ -2,7 +2,7 @@ import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
 import { eventsForStep } from './scheduler.js';
 import { createVoiceForType, trigger } from './voices.js';
-import { normalizeLanes, laneByType, setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloExclusive, captureScene as _captureScene, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo } from './lanes.js';
+import { normalizeLanes, cachePoolsByType, laneByType, setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloExclusive, captureScene as _captureScene, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane } from './lanes.js';
 import { sectionAt } from './arrangement.js';
 
 export function createEngine() {
@@ -13,22 +13,50 @@ export function createEngine() {
   let scopeMaster = null, scopeLane = {};
   // Per-lane keyed maps (by lane.id)
   let voices = {}, fx = {}, meters = {};
+  // Stored after ensure() so buildLane can be called post-graph-init
+  let _makeFX = null, _masterIn = null;
 
-  function buildLaneGraph(lanes, makeFX, masterIn) {
-    for (const lane of lanes) {
-      fx[lane.id]     = makeFX(masterIn);
-      voices[lane.id] = createVoiceForType(lane.type, fx[lane.id].input);
-      // Apply saved tone to melody lanes
-      if (lane.type === 'melody' && lane.tone) {
-        voices[lane.id].lead?.set({ oscillator: { type: lane.tone, width: 0.3 } });
-      }
-      // Per-lane scope analyser
-      scopeLane[lane.id] = new Tone.Waveform(1024);
-      fx[lane.id].vol.connect(scopeLane[lane.id]);
-      // Per-lane level meter
-      meters[lane.id] = new Tone.Meter({ normalRange: false });
-      fx[lane.id].vol.connect(meters[lane.id]);
+  function buildLane(lane) {
+    fx[lane.id]     = _makeFX(_masterIn);
+    voices[lane.id] = createVoiceForType(lane.type, fx[lane.id].input);
+    // Apply saved tone to melody lanes
+    if (lane.type === 'melody' && lane.tone) {
+      voices[lane.id].lead?.set({ oscillator: { type: lane.tone, width: 0.3 } });
     }
+    // Per-lane scope analyser
+    scopeLane[lane.id] = new Tone.Waveform(1024);
+    fx[lane.id].vol.connect(scopeLane[lane.id]);
+    // Per-lane level meter
+    meters[lane.id] = new Tone.Meter({ normalRange: false });
+    fx[lane.id].vol.connect(meters[lane.id]);
+  }
+
+  function buildLaneGraph(lanes) {
+    for (const lane of lanes) buildLane(lane);
+  }
+
+  function disposeLane(id) {
+    // Dispose voice node(s)
+    const v = voices[id];
+    if (v) {
+      for (const node of Object.values(v)) {
+        try { node.dispose?.(); } catch (_) {}
+      }
+      delete voices[id];
+    }
+    // Dispose FX chain
+    const f = fx[id];
+    if (f) {
+      for (const node of Object.values(f)) {
+        try { if (node && typeof node.dispose === 'function') node.dispose(); } catch (_) {}
+      }
+      delete fx[id];
+    }
+    // Dispose meter + scope
+    try { meters[id]?.dispose?.(); } catch (_) {}
+    delete meters[id];
+    try { scopeLane[id]?.dispose?.(); } catch (_) {}
+    delete scopeLane[id];
   }
 
   function ensure() {
@@ -52,7 +80,7 @@ export function createEngine() {
     meterR = new Tone.Meter({ normalRange: false });
     split.connect(meterL, 0, 0);
     split.connect(meterR, 1, 0);
-    const makeFX = dest => {
+    _makeFX = dest => {
       const vol = new Tone.Gain(1).connect(dest);
       const pan = new Tone.Panner(0).connect(vol);
       const dl = new Tone.FeedbackDelay({ delayTime: '8n', feedback: 0.28, wet: 0 }).connect(pan);
@@ -63,17 +91,18 @@ export function createEngine() {
       const ft = new Tone.Filter({ type: 'lowpass', frequency: 14000, Q: 0.7 }).connect(dr);
       return { filter: ft, drive: dr, crush: cr, comp, reverb: rev, delay: dl, panner: pan, vol, input: ft, _cutType: 'lowpass' };
     };
+    _masterIn = masterIn;
     // Waveform analyser for master (sink — doesn't alter audio chain).
     scopeMaster = new Tone.Waveform(1024);
     masterComp.connect(scopeMaster);
     // Build per-lane graph
-    buildLaneGraph(song.lanes, makeFX, masterIn);
+    buildLaneGraph(song.lanes);
     started = true;
   }
 
   return {
     load(s) {
-      s.lanes = normalizeLanes(s.lanes);
+      s.lanes = normalizeLanes(s.lanes, s);
       song = s;
       tempo = (typeof s.bpm === 'number' && isFinite(s.bpm)) ? s.bpm : tempo;
     },
@@ -237,6 +266,28 @@ export function createEngine() {
         return Math.max(0, Math.min(1, (db + 60) / 60));
       }
       return [toLevel(meterL), toLevel(meterR)];
+    },
+    // ─── Stage 2: lane mutation APIs ─────────────────────────────────────────
+    addLane(type) {
+      if (!song) return null;
+      const lane = _addLane(song, type);
+      if (started) buildLane(lane);
+      return lane;
+    },
+    duplicateLane(id) {
+      if (!song) return null;
+      const lane = _duplicateLane(song, id);
+      if (lane && started) buildLane(lane);
+      return lane;
+    },
+    removeLane(id) {
+      if (!song) return null;
+      const removed = _removeLane(song, id);
+      if (removed && started) disposeLane(removed);
+      return removed;
+    },
+    renameLane(id, name) {
+      if (song) _renameLane(song, id, name);
     },
   };
 }

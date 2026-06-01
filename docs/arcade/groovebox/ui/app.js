@@ -91,22 +91,56 @@ function makeKgroup(label, knobDefs) {
 function renderStrips() {
   const host = document.getElementById('strips');
   const lanes = eng.getLanes();
+  const isLast = lanes.length === 1;
+
   host.innerHTML = lanes.map(lane => {
     const opts = options(lane).map(n => `<option${n===lane.selection?' selected':''}>${n}</option>`).join('');
     const tone = lane.type === 'melody'
       ? `<select data-tone data-lane="${lane.id}">${TONES.map(t=>`<option value="${t}"${t===(lane.tone||'pulse')?' selected':''}>${t==='fatsawtooth'?'fat saw':t}</option>`).join('')}</select>`
       : '';
-    // Grid columns: name | pattern-select | meter | MIX | TONE | FX | M/S
+    // Grid columns: name | pattern-select | meter | MIX | TONE | FX | M/S | actions
     return `<div class="lane" data-lane="${lane.id}">
-      <span class="name">${lane.name}</span>
+      <span class="name" title="double-click to rename">${lane.name}</span>
       <div class="mctl"><select data-lane="${lane.id}">${opts}</select>${tone}</div>
       <div class="lvl"><div class="lvl-fill"></div></div>
       <div class="msgroup">
         <button class="mute" data-lane="${lane.id}" aria-label="mute ${lane.name}" title="Mute">M</button>
         <button class="solo" data-lane="${lane.id}" aria-label="solo ${lane.name}" title="Solo">S</button>
       </div>
+      <div class="lane-actions">
+        <button class="lane-dup" data-lane="${lane.id}" title="Duplicate lane">⧉</button>
+        <button class="lane-rm" data-lane="${lane.id}" title="Remove lane"${isLast ? ' disabled' : ''}>✕</button>
+      </div>
     </div>`;
   }).join('');
+
+  // Add-lane button at the bottom of strips
+  const addBtn = document.createElement('div');
+  addBtn.className = 'addlane-wrap';
+  addBtn.innerHTML = `<button class="addlane-btn" title="Add a new lane">＋ add lane</button>
+    <div class="addlane-menu" hidden>
+      <button data-addtype="drums">Drums</button>
+      <button data-addtype="bass">Bass</button>
+      <button data-addtype="chords">Chords</button>
+      <button data-addtype="melody">Melody</button>
+    </div>`;
+  host.appendChild(addBtn);
+
+  // Wire add-lane toggle
+  const addLaneBtn = addBtn.querySelector('.addlane-btn');
+  const addMenu    = addBtn.querySelector('.addlane-menu');
+  addLaneBtn.onclick = e => {
+    e.stopPropagation();
+    addMenu.hidden = !addMenu.hidden;
+  };
+  addMenu.querySelectorAll('[data-addtype]').forEach(b => b.onclick = () => {
+    eng.addLane(b.dataset.addtype);
+    addMenu.hidden = true;
+    renderStrips();
+  });
+  // Close menu on outside click
+  document.addEventListener('click', () => { addMenu.hidden = true; }, { once: true });
+
   host.querySelectorAll('select[data-lane]').forEach(s => {
     // skip tone selects (they also have data-tone)
     if (s.dataset.tone !== undefined) return;
@@ -121,6 +155,44 @@ function renderStrips() {
     eng.toggleSolo(b.dataset.lane);
     refreshStates();
   });
+
+  // Duplicate button
+  host.querySelectorAll('.lane-dup').forEach(b => b.onclick = () => {
+    eng.duplicateLane(b.dataset.lane);
+    renderStrips();
+  });
+
+  // Remove button
+  host.querySelectorAll('.lane-rm').forEach(b => {
+    if (!b.disabled) b.onclick = () => {
+      eng.removeLane(b.dataset.lane);
+      renderStrips();
+    };
+  });
+
+  // Double-click name to rename (inline edit)
+  host.querySelectorAll('.lane .name').forEach(nameEl => {
+    nameEl.ondblclick = () => {
+      const id = nameEl.closest('.lane').dataset.lane;
+      const current = nameEl.textContent;
+      const input = document.createElement('input');
+      input.className = 'lane-rename-input';
+      input.value = current;
+      nameEl.replaceWith(input);
+      input.focus();
+      input.select();
+      const commit = () => {
+        eng.renameLane(id, input.value);
+        renderStrips();
+      };
+      input.onblur = commit;
+      input.onkeydown = e => {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { input.value = current; input.blur(); }
+      };
+    };
+  });
+
   // Build grouped knobs and insert before the M/S group
   host.querySelectorAll('.lane').forEach(row => {
     const id = row.dataset.lane;
