@@ -668,6 +668,7 @@ document.getElementById('bpm').oninput = e => { eng.setTempo(+e.target.value); d
 
 // ─── KEY / transpose ─────────────────────────────────────────────────────────
 let transpose = 0;
+let keyQuantizeOn = localStorage.getItem('gb-key-quantize') === '1';
 function fmtKey(n) { return n > 0 ? '+' + n : String(n); }
 function updateKeyDisplay() { document.getElementById('keyv').textContent = fmtKey(transpose); }
 document.getElementById('key-dn').onclick = () => {
@@ -680,6 +681,20 @@ document.getElementById('key-up').onclick = () => {
   eng.setTranspose(transpose);
   updateKeyDisplay();
 };
+const _keyQBtn = document.getElementById('key-q');
+function applyKeyQuantizeState() {
+  _keyQBtn.setAttribute('aria-pressed', String(keyQuantizeOn));
+  _keyQBtn.classList.toggle('on', keyQuantizeOn);
+}
+_keyQBtn.onclick = () => {
+  keyQuantizeOn = !keyQuantizeOn;
+  eng.setKeyQuantize(keyQuantizeOn);
+  localStorage.setItem('gb-key-quantize', keyQuantizeOn ? '1' : '0');
+  applyKeyQuantizeState();
+};
+// Restore persisted state
+eng.setKeyQuantize(keyQuantizeOn);
+applyKeyQuantizeState();
 
 document.getElementById('songsel').onchange = e => loadSong(e.target.value);
 document.getElementById('themesel').onchange = e => {

@@ -8,6 +8,7 @@ import { sectionAt } from './arrangement.js';
 export function createEngine() {
   let song = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, pendingFill = null, activeFill = null, fillQueue = [];
   let mode = 'live', songBar = 0;
+  let keyQuantize = false, pendingTranspose = null;
   let masterComp = null, masterRev = null, masterVol = null, masterPan = null, masterWidth = null, masterEQ = null;
   let meterL = null, meterR = null;
   let scopeMaster = null, scopeLane = {};
@@ -123,6 +124,7 @@ export function createEngine() {
         const barSeconds = stepsPerBar(song.meter) * sixteenth;
         const spb = stepsPerBar(song.meter);
         if (step % spb === 0) {
+          if (pendingTranspose !== null) { song.transpose = pendingTranspose; pendingTranspose = null; }
           const prevFill = activeFill;
           if (mode === 'song' && song.arrangement && song.arrangement.length) {
             const at = sectionAt(song.arrangement, songBar);
@@ -174,7 +176,7 @@ export function createEngine() {
     stop() {
       Tone.Transport.stop();
       if (repeatId !== null) { Tone.Transport.clear(repeatId); repeatId = null; }
-      step = 0; playing = false; pendingFill = null; activeFill = null; fillQueue = [];
+      step = 0; playing = false; pendingFill = null; activeFill = null; fillQueue = []; pendingTranspose = null;
     },
     setTempo(bpm) { if (typeof bpm === 'number' && isFinite(bpm)) { tempo = bpm; Tone.Transport.bpm.value = bpm; } },
     onStep(cb) { onStepCb = cb; },
@@ -301,7 +303,14 @@ export function createEngine() {
     moveLane(id, toIndex) {
       if (song) _moveLane(song, id, toIndex);
     },
-    setTranspose(semis) { if (song) song.transpose = (semis | 0); },
+    setTranspose(semis) {
+      if (!song) return;
+      const n = semis | 0;
+      if (keyQuantize && playing) { pendingTranspose = n; }
+      else { song.transpose = n; pendingTranspose = null; }
+    },
     getTranspose() { return song ? (song.transpose || 0) : 0; },
+    setKeyQuantize(on) { keyQuantize = !!on; },
+    getKeyQuantize() { return keyQuantize; },
   };
 }

@@ -1093,6 +1093,24 @@ input[type=range] {
 .transport-key button:hover { background: var(--panel-2); border-color: var(--acc-dim); }
 .transport-key button:active { background: var(--acc-dim); }
 
+/* KEY quantize toggle */
+.key-q {
+  width: auto;
+  padding: 0 7px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--dim);
+  border-color: var(--line);
+}
+.key-q.on {
+  background: rgba(84,240,200,0.12);
+  border-color: var(--acc);
+  color: var(--acc);
+  box-shadow:
+    inset 0 -1px 0 var(--acc),
+    inset 0 1px 0 rgba(84,240,200,0.06);
+}
+
 /* ─── transport theme group ──────────────────────────────────────────────── */
 .transport-theme {
   display: flex;
