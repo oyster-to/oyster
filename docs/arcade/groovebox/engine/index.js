@@ -134,7 +134,13 @@ export function createEngine() {
       step = 0; songBar = 0;
       Tone.Transport.bpm.value = tempo;
       if (repeatId !== null) Tone.Transport.clear(repeatId);
+      // Gated perf probe (?perf in URL): measures per-step callback duration and
+      // scheduling "lead" (how far ahead of the audio clock each event is fired —
+      // if it collapses toward 0, the main-thread scheduler is starving).
+      const PERF = typeof location !== 'undefined' && new URLSearchParams(location.search).has('perf');
+      const _pf = { n: 0, sum: 0, max: 0, minLead: Infinity, late: 0 };
       repeatId = Tone.Transport.scheduleRepeat((t) => {
+        const _cb0 = PERF ? performance.now() : 0;
         const sixteenth = Tone.Time('16n').toSeconds();
         const barSeconds = stepsPerBar(song.meter) * sixteenth;
         const spb = stepsPerBar(song.meter);
@@ -182,6 +188,25 @@ export function createEngine() {
               queue: qSnap,
             });
           }, t);
+        }
+        if (PERF) {
+          const dur = performance.now() - _cb0;
+          const lead = t - Tone.now();
+          _pf.n++; _pf.sum += dur;
+          if (dur > _pf.max) _pf.max = dur;
+          if (lead < _pf.minLead) _pf.minLead = lead;
+          if (lead < 0.012) _pf.late++;
+          if (_pf.n >= 64) {
+            console.log('[gbperf]', JSON.stringify({
+              lanes: song.lanes.length,
+              avgMs: +(_pf.sum / _pf.n).toFixed(2),
+              maxMs: +_pf.max.toFixed(2),
+              minLeadMs: +(_pf.minLead * 1000).toFixed(1),
+              late: _pf.late + '/' + _pf.n,
+              lookAheadMs: +(Tone.getContext().lookAhead * 1000).toFixed(0),
+            }));
+            _pf.n = 0; _pf.sum = 0; _pf.max = 0; _pf.minLead = Infinity; _pf.late = 0;
+          }
         }
         step++;
       }, '16n');
