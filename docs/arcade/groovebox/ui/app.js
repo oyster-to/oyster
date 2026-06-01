@@ -19,6 +19,8 @@ const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, he
 // Module-level refs — reassigned by mount() on every song switch.
 let song;
 let viz;
+// Track which lane is currently open in the viz (for edit-button highlight).
+let _editingLaneId = null;
 
 function options(lane) {
   return lane.type === 'chords' ? chordModes : Object.keys(lane.pool || {});
@@ -88,6 +90,28 @@ function makeKgroup(label, knobDefs) {
   return grp;
 }
 
+// Highlight the editing strip and clear scope tab active state.
+function updateEditHighlight(id) {
+  _editingLaneId = id;
+  const host = document.getElementById('strips');
+  if (host) {
+    host.querySelectorAll('.lane').forEach(row => {
+      const isEditing = row.dataset.lane === id;
+      row.classList.toggle('editing', isEditing);
+      const editBtn = row.querySelector('.lane-edit');
+      if (editBtn) editBtn.classList.toggle('editing', isEditing);
+    });
+  }
+  // Deactivate scope tab when opening a lane editor.
+  document.querySelectorAll('[data-view]').forEach(x => x.classList.remove('on'));
+}
+
+// Open a lane editor in the viz + update highlight.
+function activateEditLane(id) {
+  viz.editLane(id);
+  updateEditHighlight(id);
+}
+
 function renderStrips() {
   const host = document.getElementById('strips');
   const lanes = eng.getLanes();
@@ -98,6 +122,11 @@ function renderStrips() {
     const tone = lane.type === 'melody'
       ? `<select data-tone data-lane="${lane.id}">${TONES.map(t=>`<option value="${t}"${t===(lane.tone||'pulse')?' selected':''}>${t==='fatsawtooth'?'fat saw':t}</option>`).join('')}</select>`
       : '';
+    // Edit button — present for types with an editor (drums, melody, bass); skip chords.
+    const hasEditor = lane.type !== 'chords';
+    const editBtn = hasEditor
+      ? `<button class="lane-edit" data-lane="${lane.id}" title="Edit ${lane.name} in viz">✎</button>`
+      : `<button class="lane-edit" data-lane="${lane.id}" title="No editor for ${lane.name}" disabled>✎</button>`;
     // Grid columns: name | pattern-select | meter | MIX | TONE | FX | M/S | actions
     return `<div class="lane" data-lane="${lane.id}">
       <span class="name" title="double-click to rename">${lane.name}</span>
@@ -108,6 +137,7 @@ function renderStrips() {
         <button class="solo" data-lane="${lane.id}" aria-label="solo ${lane.name}" title="Solo">S</button>
       </div>
       <div class="lane-actions">
+        ${editBtn}
         <button class="lane-dup" data-lane="${lane.id}" title="Duplicate lane">⧉</button>
         <button class="lane-rm" data-lane="${lane.id}" title="Remove lane"${isLast ? ' disabled' : ''}>✕</button>
       </div>
@@ -167,6 +197,13 @@ function renderStrips() {
     if (!b.disabled) b.onclick = () => {
       eng.removeLane(b.dataset.lane);
       renderStrips();
+    };
+  });
+
+  // Edit button — open that lane's editor in the viz
+  host.querySelectorAll('.lane-edit:not(:disabled)').forEach(b => {
+    b.onclick = () => {
+      activateEditLane(b.dataset.lane);
     };
   });
 
@@ -407,9 +444,12 @@ function mount() {
   renderMaster();
   renderArrange();
   viz = makeViz(document.getElementById('viz'), song, eng);
-  // Reset tab buttons to Drums view.
-  document.querySelectorAll('[data-view]').forEach(x => x.classList.toggle('on', x.dataset.view === 'drums'));
-  viz.setView('drums');
+  // Scope tab off — lane editor takes over.
+  document.querySelectorAll('[data-view]').forEach(x => x.classList.remove('on'));
+  // Auto-open the first editable lane (drums or first non-chords lane).
+  const lanes = eng.getLanes();
+  const firstEditable = lanes.find(l => l.type !== 'chords') || lanes[0];
+  if (firstEditable) activateEditLane(firstEditable.id);
 }
 
 // ─── Load a different song ────────────────────────────────────────────────────
@@ -451,10 +491,27 @@ document.getElementById('themesel').onchange = e => {
   viz.invalidateThemeColors?.();
 };
 
-// ─── Tab buttons (registered once; reference module-level viz) ───────────────
+// ─── Scope tab (only [data-view] button remaining) ───────────────────────────
+// Clicking Scope toggles the oscilloscope; clicking again returns to the last
+// lane editor.
 document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
-  document.querySelectorAll('[data-view]').forEach(x => x.classList.toggle('on', x === b));
-  viz.setView(b.dataset.view);
+  const isOn = b.classList.contains('on');
+  if (isOn) {
+    // Toggle off → return to last lane editor.
+    b.classList.remove('on');
+    if (_editingLaneId) activateEditLane(_editingLaneId);
+  } else {
+    // Toggle on → show scope, clear lane edit highlight.
+    document.querySelectorAll('[data-view]').forEach(x => x.classList.toggle('on', x === b));
+    _editingLaneId = _editingLaneId; // keep it so we can return
+    // Remove editing highlights from strips.
+    const host = document.getElementById('strips');
+    if (host) {
+      host.querySelectorAll('.lane').forEach(row => row.classList.remove('editing'));
+      host.querySelectorAll('.lane-edit').forEach(btn => btn.classList.remove('editing'));
+    }
+    viz.setView('scope');
+  }
 });
 
 // ─── Step callback (registered once; closes over module-level song/viz) ──────

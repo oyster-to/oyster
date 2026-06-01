@@ -67,27 +67,33 @@ export function makeViz(host, song, eng) {
   let scopeSource = 'master';
   let scopeRafId = null;
 
-  // Lane accessor — song.lanes is a list after normalizeLanes; resolve by type.
-  function getLane(type) { return laneByType(song.lanes, type); }
+  // Current edit target lane (set by editLane(id)).
+  // Falls back to laneByType for the initial state.
+  let _targetLane = null;
+  function getTargetLane() {
+    // Prefer the explicitly-set target; fall back gracefully.
+    if (_targetLane) return _targetLane;
+    return laneByType(song.lanes, view === 'bass' ? 'bass' : view === 'melody' ? 'melody' : 'drums');
+  }
 
   function primaryBar() { return Math.min(...editBars); }
 
   // Ensure pool.custom + pool._base exist (fork from current selection).
   function ensureCustom() {
-    const L = getLane('drums');
+    const L = getTargetLane();
     if (!L.pool.custom) {
       const src = L.pool[L.selection];
       L.pool.custom = fork4(src);
       L.pool._base  = fork4(src);
       customLen = L.cycleLen || 4;
       L.cycleLen = customLen;
-      eng.setLane('drums', 'custom');
+      eng.setLane(L.id, 'custom');
     }
   }
 
   function drumEdit(k, step) {
     ensureCustom();
-    const L = getLane('drums');
+    const L = getTargetLane();
     const prim = L.pool.custom[primaryBar()];
     // Decide on/off from the primary (shown) bar.
     const on = k === 'tom'
@@ -112,7 +118,7 @@ export function makeViz(host, song, eng) {
   }
 
   function buildBarSelector() {
-    const L = getLane('drums');
+    const L = getTargetLane();
     // Compute playingBar from lastBar relative to current cycle.
     const cyc = L.selection === 'custom' ? customLen : 1;
     const playingBar = ((lastBar % cyc) + cyc) % cyc;
@@ -192,7 +198,7 @@ export function makeViz(host, song, eng) {
     }
 
     // Note blocks.
-    const L = getLane('melody');
+    const L = getTargetLane();
     const bars = L.pool[L.selection] || [];
     for (let bi = 0; bi < 4; bi++) {
       const barNotes = bars[bi] || [];
@@ -241,11 +247,11 @@ export function makeViz(host, song, eng) {
     const noteName = NMG[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
 
     // Fork to custom if needed.
-    const L = getLane('melody');
+    const L = getTargetLane();
     if (L.selection !== 'custom') {
       const src = L.pool[L.selection] || [];
       L.pool.custom = src.map(b => b.map(n => n.slice()));
-      eng.setLane('melody', 'custom');
+      eng.setLane(L.id, 'custom');
     }
 
     const bar = Math.floor(absStep / spb);
@@ -364,7 +370,7 @@ export function makeViz(host, song, eng) {
     }
 
     // Resolve bass notes for current bar.
-    const L = getLane('bass');
+    const L = getTargetLane();
     const gen = L.pool[L.selection];
     let notes = [];
     if (typeof gen === 'function') {
@@ -432,7 +438,8 @@ export function makeViz(host, song, eng) {
         [...editBars].forEach(x => { if (x >= customLen) editBars.delete(x); });
         if (!editBars.size) editBars.add(0);
         // Update song lane cycleLen if we're in custom mode.
-        if (getLane('drums').selection === 'custom') getLane('drums').cycleLen = customLen;
+        const _DL = getTargetLane();
+        if (_DL.selection === 'custom') _DL.cycleLen = customLen;
         build();
         paint(lastBar, lastStepInBar);
       });
@@ -459,9 +466,11 @@ export function makeViz(host, song, eng) {
       cv.onclick = rollClick;
       drawRoll(-1);
     } else if (view === 'scope') {
-      const SOURCES = ['master','drums','bass','chords','melody'];
+      // Build source list: master + each lane (id as value, name as label).
+      const laneSources = eng.getLanes().map(l => ({ value: l.id, label: l.name }));
+      const SOURCES = [{ value: 'master', label: 'master' }, ...laneSources];
       const opts = SOURCES.map(s =>
-        `<option value="${s}"${s === scopeSource ? ' selected' : ''}>${s}</option>`
+        `<option value="${s.value}"${s.value === scopeSource ? ' selected' : ''}>${s.label}</option>`
       ).join('');
       host.innerHTML = `<div class="scope-bar"><label>source <select id="scope-src">${opts}</select></label></div>`
         + `<canvas id="scope-canvas"></canvas>`;
@@ -484,7 +493,7 @@ export function makeViz(host, song, eng) {
     lastStepInBar = stepInBar;
 
     if (view === 'drums') {
-      const L = getLane('drums');
+      const L = getTargetLane();
       const isCustom = L.selection === 'custom';
       const pb = primaryBar();
 
@@ -501,7 +510,7 @@ export function makeViz(host, song, eng) {
 
       host.querySelectorAll('.vrow').forEach(row => {
         const k = row.dataset.k;
-        const audible = drumVoiceAudible(getLane('drums'), k);
+        const audible = drumVoiceAudible(getTargetLane(), k);
         row.classList.toggle('silenced', !audible);
         const mBtn = row.querySelector('.dvm');
         const sBtn = row.querySelector('.dvs');
@@ -536,6 +545,21 @@ export function makeViz(host, song, eng) {
     setView(v) {
       if (v !== 'scope') stopScopeLoop();
       view = v;
+      build();
+    },
+    // Focus a specific lane by id and open its type-appropriate editor.
+    editLane(id) {
+      const lanes = eng.getLanes();
+      const lane = lanes.find(l => l.id === id);
+      if (!lane) return;
+      _targetLane = lane;
+      // Reset bar selector state so the new lane starts clean.
+      editBars = new Set([0]);
+      customLen = lane.cycleLen || 4;
+      const typeToView = { drums: 'drums', melody: 'melody', bass: 'bass' };
+      const nextView = typeToView[lane.type] || 'drums';
+      stopScopeLoop();
+      view = nextView;
       build();
     },
     setStep(_abs, bar, stepInBar) { paint(bar, stepInBar); },
