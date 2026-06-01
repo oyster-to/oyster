@@ -5,6 +5,19 @@ const RIFF = [
   [],
   [[0,'B4',15]],
 ];
+
+// Semitone-transpose a note name (e.g. 'F#2') by an integer number of semitones.
+// Tone-free: works in Node, safe to call in tests.
+function transposeNote(note, semis) {
+  const m = note.match(/^([A-G]#?)(-?\d+)$/);
+  if (!m) return note;
+  const NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const idx = NAMES.indexOf(m[1]);
+  if (idx < 0) return note;
+  const total = idx + (parseInt(m[2]) + 1) * 12 + semis;
+  return NAMES[((total % 12) + 12) % 12] + (Math.floor(total / 12) - 1);
+}
+
 export const kids = {
   meter: { beatsPerBar:4, beatUnit:4, stepsPerBeat:4 },
   bpm: 120,
@@ -16,12 +29,24 @@ export const kids = {
   ]},
   lanes: {
     drums:  { selection:'four', muted:false, cycleLen:4,
-              pool:{ four:{ kick:[0,4,8,12], snare:[4,12], hat:[0,2,4,6,8,10,12,14] } } },
+              pool:{
+                four:     { kick:[0,4,8,12], snare:[4,12],  hat:[0,2,4,6,8,10,12,14] },
+                backbeat: { kick:[0,8],       snare:[4,12],  hat:[2,6,10,14] },
+                'boom-cha':{ kick:[0,4,8,12], snare:[2,6,10,14] },
+                house:    { kick:[0,4,8,12], snare:[4,12],  hat:[2,6,10,14] },
+                NIN:      { kick:[0,3,4,7,8,11,12,15], snare:[2,6,10,14],
+                            hat:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], crash:[0] },
+              } },
     bass:   { selection:'octave', muted:false,
-              pool:{ octave:(bar,chord)=>[0,2,4,6,8,10,12,14].map((s,i)=>
-                       [s, i%2 ? Tone_transpose(chord.root,12) : chord.root, 2]) } },
+              pool:{
+                octave:  (bar,chord) => [0,2,4,6,8,10,12,14].map((s,i) =>
+                           [s, i%2 ? transposeNote(chord.root, 12) : chord.root, 2]),
+                eighths: (bar,chord) => [0,2,4,6,8,10,12,14].map(s => [s, chord.root, 2]),
+                '16ths': (bar,chord) => Array.from({length:16},(_,s) => [s, chord.root, 1]),
+                'on-beat':(bar,chord) => [0,4,8,12].map(s => [s, chord.root, 4]),
+                whole:   (bar,chord) => [[0, chord.root, 16]],
+              } },
     chords: { selection:'pad', muted:false },
     melody: { selection:'hook', muted:false, pool:{ hook: RIFF } },
   },
 };
-function Tone_transpose(note, semis){ return { 'F#2':'F#3','D2':'D3','A2':'A3','G#2':'G#3' }[note] || note; }

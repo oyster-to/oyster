@@ -5,11 +5,12 @@ import { createVoices, trigger } from './voices.js';
 import { setLane as _setLane, toggleMute as _toggleMute } from './lanes.js';
 
 export function createEngine() {
-  let song = null, voices = null, master = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null;
+  let song = null, voices = null, master = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, toneType = 'pulse';
   function ensure() {
     if (started) return;
     master = new Tone.Limiter(-1).toDestination();
     voices = createVoices(master);
+    voices.lead.set({ oscillator:{ type: toneType, width: 0.3 } });
     started = true;
   }
   return {
@@ -42,5 +43,6 @@ export function createEngine() {
     getSong() { return song; },
     setLane(lane, selection) { if (song) _setLane(song, lane, selection); },
     toggleMute(lane) { return song ? _toggleMute(song, lane) : false; },
+    setTone(type) { toneType = type; if (voices) voices.lead.set({ oscillator:{ type, width: 0.3 } }); },
   };
 }
