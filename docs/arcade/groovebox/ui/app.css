@@ -241,17 +241,18 @@ select {
 /* ─── § 3 — segmented tab control ──────────────────────────────────────── */
 .vtabs {
   display: flex;
-  gap: 0;
-  margin-bottom: 8px;
-  background: var(--panel-2);
+  gap: 3px;
+  margin-bottom: 12px;
+  background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 9px;
   padding: 3px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.30);   /* recessed well */
 }
 .vtabs button {
   flex: 1;
-  height: 26px;
-  border-radius: 5px;
+  height: 30px;
+  border-radius: 6px;
   border: none;
   background: transparent;
   color: var(--dim);
@@ -260,19 +261,24 @@ select {
   letter-spacing: 0.04em;
   box-shadow: none;
   padding: 0 10px;
-  transition: background 0.1s, color 0.1s, box-shadow 0.1s;
+  transition: background 0.12s, color 0.12s, box-shadow 0.12s;
 }
 .vtabs button:hover {
-  background: var(--panel-3);
+  background: var(--panel-2);
   border-color: transparent;
   color: var(--ink);
 }
 .vtabs button.on {
-  background: rgba(84,240,200,0.10);
+  /* raised, integrated pill — not a stuck-on bordered box */
+  background: var(--panel-3);
   color: var(--acc);
   box-shadow:
-    inset 0 -2px 0 var(--acc),
-    inset 0 1px 0 rgba(84,240,200,0.08);
+    0 1px 2px rgba(0,0,0,0.40),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.vtabs button:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: -2px;   /* sit inside the segment, never overhang the well */
 }
 
 /* ─── tempo range ────────────────────────────────────────────────────────── */
