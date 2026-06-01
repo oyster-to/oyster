@@ -6,7 +6,7 @@ import { setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloE
 import { sectionAt } from './arrangement.js';
 
 export function createEngine() {
-  let song = null, voices = null, master = null, fx = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, toneType = 'pulse', pendingFill = null, activeFill = null, fillQueue = [];
+  let song = null, voices = null, fx = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, toneType = 'pulse', pendingFill = null, activeFill = null, fillQueue = [];
   let mode = 'live', songBar = 0;
   let masterComp = null, masterRev = null, masterVol = null, masterPan = null, masterWidth = null, masterEQ = null;
   let meterL = null, meterR = null;

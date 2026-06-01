@@ -17,7 +17,9 @@ export function eventsForStep(song, absStep, fillPat = null) {
   }
   if (laneAudible(song, 'bass')) {
     const gen = L.bass.pool[L.bass.selection];
-    const notes = typeof gen === 'function' ? gen(bar, chord) : (gen[bar % gen.length] || []);
+    const notes = typeof gen === 'function'
+      ? (gen(bar, chord) || [])
+      : (Array.isArray(gen) && gen.length ? (gen[bar % gen.length] || []) : []);
     for (const [s, note, dur] of notes) if (s === step) ev.push({ lane:'bass', note, dur });
   }
   if (laneAudible(song, 'chords')) {
@@ -28,7 +30,7 @@ export function eventsForStep(song, absStep, fillPat = null) {
   }
   if (laneAudible(song, 'melody')) {
     const bars = L.melody.pool[L.melody.selection];
-    const phrase = bars[bar % bars.length] || [];
+    const phrase = (Array.isArray(bars) && bars.length ? bars[bar % bars.length] : null) || [];
     for (const [s, note, dur] of phrase) if (s === step) ev.push({ lane:'melody', note, dur });
   }
   return ev;

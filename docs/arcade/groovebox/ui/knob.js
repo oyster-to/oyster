@@ -55,11 +55,16 @@ export function makeKnob({ label, value = 0, onChange }) {
     setValue(dragStartValue - dy / 150);
   });
 
-  dial.addEventListener('pointerup', e => {
+  // End the drag on up OR on cancel/lost-capture (OS gesture, blur, modal),
+  // otherwise dragStartY stays set and later moves keep changing the value.
+  const endDrag = e => {
     dragStartY = null;
     dragStartValue = null;
-    dial.releasePointerCapture(e.pointerId);
-  });
+    if (e && e.pointerId != null) { try { dial.releasePointerCapture(e.pointerId); } catch {} }
+  };
+  dial.addEventListener('pointerup', endDrag);
+  dial.addEventListener('pointercancel', endDrag);
+  dial.addEventListener('lostpointercapture', endDrag);
 
   dial.addEventListener('dblclick', () => {
     setValue(initial);
