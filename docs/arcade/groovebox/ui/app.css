@@ -1,29 +1,39 @@
 /* ─── design tokens ─────────────────────────────────────────────────────── */
 :root {
-  --bg:     #0c0d12;
-  --panel:  #15171f;
-  --ink:    #e8eaf0;
-  --dim:    #8b90a3;
-  --acc:    #54f0c8;
-  --hot:    #ff5b9e;
-  --warn:   #ffd24a;
+  /* § 1 — color system */
+  --bg:        #0a0b0f;
+  --panel:     #13151c;
+  --panel-2:   #1a1d26;
+  --panel-3:   #232732;
+  --line:      rgba(255,255,255,0.07);
+  --line-dk:   rgba(0,0,0,0.45);
+  --ink:       #e6e8ee;
+  --dim:       #8a90a0;
+  --faint:     #5a6072;
+  --acc:       #54f0c8;
+  --acc-dim:   #2e8a74;
+  --hot:       #ff5b9e;
+  --warn:      #ffd24a;
+  --meter-lo:  #54f0c8;
+  --meter-mid: #ffd24a;
+  --meter-hi:  #ff5b6b;
 
-  /* cabinet chrome */
+  /* screen / glow */
+  --screen-bg:   #07080d;
+  --screen-glow: rgba(84,240,200,0.06);
+
+  /* cabinet chrome — kept for screws */
   --chrome-hi:  #3a3e4e;
   --chrome-mid: #22252f;
   --chrome-lo:  #12141a;
-  --bevel-hi:   rgba(255,255,255,0.08);
-  --bevel-lo:   rgba(0,0,0,0.55);
-
-  /* screen */
-  --screen-bg:  #07080d;
-  --screen-glow: rgba(84, 240, 200, 0.06);
+  --bevel-hi:   rgba(255,255,255,0.06);
+  --bevel-lo:   rgba(0,0,0,0.45);
 }
 
 /* ─── reset ─────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 
-/* ─── page background — dark room ──────────────────────────────────────── */
+/* ─── page background ───────────────────────────────────────────────────── */
 body {
   margin: 0;
   min-height: 100vh;
@@ -31,40 +41,42 @@ body {
   align-items: flex-start;
   justify-content: center;
   padding: 32px 16px 48px;
-  background:
-    radial-gradient(ellipse 80% 60% at 50% 0%, #0d1120 0%, #05060a 100%);
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, #0d1120 0%, #05060a 100%);
+  /* § 2 — system-sans body font */
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
   color: var(--ink);
-  font: 13px/1.5 ui-monospace, Menlo, monospace;
 }
 
-/* ─── cabinet frame — brushed chrome bezel ──────────────────────────────── */
+/* § 2 — mono utility: numeric readouts */
+.mono,
+#bpmv,
+.vhcell,
+.vrow .vl,
+.knob-lbl {
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+/* ─── cabinet frame — lightened from original ───────────────────────────── */
 .cabinet {
   width: 100%;
-  max-width: 1400px;
+  max-width: 1280px;
   border-radius: 18px;
-  padding: 28px 26px 32px;
+  padding: 24px 22px 28px;
   position: relative;
   overflow: hidden;
 
-  /* layered brushed-metal gradients */
-  background:
-    /* subtle vertical brushed sheen */
-    repeating-linear-gradient(
-      180deg,
-      rgba(255,255,255,0.015) 0px,
-      rgba(255,255,255,0.015) 1px,
-      transparent 1px,
-      transparent 4px
-    ),
-    linear-gradient(
-      175deg,
-      var(--chrome-hi)  0%,
-      var(--chrome-mid) 35%,
-      var(--chrome-lo)  65%,
-      #1a1c24           100%
-    );
+  /* subtle sheen only — no loud brushed-metal stripes */
+  background: linear-gradient(
+    170deg,
+    var(--chrome-hi)  0%,
+    var(--chrome-mid) 40%,
+    var(--chrome-lo)  70%,
+    #1a1c24           100%
+  );
 
-  /* bevel: outer highlight top-left, shadow bottom-right */
   box-shadow:
     inset 0 1px 0 var(--bevel-hi),
     inset 0 -1px 0 var(--bevel-lo),
@@ -74,15 +86,14 @@ body {
     0 2px 8px rgba(0,0,0,0.5);
 }
 
-/* screw accents in corners */
+/* screw accents */
 .cabinet-corners { pointer-events: none; }
 .screw {
   position: absolute;
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 35% 35%, #4a4e5e, #1a1c22);
+  background: radial-gradient(circle at 35% 35%, #4a4e5e, #1a1c22);
   box-shadow:
     inset 0 1px 1px rgba(255,255,255,0.18),
     inset 0 -1px 1px rgba(0,0,0,0.5),
@@ -101,10 +112,10 @@ body {
 .screw.bl { bottom: 12px; left: 12px; }
 .screw.br { bottom: 12px; right: 12px; }
 
-/* inner panel — slightly recessed within the bezel */
+/* inner panel */
 .cabinet-inner {
   position: relative;
-  background: var(--panel);
+  background: var(--bg);
   border-radius: 10px;
   padding: 18px 18px 20px;
   box-shadow:
@@ -112,54 +123,80 @@ body {
     inset 0 1px 0 rgba(0,0,0,0.4);
 }
 
-/* ─── title ─────────────────────────────────────────────────────────────── */
+/* ─── soft cabinet vignette — pointer-events:none preserved ─────────────── */
+.crt-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 51;
+  background: radial-gradient(ellipse at center,
+    transparent 55%,
+    rgba(0,0,0,0.22) 80%,
+    rgba(0,0,0,0.45) 100%);
+  border-radius: 18px;
+}
+
+/* ─── § 2 — app title ───────────────────────────────────────────────────── */
 h1 {
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 700;
   margin: 0 0 14px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--dim);
   text-shadow: 0 0 12px rgba(84,240,200,0.3);
 }
 
-/* ─── transport bar ──────────────────────────────────────────────────────── */
-.transport {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-/* ─── generic button + select base ─────────────────────────────────────── */
+/* ─── § 3 — unified control base ───────────────────────────────────────── */
 button, select {
-  font: inherit;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
-  border-radius: 7px;
-  border: 1px solid #2c3044;
-  background: #1a1e2c;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
   color: var(--ink);
-  padding: 7px 12px;
+  padding: 0 12px;
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.05),
-    inset 0 -1px 0 rgba(0,0,0,0.3),
-    0 1px 3px rgba(0,0,0,0.4);
-  transition: background 0.1s, box-shadow 0.1s;
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 -1px 0 rgba(0,0,0,0.25),
+    0 1px 3px rgba(0,0,0,0.35);
+  transition: background 0.1s, border-color 0.1s, box-shadow 0.1s;
+}
+button:hover, select:hover {
+  background: var(--panel-3);
+  border-color: var(--acc-dim);
 }
 button:active {
   box-shadow:
-    inset 0 2px 4px rgba(0,0,0,0.5),
-    inset 0 -1px 0 rgba(255,255,255,0.04);
+    inset 0 2px 4px rgba(0,0,0,0.45),
+    inset 0 -1px 0 rgba(255,255,255,0.03);
   transform: translateY(1px);
 }
+button:focus-visible, select:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
 
-/* ─── play button — chunky illuminated ──────────────────────────────────── */
+/* § 3 — select: explicit chevron */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a90a0'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+
+/* ─── § 3 — play button ─────────────────────────────────────────────────── */
 #play {
   background: linear-gradient(180deg, #63f8d4 0%, #3dd6b0 50%, #2eaa8a 100%);
   color: #04201a;
   border-color: #2eaa8a;
   font-weight: 700;
-  min-width: 110px;
+  min-width: 100px;
   letter-spacing: 0.05em;
   text-shadow: 0 1px 0 rgba(255,255,255,0.3);
   box-shadow:
@@ -169,6 +206,8 @@ button:active {
     0 2px 6px rgba(0,0,0,0.45);
 }
 #play:hover {
+  background: linear-gradient(180deg, #74fada 0%, #4ae0bc 50%, #38c09c 100%);
+  border-color: #38c09c;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.4),
     inset 0 -2px 0 rgba(0,0,0,0.2),
@@ -187,29 +226,115 @@ button:active {
     0 2px 6px rgba(0,0,0,0.45);
 }
 
-/* ─── tempo range ────────────────────────────────────────────────────────── */
-input[type=range] { accent-color: var(--acc); }
-
-/* ─── view tabs ──────────────────────────────────────────────────────────── */
-.vtabs { display: flex; gap: 6px; margin-bottom: 8px; }
+/* ─── § 3 — segmented tab control ──────────────────────────────────────── */
+.vtabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 3px;
+}
+.vtabs button {
+  flex: 1;
+  height: 26px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  box-shadow: none;
+  padding: 0 10px;
+  transition: background 0.1s, color 0.1s, box-shadow 0.1s;
+}
+.vtabs button:hover {
+  background: var(--panel-3);
+  border-color: transparent;
+  color: var(--ink);
+}
 .vtabs button.on {
-  background: #0e1e18;
-  border-color: var(--acc);
+  background: rgba(84,240,200,0.10);
   color: var(--acc);
   box-shadow:
-    inset 0 1px 0 rgba(84,240,200,0.1),
-    0 0 8px rgba(84,240,200,0.2);
+    inset 0 -2px 0 var(--acc),
+    inset 0 1px 0 rgba(84,240,200,0.08);
 }
 
-/* ─── CRT screen — the viz area ─────────────────────────────────────────── */
+/* ─── tempo range ────────────────────────────────────────────────────────── */
+input[type=range] {
+  accent-color: var(--acc);
+  height: 4px;
+  cursor: pointer;
+}
+
+/* ─── § 8 — transport bar ───────────────────────────────────────────────── */
+.transport {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.transport-tempo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.transport-bpm-val {
+  font-size: 13px;
+  font-family: ui-monospace, Menlo, monospace;
+  color: var(--ink);
+  min-width: 3ch;
+  text-align: right;
+}
+.transport-bpm-unit {
+  font-size: 9px;
+  color: var(--faint);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.transport-song {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ─── § 4 — section panels ──────────────────────────────────────────────── */
+/* Common panel chrome applied to the main content areas */
+#viz,
+#strips,
+#fills,
+#master,
+#arrange {
+  background: var(--panel);
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    0 1px 3px rgba(0,0,0,0.4);
+  margin-bottom: 12px;
+}
+
+/* ─── CRT screen / viz area ──────────────────────────────────────────────── */
 #viz {
   position: relative;
-  margin-bottom: 6px;
-  background: var(--screen-bg);
-  border-radius: 8px;
   padding: 10px 10px 8px;
+  background: var(--screen-bg);
 
-  /* inset shadow for glass depth + screen glow */
   box-shadow:
     inset 0 0 0 1px rgba(255,255,255,0.04),
     inset 0 2px 12px rgba(0,0,0,0.8),
@@ -217,24 +342,33 @@ input[type=range] { accent-color: var(--acc); }
     0 0 0 1px rgba(0,0,0,0.6),
     0 0 24px var(--screen-glow);
 
-  /* screen vignette via border-image won't work easily; use outline instead */
   outline: 2px solid rgba(0,0,0,0.35);
   outline-offset: -1px;
 }
 
-/* ─── soft cabinet vignette ──────────────────────────────────────────────── */
-/* Scanlines/CRT texture removed (too distracting); just a gentle corner       */
-/* darkening for depth. pointer-events:none so controls below stay clickable.  */
-.crt-vignette {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 51;
-  background: radial-gradient(ellipse at center,
-    transparent 55%,
-    rgba(0,0,0,0.22) 80%,
-    rgba(0,0,0,0.45) 100%);
-  border-radius: 18px;
+/* ─── lane strips panel ──────────────────────────────────────────────────── */
+#strips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 100%;
+  padding: 12px;
+  margin-top: 0;
+}
+
+/* ─── fills panel ────────────────────────────────────────────────────────── */
+#fills {
+  padding: 12px 16px;
+}
+
+/* ─── master panel ───────────────────────────────────────────────────────── */
+#master {
+  padding: 12px 16px;
+}
+
+/* ─── arrangement panel ──────────────────────────────────────────────────── */
+#arrange {
+  padding: 12px 16px;
 }
 
 /* ─── beat-number header row ────────────────────────────────────────────── */
@@ -294,24 +428,23 @@ input[type=range] { accent-color: var(--acc); }
 .dvm, .dvs {
   width: 14px; height: 14px; flex: 0 0 14px; padding: 0; border-radius: 3px;
   font: 700 8px ui-monospace,Menlo,monospace; color: var(--dim);
-  border: 1px solid #2c3044; cursor: pointer; transition: .12s;
-  background: linear-gradient(180deg,#22252f,#15171f);
+  border: 1px solid var(--line); cursor: pointer; transition: .12s;
+  background: linear-gradient(180deg, #22252f, #15171f);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 1px 2px rgba(0,0,0,.4);
   line-height: 14px; text-align: center;
   display: inline-flex; align-items: center; justify-content: center;
 }
-.dvm:hover, .dvs:hover { border-color: #3a4060; }
+.dvm:hover, .dvs:hover { border-color: var(--acc-dim); }
 .dvm.muted {
   color: #fff1e8; border-color: #a8391c;
-  background: linear-gradient(180deg,#ff7a3d,#d6481e);
+  background: linear-gradient(180deg, #ff7a3d, #d6481e);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 6px rgba(255,90,40,.5);
 }
 .dvs.soloed {
   color: #04201a; border-color: #2eaa8a;
-  background: linear-gradient(180deg,#63f8d4,#3dd6b0);
+  background: linear-gradient(180deg, #63f8d4, #3dd6b0);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 6px rgba(84,240,200,.5);
 }
-/* M+S pair at the right end of the row */
 .vrow .vr .dvm, .vrow .vr .dvs { margin: 0; }
 
 /* ─── step cells ─────────────────────────────────────────────────────────── */
@@ -327,11 +460,10 @@ input[type=range] { accent-color: var(--acc); }
   color: #cfe0ff;
   cursor: pointer;
   position: relative;
-  z-index: 2;            /* above scanline overlay (z-index:1) */
+  z-index: 2;
   transition: box-shadow 0.08s;
 }
 .vc.beat { background: #111526; }
-
 .vc.hit {
   background: #2b3f6a;
   color: #cfe0ff;
@@ -354,7 +486,6 @@ input[type=range] { accent-color: var(--acc); }
   outline-offset: -2px;
   box-shadow: 0 0 10px rgba(255,255,255,0.2);
 }
-/* extra bloom when a cell is both lit and the playhead */
 .vc.hit.now {
   box-shadow:
     0 0 10px rgba(84,180,255,0.6),
@@ -377,10 +508,11 @@ input[type=range] { accent-color: var(--acc); }
   color: var(--dim);
 }
 .bsel {
-  padding: 4px 11px;
+  height: 26px;
+  padding: 0 11px;
   border-radius: 6px;
-  border: 1px solid #2c3044;
-  background: #141720;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
   color: var(--ink);
   cursor: pointer;
   font-size: 12px;
@@ -398,16 +530,17 @@ input[type=range] { accent-color: var(--acc); }
   box-shadow: 0 0 8px rgba(255,91,158,0.3);
 }
 .cyc {
-  padding: 4px 10px;
+  height: 26px;
+  padding: 0 10px;
   border-radius: 6px;
-  border: 1px solid #2c3044;
-  background: #141720;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
   color: var(--ink);
   cursor: pointer;
   font-size: 12px;
 }
 .cyc.on {
-  background: #0e1e18;
+  background: rgba(84,240,200,0.10);
   border-color: var(--acc);
   color: var(--acc);
 }
@@ -420,10 +553,10 @@ input[type=range] { accent-color: var(--acc); }
   border-radius: 6px;
   cursor: crosshair;
   position: relative;
-  z-index: 2;   /* above CRT scanline overlay */
+  z-index: 2;
 }
 
-/* ─── bass roll canvas (read-only) ─────────────────────────────────────── */
+/* ─── bass roll canvas ──────────────────────────────────────────────────── */
 #broll {
   display: block;
   width: 100%;
@@ -433,7 +566,7 @@ input[type=range] { accent-color: var(--acc); }
   z-index: 2;
 }
 
-/* ─── scope oscilloscope canvas + source selector ───────────────────────── */
+/* ─── scope canvas + bar ────────────────────────────────────────────────── */
 #scope-canvas {
   display: block;
   width: 100%;
@@ -453,147 +586,204 @@ input[type=range] { accent-color: var(--acc); }
   color: var(--dim);
 }
 .scope-bar select {
-  background: #15171f;
+  background: var(--panel-2);
   color: var(--acc);
-  border: 1px solid #2a2e3a;
+  border: 1px solid var(--line);
   border-radius: 4px;
-  padding: 2px 4px;
+  padding: 0 28px 0 4px;
   font: inherit;
   cursor: pointer;
+  height: 26px;
 }
 
-/* ─── lane strips — recessed module slots ───────────────────────────────── */
-#strips {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-width: 100%;
-  margin-top: 14px;
-}
+/* ─── lane strips — panel chrome only (grid unchanged for Stage B) ───────── */
 .lane {
   display: grid;
   grid-template-columns: 80px 1fr auto auto;
   gap: 10px;
   align-items: center;
-  background: #0f1119;
-  border: 1px solid #1e2130;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 7px 12px;
+  padding: 8px 12px;
   box-shadow:
-    inset 0 2px 6px rgba(0,0,0,0.5),
-    inset 0 1px 0 rgba(0,0,0,0.3);
+    inset 0 1px 0 rgba(255,255,255,0.03),
+    0 1px 2px rgba(0,0,0,0.3);
 }
+
+/* § 2 — section header labels */
 .lane .name {
+  font-size: 10px;
   font-weight: 600;
-  font-size: 12px;
-  color: var(--dim);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
+  color: var(--faint);
 }
 .lane select { width: 100%; }
+
+/* dim non-audible lane */
 .mute.on {
   background: #3a1622;
   border-color: #5a2030;
   color: #ff7da6;
 }
-/* dim non-audible lane; keep mute/solo controls bright */
 .lane.silenced > :not(.msgroup) { opacity: .4; transition: opacity .15s; }
 
-.mctl{display:flex;gap:8px;align-items:center}
-.mctl select{width:auto}
-.mctl select[data-lane]{flex:1}
-.mctl select[data-tone]{flex:0 0 auto;color:var(--dim)}
+.mctl { display:flex; gap:8px; align-items:center; }
+.mctl select { width:auto; }
+.mctl select[data-lane] { flex:1; }
+.mctl select[data-tone] { flex:0 0 auto; color:var(--dim); }
 
-/* ─── FX knobs ───────────────────────────────────────────────────────────── */
-.knobs{display:grid;grid-template-columns:repeat(4,auto);gap:6px 10px;align-items:center;justify-items:center}
-.knob{display:flex;flex-direction:column;align-items:center;gap:3px;user-select:none}
-.knob-dial{
-  width:32px;height:32px;border-radius:50%;position:relative;cursor:ns-resize;
-  background:radial-gradient(circle at 38% 32%, #3a3e4e, #15171f 70%);
+/* ─── FX knobs (layout unchanged for Stage B) ───────────────────────────── */
+.knobs {
+  display: grid;
+  grid-template-columns: repeat(4,auto);
+  gap: 6px 10px;
+  align-items: center;
+  justify-items: center;
+}
+.knob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  user-select: none;
+}
+.knob-dial {
+  width: 32px; height: 32px; border-radius: 50%; position: relative; cursor: ns-resize;
+  background: radial-gradient(circle at 38% 32%, #3a3e4e, #15171f 70%);
   box-shadow:
     inset 0 1px 1px rgba(255,255,255,0.15),
     inset 0 -2px 3px rgba(0,0,0,0.6),
     0 1px 2px rgba(0,0,0,0.5);
 }
-.knob-ind{
-  position:absolute;top:3px;left:50%;width:2px;height:11px;
-  background:var(--acc);border-radius:1px;
-  transform-origin:50% 13px;
-  transform:translateX(-50%) rotate(-135deg);
-  box-shadow:0 0 4px var(--acc);
+.knob-ind {
+  position: absolute; top: 3px; left: 50%; width: 2px; height: 11px;
+  background: var(--acc); border-radius: 1px;
+  transform-origin: 50% 13px;
+  transform: translateX(-50%) rotate(-135deg);
+  box-shadow: 0 0 4px var(--acc);
 }
-.knob-lbl{font-size:8px;color:var(--dim);letter-spacing:0.04em;text-transform:uppercase}
+/* § 2 — control label: 9px / 600 / .06em / uppercase / --faint */
+.knob-lbl {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--faint);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 
-/* ─── mute/solo button shared base ──────────────────────────────────────── */
+/* ─── mute / solo buttons ────────────────────────────────────────────────── */
 .mute, .solo {
-  width:30px; height:30px; flex:0 0 30px; padding:0; border-radius:7px;
-  font:700 12px ui-monospace,Menlo,monospace; color:var(--dim);
-  border:1px solid #2c3044; cursor:pointer; transition:.12s;
-  background:linear-gradient(180deg,#22252f,#15171f);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), inset 0 -1px 2px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.4);
+  width: 26px; height: 26px; flex: 0 0 26px; padding: 0; border-radius: 6px;
+  font: 700 11px ui-monospace,Menlo,monospace; color: var(--dim);
+  border: 1px solid var(--line); cursor: pointer; transition: .12s;
+  background: var(--panel-2);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), inset 0 -1px 2px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.3);
 }
-.mute:hover, .solo:hover { border-color:#3a4060; }
-.mute.muted {                                                      /* engaged = lit amber-red */
-  color:#fff1e8; border-color:#a8391c;
-  background:linear-gradient(180deg,#ff7a3d,#d6481e);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 0 12px rgba(255,90,40,.6), 0 1px 2px rgba(0,0,0,.4);
-  text-shadow:0 1px 0 rgba(0,0,0,.3);
+.mute:hover, .solo:hover { border-color: var(--acc-dim); background: var(--panel-3); }
+.mute.muted {
+  color: #fff1e8; border-color: #a8391c;
+  background: linear-gradient(180deg, #ff7a3d, #d6481e);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 0 12px rgba(255,90,40,.6), 0 1px 2px rgba(0,0,0,.4);
+  text-shadow: 0 1px 0 rgba(0,0,0,.3);
 }
-.solo.soloed {                                                     /* engaged = lit teal */
-  color:#04201a; border-color:#2eaa8a;
-  background:linear-gradient(180deg,#63f8d4,#3dd6b0);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 0 12px rgba(84,240,200,.6), 0 1px 2px rgba(0,0,0,.4);
-  text-shadow:0 1px 0 rgba(255,255,255,.2);
+.solo.soloed {
+  color: #04201a; border-color: #2eaa8a;
+  background: linear-gradient(180deg, #63f8d4, #3dd6b0);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 0 12px rgba(84,240,200,.6), 0 1px 2px rgba(0,0,0,.4);
+  text-shadow: 0 1px 0 rgba(255,255,255,.2);
 }
 
 /* ─── mute/solo group ────────────────────────────────────────────────────── */
-.msgroup { display:flex; gap:8px; align-items:flex-start; }
+.msgroup { display:flex; gap:6px; align-items:flex-start; }
 .ctrl { display:flex; flex-direction:column; align-items:center; gap:3px; }
-.ctrl-lbl { font-size:8px; color:var(--dim); letter-spacing:.04em; text-transform:uppercase; }
+.ctrl-lbl { font-size: 8px; color: var(--faint); letter-spacing: .04em; text-transform: uppercase; }
 
-/* ─── fills row ──────────────────────────────────────────────────────────── */
-.fillsrow{display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap}
-.fillsrow .flbl{font-size:10px;letter-spacing:.12em;color:var(--dim);font-weight:700;text-transform:uppercase}
-.fillbtn.firing{background:var(--hot);border-color:var(--hot);color:#2a0316;font-weight:700}
+/* ─── fills row (panel chrome via #fills) ───────────────────────────────── */
+.fillsrow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+/* § 2 — section header */
+.fillsrow .flbl {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+  text-transform: uppercase;
+}
+.fillbtn.firing {
+  background: var(--hot);
+  border-color: var(--hot);
+  color: #2a0316;
+  font-weight: 700;
+}
 
-/* ─── fill chain display ────────────────────────────────────────────────── */
-.fillchain{display:flex;gap:4px;flex-wrap:wrap;align-items:center;min-height:22px}
-.fillchip{
-  display:inline-flex;align-items:center;
-  padding:2px 8px;border-radius:10px;
-  font-size:10px;letter-spacing:.04em;
-  background:#1a1e2c;border:1px solid #2c3044;color:var(--dim);
-  cursor:pointer;user-select:none;
-  transition:background .1s,border-color .1s;
+/* fill chain chips */
+.fillchain { display:flex; gap:4px; flex-wrap:wrap; align-items:center; min-height:22px; }
+.fillchip {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: 10px;
+  font-size: 10px; letter-spacing: .04em;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--dim);
+  cursor: pointer; user-select: none;
+  transition: background .1s, border-color .1s;
 }
-.fillchip:hover{background:#23283a;border-color:#3a4060;color:var(--ink)}
-.fillchip.next{
-  border-color:var(--acc);color:var(--acc);
-  box-shadow:0 0 6px rgba(84,240,200,0.3);
+.fillchip:hover { background: var(--panel-3); border-color: var(--acc-dim); color: var(--ink); }
+.fillchip.next {
+  border-color: var(--acc); color: var(--acc);
+  box-shadow: 0 0 6px rgba(84,240,200,0.3);
 }
-.fillclear{
-  padding:2px 7px;border-radius:6px;
-  font-size:10px;color:var(--dim);
-  background:#13151c;border:1px solid #2c3044;
-  opacity:.6;
+.fillclear {
+  padding: 0 7px; border-radius: 6px; height: 22px;
+  font-size: 10px; color: var(--dim);
+  background: var(--panel); border: 1px solid var(--line);
+  opacity: .6;
 }
-.fillclear:hover{opacity:1;color:var(--hot);border-color:var(--hot)}
+.fillclear:hover { opacity:1; color: var(--hot); border-color: var(--hot); }
 
-/* ─── master FX strip ────────────────────────────────────────────────────── */
-.masterfx{display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:12px;border-top:1px solid #2c3044}
-.masterfx .mlbl{font-size:10px;letter-spacing:.12em;color:var(--dim);font-weight:700}
-
-/* ─── arrangement UI ─────────────────────────────────────────────────────── */
-.arrange-head{display:flex;gap:10px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid #2c3044;flex-wrap:wrap}
-.albl{font-size:10px;letter-spacing:.12em;color:var(--dim);font-weight:700;text-transform:uppercase}
-#modeBtn.song{background:#16261f;border-color:var(--acc);color:var(--acc)}
-.timeline{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
-.tcell{
-  flex:0 0 auto;min-width:54px;padding:8px 10px;
-  border-radius:6px;background:#1a1e2c;border:1px solid #2c3044;
-  font-size:10px;color:var(--dim);text-align:center;opacity:.7;
-  display:flex;flex-direction:column;align-items:center;gap:3px;
+/* ─── master FX strip (panel chrome via #master) ────────────────────────── */
+.masterfx {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
-.tcell.on{opacity:1;outline:2px solid #fff;outline-offset:1px;color:var(--ink)}
-.tcell-name{font-weight:600;font-size:10px;letter-spacing:.04em}
-.tcell-fill{font-size:8px;color:var(--acc);opacity:.8}
+/* § 2 — section header */
+.masterfx .mlbl {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+  text-transform: uppercase;
+}
+
+/* ─── arrangement UI (panel chrome via #arrange) ────────────────────────── */
+.arrange-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+/* § 2 — section header */
+.albl {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+  text-transform: uppercase;
+}
+#modeBtn.song { background: rgba(84,240,200,0.10); border-color: var(--acc); color: var(--acc); }
+.timeline { display:flex; gap:4px; flex-wrap:wrap; }
+.tcell {
+  flex: 0 0 auto; min-width: 54px; padding: 8px 10px;
+  border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line);
+  font-size: 10px; color: var(--dim); text-align: center; opacity: .7;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+}
+.tcell.on { opacity:1; outline:2px solid #fff; outline-offset:1px; color: var(--ink); }
+.tcell-name { font-weight:600; font-size:10px; letter-spacing:.04em; }
+.tcell-fill { font-size:8px; color: var(--acc); opacity:.8; }

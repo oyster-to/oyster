@@ -10,9 +10,19 @@
         <span class="screw br"></span>
       </div>
       <h1>groovebox</h1>
-      <div class="transport"><button id="play">▶ play</button>
-        Tempo <input type="range" id="bpm" min="80" max="160" value="120"><b id="bpmv">120</b>
-        Song <select id="songsel"><option value="kids">Kids</option><option value="rising-sun">House of the Rising Sun</option><option value="blue-danube">Blue Danube</option></select></div>
+      <div class="transport">
+        <button id="play">▶ play</button>
+        <div class="transport-tempo">
+          <span>Tempo</span>
+          <input type="range" id="bpm" min="80" max="160" value="120">
+          <span id="bpmv" class="transport-bpm-val">120</span>
+          <span class="transport-bpm-unit">BPM</span>
+        </div>
+        <div class="transport-song">
+          <span>Song</span>
+          <select id="songsel"><option value="kids">Kids</option><option value="rising-sun">House of the Rising Sun</option><option value="blue-danube">Blue Danube</option></select>
+        </div>
+      </div>
       <div class="vtabs"><button data-view="drums" class="on">🥁 Drums</button><button data-view="melody">🎺 Melody</button><button data-view="bass">🎸 Bass</button><button data-view="scope">📈 Scope</button></div>
       <div id="viz"></div>
       <div id="strips"></div>
