@@ -1766,56 +1766,48 @@ input[type=range] {
 }
 .bg-grid[data-lv="melody"] .vc { cursor: crosshair; }
 
-/* ─── § 4 — pin button ───────────────────────────────────────────────────────── */
-/* Pinnable sections need relative positioning for the absolute pin button */
-#viz, #fills, #master {
+/* ─── § 4 — section drag-reorder wrappers ────────────────────────────────────── */
+/* .sec wraps each top-level section so the .sec-drag handle persists across
+   re-renders (renderStrips/renderFills etc. rebuild section innerHTML, not .sec) */
+.sec {
   position: relative;
 }
 
-.pin-btn {
+.sec-drag {
   position: absolute;
-  top: 6px;
-  right: 8px;
-  width: 22px;
+  top: 50%;
+  left: 4px;
+  transform: translateY(-50%);
+  width: 12px;
   height: 22px;
-  padding: 0;
-  border-radius: 5px;
-  border: 1px solid transparent;
-  background: transparent;
-  box-shadow: none;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1;
-  color: var(--faint);
-  opacity: 0.4;
-  cursor: pointer;
-  z-index: 5;
-  transition: opacity 0.12s, border-color 0.12s, background 0.12s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  color: var(--faint);
+  opacity: 0.35;
+  cursor: grab;
+  user-select: none;
+  z-index: 5;
+  transition: opacity 0.1s, color 0.1s;
 }
-.pin-btn:hover {
-  opacity: 1;
-  background: var(--panel-3);
-  border-color: var(--line);
-}
-.pin-btn.pinned {
-  opacity: 1;
-  color: var(--acc);
-  background: rgba(84,240,200,0.10);
-  border-color: var(--acc);
-  box-shadow: 0 0 6px rgba(84,240,200,0.25);
-}
+.sec-drag:hover { opacity: 0.9; color: var(--dim); }
+.sec-drag:active { cursor: grabbing; }
 
-/* ─── Pinned section: sticky float + lifted shadow ───────────────────────────── */
-#viz.pinned,
-#fills.pinned,
-#master.pinned {
-  border-color: var(--acc-dim);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.06),
-    0 4px 20px rgba(0,0,0,0.6),
-    0 0 0 1px rgba(84,240,200,0.12);
+/* Dragging state for a section wrapper */
+.sec.sec-dragging { opacity: 0.45; }
+
+/* Drop indicators */
+.sec.sec-drop-above {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+  box-shadow: 0 -3px 10px rgba(84,240,200,0.25);
+}
+.sec.sec-drop-below {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+  box-shadow: 0 3px 10px rgba(84,240,200,0.25);
 }
 
 /* ─── Transport actions group (View + Help) ──────────────────────────────────── */

@@ -51,9 +51,9 @@ let _editingLaneId = null;
 // ─── Drag-reorder state ───────────────────────────────────────────────────────
 let _draggedLaneId = null;
 
-// ─── Pin-a-section state ──────────────────────────────────────────────────────
-const PINNABLE = ['viz', 'fills', 'master'];
-let _pinnedSectionId = localStorage.getItem('gb-pinned') || null;
+// ─── Section drag-reorder state ───────────────────────────────────────────────
+const SECTION_IDS = ['viz', 'strips', 'fills', 'master', 'arrange'];
+let _draggedSecId = null;
 
 function options(lane) {
   return lane.type === 'chords' ? chordModes : Object.keys(lane.pool || {});
@@ -548,47 +548,6 @@ function renderArrange() {
   host.appendChild(timeline);
 }
 
-// ─── Pin-a-section ───────────────────────────────────────────────────────────
-function applyPinState() {
-  for (const id of PINNABLE) {
-    const el = document.getElementById(id);
-    if (!el) continue;
-    const pinned = id === _pinnedSectionId;
-    el.classList.toggle('pinned', pinned);
-    const btn = el.querySelector('.pin-btn');
-    if (btn) btn.classList.toggle('pinned', pinned);
-    if (pinned) {
-      el.style.position = 'sticky';
-      el.style.top = '6px';
-      el.style.zIndex = '30';
-    } else {
-      el.style.position = '';
-      el.style.top = '';
-      el.style.zIndex = '';
-    }
-  }
-}
-
-function setupPinButtons() {
-  for (const id of PINNABLE) {
-    const el = document.getElementById(id);
-    if (!el) continue;
-    // Avoid duplicate buttons on re-mount
-    if (el.querySelector('.pin-btn')) continue;
-    const btn = document.createElement('button');
-    btn.className = 'pin-btn';
-    btn.title = 'Pin this section to the top';
-    btn.textContent = '📌';
-    btn.onclick = () => {
-      _pinnedSectionId = _pinnedSectionId === id ? null : id;
-      localStorage.setItem('gb-pinned', _pinnedSectionId || '');
-      applyPinState();
-    };
-    el.appendChild(btn);
-  }
-  applyPinState();
-}
-
 // ─── Reset FX to neutral (call before mount on song switch) ──────────────────
 function resetFX() {
   for (const lane of eng.getLanes()) {
@@ -623,7 +582,6 @@ function mount() {
   renderFills();
   renderMaster();
   renderArrange();
-  setupPinButtons();
   viz = makeViz(document.getElementById('viz'), song, eng);
   // Scope tab off — lane editor takes over.
   document.querySelectorAll('[data-view]').forEach(x => x.classList.remove('on'));
@@ -816,6 +774,110 @@ document.addEventListener('click', e => {
   }
 });
 
+// ─── Section drag-reorder ─────────────────────────────────────────────────────
+// Wraps each top-level section in a .sec div with a .sec-drag handle once at
+// startup. The handle lives outside the section's innerHTML so re-renders
+// (renderStrips, renderFills, etc.) never remove it. Order is persisted to
+// localStorage('gb-section-order').
+
+function saveSectionOrder() {
+  const inner = document.querySelector('.cabinet-inner');
+  if (!inner) return;
+  const order = [...inner.querySelectorAll(':scope > .sec')].map(w => w.dataset.sec);
+  localStorage.setItem('gb-section-order', JSON.stringify(order));
+}
+
+function initSectionWrappers() {
+  const inner = document.querySelector('.cabinet-inner');
+  if (!inner) return;
+
+  // 1. Wrap each section element in a .sec div with a drag handle
+  for (const id of SECTION_IDS) {
+    const sec = document.getElementById(id);
+    if (!sec) continue;
+    const wrap = document.createElement('div');
+    wrap.className = 'sec';
+    wrap.dataset.sec = id;
+    sec.replaceWith(wrap);
+    const handle = document.createElement('span');
+    handle.className = 'sec-drag';
+    handle.title = 'Drag to reorder section';
+    handle.textContent = '⠿';
+    wrap.appendChild(handle);
+    wrap.appendChild(sec);
+  }
+
+  // 2. Restore saved order (move wrappers within .cabinet-inner)
+  const saved = JSON.parse(localStorage.getItem('gb-section-order') || 'null');
+  if (saved && Array.isArray(saved) && saved.length === SECTION_IDS.length) {
+    for (const id of saved) {
+      const wrap = inner.querySelector(`.sec[data-sec="${id}"]`);
+      if (wrap) inner.appendChild(wrap);
+    }
+  }
+
+  // 3. Wire drag-and-drop on each .sec wrapper
+  let _dragIndicator = null;
+
+  inner.querySelectorAll('.sec').forEach(wrap => {
+    const handle = wrap.querySelector('.sec-drag');
+
+    handle.addEventListener('mousedown', () => { wrap.draggable = true; });
+    handle.addEventListener('mouseup',   () => { wrap.draggable = false; });
+
+    wrap.addEventListener('dragstart', e => {
+      _draggedSecId = wrap.dataset.sec;
+      wrap.classList.add('sec-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      // Prevent lane-drag handlers from also firing
+      e.stopPropagation();
+    });
+
+    wrap.addEventListener('dragend', () => {
+      wrap.classList.remove('sec-dragging');
+      wrap.draggable = false;
+      _draggedSecId = null;
+      inner.querySelectorAll('.sec').forEach(w => w.classList.remove('sec-drop-above', 'sec-drop-below'));
+    });
+
+    wrap.addEventListener('dragover', e => {
+      if (!_draggedSecId || _draggedSecId === wrap.dataset.sec) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      const rect = wrap.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      inner.querySelectorAll('.sec').forEach(w => w.classList.remove('sec-drop-above', 'sec-drop-below'));
+      if (e.clientY < midY) wrap.classList.add('sec-drop-above');
+      else                   wrap.classList.add('sec-drop-below');
+    });
+
+    wrap.addEventListener('dragleave', e => {
+      // Only clear if leaving the wrapper entirely (not entering a child)
+      if (!wrap.contains(e.relatedTarget)) {
+        wrap.classList.remove('sec-drop-above', 'sec-drop-below');
+      }
+    });
+
+    wrap.addEventListener('drop', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!_draggedSecId || _draggedSecId === wrap.dataset.sec) return;
+      const draggedWrap = inner.querySelector(`.sec[data-sec="${_draggedSecId}"]`);
+      if (!draggedWrap) return;
+      const rect = wrap.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (e.clientY < midY) {
+        inner.insertBefore(draggedWrap, wrap);
+      } else {
+        wrap.after(draggedWrap);
+      }
+      inner.querySelectorAll('.sec').forEach(w => w.classList.remove('sec-drop-above', 'sec-drop-below'));
+      saveSectionOrder();
+    });
+  });
+}
+
 // ─── Initial load ─────────────────────────────────────────────────────────────
 eng.load(kids);
 const initialSong = eng.getSong();
@@ -823,3 +885,5 @@ document.getElementById('bpm').value = initialSong.bpm;
 document.getElementById('bpmv').textContent = initialSong.bpm;
 eng.setTempo(initialSong.bpm);
 mount();
+// Wrap sections and wire section drag-reorder once, after first mount.
+initSectionWrappers();
