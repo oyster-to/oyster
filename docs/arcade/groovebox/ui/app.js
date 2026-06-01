@@ -67,6 +67,34 @@ document.getElementById('play').onclick = async function() {
 };
 document.getElementById('bpm').oninput = e => { eng.setTempo(+e.target.value); document.getElementById('bpmv').textContent = e.target.value; };
 renderStrips();
+
+// ─── Fills row ───────────────────────────────────────────────────────────────
+let armedFill = null;
+function renderFills() {
+  const host = document.getElementById('fills');
+  if (!host || !song.fills) return;
+  const row = document.createElement('div');
+  row.className = 'fillsrow';
+  const lbl = document.createElement('span');
+  lbl.className = 'flbl';
+  lbl.textContent = 'FILLS';
+  row.appendChild(lbl);
+  for (const name of Object.keys(song.fills)) {
+    const btn = document.createElement('button');
+    btn.className = 'fillbtn';
+    btn.textContent = name;
+    btn.dataset.fill = name;
+    btn.onclick = () => {
+      armedFill = name;
+      eng.triggerFill(name);
+      host.querySelectorAll('.fillbtn').forEach(b => b.classList.toggle('armed', b === btn));
+    };
+    row.appendChild(btn);
+  }
+  host.appendChild(row);
+}
+renderFills();
+
 const masterHost = document.getElementById('master');
 const mwrap = document.createElement('div'); mwrap.className = 'masterfx';
 mwrap.innerHTML = '<span class="mlbl">MASTER</span>';
@@ -75,7 +103,17 @@ mk.appendChild(makeKnob({ label:'verb', value:0, onChange: v => eng.setMasterFX(
 mk.appendChild(makeKnob({ label:'comp', value:0, onChange: v => eng.setMasterFX('comp', v) }));
 mwrap.appendChild(mk); masterHost.appendChild(mwrap);
 const viz = makeViz(document.getElementById('viz'), song, eng);
-eng.onStep(({absStep, bar, stepInBar}) => viz.setStep(absStep, bar, stepInBar));
+eng.onStep(({absStep, bar, stepInBar, fill}) => {
+  viz.setStep(absStep, bar, stepInBar);
+  const fillsHost = document.getElementById('fills');
+  if (fillsHost) {
+    fillsHost.querySelectorAll('.fillbtn').forEach(btn => {
+      const isFiring = btn.dataset.fill === fill;
+      btn.classList.toggle('firing', isFiring);
+      if (isFiring) btn.classList.remove('armed');
+    });
+  }
+});
 document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
   document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('on', x===b));
   viz.setView(b.dataset.view);

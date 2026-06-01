@@ -21,6 +21,12 @@ function transposeNote(note, semis) {
 export const kids = {
   meter: { beatsPerBar:4, beatUnit:4, stepsPerBeat:4 },
   bpm: 120,
+  fills: {
+    'tom roll':   { kick:[0,4], tom:[[8,7],[9,5],[10,3],[11,4],[12,2],[13,0],[14,-2],[15,-4]] },
+    'snare roll': { kick:[0], snare:[8,9,10,11,12,13,14,15] },
+    'crash build':{ kick:[0,8], hat:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], snare:[14,15], crash:[12] },
+    'glitch':     { snare:[0,1,2,6,7,10,11,12], kick:[4,8,14], crash:[0] },
+  },
   harmony: { progression: [
     { name:'F#m',  root:'F#2', voicing:['F#3','A3','C#4','E4'] },
     { name:'D',    root:'D2',  voicing:['D3','E3','A3'] },

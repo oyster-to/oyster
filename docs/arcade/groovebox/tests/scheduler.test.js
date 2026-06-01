@@ -46,3 +46,18 @@ test('drum lane with missing pool selection does not throw and returns no drum e
   expect(() => { ev = eventsForStep(s2, 0); }).not.toThrow();
   expect(ev.some(e => e.lane === 'drums')).toBe(false);
 });
+test('fillPat overrides selected drum pattern — snare roll fill fires snare at step 0', () => {
+  // The selected pattern has kick at 0, not snare; the fill has snare at 0.
+  const fillPat = { snare: [0, 8, 9, 10, 11, 12, 13, 14, 15] };
+  const ev = eventsForStep(song, 0, fillPat);
+  expect(ev.some(e => e.lane === 'drums' && e.voice === 'snare')).toBe(true);
+  // The normal kick at step 0 must NOT fire (fill replaces the pattern entirely)
+  expect(ev.some(e => e.lane === 'drums' && e.voice === 'kick')).toBe(false);
+});
+test('fillPat with tom entries fires tom events with semitones', () => {
+  const fillPat = { kick: [0], tom: [[8, 7], [9, 5]] };
+  const ev8 = eventsForStep(song, 8, fillPat);   // absStep 8 → stepInBar 8
+  expect(ev8.some(e => e.lane === 'drums' && e.voice === 'tom' && e.semi === 7)).toBe(true);
+  const ev9 = eventsForStep(song, 9, fillPat);
+  expect(ev9.some(e => e.lane === 'drums' && e.voice === 'tom' && e.semi === 5)).toBe(true);
+});

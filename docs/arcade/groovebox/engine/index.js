@@ -5,7 +5,7 @@ import { createVoices, trigger } from './voices.js';
 import { setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloExclusive } from './lanes.js';
 
 export function createEngine() {
-  let song = null, voices = null, master = null, fx = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, toneType = 'pulse';
+  let song = null, voices = null, master = null, fx = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, toneType = 'pulse', pendingFill = null, activeFill = null;
   let masterComp = null, masterRev = null;
   function ensure() {
     if (started) return;
@@ -37,9 +37,16 @@ export function createEngine() {
       repeatId = Tone.Transport.scheduleRepeat((t) => {
         const sixteenth = Tone.Time('16n').toSeconds();
         const barSeconds = stepsPerBar(song.meter) * sixteenth;
-        for (const ev of eventsForStep(song, step)) trigger(voices, ev, t, sixteenth, barSeconds);
-        if (onStepCb) { const spb = stepsPerBar(song.meter); const s = step;
-          Tone.Draw.schedule(() => onStepCb({ absStep: s, bar: Math.floor(s/spb), stepInBar: s % spb }), t); }
+        const spb = stepsPerBar(song.meter);
+        if (step % spb === 0) {
+          const prev = activeFill;
+          activeFill = pendingFill; pendingFill = null;
+          if (prev && !activeFill && voices) voices.crash.triggerAttackRelease('8n', t, 0.9);
+        }
+        const fillPat = activeFill ? (song.fills?.[activeFill] ?? null) : null;
+        for (const ev of eventsForStep(song, step, fillPat)) trigger(voices, ev, t, sixteenth, barSeconds);
+        if (onStepCb) { const s = step;
+          Tone.Draw.schedule(() => onStepCb({ absStep: s, bar: Math.floor(s/spb), stepInBar: s % spb, fill: activeFill }), t); }
         step++;
       }, '16n');
       Tone.Transport.start();
@@ -48,7 +55,7 @@ export function createEngine() {
     stop() {
       Tone.Transport.stop();
       if (repeatId !== null) { Tone.Transport.clear(repeatId); repeatId = null; }
-      step = 0; playing = false;
+      step = 0; playing = false; pendingFill = null; activeFill = null;
     },
     setTempo(bpm) { if (typeof bpm === 'number' && isFinite(bpm)) { tempo = bpm; Tone.Transport.bpm.value = bpm; } },
     onStep(cb) { onStepCb = cb; },
@@ -56,6 +63,8 @@ export function createEngine() {
     setLane(lane, selection) { if (song) _setLane(song, lane, selection); },
     toggleMute(lane) { return song ? _toggleMute(song, lane) : false; },
     toggleSolo(lane) { return song ? _soloExclusive(song, lane) : false; },
+    triggerFill(name) { pendingFill = name; },
+    clearFill() { pendingFill = null; activeFill = null; },
     setTone(type) { toneType = type; if (voices) voices.lead.set({ oscillator:{ type, width: 0.3 } }); },
     setLaneFX(lane, param, v01) {
       if (!fx || !fx[lane]) return;

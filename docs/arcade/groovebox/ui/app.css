@@ -494,6 +494,13 @@ input[type=range] { accent-color: var(--acc); }
 .ctrl { display:flex; flex-direction:column; align-items:center; gap:3px; }
 .ctrl-lbl { font-size:8px; color:var(--dim); letter-spacing:.04em; text-transform:uppercase; }
 
+/* ─── fills row ──────────────────────────────────────────────────────────── */
+.fillsrow{display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap}
+.fillsrow .flbl{font-size:10px;letter-spacing:.12em;color:var(--dim);font-weight:700;text-transform:uppercase}
+.fillbtn{}
+.fillbtn.armed{border-color:var(--warn);color:var(--warn);box-shadow:0 0 0 1px var(--warn) inset}
+.fillbtn.firing{background:var(--hot);border-color:var(--hot);color:#2a0316;font-weight:700}
+
 /* ─── master FX strip ────────────────────────────────────────────────────── */
 .masterfx{display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:12px;border-top:1px solid #2c3044}
 .masterfx .mlbl{font-size:10px;letter-spacing:.12em;color:var(--dim);font-weight:700}
