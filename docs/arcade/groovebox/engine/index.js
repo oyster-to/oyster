@@ -11,6 +11,7 @@ export function createEngine() {
   let swing = 0;
   let keyQuantize = false, pendingTranspose = null;
   let masterComp = null, masterRev = null, masterVol = null, masterPan = null, masterWidth = null, masterEQ = null;
+  let _widthOn = false;   // is the StereoWidener spliced into the master chain?
   let meterL = null, meterR = null;
   let scopeMaster = null, scopeLane = {};
   // Per-lane keyed maps (by lane.id)
@@ -77,8 +78,10 @@ export function createEngine() {
     masterPan  = new Tone.Panner(0).connect(masterVol);
     masterComp = new Tone.Compressor({ threshold: 0, ratio: 1, attack: 0.01, release: 0.2 }).connect(masterPan);
     masterRev  = new Tone.Reverb({ decay: 2.2, wet: 0 }).connect(masterComp);
-    masterWidth = new Tone.StereoWidener(0.5).connect(masterRev);
-    masterEQ   = new Tone.EQ3({ low: 0, mid: 0, high: 0 }).connect(masterWidth);
+    // StereoWidener bypassed by default — its mid/side processing weakens per-lane
+    // pan and drops level on a mono-ish mix. Spliced in only when WID leaves centre.
+    masterWidth = new Tone.StereoWidener(0.5);
+    masterEQ   = new Tone.EQ3({ low: 0, mid: 0, high: 0 }).connect(masterRev);
     const masterIn = masterEQ;
     // Shared reverb bus — one convolver for all lanes (per-lane send gain controls amount).
     _laneReverb = new Tone.Reverb({ decay: 2.4, wet: 1 }).connect(masterIn);
@@ -361,7 +364,19 @@ export function createEngine() {
       else if (param === 'comp'   && masterComp)  { masterComp.threshold.value = -30 * v01; masterComp.ratio.value = 1 + 7 * v01; }
       else if (param === 'vol'    && masterVol)   masterVol.gain.rampTo(v01, 0.05);
       else if (param === 'bal'    && masterPan)   masterPan.pan.rampTo((v01 - 0.5) * 2, 0.05);
-      else if (param === 'width'  && masterWidth) masterWidth.width.rampTo(v01, 0.05);
+      else if (param === 'width'  && masterWidth && masterEQ && masterRev) {
+        const engage = Math.abs(v01 - 0.5) > 0.001;          // 0.5 = neutral → bypass
+        if (engage && !_widthOn) {
+          try { masterEQ.disconnect(masterRev); } catch (_) {}
+          masterEQ.connect(masterWidth); masterWidth.connect(masterRev);
+          _widthOn = true;
+        } else if (!engage && _widthOn) {
+          try { masterEQ.disconnect(masterWidth); masterWidth.disconnect(masterRev); } catch (_) {}
+          masterEQ.connect(masterRev);
+          _widthOn = false;
+        }
+        if (_widthOn) masterWidth.width.rampTo(v01, 0.05);
+      }
       else if (param === 'lo'     && masterEQ)    masterEQ.low.value  = (v01 - 0.5) * 24;
       else if (param === 'hi'     && masterEQ)    masterEQ.high.value = (v01 - 0.5) * 24;
     },
