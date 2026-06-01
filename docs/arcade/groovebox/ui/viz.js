@@ -354,7 +354,7 @@ export function makeViz(host, song, eng) {
       const barSel = buildBarSelector();
       host.innerHTML = barSel
         + buildBeatHeader(spb)
-        + DROWS.map(([k,l]) => `<div class="vrow" data-k="${k}"><span class="vl"><span class="vl-lbl">${l}</span><button class="dvm" data-voice="${k}" title="mute ${l}">M</button><button class="dvs" data-voice="${k}" title="solo ${l}">S</button></span>${cells(spb)}</div>`).join('');
+        + DROWS.map(([k,l]) => `<div class="vrow" data-k="${k}"><span class="vl"><span class="vl-lbl">${l}</span></span>${cells(spb)}<span class="vr"><button class="dvm" data-voice="${k}" title="mute ${l}">M</button><button class="dvs" data-voice="${k}" title="solo ${l}">S</button></span></div>`).join('');
 
       // Bar selector click handlers.
       host.querySelectorAll('.bsel').forEach(b => b.onclick = () => {

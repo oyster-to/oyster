@@ -295,11 +295,11 @@ input[type=range] { accent-color: var(--acc); }
   flex: 0 0 46px;
   letter-spacing: 0.04em;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+  align-items: center;
+  justify-content: flex-end;
 }
 .vrow .vl-lbl { line-height: 1; }
+.vrow .vr { flex: 0 0 auto; display: flex; gap: 2px; align-items: center; padding-left: 5px; }
 .vrow.silenced > .vc,
 .vrow.silenced > .vl > .vl-lbl { opacity: 0.3; transition: opacity .15s; }
 
@@ -324,10 +324,8 @@ input[type=range] { accent-color: var(--acc); }
   background: linear-gradient(180deg,#63f8d4,#3dd6b0);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 6px rgba(84,240,200,.5);
 }
-/* M+S pair in the label column */
-.vrow .vl .dvm, .vrow .vl .dvs { margin: 0; }
-.vrow .vl > .dvm { display: inline-flex; }
-.vrow .vl > .dvs { display: inline-flex; margin-left: 1px; }
+/* M+S pair at the right end of the row */
+.vrow .vr .dvm, .vrow .vr .dvs { margin: 0; }
 
 /* ─── step cells ─────────────────────────────────────────────────────────── */
 .vc {
