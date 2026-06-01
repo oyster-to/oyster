@@ -404,6 +404,7 @@ function renderStrips() {
   refreshStates();
   cacheMeterFills();  // re-cache .lvl-fill refs after DOM rebuild
   renderViewTabs();   // rebuild quick-edit tabs to track the current lane list
+  updateEmptyGroups(); // hide kgroups where all knobs are hidden
 }
 
 // ─── Fills row ───────────────────────────────────────────────────────────────
@@ -501,6 +502,7 @@ function renderMaster() {
 
   masterHost.appendChild(mwrap);
   cacheMeterFills();  // re-cache master meter fill refs after DOM rebuild
+  updateEmptyGroups(); // hide master kgroups where all knobs are hidden
 }
 
 // ─── Arrangement UI ──────────────────────────────────────────────────────────
@@ -775,6 +777,26 @@ function matchPreset(hiddenArr) {
   return null;
 }
 
+// Return true if the given hidden-set matches the saved user set.
+function matchUserPreset(hiddenArr) {
+  const saved = JSON.parse(localStorage.getItem('gb-user-knobs') || 'null');
+  if (!saved) return false;
+  const a = [...hiddenArr].sort().join(',');
+  const b = [...saved].sort().join(',');
+  return a === b;
+}
+
+// Hide/show each .kgroup depending on whether ALL its knobs are hidden.
+function updateEmptyGroups() {
+  const hidden = new Set(JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]'));
+  document.querySelectorAll('.kgroup').forEach(grp => {
+    const knobs = grp.querySelectorAll('.knob[data-k]');
+    if (knobs.length === 0) return; // no knobs → leave as-is
+    const allHidden = [...knobs].every(kn => hidden.has(kn.dataset.k));
+    grp.style.display = allHidden ? 'none' : '';
+  });
+}
+
 // Single path for all hidden-set changes: apply body classes, sync checkboxes,
 // persist to localStorage, and update the active preset highlight.
 function setHiddenSet(hiddenArr) {
@@ -792,11 +814,26 @@ function setHiddenSet(hiddenArr) {
   }
   // Persist.
   localStorage.setItem('gb-hidden-knobs', JSON.stringify(hiddenArr));
-  // Highlight matching preset (or none = Custom).
+  // Auto-save to user preset when the selection is Custom (no built-in preset matches).
   const active = matchPreset(hiddenArr);
+  if (active === null) {
+    localStorage.setItem('gb-user-knobs', JSON.stringify(hiddenArr));
+  }
+  // Highlight matching preset button.
+  // Priority: built-in preset > User > none.
+  const isUser = active === null && matchUserPreset(hiddenArr);
   document.querySelectorAll('.vs-preset-btn').forEach(btn => {
-    btn.classList.toggle('on', btn.dataset.preset === active);
+    if (btn.dataset.preset === 'User') {
+      btn.classList.toggle('on', isUser);
+      // Enable/disable based on whether a user set has been saved.
+      const hasSaved = localStorage.getItem('gb-user-knobs') !== null;
+      btn.disabled = !hasSaved;
+    } else {
+      btn.classList.toggle('on', btn.dataset.preset === active);
+    }
   });
+  // Hide groups where all knobs are now hidden.
+  updateEmptyGroups();
 }
 
 // Build checkbox rows from KNOB_INFO
@@ -825,6 +862,21 @@ for (const p of PRESETS) {
     setHiddenSet([...hidden, ...masterHidden]);
   };
   _vsPresetBtns.appendChild(btn);
+}
+// User preset button — recalls the last hand-made (Custom) selection.
+{
+  const userBtn = document.createElement('button');
+  userBtn.className = 'vs-preset-btn';
+  userBtn.dataset.preset = 'User';
+  userBtn.textContent = 'User';
+  const hasSavedUser = localStorage.getItem('gb-user-knobs') !== null;
+  userBtn.disabled = !hasSavedUser;
+  userBtn.onclick = () => {
+    const saved = JSON.parse(localStorage.getItem('gb-user-knobs') || 'null');
+    if (!saved) return;
+    setHiddenSet(saved);
+  };
+  _vsPresetBtns.appendChild(userBtn);
 }
 _vsPresetRow.appendChild(_vsPresetBtns);
 _vsForm.before(_vsPresetRow);
@@ -859,8 +911,13 @@ for (const k of _vsKnobs) {
 {
   const initialHidden = JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]');
   const active = matchPreset(initialHidden);
+  const isUser = active === null && matchUserPreset(initialHidden);
   document.querySelectorAll('.vs-preset-btn').forEach(btn => {
-    btn.classList.toggle('on', btn.dataset.preset === active);
+    if (btn.dataset.preset === 'User') {
+      btn.classList.toggle('on', isUser);
+    } else {
+      btn.classList.toggle('on', btn.dataset.preset === active);
+    }
   });
 }
 
