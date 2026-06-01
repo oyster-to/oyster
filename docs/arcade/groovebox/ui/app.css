@@ -40,7 +40,7 @@ body {
 /* ─── cabinet frame — brushed chrome bezel ──────────────────────────────── */
 .cabinet {
   width: 100%;
-  max-width: 780px;
+  max-width: 1400px;
   border-radius: 18px;
   padding: 28px 26px 32px;
   position: relative;
