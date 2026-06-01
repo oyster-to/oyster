@@ -15,7 +15,11 @@ export function createEngine() {
   function ensure() {
     if (started) return;
     const out = new Tone.Limiter(-1).toDestination();
-    masterVol  = new Tone.Gain(1).connect(out);
+    // Headroom trim BEFORE the limiter: the summed voices run hot, so without
+    // this the limiter slams every beat (audible popping/crackle). ~-6dB leaves
+    // room so the limiter only catches occasional true peaks.
+    const masterTrim = new Tone.Gain(0.5).connect(out);
+    masterVol  = new Tone.Gain(1).connect(masterTrim);
     masterPan  = new Tone.Panner(0).connect(masterVol);
     masterComp = new Tone.Compressor({ threshold: 0, ratio: 1, attack: 0.01, release: 0.2 }).connect(masterPan);
     masterRev  = new Tone.Reverb({ decay: 2.2, wet: 0 }).connect(masterComp);

@@ -13,7 +13,7 @@ export function createVoices(buses) {
   const chordSyn = new Tone.PolySynth(Tone.Synth).connect(new Tone.Filter(4200,'lowpass').connect(buses.chords));
   chordSyn.set({ oscillator:{ type:'triangle' }, envelope:{ attack:0.05, decay:0.3, sustain:0.6, release:0.5 } });
   chordSyn.volume.value = -17;
-  const kick  = new Tone.MembraneSynth({ volume:-2 }).connect(buses.drums);
+  const kick  = new Tone.MembraneSynth({ volume:-5 }).connect(buses.drums);
   const snare = new Tone.NoiseSynth({ volume:-11, envelope:{ attack:0.001, decay:0.16, sustain:0 } }).connect(buses.drums);
   const hat   = new Tone.NoiseSynth({ volume:-20, envelope:{ attack:0.001, decay:0.03, sustain:0 } })
                   .connect(new Tone.Filter(7000,'highpass').connect(buses.drums));
