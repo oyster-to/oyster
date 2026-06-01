@@ -181,7 +181,7 @@ button, select {
   transition: background 0.1s, border-color 0.1s, box-shadow 0.1s;
 }
 button:hover, select:hover {
-  background: var(--panel-3);
+  background-color: var(--panel-3);   /* not `background:` — shorthand would wipe the select chevron */
   border-color: var(--acc-dim);
 }
 button:active {
