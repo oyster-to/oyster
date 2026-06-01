@@ -16,7 +16,7 @@
     "chokidar": "^4.0.3",
     "ignore": "^7.0.5",
     "marked": "^18.0.4",
-    "opencode-ai": "^1.15.10",
+    "opencode-ai": "^1.15.12",
     "ws": "^8.21.0"
   },
   "devDependencies": {
