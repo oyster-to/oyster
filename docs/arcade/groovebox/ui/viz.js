@@ -243,13 +243,20 @@ export function makeViz(host, song, eng) {
     ctx.fillStyle = '#0b0d12';
     ctx.fillRect(0, 0, W, H);
     // Center line.
-    ctx.strokeStyle = '#1a2830';
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#244';
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
 
     const data = eng.getScope(scopeSource);
-    ctx.strokeStyle = 'var(--acc, #54f0c8)';
-    ctx.lineWidth = 1.5;
+    // Bright glowing trace. NOTE: canvas strokeStyle can't read CSS vars — use a literal colour.
+    const GAIN = 1.6;                              // amplify so quiet signals still read
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.shadowColor = '#54f0c8';
+    ctx.shadowBlur = 10;
+    ctx.strokeStyle = '#7dffe0';
     ctx.beginPath();
     if (!data || data.length === 0) {
       // flat line when no audio yet
@@ -257,11 +264,13 @@ export function makeViz(host, song, eng) {
     } else {
       for (let i = 0; i < data.length; i++) {
         const x = (i / (data.length - 1)) * W;
-        const y = (1 - (data[i] + 1) / 2) * H;
+        const v = Math.max(-1, Math.min(1, data[i] * GAIN));
+        const y = (1 - (v + 1) / 2) * H;
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
     }
     ctx.stroke();
+    ctx.shadowBlur = 0;                            // reset so other draws don't glow
   }
 
   function startScopeLoop() {
