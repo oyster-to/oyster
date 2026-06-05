@@ -751,6 +751,9 @@
   .home-row-agent  { grid-area: ag; }
   .home-row-reason { grid-area: rs; text-align: right; }
   .home-row-time   { grid-area: tm; text-align: right; }
+  /* Column headers are meaningless once rows become cards — the header
+     cells would otherwise overlap into garbage ("AGENTREASON"). */
+  .home-row--header { display: none; }
 }
 
 /* ── Artefacts wraps Desktop inline (Desktop owns full-page positioning by default) ── */
@@ -2126,16 +2129,28 @@
 
 /* ——— Mobile collapse (cloud remote view dogfood; applies locally too) ——— */
 @media (max-width: 640px) {
-  /* Header: desktop padding eats a phone screen. */
-  .home-header { padding: 28px 16px 0; }
+  /* Header: desktop padding eats a phone screen. Top padding tightened so
+     the first session row clears the fold on a ~390px iPhone. */
+  .home-header { padding: 18px 16px 0; }
   .home-title { font-size: 28px; }
-  /* Tab strip: full-width, horizontally scrollable, no wrap. */
-  .home-tabs { overflow-x: auto; scrollbar-width: none; }
+  /* Tab strip: full-width, horizontally scrollable, no wrap. Pulled closer
+     to the title to recover vertical air. */
+  .home-tabs { overflow-x: auto; scrollbar-width: none; margin-top: 18px; }
   .home-tabs::-webkit-scrollbar { display: none; }
   .home-tab { padding: 8px 10px; white-space: nowrap; }
   .home-tab-scope { display: none; } /* crumb is desktop chrome */
-  /* Filter chips wrap to two rows rather than overflowing. */
-  .home-section-head { flex-wrap: wrap; row-gap: 6px; }
-  /* Sections breathe less. */
-  .home-section { padding: 0 16px; }
+  /* Filter chips wrap to two rows rather than overflowing, and sit closer
+     to the table below. */
+  .home-section-head { flex-wrap: wrap; row-gap: 6px; padding-bottom: 8px; }
+  /* Sections breathe less + reclaim side margin for the squeezed content
+     column. */
+  .home-section { margin-top: 28px; padding: 0 10px; }
+  /* Breadcrumb (avatar/spaces bar): trim its pinned padding. */
+  .home-breadcrumb { padding: 10px 16px 8px; }
+  /* Table card: drop its own side gutter to near-zero so the row content
+     gets the full content width; keep the rounded corners. */
+  .home-table-wrap { padding: 0 2px; }
+  /* Collapsed card rows: tighter internal padding and a narrower status-pip
+     track (was 14px in the 720px collapse block) to reclaim left inset. */
+  .home-row { grid-template-columns: 10px 1fr auto; padding: 10px 12px; }
 }
