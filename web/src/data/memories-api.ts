@@ -1,6 +1,8 @@
 // Surfaces memories created via mcp__oyster__remember. v1 is read-only —
 // writes still go through the MCP tool surface.
 import { getJson, postJson, del, apiPath } from "./http";
+import { caps } from "../caps";
+import { fetchCloudMemories } from "./cloud-memories";
 
 export interface Memory {
   id: string;
@@ -14,6 +16,7 @@ export interface Memory {
 }
 
 export async function fetchMemories(spaceId?: string | null, signal?: AbortSignal): Promise<Memory[]> {
+  if (caps.cloud) return fetchCloudMemories(signal);
   const url = spaceId
     ? apiPath(`/api/memories?space_id=${encodeURIComponent(spaceId)}`)
     : apiPath("/api/memories");
