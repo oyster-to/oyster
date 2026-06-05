@@ -763,6 +763,10 @@ function broadcastUiEvent(event: UiCommand) {
       continue;
     }
     if (client.writableLength > MAX_CLIENT_BUFFER_BYTES) {
+      // Dropping a laggard loses any imperative one-shot commands
+      // (open_artifact, switch_space) sent during the gap — accepted:
+      // the cap only trips on an already-frozen tab, and steady state
+      // self-heals (5s artifact/space poll; chat keeps streaming).
       try { client.end(); } catch { /* best effort */ }
       uiClients.delete(client);
       continue;
@@ -901,10 +905,11 @@ async function handleHttpRequest(req: IncomingMessage, res: ServerResponse) {
     startApp, stopApp, isPortOpen, waitForReady,
   })) return;
 
-  // GET /api/ui/events — SSE stream for UI commands.
-  // Local-origin only. The stream carries `mcp_client_connected` +
-  // `mcp_tool_called` events (connected-agent telemetry), which a
-  // cross-origin page in the same browser must not be able to observe
+  // GET /api/ui/events — SSE stream for UI commands AND chat events
+  // (the {command:"chat"} envelope — one connection per tab).
+  // Local-origin only. The stream carries connected-agent telemetry
+  // (`mcp_client_connected` + `mcp_tool_called`) and assistant output,
+  // neither of which a cross-origin page in the same browser may observe
   // by opening an EventSource against a running local Oyster.
   if (url === "/api/ui/events") {
     if (rejectIfNonLocalOrigin()) return;
