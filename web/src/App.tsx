@@ -279,8 +279,13 @@ export default function App() {
     function handlePopState() {
       // /session/<id> URLs carry no space/project — landing on one via
       // back/forward must not stomp the active scope (the thread that
-      // pushed it is still about wherever the user was).
-      if (window.location.pathname.startsWith("/session/")) return;
+      // pushed it is still about wherever the user was). It must, however,
+      // show the thread the URL refers to (mirrors the initial-load seed).
+      if (window.location.pathname.startsWith("/session/")) {
+        setAskOpen(true);
+        setAskEverOpened(true);
+        return;
+      }
       const { space, artifactId, groupName, projectId } = getUrlState();
       setActiveSpace(space);
       setActiveProjectId(projectId);
