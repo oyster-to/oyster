@@ -11,6 +11,7 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 - **Move a project between spaces — or out of one.** A project's ⋯ menu now offers "Move to space…": relocate it (and its sessions) to another space, or remove it from its space entirely. Removed projects stay on Home, ready to re-file.
 - **Ask to see a past session, and Oyster opens it.** Say "show me the session about X" and the agent finds it and opens it in the inspector — jumping straight to the relevant moment when it can. It can also list your recent sessions on request.
 - **Filter artefacts by kind.** The Artefacts section gains a Kind filter — narrow to apps, decks, diagrams, notes, tables, or wireframes, alongside the existing source filters.
+- **Ask from anywhere.** Search (Cmd+K) gains an "Ask Oyster" row — type a question, hit Enter, and the Ask panel opens with the answer streaming. No-result searches offer it too.
 
 ### Changed
 
