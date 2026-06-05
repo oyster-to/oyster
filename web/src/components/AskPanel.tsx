@@ -285,9 +285,13 @@ export function AskPanel({ open, onClose, scopeLabel, scopeContext, spaces = [],
 
   const handleSend = useCallback(async (override?: string) => {
     const raw = override ?? input;
-    if (!raw.trim() || streaming) return;
-    if (!sessionId) {
-      // Session still booting — queue and let the drain effect fire it.
+    if (!raw.trim()) return;
+    if (!sessionId || streaming) {
+      // Session still booting, or a response mid-stream — queue and let the
+      // drain effect fire it when both clear. The streaming case is only
+      // reachable via event-driven sends (the input is disabled while
+      // streaming): e.g. a second ⌘K ask while the first answer streams —
+      // without the queue it would be silently dropped.
       pendingPromptRef.current = raw;
       return;
     }
