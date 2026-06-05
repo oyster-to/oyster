@@ -10,7 +10,6 @@
 // create/modify only, top 3, whenAt DESC). Absent on remote sessions, in
 // which case the row degrades to the COMPACT layout (no extra line).
 import type { Session } from "../../data/sessions-api";
-import type { Space } from "../../../../shared/types";
 import {
   AGENT_PIP_CLASS, activeWriterChipFor, formatRelative,
   originDeviceChipFor,
@@ -22,7 +21,10 @@ export type SessionRowView = "full" | "compact";
 interface SessionRowProps {
   session: Session;
   view: SessionRowView;
-  spaces: Space[];
+  /** Repo name from the projects registry; null/undefined = unknown. */
+  projectName?: string | null;
+  /** Project scope is active — the column is redundant, hide it. */
+  hideProject?: boolean;
   /** Local device id; drives the cross-device chip. See SessionTile. */
   myDeviceId: string | null;
   /** Presence info from useTerminalPresence; undefined when no live terminal. */
@@ -41,7 +43,8 @@ interface SessionRowProps {
 export function SessionRow({
   session,
   view,
-  spaces,
+  projectName,
+  hideProject,
   myDeviceId,
   livePresence,
   onOpen,
@@ -61,11 +64,9 @@ export function SessionRow({
 
   const handleRowActivate = () => { if (onOpen) onOpen(session.id); };
 
-  // Prefer space label when the session belongs to a registered space.
-  const spaceLabel = session.spaceId
-    ? (spaces.find((s) => s.id === session.spaceId)?.displayName ?? null)
-    : null;
-  const projectLabel = (spaceLabel ?? cwdBasename) || "—";
+  // Repo name via the projects registry; cwd basename for orphans.
+  // Never the space name — the scope/space pill already says that.
+  const projectLabel = (projectName ?? cwdBasename) || "—";
   const isManual = session.assignmentMode === "manual";
   const rowExtraClass = livePresence
     ? (livePresence.state === "attached" ? " sr--attached" : " sr--running")
@@ -104,7 +105,9 @@ export function SessionRow({
         tabIndex={onOpen ? 0 : undefined}
       >
         <span className={`home-row-status ${statusDotClass}`} title={session.displayReason || undefined} />
-        <span className="home-row-space" title={session.cwd ?? undefined}>{projectLabel}</span>
+        {!hideProject && (
+          <span className="home-row-space" title={session.cwd ?? undefined}>{projectLabel}</span>
+        )}
         <span className="home-row-title">
           <span className="home-row-title-inner" title={title}>
             {remoteChip && (

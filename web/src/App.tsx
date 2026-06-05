@@ -49,20 +49,38 @@ export default function App() {
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [publishingArtifact, setPublishingArtifact] = useState<Artifact | null>(null);
-  const getUrlState = useCallback((): { space: string; artifactId: string | null; groupName: string | null; hash: string } => {
+  const getUrlState = useCallback((): { space: string; artifactId: string | null; groupName: string | null; hash: string; projectId: string | null } => {
     const artifactMatch = window.location.pathname.match(/^\/s\/([^/]+)\/a\/([^/]+)$/);
     if (artifactMatch) {
-      return { space: artifactMatch[1], artifactId: artifactMatch[2], groupName: null, hash: window.location.hash || "" };
+      return { space: artifactMatch[1], artifactId: artifactMatch[2], groupName: null, hash: window.location.hash || "", projectId: null };
     }
     const groupMatch = window.location.pathname.match(/^\/s\/([^/]+)\/g\/([^/]+)$/);
     if (groupMatch) {
-      return { space: groupMatch[1], artifactId: null, groupName: decodeURIComponent(groupMatch[2]), hash: "" };
+      return { space: groupMatch[1], artifactId: null, groupName: decodeURIComponent(groupMatch[2]), hash: "", projectId: null };
+    }
+    const projectMatch = window.location.pathname.match(/^\/s\/([^/]+)\/p\/([^/]+)$/);
+    if (projectMatch) {
+      return { space: projectMatch[1], artifactId: null, groupName: null, hash: "", projectId: decodeURIComponent(projectMatch[2]) };
     }
     const spaceMatch = window.location.pathname.match(/^\/s\/([^/]+?)\/?$/);
-    return { space: spaceMatch ? spaceMatch[1] : "home", artifactId: null, groupName: null, hash: "" };
+    return { space: spaceMatch ? spaceMatch[1] : "home", artifactId: null, groupName: null, hash: "", projectId: null };
   }, []);
 
   const [activeSpace, setActiveSpace] = useState<string>(() => getUrlState().space);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => getUrlState().projectId);
+
+  // Project scope is URL-addressable: /s/<space>/p/<projectId> (VAULT's
+  // sentinel "__vault__" rides along unescaped-safe via encodeURIComponent).
+  const handleProjectScopeChange = useCallback((projectId: string | null) => {
+    setActiveProjectId(projectId);
+    const target = projectId
+      ? `/s/${activeSpace}/p/${encodeURIComponent(projectId)}`
+      : `/s/${activeSpace}`;
+    if (window.location.pathname !== target) {
+      window.history.pushState(null, "", target);
+    }
+  }, [activeSpace]);
+
   const [spotlightOpen, setSpotlightOpen] = useState(false);
 
   // Global keyboard shortcuts
@@ -181,6 +199,7 @@ export default function App() {
         const revealed = arts.find((a) => a.pendingReveal);
         if (revealed) {
           setActiveSpace(revealed.spaceId);
+          setActiveProjectId(null);
           window.history.pushState(null, "", `/s/${revealed.spaceId}`);
           if (revealed.groupName) setOpenGroup(revealed.groupName);
           setRevealId(revealed.id);
@@ -199,6 +218,7 @@ export default function App() {
     if (event.command === "open_artifact") {
       const { spaceId, label, url, artifactKind, id } = event.payload as { spaceId: string; label: string; url: string; artifactKind: ArtifactKind; id: string };
       setActiveSpace(spaceId);
+      setActiveProjectId(null);
       window.history.pushState(null, "", `/s/${spaceId}/a/${id}`);
       dispatch({ type: "CLOSE_ALL_VIEWERS" });
       dispatch({ type: "OPEN_VIEWER", title: label, path: url, fullscreen: shouldOpenFullscreen(artifactKind) });
@@ -206,6 +226,7 @@ export default function App() {
     if (event.command === "switch_space") {
       const { spaceId } = event.payload as { spaceId: string };
       setActiveSpace(spaceId);
+      setActiveProjectId(null);
       window.history.pushState(null, "", `/s/${spaceId}`);
       dispatch({ type: "CLOSE_ALL_VIEWERS" });
     }
@@ -246,8 +267,9 @@ export default function App() {
   // Sync state from browser back/forward
   useEffect(() => {
     function handlePopState() {
-      const { space, artifactId, groupName } = getUrlState();
+      const { space, artifactId, groupName, projectId } = getUrlState();
       setActiveSpace(space);
+      setActiveProjectId(projectId);
       setOpenGroup(groupName);
       if (!artifactId) {
         dispatch({ type: "CLOSE_ALL_VIEWERS" });
@@ -264,7 +286,10 @@ export default function App() {
     }
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [getUrlState]);
+    // `artifacts` in deps: the handler resolves /a/<id> URLs against it, so a
+    // once-registered listener would hold the first render's empty array and
+    // never reopen a viewer on back/forward. Re-registering per update is cheap.
+  }, [getUrlState, artifacts]);
 
   // Push URL when space changes via pill click
   const handleSpaceChange = useCallback((space: string) => {
@@ -273,6 +298,7 @@ export default function App() {
       window.history.pushState(null, "", target);
     }
     setActiveSpace(space);
+    setActiveProjectId(null);
     setOpenGroup(null);
   }, []);
 
@@ -610,6 +636,8 @@ export default function App() {
         activeSpace={activeSpace}
         spaces={spaces}
         onSpaceChange={handleSpaceChange}
+        selectedProjectId={activeProjectId}
+        onSelectProject={handleProjectScopeChange}
         onPromoteFolderToSpace={handlePromoteFolderToSpace}
         onSpaceDelete={handleSpaceDelete}
         onSpaceUpdate={handleSpaceUpdate}

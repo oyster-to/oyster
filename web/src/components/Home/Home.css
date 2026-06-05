@@ -111,15 +111,6 @@
   padding: 80px 32px 24px;
 }
 
-.home-eyebrow {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--home-accent-bright);
-  margin-bottom: 8px;
-}
-
 .home-title {
   font-size: 2.6rem;
   font-weight: 600;
@@ -154,20 +145,64 @@
   font-size: 12px;
 }
 
+/* Scoped-content tab strip (Sessions | Artefacts | Memories). */
+.home-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 36px;
+  border-bottom: 1px solid var(--home-border);
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0 32px;
+}
+.home-tab {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--text-dim);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.home-tab:hover { color: var(--text); }
+.home-tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.home-tab-count {
+  margin-left: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+.home-tab-scope {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  padding-right: 4px;
+}
+.home-tab-scope-clear {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0 2px;
+}
+.home-tab-scope-clear:hover { color: var(--text); }
+
 .home-section-label {
   color: var(--text);
 }
 
-.home-section-rule {
+/* Invisible flex spacer for tab-section heads — the tab strip above
+   already draws the divider, so no second hairline. */
+.home-section-spacer {
   flex: 1;
-  height: 1px;
-  background: var(--home-border);
-}
-
-.home-artefacts-count {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--home-text-muted);
 }
 
 /* ── Stat / filter chips (the same buttons act as both) ── */
@@ -522,6 +557,12 @@
 }
 .home-row:hover { background: rgba(124, 107, 255, 0.05); }
 .home-row:last-child { border-bottom: none; }
+
+/* Project scope active — the project column is hidden (the scope crumb
+   names it), so the title takes its track. */
+.home-table--no-project .home-row {
+  grid-template-columns: 18px 1fr 130px 150px 130px;
+}
 
 .home-row-status {
   width: 8px;
@@ -1377,9 +1418,6 @@
 .home-breadcrumb-pill--vault {
   padding: 5px 9px;
 }
-.home-breadcrumb-pill--elsewhere .home-breadcrumb-pill-label {
-  font-style: italic;
-}
 .home-breadcrumb-pill--add > [aria-hidden="true"] {
   color: var(--home-accent-bright);
   font-weight: 600;
@@ -1439,7 +1477,7 @@
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 10px;
 }
-/* Orphan-cwd tiles (Elsewhere / Unassigned view). Same two-piece pattern
+/* Orphan-cwd tiles (unclaimed folders on Home). Same two-piece pattern
    as ProjectTile: outer div is the chrome + jump-button anchor; inner
    <button> covers the body click target. */
 .home-projects-strip-tile {
@@ -1517,21 +1555,22 @@
   gap: 5px;
   color: rgba(232, 233, 240, 0.78);
 }
-/* Folder treatment for orphan tile names: muted text + folder glyph. */
+/* Tile name row: flex so any leading icon aligns with the label. */
 .home-projects-strip-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--font-mono);
   font-size: 13px;
   color: var(--home-accent-bright);
   margin-bottom: 8px;
 }
-.home-projects-strip-name--folder {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--home-text-muted);
-}
-.home-projects-strip-name--folder svg {
+.home-projects-strip-name svg {
   flex-shrink: 0;
+}
+/* Orphan-folder tiles: muted colour override only. */
+.home-projects-strip-name--folder {
+  color: var(--home-text-muted);
 }
 
 /* Vault info page (cloud-sync teaser) — selected via the Shield pill in
@@ -1959,7 +1998,6 @@
   justify-content: center;
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid var(--home-border);
 }
 .home-projects-show-more {
   font-family: var(--font-mono);

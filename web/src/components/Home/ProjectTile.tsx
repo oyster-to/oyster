@@ -262,7 +262,7 @@ export function ProjectTile({
                 className="home-project-tile-menu-item"
                 disabled={busy}
                 onClick={() => performMove(null)}
-                title="Detach from its space — the project moves to Unassigned."
+                title="Detach from its space — the project stays on Home."
               >
                 — Remove from space —
               </button>
