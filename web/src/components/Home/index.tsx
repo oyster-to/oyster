@@ -859,7 +859,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         <nav className="home-breadcrumb" aria-label="Account and spaces">
             <LayoutGroup id="home-breadcrumb">
             <div className="home-breadcrumb-inner">
-            <AuthBadge />
+            {/* AuthBadge reads the local server's auth state — meaningless in cloud, where the worker gates the page itself. */}
+            {caps.canChat && <AuthBadge />}
             {caps.hasScopes && (<>
             <button
               type="button"
@@ -973,7 +974,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               {onOpenAsk && <AskPill onClick={onOpenAsk} />}
               {onOpenNewSession && <NewSessionPill onClick={onOpenNewSession} />}
             </div>
-            <OnboardingDock userSpaceCount={userSpaceCount} publishedCount={publishedCount} />
+            {/* local setup affordance */}
+            {caps.canChat && <OnboardingDock userSpaceCount={userSpaceCount} publishedCount={publishedCount} />}
             </LayoutGroup>
           </nav>
 
