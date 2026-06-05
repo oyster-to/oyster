@@ -1185,9 +1185,11 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               </span>
             </button>
           ))}
-          <span className="home-tab-scope">
-            scope: {scopeCrumb}
-            {selectedProjectId !== null && (
+          {/* Crumb only when a project/Vault narrows the scope — at plain
+              space scope it would just echo the selected pill and title. */}
+          {selectedProjectId !== null && (
+            <span className="home-tab-scope">
+              scope: {scopeCrumb}
               <button
                 type="button"
                 className="home-tab-scope-clear"
@@ -1196,8 +1198,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               >
                 ✕
               </button>
-            )}
-          </span>
+            </span>
+          )}
         </div>
 
         {activeTab === "sessions" && (
@@ -1227,7 +1229,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 );
               })}
             </span>
-            <span className="home-section-rule" />
+            <span className="home-section-spacer" />
             <div className="view-toggle-text">
               <button
                 type="button"
@@ -1324,7 +1326,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 );
               })}
             </span>
-            <span className="home-section-rule" />
+            <span className="home-section-spacer" />
             {presentKinds.length > 1 && (
               <div className="home-kind-filter">
                 <span className="home-kind-label">Kind</span>
@@ -1497,7 +1499,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         {activeTab === "memories" && (
         <section className="home-section">
           <div className="home-section-head">
-            <span className="home-section-rule" />
+            <span className="home-section-spacer" />
             <button
               type="button"
               className="home-memories-refresh-btn"
