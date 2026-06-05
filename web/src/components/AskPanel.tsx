@@ -464,7 +464,7 @@ export function AskPanel({ open, onClose, scopeLabel, spaces = [], activeSpace, 
   }
 
   return (
-    <div className={`ask-panel${open ? " open" : ""}`} aria-hidden={!open}>
+    <div className={`ask-panel${open ? " open" : ""}`} inert={!open || undefined}>
       <div className="ask-panel-header">
         <span className="ask-panel-title">✦ Ask Oyster</span>
         <span className="ask-panel-scope" title="Answers consider your current scope">{scopeLabel}</span>

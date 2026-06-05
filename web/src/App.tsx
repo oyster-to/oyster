@@ -91,7 +91,7 @@ export default function App() {
         e.preventDefault();
         setSpotlightOpen((v) => !v);
       }
-      if (e.key === "Escape") setSpotlightOpen(false);
+      if (e.key === "Escape") { setSpotlightOpen(false); setAskOpen(false); }
     }
     document.addEventListener("keydown", handleKeyDown);
     // Prevent browser from opening dropped files/folders (but allow text drops)

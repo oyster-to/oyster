@@ -654,7 +654,7 @@ body {
   box-shadow: -18px 0 48px rgba(0, 0, 0, 0.5);
   transform: translateX(102%);
   transition: transform 0.22s ease;
-  z-index: 200;
+  z-index: 5200;
 }
 .ask-panel.open { transform: translateX(0); }
 
