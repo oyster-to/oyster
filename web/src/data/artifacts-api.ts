@@ -1,9 +1,14 @@
 export type { Artifact, ArtifactKind, ArtifactStatus, IconStatus, SessionJoinedForArtifact } from "../../../shared/types";
 import type { Artifact, SessionJoinedForArtifact } from "../../../shared/types";
 import { getJson, patchJson, postJson, postEmpty, del, apiPath } from "./http";
+import { caps } from "../caps";
+import { fetchCloudPublications } from "./cloud-publications";
 
-export async function fetchArtifacts(): Promise<Artifact[]> {
-  return getJson<Artifact[]>(apiPath("/api/artifacts"));
+export async function fetchArtifacts(signal?: AbortSignal): Promise<Artifact[]> {
+  // Cloud Artefacts tab = your publications (apex publish worker), not the
+  // local artefact registry.
+  if (caps.cloud) return fetchCloudPublications(signal);
+  return getJson<Artifact[]>(apiPath("/api/artifacts"), signal);
 }
 
 // startApp/stopApp keep their bespoke shape: server routes are GETs and the
@@ -31,6 +36,9 @@ export async function archiveArtifact(id: string): Promise<void> {
 }
 
 export async function listArchivedArtifacts(): Promise<Artifact[]> {
+  // No archived-publication concept in cloud — the apex publish API only
+  // exposes live publications.
+  if (caps.cloud) return [];
   return getJson<Artifact[]>(apiPath("/api/artifacts/archived"));
 }
 

@@ -495,6 +495,13 @@ export default function App() {
   async function handleArtifactClick(artifact: Artifact) {
     if (artifact.status === "generating") return;
 
+    // Cloud mode: every artefact row is a publication; clicking opens the
+    // public share page in a new tab (no local viewer / dev server).
+    if (caps.cloud) {
+      window.open(artifact.url, "_blank", "noopener");
+      return;
+    }
+
     // Cloud-only ghost: this user's publication, no local artefact backing it.
     // Click opens the public URL so they can verify what's live without a
     // local copy. (Pro lazy-pulls bytes on edit; that's R7 in 0.9.0.)
