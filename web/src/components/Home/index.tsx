@@ -222,8 +222,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // Cloud-only origin-device filter. Local builds never set deviceFilter
   // (the chip row is caps.cloud-gated), so it's inert there.
   const [deviceFilter, setDeviceFilter] = useState<string | null>(null);
-  // Client-side text filter for the sessions list (search rung 1).
-  const [sessionQuery, setSessionQuery] = useState("");
   // Distinct origin-device labels — the cloud view's primary grouping.
   const deviceLabels = useMemo(() => {
     const out = new Set<string>();
@@ -387,16 +385,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     else list = folderScopedSessions.filter((s) => s.displayState === stateFilter);
     // Cloud-only: narrow to one origin device when its chip is active.
     if (deviceFilter) list = list.filter((s) => s.originDeviceLabel === deviceFilter);
-    // Client-side text filter — case-insensitive substring over title, cwd,
-    // and origin-device label. Empty (trimmed) query = no narrowing.
-    const q = sessionQuery.trim().toLowerCase();
-    if (q) {
-      list = list.filter((s) =>
-        (s.title ?? "").toLowerCase().includes(q) ||
-        (s.cwd ?? "").toLowerCase().includes(q) ||
-        (s.originDeviceLabel ?? "").toLowerCase().includes(q),
-      );
-    }
     // Pin live (open terminal) rows to the top; within each group preserve
     // descending last-activity order.
     return list.slice().sort((a, b) => {
@@ -405,7 +393,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
       if (aLive !== bLive) return aLive - bLive;
       return (b.lastEventAt ?? "").localeCompare(a.lastEventAt ?? "");
     });
-  }, [folderScopedSessions, stateFilter, deviceFilter, sessionQuery, presence.byId]);
+  }, [folderScopedSessions, stateFilter, deviceFilter, presence.byId]);
 
   // Per-space session counts + a grand total for the Home card. Buckets by
   // `displayState` so dormant rows fold into `done` — matches the home
@@ -1293,14 +1281,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 </>
               )}
             </span>
-            <input
-              type="search"
-              className="home-session-filter"
-              placeholder="Filter sessions…"
-              value={sessionQuery}
-              onChange={(e) => setSessionQuery(e.target.value)}
-              aria-label="Filter sessions"
-            />
             <span className="home-section-spacer" />
             {/* Toggle hidden on phones — COMPACT is forced there. JS gate (not
                 CSS) so the chips row reflows without the reserved space. */}
@@ -1327,9 +1307,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           {loading && sessions.length === 0 ? (
             <div className="home-empty">Loading sessions…</div>
           ) : visibleSessions.length === 0 && !(stateCounts.all === 0 && isHomeView) ? (
-            <div className="home-empty">
-              {sessionQuery.trim() ? "No sessions match your filter." : "No sessions match this filter yet."}
-            </div>
+            <div className="home-empty">No sessions match this filter yet.</div>
           ) : (
             <>
               <div className="home-table-wrap">
