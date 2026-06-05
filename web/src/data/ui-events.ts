@@ -1,11 +1,16 @@
 // Shared EventSource subscription for `/api/ui/events`.
 import { apiPath } from "./http";
+import { caps } from "../caps";
 //
 // Multiple components (App, OnboardingDock) care about different slices of
 // the same SSE stream — a per-component `new EventSource(...)` would open
 // N connections to the same endpoint and parse every message N times. This
 // module opens a single connection on first subscribe and closes it when
-// the last subscriber unsubscribes.
+// the last subscribers unsubscribes.
+//
+// Cloud mode has no SSE endpoint. When caps.hasSse is false, we run a
+// visible-tab poller that emits a synthetic `session_changed` every 12 s so
+// the UI stays roughly fresh without a persistent connection.
 
 export interface UiEvent {
   command: string;
@@ -15,7 +20,15 @@ export interface UiEvent {
 type Listener = (event: UiEvent) => void;
 
 let es: EventSource | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+const POLL_INTERVAL_MS = 12_000;
 const listeners = new Set<Listener>();
+
+function emit(event: UiEvent) {
+  for (const l of listeners) {
+    try { l(event); } catch { /* isolate one bad listener from others */ }
+  }
+}
 
 function handleMessage(e: MessageEvent) {
   let parsed: UiEvent;
@@ -24,12 +37,30 @@ function handleMessage(e: MessageEvent) {
   } catch {
     return; // malformed event — drop
   }
-  for (const listener of listeners) {
-    try { listener(parsed); } catch { /* isolate one bad listener from others */ }
+  emit(parsed);
+}
+
+function startPoll() {
+  if (pollTimer !== null) return;
+  pollTimer = setInterval(() => {
+    if (listeners.size > 0) emit({ command: "session_changed", payload: { id: "" } });
+  }, POLL_INTERVAL_MS);
+}
+
+function stopPoll() {
+  if (pollTimer !== null) {
+    clearInterval(pollTimer);
+    pollTimer = null;
   }
 }
 
 function ensureConnection() {
+  if (!caps.hasSse) {
+    // Polling path: start lazily, pause when hidden.
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    startPoll();
+    return;
+  }
   if (es && es.readyState !== EventSource.CLOSED) return;
   if (es) es.close();
   es = new EventSource(apiPath("/api/ui/events"));
@@ -52,12 +83,14 @@ function ensureConnection() {
 // refetch is a small JSON GET.
 if (typeof document !== "undefined") {
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState !== "visible") return;
-    ensureConnection();
-    for (const l of listeners) {
-      try { l({ command: "session_changed", payload: { id: "" } }); }
-      catch { /* isolate */ }
+    if (document.visibilityState !== "visible") {
+      // Pause the poller while hidden to avoid wasted requests.
+      if (!caps.hasSse) stopPoll();
+      return;
     }
+    // Tab is now visible — reconnect SSE or restart poll, then freshen.
+    if (listeners.size > 0) ensureConnection();
+    emit({ command: "session_changed", payload: { id: "" } });
   });
 }
 
@@ -66,9 +99,12 @@ export function subscribeUiEvents(listener: Listener): () => void {
   ensureConnection();
   return () => {
     listeners.delete(listener);
-    if (listeners.size === 0 && es) {
-      es.close();
-      es = null;
+    if (listeners.size === 0) {
+      if (es) {
+        es.close();
+        es = null;
+      }
+      stopPoll();
     }
   };
 }

@@ -16,12 +16,27 @@ import type {
   SessionArtifactJoined,
 } from "../../../shared/types";
 import { ApiError, getJson, apiPath } from "./http";
+import { caps } from "../caps";
+import {
+  fetchCloudSessions,
+  fetchCloudSession,
+  CloudSessionNotFoundError,
+} from "./cloud-sessions";
 
-export async function fetchSessions(): Promise<Session[]> {
-  return getJson<Session[]>(apiPath("/api/sessions"));
+export async function fetchSessions(signal?: AbortSignal): Promise<Session[]> {
+  if (caps.cloud) return fetchCloudSessions(signal);
+  return getJson<Session[]>(apiPath("/api/sessions"), signal);
 }
 
 export async function fetchSession(id: string, signal?: AbortSignal): Promise<Session> {
+  if (caps.cloud) {
+    try {
+      return await fetchCloudSession(id, signal);
+    } catch (err) {
+      if (err instanceof CloudSessionNotFoundError) throw new SessionNotFoundError(id);
+      throw err;
+    }
+  }
   try {
     return await getJson<Session>(apiPath(`/api/sessions/${encodeURIComponent(id)}`), signal);
   } catch (err) {
@@ -65,6 +80,7 @@ export async function fetchSessionEvents(
 }
 
 export async function fetchSessionArtifacts(id: string, signal?: AbortSignal): Promise<SessionArtifactJoined[]> {
+  if (caps.cloud) return [];
   return getJson<SessionArtifactJoined[]>(apiPath(`/api/sessions/${encodeURIComponent(id)}/artifacts`), signal);
 }
 
@@ -90,6 +106,7 @@ export interface SessionMemory {
 }
 
 export async function fetchSessionMemory(id: string, signal?: AbortSignal): Promise<SessionMemory> {
+  if (caps.cloud) return { written: [], pulled: [] };
   return getJson<SessionMemory>(apiPath(`/api/sessions/${encodeURIComponent(id)}/memory`), signal);
 }
 
@@ -117,6 +134,7 @@ export async function searchTranscripts(
   query: string,
   opts: { limit?: number; spaceId?: string | null; signal?: AbortSignal } = {},
 ): Promise<TranscriptHit[]> {
+  if (caps.cloud) return [];
   const params = new URLSearchParams({ q: query });
   if (opts.limit !== undefined) params.set("limit", String(opts.limit));
   if (opts.spaceId) params.set("space_id", opts.spaceId);
@@ -132,6 +150,7 @@ export async function fetchSessionEventRaw(
   eventId: number,
   signal?: AbortSignal,
 ): Promise<string | null> {
+  if (caps.cloud) return null;
   const ev = await getJson<SessionEvent>(
     apiPath(`/api/sessions/${encodeURIComponent(sessionId)}/events/${eventId}`),
     signal,
@@ -168,6 +187,7 @@ export async function resumeSession(
   sessionId: string,
   opts: { targetCwd?: string; force?: boolean } = {},
 ): Promise<SessionResumeResponse> {
+  if (caps.cloud) throw new Error("not available in remote view");
   const res = await fetch(apiPath(`/api/sessions/${encodeURIComponent(sessionId)}/resume`), {
     method: "POST",
     headers: { "content-type": "application/json" },
