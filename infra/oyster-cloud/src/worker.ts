@@ -454,8 +454,10 @@ async function handleSessionsMetadataPost(req: Request, env: Env): Promise<Respo
            state         = excluded.state,
            cwd           = excluded.cwd,
            model         = excluded.model,
-           space_id      = excluded.space_id,
-           project_id    = excluded.project_id,
+           -- COALESCE: a scope-less push (pre-upgrade client) must not erase scope
+           -- a newer client established; absence means "didn't compute it", not "clear".
+           space_id      = COALESCE(excluded.space_id, synced_session_metadata.space_id),
+           project_id    = COALESCE(excluded.project_id, synced_session_metadata.project_id),
            started_at    = excluded.started_at,
            ended_at      = excluded.ended_at,
            last_event_at = excluded.last_event_at,
