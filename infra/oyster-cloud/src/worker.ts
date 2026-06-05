@@ -17,19 +17,26 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
 
-    // oyster.to/app — remote-view shell (spec 2026-06-05-cloud-remote-view).
+    // oyster.to/app — remote-view SPA (spec 2026-06-05-cloud-remote-view).
     // Lives on the apex so the host-only oyster_session cookie (#397)
-    // authenticates it with no auth-worker changes. The shell's API calls
-    // are same-origin: /app/api/* is rewritten onto the /api/* dispatch
-    // below (URL.pathname is mutable).
+    // authenticates it with no auth-worker changes. Dispatch order is
+    // load-bearing: the /app/api/* rewrite MUST run before the /app* SPA
+    // catch-all, which would otherwise swallow same-origin API calls.
+
+    // 1) www → apex.
     if (url.hostname === "www.oyster.to" && url.pathname.startsWith("/app")) {
       return Response.redirect(`https://oyster.to${url.pathname}${url.search}`, 308);
     }
-    if ((url.pathname === "/app" || url.pathname === "/app/") && req.method === "GET") {
-      return handleAppShell(req, env);
-    }
+    // 2) /app/api/* → /api/* rewrite. A rewritten path no longer starts with
+    //    /app/, so the SPA catch-all below never sees it (URL.pathname is mutable).
     if (url.pathname.startsWith("/app/api/")) {
       url.pathname = url.pathname.slice("/app".length);
+    }
+    // 3) Everything else under /app is the SPA: hashed assets are public,
+    //    navigations are auth-gated (signed-out → sign-in page).
+    if (url.pathname === "/app" || url.pathname.startsWith("/app/")) {
+      if (req.method !== "GET") return jsonError(405, "method_not_allowed");
+      return handleAppShell(req, env, url);
     }
 
     if (url.pathname === "/health" && req.method === "GET") {
