@@ -221,14 +221,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
   const [pendingMemoryDelete, setPendingMemoryDelete] = useState<Memory | null>(null);
 
-  // Local "Elsewhere" scope: filters Sessions to those whose spaceId is null
-  // (claude/codex sessions started in folders that aren't attached to any
-  // registered space). Only applies in Home view; navigating to a real space
-  // resets it.
-  const [showElsewhere, setShowElsewhere] = useState(false);
   // Vault info page (cloud-sync teaser). Sits next to Home in the breadcrumb;
-  // mutually exclusive with showElsewhere and resets when navigating away
-  // from Home, same lifecycle as showElsewhere.
+  // resets when navigating away from Home.
   const [showVault, setShowVault] = useState(false);
   // Memories collapse: long lists are noisy on Home. Default to 5 rows;
   // "Show all" expands. Resets when the user changes scope so a different
@@ -292,11 +286,9 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   const isMetaView = isHomeView || isAllView || isArchivedView;
   const scopedSpace = !isMetaView ? activeSpace : null;
 
-  // Reset Elsewhere scope when we navigate away from Home (e.g. user clicks
-  // a real space card or chat-bar pill).
+  // Reset Vault page when we navigate away from Home.
   useEffect(() => {
     if (!isHomeView) {
-      setShowElsewhere(false);
       setShowVault(false);
     }
   }, [isHomeView]);
@@ -330,7 +322,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
       setSelectedProjectId(null);
     }
     setSelectedCwd(null);
-  }, [scopedSpace, showElsewhere, isHomeView]);
+  }, [scopedSpace, isHomeView]);
 
   // Auto-reset the live-terminals filter if there are no live terminals
   // (e.g. the last terminal was stopped, or the user switched to a space
@@ -343,9 +335,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   }, [stateFilter, presence.totalLive]);
 
   const scopedSessions = useMemo(() => {
-    if (showElsewhere && isHomeView) return sessions.filter((s) => s.spaceId === null);
     return scopedSpace ? sessions.filter((s) => s.spaceId === scopedSpace) : sessions;
-  }, [sessions, scopedSpace, showElsewhere, isHomeView]);
+  }, [sessions, scopedSpace]);
 
   // Folder-narrowed sessions: when a project tile is selected, sessions
   // filter to that source (or sessions without a source for VAULT, or
@@ -392,7 +383,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // spaceId === null) + a grand total for the Home card. Buckets by
   // `displayState` so dormant rows fold into `done` — matches the home
   // chip semantics where `disconnected` means the 30min–8h band only.
-  const { sessionCountsBySpace, orphanCounts, totalCounts } = useMemo(() => {
+  const { sessionCountsBySpace, totalCounts } = useMemo(() => {
     const bySpace: Record<string, { total: number; running: number; active: number; waiting: number; disconnected: number; done: number }> = {};
     const orphans = { total: 0, running: 0, active: 0, waiting: 0, disconnected: 0, done: 0 };
     const total = { total: 0, running: 0, active: 0, waiting: 0, disconnected: 0, done: 0 };
@@ -442,19 +433,21 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     return out;
   }, [sessions, presence.byId]);
 
-  // Orphan-cwd "projects" on Elsewhere — sessions whose cwd doesn't
+  // Orphan-cwd "projects" on Home — sessions whose cwd doesn't
   // match any registered source still came from somewhere. Group by
   // cwd so the user can see at a glance which rogue folders have
   // activity, not just an undifferentiated session list.
   const orphanCwdGroups = useMemo(() => {
-    if (!showElsewhere || !isHomeView) return [];
+    if (!isHomeView) return [];
     const map = new Map<string, {
       cwd: string;
       counts: { active: number; waiting: number; disconnected: number; done: number };
       lastEventAt: number;
     }>();
     for (const s of sessions) {
-      if (s.spaceId !== null || !s.cwd) continue;
+      // Project-bound sessions render via their project card — only truly
+      // unclaimed folders (no project, no space) get an orphan tile.
+      if (s.projectId || s.spaceId !== null || !s.cwd) continue;
       // Group separator-equivalent Windows paths under one tile: local
       // sessions write forward-slashed cwds while remote_sessions can hold
       // the raw backslash form pushed from the origin device, so the same
@@ -478,7 +471,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
       if (Number.isFinite(t) && t > entry.lastEventAt) entry.lastEventAt = t;
     }
     return [...map.values()].sort((a, b) => b.lastEventAt - a.lastEventAt);
-  }, [sessions, showElsewhere, isHomeView]);
+  }, [sessions, isHomeView]);
 
   // Drop meta-spaces from the Spaces summary cards: the chat bar already
   // renders Home as its own pill, so a `home` row in the spaces table would
@@ -512,68 +505,41 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // global memories (no space_id) — globals are meant to apply everywhere,
   // and the agent's `recall(query, space_id)` already returns scope+global,
   // so the human-browsing surface should match.
-  // Elsewhere narrows to memories not bound to any currently-known space
-  // (orphans + memories pointing at deleted spaces).
   const scopedMemories = useMemo(() => {
-    if (showElsewhere && isHomeView) {
-      const real = new Set(spaces.filter((s) => s.id !== "home" && s.id !== "__all__" && s.id !== "__archived__").map((s) => s.id));
-      return memories.filter((m) => !m.space_id || !real.has(m.space_id));
-    }
     return scopedSpace
       ? memories.filter((m) => !m.space_id || m.space_id === scopedSpace)
       : memories;
-  }, [memories, scopedSpace, showElsewhere, isHomeView, spaces]);
+  }, [memories, scopedSpace]);
 
-  // When scoped to Elsewhere, artefacts should mirror the sessions filter:
-  // anything not attributed to a known real space (null spaceId or a stale
-  // pointer to a deleted space). App.tsx hands us all artefacts on home —
-  // we narrow them locally so artefacts and sessions tell the same story.
-  const realSpaceIds = useMemo(() => new Set(realSpaces.map((s) => s.id)), [realSpaces]);
   // Destination options for a project tile's "Move to space…" picker.
   const moveSpaceOptions = useMemo(
     () => realSpaces.map((s) => ({ id: s.id, name: s.displayName })),
     [realSpaces],
   );
-  // Projects detached from every space (space_id = null) — surfaced under the
-  // Unassigned pill so a "removed from space" project stays findable and can
-  // be re-filed from its own Move-to-space menu.
-  const unassignedProjects = useMemo(
-    () => allProjects.filter((p) => p.spaceId == null),
-    [allProjects],
-  );
-  const effectiveDesktopProps = useMemo(() => {
-    if (showElsewhere && isHomeView) {
-      return {
-        ...desktopProps,
-        artifacts: desktopProps.artifacts.filter((a) => !a.spaceId || !realSpaceIds.has(a.spaceId)),
-      };
-    }
-    return desktopProps;
-  }, [showElsewhere, isHomeView, desktopProps, realSpaceIds]);
 
   // Source-origin counts over the scoped artefacts (so the chip totals
   // reflect the current space pill, not the global pile).
   const artefactSourceCounts = useMemo(() => {
     const counts: Record<ArtefactSource, number> = { all: 0, manual: 0, ai_generated: 0, discovered: 0, published: 0, pinned: 0 };
-    counts.all = effectiveDesktopProps.artifacts.length;
-    for (const a of effectiveDesktopProps.artifacts) {
+    counts.all = desktopProps.artifacts.length;
+    for (const a of desktopProps.artifacts) {
       const o = a.sourceOrigin ?? "manual";
       if (o === "manual" || o === "ai_generated" || o === "discovered") counts[o]++;
       if (isLivePublication(a)) counts.published++;
       if (a.pinnedAt != null) counts.pinned++;
     }
     return counts;
-  }, [effectiveDesktopProps.artifacts]);
+  }, [desktopProps.artifacts]);
 
   // Per-kind counts over the active scope — independent of the source filter,
   // matching how the source pills count the scope total. Drives the Kind row.
   const artefactKindCounts = useMemo(() => {
     const counts: Partial<Record<ArtifactKind, number>> = {};
-    for (const a of effectiveDesktopProps.artifacts) {
+    for (const a of desktopProps.artifacts) {
       counts[a.artifactKind] = (counts[a.artifactKind] ?? 0) + 1;
     }
     return counts;
-  }, [effectiveDesktopProps.artifacts]);
+  }, [desktopProps.artifacts]);
   // Kinds actually present in this scope, in canonical order. The Kind row only
   // renders when there's more than one — no point filtering a single-kind scope.
   const presentKinds = useMemo(
@@ -655,10 +621,9 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         total: sessionTotalsByProject[id] ?? 0,
       };
     };
-    // Filed projects only — those detached from every space (space_id null)
-    // live under the Unassigned pill, mirroring how orphan sessions are
-    // segregated out of the Home view.
-    return allProjects.filter((p) => p.spaceId != null).sort((a, b) => {
+    // Every project — assigned or not. Unassigned projects are ordinary
+    // cards on Home now; the Unassigned pill is retired.
+    return [...allProjects].sort((a, b) => {
       const sa = score(a.id);
       const sb = score(b.id);
       if (sa.hasLive !== sb.hasLive) return sb.hasLive - sa.hasLive;
@@ -680,28 +645,28 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // when the artefact list is empty.
   const projectArtefactCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const a of effectiveDesktopProps.artifacts) {
+    for (const a of desktopProps.artifacts) {
       const key = a.projectId ?? VAULT;
       counts[key] = (counts[key] ?? 0) + 1;
     }
     return counts;
-  }, [effectiveDesktopProps.artifacts]);
+  }, [desktopProps.artifacts]);
 
   // Scope-only artefact total for the tab count (source/kind filters are
   // tab-internal and shouldn't change the tab's headline number).
   const scopedArtefactsTotal = useMemo(() => {
-    const list = effectiveDesktopProps.artifacts;
+    const list = desktopProps.artifacts;
     if (selectedProjectId === VAULT) return list.filter((a) => !a.projectId).length;
     if (selectedProjectId) return list.filter((a) => a.projectId === selectedProjectId).length;
     return list.length;
-  }, [effectiveDesktopProps.artifacts, selectedProjectId]);
+  }, [desktopProps.artifacts, selectedProjectId]);
 
   // Filter + collapse to an incremental preview. Each "Show more" click
   // grows artefactsLimit by ARTEFACTS_PREVIEW; the cap applies to both
   // icon and table views so busy spaces don't push later sections far
   // below the fold.
   const filteredArtefacts = useMemo(() => {
-    let list = effectiveDesktopProps.artifacts;
+    let list = desktopProps.artifacts;
     if (selectedProjectId === VAULT) {
       list = list.filter((a) => !a.projectId);
     } else if (selectedProjectId) {
@@ -732,7 +697,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
       return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
     });
     return list;
-  }, [effectiveDesktopProps.artifacts, artefactSource, artefactKind, selectedProjectId]);
+  }, [desktopProps.artifacts, artefactSource, artefactKind, selectedProjectId]);
   const visibleArtefacts = useMemo(
     () => filteredArtefacts.slice(0, artefactsLimit),
     [filteredArtefacts, artefactsLimit],
@@ -841,7 +806,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   }, []);
 
   const activeSpaceRow = scopedSpace ? spaces.find((s) => s.id === scopedSpace) : null;
-  const eyebrow = isHomeView ? (showElsewhere ? "Unassigned" : "Home")
+  const eyebrow = isHomeView ? "Home"
     : isAllView ? "All"
     : isArchivedView ? "Archived"
     : activeSpaceRow?.displayName ?? scopedSpace ?? "";
@@ -883,12 +848,12 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             <AuthBadge />
             <button
               type="button"
-              className={`home-breadcrumb-pill home-breadcrumb-pill--home${isHomeView && !showElsewhere && !showVault ? " selected" : ""}`}
-              onClick={() => { onSpaceChange("home"); setShowElsewhere(false); setShowVault(false); }}
+              className={`home-breadcrumb-pill home-breadcrumb-pill--home${isHomeView && !showVault ? " selected" : ""}`}
+              onClick={() => { onSpaceChange("home"); setShowVault(false); }}
               onContextMenu={(e) => e.preventDefault()}
               title={`${totalCounts.active} active · ${totalCounts.waiting} waiting · ${totalCounts.disconnected} disconnected · ${totalCounts.done} done`}
             >
-              {isHomeView && !showElsewhere && !showVault && (
+              {isHomeView && !showVault && (
                 <motion.span
                   layoutId="home-breadcrumb-bg"
                   className="home-breadcrumb-pill-bg"
@@ -902,7 +867,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             <button
               type="button"
               className={`home-breadcrumb-pill home-breadcrumb-pill--vault${showVaultPage ? " selected" : ""}`}
-              onClick={() => { onSpaceChange("home"); setShowElsewhere(false); setShowVault(true); }}
+              onClick={() => { onSpaceChange("home"); setShowVault(true); }}
               onContextMenu={(e) => e.preventDefault()}
               title="Oyster Pro — coming soon"
               aria-label="Oyster Pro"
@@ -978,34 +943,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 <span aria-hidden="true">+</span>
               )}
             </button>
-            {(orphanCounts.total > 0 || unassignedProjects.length > 0) && realSpaces.length > 0 && (
-              <button
-                type="button"
-                className={`home-breadcrumb-pill home-breadcrumb-pill--elsewhere${showElsewhere && isHomeView ? " selected" : ""}`}
-                onClick={() => { onSpaceChange("home"); setShowElsewhere(true); setShowVault(false); }}
-                onContextMenu={(e) => e.preventDefault()}
-                title={[
-                  orphanCounts.running > 0 && `${orphanCounts.running} running`,
-                  orphanCounts.active > 0 && `${orphanCounts.active} active`,
-                  orphanCounts.waiting > 0 && `${orphanCounts.waiting} waiting`,
-                  orphanCounts.done > 0 && `${orphanCounts.done} done`,
-                ].filter(Boolean).join(" · ") || "Projects and sessions not filed into a space"}
-              >
-                {showElsewhere && isHomeView && (
-                  <motion.span
-                    layoutId="home-breadcrumb-bg"
-                    className="home-breadcrumb-pill-bg"
-                    transition={{ type: "spring", stiffness: 400, damping: 35 }}
-                  />
-                )}
-                {(orphanCounts.running > 0 || orphanCounts.active > 0 || orphanCounts.waiting > 0) && (
-                  <span className="home-breadcrumb-badges">
-                    {renderPipCounts(orphanCounts)}
-                  </span>
-                )}
-                <span className="home-breadcrumb-pill-label">Unassigned</span>
-              </button>
-            )}
             </div>
             <div className="home-breadcrumb-inner home-breadcrumb-inner--right-cluster">
               {onTerminalFocus && onTerminalRestore && onTerminalStop && presence.totalLive > 0 && (
@@ -1030,7 +967,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           {/* Eyebrow dropped — the breadcrumb above already shows the
               active scope, so a separate "HOME" / "OYSTER" label is
               redundant. */}
-          <h1 className="home-title">{isHomeView ? (showElsewhere ? "Unassigned." : "Your work.") : eyebrow}</h1>
+          <h1 className="home-title">{isHomeView ? "Your work." : eyebrow}</h1>
           {error && <div className="home-error">Couldn't load sessions: {error.message}</div>}
         </header>
 
@@ -1040,7 +977,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             home-space-card / home-spaces-section CSS is kept around in
             case the cards return as a settings or dashboard surface. */}
 
-        {isHomeView && !showElsewhere && sortedProjects.length > 0 && (
+        {isHomeView && (sortedProjects.length > 0 || orphanCwdGroups.length > 0 || (projectArtefactCounts[VAULT] ?? 0) > 0) && (
           <div className="home-section home-projects-section">
             <div className="home-section-head">
               <span className="home-section-label">Projects</span>
@@ -1055,6 +992,24 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               <span className="home-section-rule" />
             </div>
             <div className="home-projects-grid" ref={projectsGridRef}>
+              {(projectArtefactCounts[VAULT] ?? 0) > 0 && (
+                <div className={`home-projects-strip-tile home-project-tile--vault${selectedProjectId === VAULT ? " selected" : ""}`}>
+                  <button
+                    type="button"
+                    className="home-projects-strip-tile-body"
+                    onClick={() => setSelectedProjectId(selectedProjectId === VAULT ? null : VAULT)}
+                    title="Artefacts created in Oyster itself — not tied to a repo"
+                  >
+                    <div className="home-projects-strip-name">
+                      <Shield size={14} strokeWidth={1.75} aria-hidden="true" />
+                      <span>Vault</span>
+                    </div>
+                    <div className="home-projects-strip-counts">
+                      <span className="signal"><span className="pip pip-dim" />{projectArtefactCounts[VAULT]} {(projectArtefactCounts[VAULT] ?? 0) === 1 ? "artefact" : "artefacts"}</span>
+                    </div>
+                  </button>
+                </div>
+              )}
               {visibleProjects.map((p) => (
                 // onSpaceDelete intentionally omitted — Home strip can't collapse spaces.
                 // isLastProject/spaceTotalSessions are inert here (willCollapseSpace = false).
@@ -1074,59 +1029,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   onLaunchClaude={onLaunchClaude}
                 />
               ))}
-            </div>
-            {hiddenCount > 0 && !projectsExpanded && (
-              <div className="home-projects-footer">
-                <button
-                  type="button"
-                  className="home-projects-show-more"
-                  onClick={() => setProjectsExpanded(true)}
-                >
-                  Show all {sortedProjects.length} projects ▾
-                </button>
-              </div>
-            )}
-            {projectsExpanded && sortedProjects.length > projectColumns && (
-              <div className="home-projects-footer">
-                <button
-                  type="button"
-                  className="home-projects-show-more home-projects-show-more--collapse"
-                  onClick={() => setProjectsExpanded(false)}
-                >
-                  Show less ▴
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {isHomeView && showElsewhere && unassignedProjects.length > 0 && (
-          <div className="home-section home-projects-section">
-            <div className="home-projects-grid">
-              {unassignedProjects.map((p) => (
-                <ProjectTile
-                  key={p.id}
-                  project={p}
-                  artefactCount={projectArtefactCounts[p.id] ?? 0}
-                  sessionCounts={sessionCountsByProject[p.id]}
-                  selected={selectedProjectId === p.id}
-                  onSelect={() => setSelectedProjectId(selectedProjectId === p.id ? null : p.id)}
-                  onChanged={refreshAllProjects}
-                  isLastProject={false}
-                  spaceTotalSessions={0}
-                  // No merge target across the unassigned pool; move-to-space re-files it.
-                  otherProjects={[]}
-                  spaces={moveSpaceOptions}
-                  onLaunchClaude={onLaunchClaude}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {isHomeView && showElsewhere && orphanCwdGroups.length > 0 && (
-          <div className="home-section home-projects-section">
-            <div className="home-projects-grid">
               {orphanCwdGroups.map((p) => {
                 const isSelected = selectedCwd === p.cwd;
                 // Disable every promote button while *any* promotion is in
@@ -1180,6 +1082,28 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 );
               })}
             </div>
+            {hiddenCount > 0 && !projectsExpanded && (
+              <div className="home-projects-footer">
+                <button
+                  type="button"
+                  className="home-projects-show-more"
+                  onClick={() => setProjectsExpanded(true)}
+                >
+                  Show all {sortedProjects.length} projects ▾
+                </button>
+              </div>
+            )}
+            {projectsExpanded && sortedProjects.length > projectColumns && (
+              <div className="home-projects-footer">
+                <button
+                  type="button"
+                  className="home-projects-show-more home-projects-show-more--collapse"
+                  onClick={() => setProjectsExpanded(false)}
+                >
+                  Show less ▴
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1196,7 +1120,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             <div className="home-spaces-section">
               <div className="home-folders-empty">
                 <strong>No projects in this space yet.</strong>{" "}
-                Sessions started in unclaimed folders land in Elsewhere
+                Sessions started in unclaimed folders appear on Home
                 until you claim them into a project.{" "}
                 <span className="home-folders-empty-hint">
                   <button
@@ -1329,7 +1253,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
 
           {loading && sessions.length === 0 ? (
             <div className="home-empty">Loading sessions…</div>
-          ) : visibleSessions.length === 0 && !(stateCounts.all === 0 && isHomeView && !showElsewhere) ? (
+          ) : visibleSessions.length === 0 && !(stateCounts.all === 0 && isHomeView) ? (
             <div className="home-empty">No sessions match this filter yet.</div>
           ) : (
             <>
@@ -1371,7 +1295,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               )}
             </>
           )}
-          {stateCounts.all === 0 && isHomeView && !showElsewhere && !loading && (
+          {stateCounts.all === 0 && isHomeView && !loading && (
             <div className="home-empty-state">
               <div className="home-empty-state-title">No sessions found yet.</div>
               <div className="home-empty-state-body">
@@ -1521,7 +1445,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             <>
               <div className="home-artefacts">
                 <Desktop
-                  {...effectiveDesktopProps}
+                  {...desktopProps}
                   artifacts={visibleArtefacts}
                   isHero={false}
                   showMeta
@@ -1752,9 +1676,9 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         const memoryCount = memories.filter((m) => m.space_id === targetId).length;
         const plural = (n: number, one: string, many: string) => n === 1 ? `1 ${one}` : `${n} ${many}`;
         const lines: React.ReactNode[] = [];
-        if (sessionCount > 0) lines.push(<>{plural(sessionCount, "session", "sessions")} → Elsewhere</>);
+        if (sessionCount > 0) lines.push(<>{plural(sessionCount, "session", "sessions")} → Home</>);
         if (artefactCount > 0) lines.push(<>{plural(artefactCount, "artefact", "artefacts")} → Home, grouped under <strong>{displayName}</strong></>);
-        if (memoryCount > 0) lines.push(<>{plural(memoryCount, "memory", "memories")} → Elsewhere (unbound from this space)</>);
+        if (memoryCount > 0) lines.push(<>{plural(memoryCount, "memory", "memories")} → Home (unbound from this space)</>);
         return (
           <ConfirmModal
             open={true}
