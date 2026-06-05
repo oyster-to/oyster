@@ -33,5 +33,8 @@ export async function handleAppShell(req: Request, env: Env, url: URL): Promise<
     return new Response(page(SIGN_IN_BODY), { status: 401, headers: HTML_HEADERS });
   }
   // A signed-in FREE user gets the index too; the data APIs will 403. Acceptable v1.
-  return env.ASSETS.fetch(new Request(new URL("/index.html", url.origin), req));
+  // Use "/" not "/index.html": Cloudflare ASSETS applies clean-URL canonicalisation
+  // and redirects /index.html → /, causing a 307 loop. The canonical path for the
+  // dist-cloud index file in the ASSETS binding namespace is "/".
+  return env.ASSETS.fetch(new Request(new URL("/", url.origin), req));
 }
