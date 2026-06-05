@@ -155,11 +155,6 @@ const LIVE_STATES: SessionState[] = ["active", "waiting"];
 
 const EMPTY_COUNTS = { total: 0, running: 0, active: 0, waiting: 0, disconnected: 0, done: 0 };
 
-// Sessions list cap. Busy spaces can run dozens of concurrent sessions
-// and previously pushed Artefacts below the fold; ten keeps the section
-// compact in both icon and table views and Show more surfaces the rest.
-const SESSIONS_PREVIEW = 10;
-
 // Memory list shows this many rows by default; user clicks "Show all N"
 // to expand. Five is small enough to fit alongside Sessions and Artefacts
 // without scroll-thrash, large enough that single-space views (typically
@@ -227,6 +222,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // Cloud-only origin-device filter. Local builds never set deviceFilter
   // (the chip row is caps.cloud-gated), so it's inert there.
   const [deviceFilter, setDeviceFilter] = useState<string | null>(null);
+  // Client-side text filter for the sessions list (search rung 1).
+  const [sessionQuery, setSessionQuery] = useState("");
   // Distinct origin-device labels — the cloud view's primary grouping.
   const deviceLabels = useMemo(() => {
     const out = new Set<string>();
@@ -256,7 +253,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   const [lastSyncMessage, setLastSyncMessage] = useState<string | null>(null);
   const lastAutoReconcileRef = useRef<number>(0);
   const AUTO_THROTTLE_MS = 10_000;
-  const [sessionsLimit, setSessionsLimit] = useState(SESSIONS_PREVIEW);
   // Artefact source filter (#280) + 3-row collapse. Reset on scope change
   // so each space starts compact and at "all".
   const [artefactSource, setArtefactSource] = useState<ArtefactSource>("all");
@@ -331,7 +327,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   useEffect(() => {
     setMemoriesLimit(MEMORIES_PREVIEW);
     setArtefactsLimit(ARTEFACTS_PREVIEW);
-    setSessionsLimit(SESSIONS_PREVIEW);
     setArtefactSource("all");
     setArtefactKind("all");
     setSelectedCwd(null);
@@ -392,6 +387,16 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     else list = folderScopedSessions.filter((s) => s.displayState === stateFilter);
     // Cloud-only: narrow to one origin device when its chip is active.
     if (deviceFilter) list = list.filter((s) => s.originDeviceLabel === deviceFilter);
+    // Client-side text filter — case-insensitive substring over title, cwd,
+    // and origin-device label. Empty (trimmed) query = no narrowing.
+    const q = sessionQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter((s) =>
+        (s.title ?? "").toLowerCase().includes(q) ||
+        (s.cwd ?? "").toLowerCase().includes(q) ||
+        (s.originDeviceLabel ?? "").toLowerCase().includes(q),
+      );
+    }
     // Pin live (open terminal) rows to the top; within each group preserve
     // descending last-activity order.
     return list.slice().sort((a, b) => {
@@ -400,7 +405,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
       if (aLive !== bLive) return aLive - bLive;
       return (b.lastEventAt ?? "").localeCompare(a.lastEventAt ?? "");
     });
-  }, [folderScopedSessions, stateFilter, deviceFilter, presence.byId]);
+  }, [folderScopedSessions, stateFilter, deviceFilter, sessionQuery, presence.byId]);
 
   // Per-space session counts + a grand total for the Home card. Buckets by
   // `displayState` so dormant rows fold into `done` — matches the home
@@ -1288,6 +1293,14 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 </>
               )}
             </span>
+            <input
+              type="search"
+              className="home-session-filter"
+              placeholder="Filter sessions…"
+              value={sessionQuery}
+              onChange={(e) => setSessionQuery(e.target.value)}
+              aria-label="Filter sessions"
+            />
             <span className="home-section-spacer" />
             {/* Toggle hidden on phones — COMPACT is forced there. JS gate (not
                 CSS) so the chips row reflows without the reserved space. */}
@@ -1314,7 +1327,9 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           {loading && sessions.length === 0 ? (
             <div className="home-empty">Loading sessions…</div>
           ) : visibleSessions.length === 0 && !(stateCounts.all === 0 && isHomeView) ? (
-            <div className="home-empty">No sessions match this filter yet.</div>
+            <div className="home-empty">
+              {sessionQuery.trim() ? "No sessions match your filter." : "No sessions match this filter yet."}
+            </div>
           ) : (
             <>
               <div className="home-table-wrap">
@@ -1327,7 +1342,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                     <span role="columnheader">Reason</span>
                     <span role="columnheader">Last active</span>
                   </div>
-                  {visibleSessions.slice(0, sessionsLimit).map((session) => (
+                  {visibleSessions.map((session) => (
                     <SessionRow
                       key={session.id}
                       session={session}
@@ -1345,14 +1360,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   ))}
                 </div>
               </div>
-              {sessionsLimit < visibleSessions.length && (
-                <ShowMore
-                  onClick={() => setSessionsLimit((n) => n + SESSIONS_PREVIEW)}
-                  remaining={visibleSessions.length - sessionsLimit}
-                  searchHint
-                  newSessionHint
-                />
-              )}
             </>
           )}
           {stateCounts.all === 0 && isHomeView && !loading && (
