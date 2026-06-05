@@ -23,7 +23,7 @@ export default {
     // are same-origin: /app/api/* is rewritten onto the /api/* dispatch
     // below (URL.pathname is mutable).
     if (url.hostname === "www.oyster.to" && url.pathname.startsWith("/app")) {
-      return Response.redirect(`https://oyster.to${url.pathname}${url.search}`, 301);
+      return Response.redirect(`https://oyster.to${url.pathname}${url.search}`, 308);
     }
     if ((url.pathname === "/app" || url.pathname === "/app/") && req.method === "GET") {
       return handleAppShell(req, env);
