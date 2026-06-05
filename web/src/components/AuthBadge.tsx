@@ -202,6 +202,26 @@ export function AuthBadge() {
   const handleSignOut = async () => {
     setMenuOpen(false);
     setSignOutError(null);
+    if (caps.cloud) {
+      // Cloud signs out against the apex auth worker (same origin as the
+      // SPA). The host-only oyster_session cookie rides along automatically;
+      // the worker revokes the session row and clears the cookie. Then we
+      // reload /app, which the worker will 401 → sign-in page.
+      try {
+        const res = await fetch("/auth/sign-out", { method: "POST" });
+        if (!res.ok) {
+          setSignOutError("Sign-out failed. Try again.");
+          console.error("[auth] sign-out returned", res.status);
+          return;
+        }
+      } catch (err) {
+        setSignOutError("Sign-out failed. Try again.");
+        console.error("[auth] sign-out failed:", err);
+        return;
+      }
+      window.location.href = "/app";
+      return;
+    }
     try {
       const res = await fetch(apiPath("/api/auth/logout"), { method: "POST" });
       if (!res.ok) {
@@ -290,17 +310,15 @@ export function AuthBadge() {
         {menuOpen && (
           <div className="auth-chip__menu" role="menu">
             <div className="auth-chip__menu-email">{user.email}</div>
-            {/* Sign-out POSTs to the local server's /api/auth/logout, which the
-                cloud worker doesn't expose — keep the menu identity-only there. */}
-            {caps.canChat && (
-              <button
-                type="button"
-                className="auth-chip__menu-item"
-                onClick={handleSignOut}
-              >
-                Sign out
-              </button>
-            )}
+            {/* Local POSTs to the server's /api/auth/logout; cloud POSTs to the
+                apex auth worker's /auth/sign-out (same origin as the SPA). */}
+            <button
+              type="button"
+              className="auth-chip__menu-item"
+              onClick={handleSignOut}
+            >
+              Sign out
+            </button>
             {signOutError && <div className="auth-chip__menu-error">{signOutError}</div>}
           </div>
         )}
