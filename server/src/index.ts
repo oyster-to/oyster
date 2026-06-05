@@ -767,7 +767,10 @@ function broadcastUiEvent(event: UiCommand) {
       // (open_artifact, switch_space) sent during the gap — accepted:
       // the cap only trips on an already-frozen tab, and steady state
       // self-heals (5s artifact/space poll; chat keeps streaming).
-      try { client.end(); } catch { /* best effort */ }
+      // destroy(), not end(): no point flushing 1MB to a frozen tab, and
+      // tearing the socket down makes the route's close handler fire
+      // promptly (clearing its heartbeat interval).
+      try { client.destroy(); } catch { /* best effort */ }
       uiClients.delete(client);
       continue;
     }
