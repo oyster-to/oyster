@@ -208,12 +208,6 @@
   color: var(--text);
 }
 
-.home-section-rule {
-  flex: 1;
-  height: 1px;
-  background: var(--home-border);
-}
-
 /* Invisible flex spacer for tab-section heads — the tab strip above
    already draws the divider, so no second hairline. */
 .home-section-spacer {

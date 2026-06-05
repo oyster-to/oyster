@@ -984,7 +984,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               >
                 Organise into spaces ✨
               </button>
-              <span className="home-section-rule" />
             </div>
             <div className="home-projects-grid" ref={projectsGridRef}>
               {(projectArtefactCounts[VAULT] ?? 0) > 0 && (
