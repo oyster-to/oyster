@@ -14,10 +14,14 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 
 ### Changed
 
+- **One surface, three tabs** — Sessions, Artefacts and Memories now sit in tabs below your projects, scoped by the selected space and project, with a scope crumb showing where you are.
+- **Vault joins the project grid** — artefacts created in Oyster itself appear under a Vault card on Home, alongside your repos.
+- **Unassigned pill retired** — projects without a space now appear on Home with everything else.
 - **Projects collapse to a single row.** The home Projects strip now shows just the top row by default, with "Show all" to expand — less scrolling to reach your sessions.
 
 ### Fixed
 
+- **Sessions table names the repo** — the project column shows the repository name instead of the space, and steps aside when a project is selected.
 - **Onboarding reflects what you've actually done.** "Publish your first artefact" now ticks only when you have a live publication (and un-ticks if you unpublish), and the setup icon fills as a progress ring — becoming the 🦪 only once every step is done.
 - **Artefacts table view has column headers.** The table view now labels its columns (Name · Space · Kind · Created), matching the sessions list.
 
