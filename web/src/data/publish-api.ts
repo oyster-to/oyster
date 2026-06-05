@@ -77,7 +77,9 @@ export function unpublishArtifact(artifactId: string): Promise<UnpublishResponse
 // so it works on devices that never had the artefact locally — pick any
 // device, retire any of your live publications.
 export async function unpublishCloudShare(shareToken: string): Promise<UnpublishResponse> {
-  const res = await fetch(apiPath(`/api/publish/by-token/${encodeURIComponent(shareToken)}/unpublish`), {
+  // Apex route (oyster-publish worker) — deliberately NOT apiPath-wrapped:
+  // in the cloud build these must hit /api/publish/* on the apex, not /app/api/*.
+  const res = await fetch(`/api/publish/by-token/${encodeURIComponent(shareToken)}/unpublish`, {
     method: "POST",
   });
   if (!res.ok) {
@@ -107,7 +109,9 @@ export async function updateCloudShare(
   password?: string,
   label?: string,
 ): Promise<UpdateShareResponse> {
-  const res = await fetch(apiPath(`/api/publish/by-token/${encodeURIComponent(shareToken)}/update`), {
+  // Apex route (oyster-publish worker) — deliberately NOT apiPath-wrapped:
+  // in the cloud build these must hit /api/publish/* on the apex, not /app/api/*.
+  const res = await fetch(`/api/publish/by-token/${encodeURIComponent(shareToken)}/update`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
