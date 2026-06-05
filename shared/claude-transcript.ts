@@ -59,16 +59,20 @@ export function isClaudeProtocolArtifact(text: string): boolean {
 /** Display form for a touched file path: relative to the session cwd when
  *  under it; else ~-collapsed when `home` is provided; else absolute.
  *  Portable replacement for the node:path version — a pure prefix check,
- *  equivalent for the normalized absolute paths Claude Code emits. */
+ *  equivalent for the normalized absolute paths Claude Code emits.
+ *  Separators are normalized first: cross-device-resumed sessions can carry
+ *  the origin device's Windows cwd (e.g. "C:\\Users\\matth" — see
+ *  session-sync-service.ts), and the renderer may run on any host. */
 export function displayTouchPath(filePath: string, cwd?: string | null, home?: string | null): string {
+  const fp = filePath.replace(/\\/g, "/");
   if (cwd) {
-    const base = cwd.endsWith("/") ? cwd : cwd + "/";
-    if (filePath.startsWith(base) && filePath.length > base.length) {
-      return filePath.slice(base.length);
+    const cwdNorm = cwd.replace(/\\/g, "/");
+    const base = cwdNorm.endsWith("/") ? cwdNorm : cwdNorm + "/";
+    if (fp.startsWith(base) && fp.length > base.length) {
+      return fp.slice(base.length);
     }
   }
   if (home) {
-    const fp = filePath.replace(/\\/g, "/");
     const h = home.replace(/\\/g, "/");
     if (fp === h || fp.startsWith(h + "/")) return "~" + fp.slice(h.length);
   }

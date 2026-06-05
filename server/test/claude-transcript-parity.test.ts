@@ -72,4 +72,12 @@ describe("displayTouchPath parity", () => {
     const home = process.env.HOME ?? process.env.USERPROFILE ?? "";
     expect(displayTouchPath(`${home}/notes.md`, null)).toBe("~/notes.md");
   });
+  it("relativises Windows paths from cross-device-resumed sessions", () => {
+    // Synced sessions can carry the origin device's Windows cwd
+    // (session-sync-service.ts) — separators are normalized for the check.
+    expect(displayTouchPath("C:\\Users\\matth\\proj\\src\\a.ts", "C:\\Users\\matth\\proj"))
+      .toBe("src/a.ts");
+    expect(displayTouchPath("D:\\elsewhere\\b.ts", "C:\\Users\\matth\\proj"))
+      .toBe("D:\\elsewhere\\b.ts");
+  });
 });

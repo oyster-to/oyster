@@ -120,7 +120,7 @@ When an open session's metadata says it's live, the inspector polls `GET /api/se
 
 ## Guardrails (from design review)
 
-- **Shared parser is JSONL → turn events only.** Display-state, protocol-artifact filtering and output classification stay local; if extraction starts dragging those into `shared/`, stop. Parity tests assert at the rendered-turn level, not DB-row level.
+- **Shared parser is JSONL → turn events only.** Display-state and output classification stay local; if extraction starts dragging those into `shared/`, stop. The protocol-artifact *predicate* (`isClaudeProtocolArtifact`) is the one deliberate exception — both runtimes need it and each applies the filtering at its own call site. Parity tests assert at the rendered-turn level, not DB-row level.
 - **Don't fake the local events API contract.** Local pages by event-id windowing; cloud pages by byte cursor. A thin client-side adapter in cloud mode is the seam — don't contort the worker.
 - **One capabilities object** (`caps.canChat`, `caps.canWrite`, …) set once per build — no scattered `mode === 'cloud'` conditionals through Home/index.tsx.
 - **Live-tail cursor is byte-offset-based** — polls decrypt only chunks newer than the cursor (delta chunks are small); never re-decrypt the full tail chunk per poll.
