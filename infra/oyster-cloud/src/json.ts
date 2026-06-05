@@ -4,6 +4,8 @@
 // SameSite=Lax alone doesn't stop credentialed cross-origin fetches from
 // it. Non-browser clients (the local Oyster server) send no Origin
 // header — absence passes.
+// NOTE: when the remote view migrates to app.oyster.to (spec: productization
+// step), add it here — otherwise its mutations silently 403.
 const ALLOWED_BROWSER_ORIGINS = new Set(["https://oyster.to", "https://www.oyster.to"]);
 
 export function rejectBadOrigin(req: Request): Response | null {
