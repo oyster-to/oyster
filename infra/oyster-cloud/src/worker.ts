@@ -1,7 +1,9 @@
-import { jsonOk, jsonError } from "./json.js";
+import { jsonOk, jsonError, rejectBadOrigin } from "./json.js";
 import type { Env } from "./session.js";
 import { resolveSession } from "./session.js";
 import { encryptChunk, decryptChunk, sha256Hex, type ChunkAad } from "./encryption.js";
+import { handleSessionEventsGet } from "./transcript-events.js";
+import { handleAppShell } from "./app-shell.js";
 
 // Safe decode helper used by all bytes routes. decodeURIComponent throws
 // URIError on malformed percent-encoding (e.g. "%G"); we'd rather a 400 than
@@ -14,6 +16,21 @@ function safeDecode(raw: string): string | null {
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
+
+    // oyster.to/app — remote-view shell (spec 2026-06-05-cloud-remote-view).
+    // Lives on the apex so the host-only oyster_session cookie (#397)
+    // authenticates it with no auth-worker changes. The shell's API calls
+    // are same-origin: /app/api/* is rewritten onto the /api/* dispatch
+    // below (URL.pathname is mutable).
+    if (url.hostname === "www.oyster.to" && url.pathname.startsWith("/app")) {
+      return Response.redirect(`https://oyster.to${url.pathname}${url.search}`, 308);
+    }
+    if ((url.pathname === "/app" || url.pathname === "/app/") && req.method === "GET") {
+      return handleAppShell(req, env);
+    }
+    if (url.pathname.startsWith("/app/api/")) {
+      url.pathname = url.pathname.slice("/app".length);
+    }
 
     if (url.pathname === "/health" && req.method === "GET") {
       return new Response("ok", { status: 200 });
@@ -66,11 +83,20 @@ export default {
       return handleSessionsBytesReset(req, env, sessionId);
     }
 
+    const eventsMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/events$/);
+    if (eventsMatch && eventsMatch[1] && req.method === "GET") {
+      const sessionId = safeDecode(eventsMatch[1]);
+      if (sessionId === null) return jsonError(400, "invalid_session_id");
+      return handleSessionEventsGet(req, env, sessionId);
+    }
+
     return jsonError(404, "not_found");
   },
 };
 
 async function handleMemoryEventsPost(req: Request, env: Env): Promise<Response> {
+  const badOrigin = rejectBadOrigin(req);
+  if (badOrigin) return badOrigin;
   const user = await resolveSession(req, env);
   if (!user) return jsonError(401, "sign_in_required");
   if (user.tier !== "pro") return jsonError(403, "pro_required");
@@ -359,6 +385,8 @@ function isValidSession(s: unknown): s is IncomingSession {
 }
 
 async function handleSessionsMetadataPost(req: Request, env: Env): Promise<Response> {
+  const badOrigin = rejectBadOrigin(req);
+  if (badOrigin) return badOrigin;
   const user = await resolveSession(req, env);
   if (!user) return jsonError(401, "sign_in_required");
   if (user.tier !== "pro") return jsonError(403, "pro_required");
@@ -510,6 +538,8 @@ async function handleSessionsBytesChunkPut(
   sessionId: string,
   chunkNumber: number,
 ): Promise<Response> {
+  const badOrigin = rejectBadOrigin(req);
+  if (badOrigin) return badOrigin;
   const user = await resolveSession(req, env);
   if (!user) return jsonError(401, "sign_in_required");
   if (user.tier !== "pro") return jsonError(403, "pro_required");
@@ -834,6 +864,8 @@ async function handleSessionsBytesReset(
   env: Env,
   sessionId: string,
 ): Promise<Response> {
+  const badOrigin = rejectBadOrigin(req);
+  if (badOrigin) return badOrigin;
   const user = await resolveSession(req, env);
   if (!user) return jsonError(401, "sign_in_required");
   if (user.tier !== "pro") return jsonError(403, "pro_required");

@@ -1,3 +1,21 @@
+// Browser-origin guard for mutating routes (spec
+// 2026-06-05-cloud-remote-view-design.md). share.oyster.to serves
+// untrusted published HTML and is *same-site* with the apex, so
+// SameSite=Lax alone doesn't stop credentialed cross-origin fetches from
+// it. Non-browser clients (the local Oyster server) send no Origin
+// header — absence passes.
+// NOTE: when the remote view migrates to app.oyster.to (spec: productization
+// step), add it here — otherwise its mutations silently 403.
+const ALLOWED_BROWSER_ORIGINS = new Set(["https://oyster.to", "https://www.oyster.to"]);
+
+export function rejectBadOrigin(req: Request): Response | null {
+  const origin = req.headers.get("origin");
+  if (origin && !ALLOWED_BROWSER_ORIGINS.has(origin)) {
+    return jsonError(403, "bad_origin");
+  }
+  return null;
+}
+
 export function jsonError(status: number, code: string, message?: string, extra: Record<string, unknown> = {}): Response {
   const body: Record<string, unknown> = { error: code, ...extra };
   if (message) body.message = message;

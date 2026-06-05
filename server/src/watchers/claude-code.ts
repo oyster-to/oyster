@@ -1,13 +1,12 @@
 import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative } from "node:path";
+import { basename, dirname, join } from "node:path";
 import chokidar, { type FSWatcher } from "chokidar";
 import type Database from "better-sqlite3";
 import type { ArtifactService } from "../artifact-service.js";
 import type {
   InsertSessionEvent,
   SessionArtifactRole,
-  SessionEventRole,
   SessionState,
   SessionStore,
 } from "../session-store.js";
@@ -26,6 +25,25 @@ import { registerTouchedOutput } from "../session-output-sweep.js";
 // directly.
 export { deriveState };
 export type { DeriveStateInput, ProbeSignal };
+
+import {
+  renderEvent as renderEventShared,
+  displayTouchPath as displayTouchPathShared,
+  safeParse,
+} from "../../../shared/claude-transcript.js";
+
+// HOME captured once: the shared module is env-free; the node side owns
+// the ~-collapse context.
+const HOME = process.env.HOME ?? process.env.USERPROFILE ?? null;
+
+/** Node-side wrappers binding the home dir — keeps every existing caller
+ *  and test on the old (ev, cwd) signature. */
+export function renderEvent(ev: Record<string, any>, cwd?: string | null) {
+  return renderEventShared(ev, cwd, HOME);
+}
+export function displayTouchPath(filePath: string, cwd?: string | null) {
+  return displayTouchPathShared(filePath, cwd, HOME);
+}
 
 // claude-code session log watcher (Sprint 2 of the 0.5.0 sessions arc).
 // See docs/plans/sessions-arc.md.
@@ -1025,114 +1043,6 @@ export function pickJsonlCwd(
     if (encodeCwd(c) === parent) chosen = c;
   }
   return chosen;
-}
-
-function safeParse(line: string): Record<string, any> | null {
-  try {
-    return JSON.parse(line);
-  } catch {
-    return null;
-  }
-}
-
-interface RenderedEvent {
-  role: SessionEventRole;
-  text: string;
-}
-
-/** Display form for a touched file path: relative to the session cwd when
- *  under it; else ~-collapsed; else absolute. */
-export function displayTouchPath(filePath: string, cwd: string | null | undefined): string {
-  if (cwd) {
-    const rel = relative(cwd, filePath);
-    if (rel && !rel.startsWith("..") && !isAbsolute(rel)) return rel;
-  }
-  const home = process.env.HOME ?? process.env.USERPROFILE;
-  if (home) {
-    const fp = filePath.replace(/\\/g, "/");
-    const h = home.replace(/\\/g, "/");
-    if (fp === h || fp.startsWith(h + "/")) return "~" + fp.slice(h.length);
-  }
-  return filePath;
-}
-
-// Map a raw JSONL event to a (role, text) pair the home feed can render.
-// Returns null for events we deliberately skip (file-history-snapshot,
-// last-prompt, attachment metadata, etc — useful in `raw` only).
-export function renderEvent(ev: Record<string, any>, cwd?: string | null): RenderedEvent | null {
-  switch (ev.type) {
-    case "user": {
-      const content = ev.message?.content;
-      if (typeof content === "string") {
-        return { role: "user", text: content };
-      }
-      if (Array.isArray(content)) {
-        // user-typed array events are tool_result wrappers
-        const first = content.find((b) => b?.type === "tool_result");
-        if (first) {
-          const inner = typeof first.content === "string"
-            ? first.content
-            : Array.isArray(first.content)
-              ? first.content
-                  .map((c: any) => (typeof c?.text === "string" ? c.text : ""))
-                  .join("")
-              : "";
-          return { role: "tool_result", text: inner || "(tool result)" };
-        }
-      }
-      return null;
-    }
-    case "assistant": {
-      const blocks = ev.message?.content;
-      if (!Array.isArray(blocks)) return null;
-      const hasText = blocks.some(
-        (b: any) => b?.type === "text" && typeof b.text === "string" && b.text.trim() !== "",
-      );
-      const hasToolUse = blocks.some((b: any) => b?.type === "tool_use" && typeof b.name === "string");
-      // Pure tool-call turns (no text blocks, only tool_use) are tool calls
-      // semantically — the "ASSISTANT [Bash]" rendering was misleading. Mark
-      // them as `tool` so the inspector renders them as collapsible tool
-      // turns, matching tool_result on the other side.
-      if (!hasText && hasToolUse) {
-        const toolTexts = blocks
-          .filter((b: any) => b?.type === "tool_use" && typeof b.name === "string")
-          .map((b: any) => {
-            const filePath = typeof b.input?.file_path === "string"
-              ? b.input.file_path
-              : typeof b.input?.notebook_path === "string"
-                ? b.input.notebook_path
-                : null;
-            return filePath ? `[${b.name} ${displayTouchPath(filePath, cwd)}]` : `[${b.name}]`;
-          });
-        return { role: "tool", text: toolTexts.join(" ") };
-      }
-      const text = blocks
-        .map((b: any) => {
-          if (b?.type === "text" && typeof b.text === "string") return b.text;
-          if (b?.type === "tool_use" && typeof b.name === "string") {
-            const filePath = typeof b.input?.file_path === "string"
-              ? b.input.file_path
-              : typeof b.input?.notebook_path === "string"
-                ? b.input.notebook_path
-                : null;
-            return filePath ? `[${b.name} ${displayTouchPath(filePath, cwd)}]` : `[${b.name}]`;
-          }
-          return "";
-        })
-        .filter(Boolean)
-        .join(" ");
-      // Pure-thinking turns produce empty text — store the marker so timeline
-      // doesn't silently lose them.
-      return { role: "assistant", text: text || "(thinking)" };
-    }
-    case "system": {
-      const subtype = typeof ev.subtype === "string" ? ev.subtype : "system";
-      const content = typeof ev.content === "string" ? ev.content : "";
-      return { role: "system", text: content ? `${subtype}: ${content}` : subtype };
-    }
-    default:
-      return null;
-  }
 }
 
 // Recognise tool_use blocks that touch a tracked file path. Read=>read,
