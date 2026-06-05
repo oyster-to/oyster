@@ -301,6 +301,12 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     }
   }, [isHomeView]);
 
+  // AddMemoryForm unmounts with its tab and would lose its draft — close
+  // it on tab switch so it doesn't reappear surprisingly empty.
+  useEffect(() => {
+    if (activeTab !== "memories") setShowAddMemory(false);
+  }, [activeTab]);
+
   const showVaultPage = showVault && isHomeView;
 
   // Collapse limits + filter reset on scope change — switching from a
