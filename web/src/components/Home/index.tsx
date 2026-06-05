@@ -264,6 +264,9 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // native artefacts, otherwise a source_id. The tile grid is the canonical
   // surface for switching between folders; selection is exclusive.
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const selectedProject = selectedProjectId && selectedProjectId !== VAULT
+    ? allProjects.find((p) => p.id === selectedProjectId) ?? null
+    : null;
   const [addSpaceOpen, setAddSpaceOpen] = useState(false);
 
   const triggerSetupScan = useCallback(async () => {
@@ -498,16 +501,17 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     });
   }, [spaces, sessionCountsBySpace]);
 
-  // Memories scope mirrors the server `list(space_id)` semantics: a real
-  // space includes both memories explicitly tagged with that space AND
-  // global memories (no space_id) — globals are meant to apply everywhere,
-  // and the agent's `recall(query, space_id)` already returns scope+global,
-  // so the human-browsing surface should match.
+  // Memories scope mirrors the server `list(space_id)` semantics: a space
+  // includes both its own memories AND globals. There is no project-level
+  // memory in the model (yet) — at project scope show the project's space
+  // + globals; at Vault scope, globals only.
   const scopedMemories = useMemo(() => {
-    return scopedSpace
-      ? memories.filter((m) => !m.space_id || m.space_id === scopedSpace)
+    if (selectedProjectId === VAULT) return memories.filter((m) => !m.space_id);
+    const spaceForScope = selectedProject?.spaceId ?? scopedSpace;
+    return spaceForScope
+      ? memories.filter((m) => !m.space_id || m.space_id === spaceForScope)
       : memories;
-  }, [memories, scopedSpace]);
+  }, [memories, scopedSpace, selectedProject, selectedProjectId]);
 
   // Destination options for a project tile's "Move to space…" picker.
   const moveSpaceOptions = useMemo(
@@ -809,9 +813,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     : isArchivedView ? "Archived"
     : activeSpaceRow?.displayName ?? scopedSpace ?? "";
 
-  const selectedProject = selectedProjectId && selectedProjectId !== VAULT
-    ? allProjects.find((p) => p.id === selectedProjectId) ?? null
-    : null;
   const scopeCrumb = selectedProjectId === VAULT
     ? "vault"
     : selectedProject
@@ -965,7 +966,12 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           {/* Eyebrow dropped — the breadcrumb above already shows the
               active scope, so a separate "HOME" / "OYSTER" label is
               redundant. */}
-          <h1 className="home-title">{isHomeView ? "Your work." : eyebrow}</h1>
+          <h1 className="home-title">
+            {selectedProjectId === VAULT ? "Vault."
+              : selectedProject ? selectedProject.name
+              : isHomeView ? "Your work."
+              : eyebrow}
+          </h1>
           {error && <div className="home-error">Couldn't load sessions: {error.message}</div>}
         </header>
 
