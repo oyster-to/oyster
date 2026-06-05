@@ -14,6 +14,8 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 
 ### Changed
 
+- **Ask Oyster moves to a side panel** — chat now opens from the ✦ Ask button in the top bar and slides in beside your work, instead of a bar pinned to the bottom of every page. It knows which space and project you're looking at.
+- **Bottom chat bar removed** — and with it, typing-anywhere-to-chat and the ⚡ terminal shortcut.
 - **One surface, three tabs** — Sessions, Artefacts and Memories now sit in tabs below your projects, scoped by the selected space and project, with a scope crumb showing where you are.
 - **Vault joins the project grid** — artefacts created in Oyster itself appear under a Vault card on Home, alongside your repos.
 - **Unassigned pill retired** — projects without a space now appear on Home with everything else.

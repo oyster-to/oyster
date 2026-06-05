@@ -252,9 +252,9 @@ export function OnboardingDock({ userSpaceCount = 0, publishedCount = 0 }: Onboa
   }, []);
 
   const handleSetUpSpaces = useCallback(() => {
-    // Send the canonical setup prompt to the chat via the cross-component
-    // oyster:send-prompt event. ChatBar's listener routes it through the
-    // same handleSend path used for typed input.
+    // Send the canonical setup prompt via the cross-component
+    // oyster:send-prompt event. App opens the Ask panel; AskPanel's listener
+    // routes the text through the same handleSend path used for typed input.
     window.dispatchEvent(
       new CustomEvent("oyster:send-prompt", { detail: { text: "Set up Oyster" } }),
     );
