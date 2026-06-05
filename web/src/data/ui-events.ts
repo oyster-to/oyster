@@ -43,7 +43,12 @@ function handleMessage(e: MessageEvent) {
 function startPoll() {
   if (pollTimer !== null) return;
   pollTimer = setInterval(() => {
-    if (listeners.size > 0) emit({ command: "session_changed", payload: { id: "" } });
+    if (listeners.size > 0) {
+      // id: "" is a broadcast sentinel — id-filtered consumers (SessionInspector
+      // live-update) deliberately ignore it; the inspector's own manifest poll
+      // drives transcript freshness in cloud mode.
+      emit({ command: "session_changed", payload: { id: "" } });
+    }
   }, POLL_INTERVAL_MS);
 }
 

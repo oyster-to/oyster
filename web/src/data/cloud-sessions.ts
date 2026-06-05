@@ -59,7 +59,7 @@ export async function fetchCloudSessions(signal?: AbortSignal): Promise<Session[
     apiPath("/api/sessions/metadata"), signal,
   );
   const sessions = (data.sessions ?? []).map(toSession);
-  cache = { at: Date.now(), sessions };
+  if (!signal?.aborted) cache = { at: Date.now(), sessions };
   return sessions;
 }
 
