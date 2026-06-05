@@ -1,6 +1,6 @@
 // Client for /api/terminals/*. Source-typed launch contract; never sends a
 // raw cwd.
-import { getJson, del, ApiError } from "./http";
+import { getJson, del, ApiError, apiPath } from "./http";
 
 export type LaunchKind = "claude_new" | "claude_resume";
 export type LaunchSource =
@@ -38,7 +38,7 @@ export async function launchClaudeTerminal(input: {
   source: LaunchSource;
 }): Promise<LaunchResult> {
   try {
-    const res = await fetch("/api/terminals", {
+    const res = await fetch(apiPath("/api/terminals"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ kind: input.kind, source: input.source }),
@@ -63,9 +63,9 @@ export async function launchClaudeTerminal(input: {
 }
 
 export async function listTerminals(): Promise<ListedTerminal[]> {
-  return getJson<ListedTerminal[]>("/api/terminals");
+  return getJson<ListedTerminal[]>(apiPath("/api/terminals"));
 }
 
 export async function killTerminal(terminalId: string): Promise<void> {
-  await del(`/api/terminals/${encodeURIComponent(terminalId)}`);
+  await del(apiPath(`/api/terminals/${encodeURIComponent(terminalId)}`));
 }

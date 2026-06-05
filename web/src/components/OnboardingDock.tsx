@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { subscribeUiEvents } from "../data/ui-events";
+import { apiPath } from "../data/http";
 import "./OnboardingDock.css";
 
 type ClientKey = "claude" | "cursor" | "vscode" | "windsurf";
@@ -176,7 +177,7 @@ export function OnboardingDock({ userSpaceCount = 0, publishedCount = 0 }: Onboa
   // connected agent immediately without waiting for a new SSE push.
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/mcp/status")
+    fetch(apiPath("/api/mcp/status"))
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled || !data) return;
@@ -571,7 +572,7 @@ function MemoriesImport({
     const timer = setTimeout(() => ctrl.abort(), 8000);
     let cancelled = false;
 
-    fetch("/api/import/prompt?provider=chatgpt", { signal: ctrl.signal, cache: "no-store" })
+    fetch(apiPath("/api/import/prompt?provider=chatgpt"), { signal: ctrl.signal, cache: "no-store" })
       .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((t) => {
         if (cancelled) return;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { subscribeUiEvents } from "../data/ui-events";
+import { apiPath } from "../data/http";
 
 // Lightweight auth-status hook — no user details, just "is there a signed-in
 // session right now?". Returns `null` while the first whoami is in flight so
@@ -12,7 +13,7 @@ export function useAuthSignedIn(): boolean | null {
     let cancelled = false;
     const refresh = async () => {
       try {
-        const res = await fetch("/api/auth/whoami");
+        const res = await fetch(apiPath("/api/auth/whoami"));
         if (!res.ok) throw new Error(String(res.status));
         const body = (await res.json()) as { user: { email: string } | null };
         if (cancelled) return;

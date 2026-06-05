@@ -4,6 +4,14 @@
 // on failure — ApiError surfaces that string so UI alert()s show
 // something actionable instead of `HTTP 400`.
 
+import { caps } from "../caps";
+
+/** Resolve an API path against the build's API base. Cloud mode serves the
+ *  SPA at /app and reaches the worker via the /app/api/* rewrite. */
+export function apiPath(path: string): string {
+  return `${caps.apiBase}${path}`;
+}
+
 export class ApiError extends Error {
   status: number;
   /** Decoded JSON response body when the server returned one. Callers that

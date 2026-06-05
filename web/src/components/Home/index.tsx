@@ -32,7 +32,7 @@ import { ProjectTile } from "./ProjectTile";
 import { useFetched } from "../../hooks/useFetched";
 import { createSpace } from "../../data/spaces-api";
 import { deleteMemory, type Memory } from "../../data/memories-api";
-import { ApiError } from "../../data/http";
+import { ApiError, apiPath } from "../../data/http";
 import { useTerminalPresence } from "../../hooks/useTerminalPresence";
 import type { WindowState } from "../../stores/windows";
 import { RunningTerminalsPill } from "../Topbar/RunningTerminalsPill";
@@ -274,7 +274,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
 
   const triggerSetupScan = useCallback(async () => {
     try {
-      const res = await fetch("/api/setup/scan", { method: "POST" });
+      const res = await fetch(apiPath("/api/setup/scan"), { method: "POST" });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         alert(`Couldn't scan for spaces: ${text || res.statusText}`);
@@ -750,7 +750,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     setReconciling(true);
     setLastSyncMessage(null);
     try {
-      const res = await fetch("/api/memories/reconcile?reason=manual", { method: "POST" });
+      const res = await fetch(apiPath("/api/memories/reconcile?reason=manual"), { method: "POST" });
       if (res.ok) {
         const data = await res.json() as { applied?: number; status?: string };
         await refreshMemories();
@@ -775,7 +775,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     const now = Date.now();
     if (now - lastAutoReconcileRef.current < AUTO_THROTTLE_MS) return;
     lastAutoReconcileRef.current = now;
-    fetch(`/api/memories/reconcile?reason=${reason}`, { method: "POST" })
+    fetch(apiPath(`/api/memories/reconcile?reason=${reason}`), { method: "POST" })
       .then((r) => r.ok ? r.json() : null)
       .then((data: { applied?: number } | null) => {
         if (data?.applied && data.applied > 0) refreshMemories();
@@ -1430,7 +1430,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                     onClick={async () => {
                       setSigningIn(true);
                       try {
-                        const res = await fetch("/api/auth/login", { method: "POST" });
+                        const res = await fetch(apiPath("/api/auth/login"), { method: "POST" });
                         if (!res.ok) throw new Error(String(res.status));
                         const body = (await res.json()) as { sign_in_url: string };
                         window.open(body.sign_in_url, "_blank", "noopener,noreferrer");

@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { subscribeUiEvents } from "../data/ui-events";
+import { apiPath } from "../data/http";
 import "./AuthBadge.css";
 
 interface AuthUser {
@@ -60,7 +61,7 @@ export function AuthBadge() {
     let cancelled = false;
     const refresh = async () => {
       try {
-        const res = await fetch("/api/auth/whoami");
+        const res = await fetch(apiPath("/api/auth/whoami"));
         if (!res.ok) throw new Error(String(res.status));
         const body = (await res.json()) as { user: AuthUser | null };
         if (cancelled) return;
@@ -97,7 +98,7 @@ export function AuthBadge() {
     const tick = async () => {
       if (cancelled) return;
       try {
-        const res = await fetch("/api/auth/whoami");
+        const res = await fetch(apiPath("/api/auth/whoami"));
         if (!res.ok) return;
         const body = (await res.json()) as { user: AuthUser | null };
         if (cancelled) return;
@@ -146,7 +147,7 @@ export function AuthBadge() {
     setSignOutError(null);
     setMenuOpen(true); // surface the hint+cancel popover immediately
     try {
-      const res = await fetch("/api/auth/login", { method: "POST", signal: controller.signal });
+      const res = await fetch(apiPath("/api/auth/login"), { method: "POST", signal: controller.signal });
       if (!res.ok) throw new Error(String(res.status));
       const body = (await res.json()) as SignInPending;
       // Defence-in-depth: even if the abort raced past the network
@@ -186,7 +187,7 @@ export function AuthBadge() {
     setMenuOpen(false);
     setSignOutError(null);
     try {
-      const res = await fetch("/api/auth/logout", { method: "POST" });
+      const res = await fetch(apiPath("/api/auth/logout"), { method: "POST" });
       if (!res.ok) {
         // Local server failed to sign out (cloud unreachable / D1
         // transient). Don't flip the UI — the user is still signed in

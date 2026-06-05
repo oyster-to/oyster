@@ -2,12 +2,12 @@
 // /api/projects endpoint added for the New Session palette. Kept in a
 // separate file so projects-api.ts stays scoped to per-space CRUD.
 
-import { getJson } from "./http";
+import { getJson, apiPath } from "./http";
 import { useFetched } from "../hooks/useFetched";
 import type { Project } from "./projects-api";
 
 export async function fetchAllProjects(signal?: AbortSignal): Promise<Project[]> {
-  return getJson<Project[]>("/api/projects", signal);
+  return getJson<Project[]>(apiPath("/api/projects"), signal);
 }
 
 export function useAllProjects(enabled: boolean): {

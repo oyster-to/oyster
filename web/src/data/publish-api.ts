@@ -40,12 +40,14 @@ export class PublishApiError extends Error {
   }
 }
 
+import { apiPath } from "./http";
+
 async function send<T>(
   method: "POST" | "DELETE",
   artifactId: string,
   body?: { mode: string; password?: string },
 ): Promise<T> {
-  const res = await fetch(`/api/artifacts/${encodeURIComponent(artifactId)}/publish`, {
+  const res = await fetch(apiPath(`/api/artifacts/${encodeURIComponent(artifactId)}/publish`), {
     method,
     headers: body ? { "content-type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -75,7 +77,7 @@ export function unpublishArtifact(artifactId: string): Promise<UnpublishResponse
 // so it works on devices that never had the artefact locally — pick any
 // device, retire any of your live publications.
 export async function unpublishCloudShare(shareToken: string): Promise<UnpublishResponse> {
-  const res = await fetch(`/api/publish/by-token/${encodeURIComponent(shareToken)}/unpublish`, {
+  const res = await fetch(apiPath(`/api/publish/by-token/${encodeURIComponent(shareToken)}/unpublish`), {
     method: "POST",
   });
   if (!res.ok) {
@@ -105,7 +107,7 @@ export async function updateCloudShare(
   password?: string,
   label?: string,
 ): Promise<UpdateShareResponse> {
-  const res = await fetch(`/api/publish/by-token/${encodeURIComponent(shareToken)}/update`, {
+  const res = await fetch(apiPath(`/api/publish/by-token/${encodeURIComponent(shareToken)}/update`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({

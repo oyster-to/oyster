@@ -1,4 +1,5 @@
 // Shared EventSource subscription for `/api/ui/events`.
+import { apiPath } from "./http";
 //
 // Multiple components (App, OnboardingDock) care about different slices of
 // the same SSE stream — a per-component `new EventSource(...)` would open
@@ -31,7 +32,7 @@ function handleMessage(e: MessageEvent) {
 function ensureConnection() {
   if (es && es.readyState !== EventSource.CLOSED) return;
   if (es) es.close();
-  es = new EventSource("/api/ui/events");
+  es = new EventSource(apiPath("/api/ui/events"));
   es.onmessage = handleMessage;
   // EventSource auto-reconnects on transport errors, but a half-open
   // connection (server crash, proxy timeout) can leave readyState stuck.

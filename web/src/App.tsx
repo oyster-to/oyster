@@ -28,6 +28,7 @@ import { useSessions } from "./hooks/useSessions";
 import { NewSessionPicker } from "./components/NewSessionPicker";
 import { useAllProjects, fetchAllProjects } from "./data/all-projects";
 import { VAULT } from "./components/Home/types";
+import { apiPath } from "./data/http";
 import "./App.css";
 
 // `?onboarding=force` wipes the dock's persisted state and pretends this
@@ -624,7 +625,7 @@ export default function App() {
     // Try to resolve the actual file path from the server
     let fileHint = "";
     try {
-      const res = await fetch(`/api/resolve-path?url=${encodeURIComponent(error.path)}`);
+      const res = await fetch(apiPath(`/api/resolve-path?url=${encodeURIComponent(error.path)}`));
       if (res.ok) {
         const data = await res.json();
         if (data.filePath) fileHint = `\n\nThe source file is: ${data.filePath}`;
@@ -697,7 +698,7 @@ export default function App() {
           });
         }}
         onTerminalStop={async (terminalId) => {
-          await fetch(`/api/terminals/${encodeURIComponent(terminalId)}`, { method: "DELETE" });
+          await fetch(apiPath(`/api/terminals/${encodeURIComponent(terminalId)}`), { method: "DELETE" });
           // Also close any open panel for this terminal — Stop is a finish
           // action; the user doesn't need the dead panel hanging around.
           const w = windows.find((x) => x.terminalId === terminalId);
@@ -817,7 +818,7 @@ export default function App() {
               linkedSessionId={w.linkedSessionId}
               ptyAlive={ptyAlive}
               onStop={ptyAlive && w.terminalId ? async () => {
-                await fetch(`/api/terminals/${encodeURIComponent(w.terminalId!)}`, { method: "DELETE" });
+                await fetch(apiPath(`/api/terminals/${encodeURIComponent(w.terminalId!)}`), { method: "DELETE" });
                 // Close the panel too — Stop is a finish action, not a pause.
                 dispatch({ type: "CLOSE", id: w.id });
               } : undefined}
