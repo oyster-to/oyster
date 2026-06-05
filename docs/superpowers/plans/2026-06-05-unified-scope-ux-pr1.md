@@ -113,8 +113,10 @@ In `index.tsx`, the SessionRow callsite (inside `visibleSessions.slice(0, sessio
 
 ```tsx
                       projectName={session.projectId ? projectNameById[session.projectId] ?? null : null}
-                      hideProject={selectedProjectId !== null}
+                      hideProject={selectedProjectId !== null && selectedProjectId !== VAULT}
 ```
+
+(Not at VAULT scope: vault sessions are no-project orphans, so the column's cwd-basename fallback is the only signal of where each ran — keep it visible there.)
 
 The table header row above it — make the Project columnheader conditional and add a modifier class to the table. Replace:
 
@@ -130,10 +132,10 @@ with:
 
 ```tsx
               <div className="home-table-wrap">
-                <div className={`home-table${selectedProjectId !== null ? " home-table--no-project" : ""}`}>
+                <div className={`home-table${selectedProjectId !== null && selectedProjectId !== VAULT ? " home-table--no-project" : ""}`}>
                   <div className="home-row home-row--header" role="row">
                     <span aria-hidden="true" />
-                    {selectedProjectId === null && <span role="columnheader">Project</span>}
+                    {(selectedProjectId === null || selectedProjectId === VAULT) && <span role="columnheader">Project</span>}
 ```
 
 - [ ] **Step 5: Grid variant in Home.css**
@@ -207,10 +209,16 @@ After the `activeSpaceRow` / `eyebrow` lines (~line 817), add:
     ? "vault"
     : selectedProject
       ? `${selectedProject.spaceId ? (spaces.find((s) => s.id === selectedProject.spaceId)?.displayName ?? selectedProject.spaceId) + " › " : ""}${selectedProject.name}`
+      : isArchivedView
+        ? "archived"
+      : isAllView
+        ? "all"
       : scopedSpace
         ? (activeSpaceRow?.displayName ?? scopedSpace)
         : "everything";
 ```
+
+(Meta views aren't a wider "everything" — Archived in particular is a different dataset; the crumb must say so.)
 
 - [ ] **Step 2: Insert the strip, wrap the sections**
 
@@ -362,6 +370,20 @@ with:
 - [ ] **Step 2: Orphan-cwd tiles compute on Home unconditionally**
 
 In the `orphanCwdGroups` memo (~line 432), replace `if (!showElsewhere || !isHomeView) return [];` with `if (!isHomeView) return [];` and remove `showElsewhere` from its dep array.
+
+Also fix a duplicate-tile bug this surfaces: a session in an *unassigned project* has `spaceId === null` but a real `projectId` — its project renders as a normal card now, so it must not also spawn an orphan-folder tile for the same directory. In the same memo, replace the skip condition:
+
+```ts
+      if (s.spaceId !== null || !s.cwd) continue;
+```
+
+with:
+
+```ts
+      // Project-bound sessions render via their project card — only truly
+      // unclaimed folders (no project, no space) get an orphan tile.
+      if (s.projectId || s.spaceId !== null || !s.cwd) continue;
+```
 
 - [ ] **Step 3: Vault tile + orphan tiles inside the Home projects grid**
 
