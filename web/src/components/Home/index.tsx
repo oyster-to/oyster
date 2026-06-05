@@ -860,7 +860,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             <LayoutGroup id="home-breadcrumb">
             <div className="home-breadcrumb-inner">
             <AuthBadge />
-            {caps.hasScopes && (<>
+            {caps.hasSpaces && (<>
             <button
               type="button"
               className={`home-breadcrumb-pill home-breadcrumb-pill--home${isHomeView && !showVault ? " selected" : ""}`}
@@ -879,6 +879,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 <path d="M11.03 2.59a1.5 1.5 0 0 1 1.94 0l7.5 6.363A1.5 1.5 0 0 1 21 10.097V19.5a2.5 2.5 0 0 1-2.5 2.5H15v-4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v4H5.5A2.5 2.5 0 0 1 3 19.5v-9.403a1.5 1.5 0 0 1 .53-1.137l7.5-6.37Z"/>
               </svg>
             </button>
+            {caps.hasProjects && (
             <button
               type="button"
               className={`home-breadcrumb-pill home-breadcrumb-pill--vault${showVaultPage ? " selected" : ""}`}
@@ -896,6 +897,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               )}
               <Shield size={14} strokeWidth={2} fill="currentColor" aria-hidden="true" style={{ position: "relative", zIndex: 1 }} />
             </button>
+            )}
             {realSpaces.map((space) => {
               const counts = sessionCountsBySpace[space.id] ?? EMPTY_COUNTS;
               const tip = [
@@ -933,6 +935,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 </button>
               );
             })}
+            {caps.canWrite && (
             <button
               type="button"
               className="home-breadcrumb-pill home-breadcrumb-pill--add"
@@ -958,6 +961,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 <span aria-hidden="true">+</span>
               )}
             </button>
+            )}
             </>)}
             </div>
             {/* Terminals / Ask / New-session are all local-only; in cloud the
@@ -1004,7 +1008,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             home-space-card / home-spaces-section CSS is kept around in
             case the cards return as a settings or dashboard surface. */}
 
-        {caps.hasScopes && isHomeView && (sortedProjects.length > 0 || orphanCwdGroups.length > 0 || (projectArtefactCounts[VAULT] ?? 0) > 0) && (
+        {caps.hasProjects && isHomeView && (sortedProjects.length > 0 || orphanCwdGroups.length > 0 || (projectArtefactCounts[VAULT] ?? 0) > 0) && (
           <div className="home-section home-projects-section">
             <div className="home-section-head">
               <span className="home-section-label">Projects</span>
@@ -1133,7 +1137,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           </div>
         )}
 
-        {caps.hasScopes && projectsSpaceId && (
+        {caps.hasProjects && projectsSpaceId && (
           spaceProjectsError ? (
             <div className="home-spaces-section">
               <div className="home-spaces-grid">

@@ -15,9 +15,11 @@ export const caps = {
   canWrite: !cloud,
   /** SSE push from the local server; cloud falls back to polling. */
   hasSse: !cloud,
-  /** Space pills + project grid — cloud session metadata has no
-   *  space_id/project_id yet, so scoping has nothing to bind to. */
-  hasScopes: !cloud,
+  /** Space pills + space scoping. Cloud has synced spaces + (post-SW-1)
+   *  session space_ids, so the switcher works remotely. */
+  hasSpaces: true,
+  /** Projects grid / registry — no cloud counterpart yet. */
+  hasProjects: !cloud,
   /** Publication management (unpublish / access mode) — available in BOTH
    *  modes; cloud calls the apex publish API directly. */
   canManagePublications: true,

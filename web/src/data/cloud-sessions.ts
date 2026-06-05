@@ -20,13 +20,15 @@ interface CloudSessionMeta {
   has_bytes: boolean;
   total_bytes: number;
   active_device_id: string | null;
+  space_id?: string | null;
+  project_id?: string | null;
 }
 
 function toSession(m: CloudSessionMeta): Session {
   return {
     id: m.session_id,
-    spaceId: null,          // not synced yet — caps.hasScopes hides scoping
-    projectId: null,
+    spaceId: m.space_id ?? null,
+    projectId: m.project_id ?? null,
     cwd: m.cwd,
     agent: m.agent,
     title: m.title,
