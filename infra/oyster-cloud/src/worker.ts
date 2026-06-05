@@ -43,6 +43,14 @@ export default {
       return new Response("ok", { status: 200 });
     }
 
+    // Identity for the remote-view badge. Any signed-in user (no pro gate) —
+    // the badge just shows who you are; pro features gate themselves elsewhere.
+    if (url.pathname === "/api/me" && req.method === "GET") {
+      const user = await resolveSession(req, env);
+      if (!user) return jsonError(401, "sign_in_required");
+      return jsonOk({ email: user.email, tier: user.tier });
+    }
+
     if (url.pathname === "/api/memories/events" && req.method === "POST") {
       return handleMemoryEventsPost(req, env);
     }

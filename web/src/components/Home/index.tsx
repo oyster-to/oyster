@@ -859,8 +859,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         <nav className="home-breadcrumb" aria-label="Account and spaces">
             <LayoutGroup id="home-breadcrumb">
             <div className="home-breadcrumb-inner">
-            {/* AuthBadge reads the local server's auth state — meaningless in cloud, where the worker gates the page itself. */}
-            {caps.canChat && <AuthBadge />}
+            <AuthBadge />
             {caps.hasScopes && (<>
             <button
               type="button"
@@ -961,6 +960,9 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             </button>
             </>)}
             </div>
+            {/* Terminals / Ask / New-session are all local-only; in cloud the
+                wrapper would otherwise paint as an empty styled husk. */}
+            {caps.canChat && (
             <div className="home-breadcrumb-inner home-breadcrumb-inner--right-cluster">
               {onTerminalFocus && onTerminalRestore && onTerminalStop && presence.totalLive > 0 && (
                 <RunningTerminalsPill
@@ -974,6 +976,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               {onOpenAsk && <AskPill onClick={onOpenAsk} />}
               {onOpenNewSession && <NewSessionPill onClick={onOpenNewSession} />}
             </div>
+            )}
             {/* local setup affordance */}
             {caps.canChat && <OnboardingDock userSpaceCount={userSpaceCount} publishedCount={publishedCount} />}
             </LayoutGroup>

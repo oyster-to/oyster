@@ -7,7 +7,24 @@
 import { useEffect, useRef, useState } from "react";
 import { subscribeUiEvents } from "../data/ui-events";
 import { apiPath } from "../data/http";
+import { caps } from "../caps";
 import "./AuthBadge.css";
+
+// Fetch the canonical signed-in identity. Cloud reaches the worker's
+// /api/me (200 {email,tier} → signed-in; non-200 → signed-out). Local reaches
+// the local server's whoami ({user} envelope). Returns the user or null.
+async function fetchWhoami(): Promise<AuthUser | null> {
+  if (caps.cloud) {
+    const res = await fetch(apiPath("/api/me"));
+    if (!res.ok) return null;
+    const body = (await res.json()) as { email: string };
+    return { id: body.email, email: body.email };
+  }
+  const res = await fetch(apiPath("/api/auth/whoami"));
+  if (!res.ok) throw new Error(String(res.status));
+  const body = (await res.json()) as { user: AuthUser | null };
+  return body.user;
+}
 
 interface AuthUser {
   id: string;
@@ -61,14 +78,12 @@ export function AuthBadge() {
     let cancelled = false;
     const refresh = async () => {
       try {
-        const res = await fetch(apiPath("/api/auth/whoami"));
-        if (!res.ok) throw new Error(String(res.status));
-        const body = (await res.json()) as { user: AuthUser | null };
+        const next = await fetchWhoami();
         if (cancelled) return;
-        setUser(body.user);
+        setUser(next);
         setPending(null);
         clearAbortTimeout();
-        setPhase(body.user ? "signed-in" : "signed-out");
+        setPhase(next ? "signed-in" : "signed-out");
       } catch {
         if (cancelled) return;
         setPhase("signed-out");
@@ -274,13 +289,17 @@ export function AuthBadge() {
         {menuOpen && (
           <div className="auth-chip__menu" role="menu">
             <div className="auth-chip__menu-email">{user.email}</div>
-            <button
-              type="button"
-              className="auth-chip__menu-item"
-              onClick={handleSignOut}
-            >
-              Sign out
-            </button>
+            {/* Sign-out POSTs to the local server's /api/auth/logout, which the
+                cloud worker doesn't expose — keep the menu identity-only there. */}
+            {caps.canChat && (
+              <button
+                type="button"
+                className="auth-chip__menu-item"
+                onClick={handleSignOut}
+              >
+                Sign out
+              </button>
+            )}
             {signOutError && <div className="auth-chip__menu-error">{signOutError}</div>}
           </div>
         )}
