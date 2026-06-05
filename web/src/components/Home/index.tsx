@@ -995,7 +995,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   <button
                     type="button"
                     className="home-projects-strip-tile-body"
-                    onClick={() => setSelectedProjectId(selectedProjectId === VAULT ? null : VAULT)}
+                    onClick={() => { setSelectedCwd(null); setSelectedProjectId(selectedProjectId === VAULT ? null : VAULT); }}
                     title="Artefacts created in Oyster itself — not tied to a repo"
                   >
                     <div className="home-projects-strip-name">
@@ -1017,7 +1017,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   artefactCount={projectArtefactCounts[p.id] ?? 0}
                   sessionCounts={sessionCountsByProject[p.id]}
                   selected={selectedProjectId === p.id}
-                  onSelect={() => setSelectedProjectId(selectedProjectId === p.id ? null : p.id)}
+                  onSelect={() => { setSelectedCwd(null); setSelectedProjectId(selectedProjectId === p.id ? null : p.id); }}
                   onChanged={refreshAllProjects}
                   isLastProject={false}
                   spaceTotalSessions={0}
@@ -1041,7 +1041,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                     <button
                       type="button"
                       className="home-projects-strip-tile-body"
-                      onClick={() => setSelectedCwd(isSelected ? null : p.cwd)}
+                      onClick={() => { setSelectedProjectId(null); setSelectedCwd(isSelected ? null : p.cwd); }}
                       title={p.cwd}
                     >
                       <div className="home-projects-strip-name home-projects-strip-name--folder">

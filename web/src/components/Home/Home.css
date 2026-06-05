@@ -1573,21 +1573,22 @@
   gap: 5px;
   color: rgba(232, 233, 240, 0.78);
 }
-/* Folder treatment for orphan tile names: muted text + folder glyph. */
+/* Tile name row: flex so any leading icon aligns with the label. */
 .home-projects-strip-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--font-mono);
   font-size: 13px;
   color: var(--home-accent-bright);
   margin-bottom: 8px;
 }
-.home-projects-strip-name--folder {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--home-text-muted);
-}
-.home-projects-strip-name--folder svg {
+.home-projects-strip-name svg {
   flex-shrink: 0;
+}
+/* Orphan-folder tiles: muted colour override only. */
+.home-projects-strip-name--folder {
+  color: var(--home-text-muted);
 }
 
 /* Vault info page (cloud-sync teaser) — selected via the Shield pill in
