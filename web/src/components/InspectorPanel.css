@@ -771,3 +771,8 @@ button.link-row:focus-visible {
   font-size: 11px;
   word-break: break-all;
 }
+
+/* Phone: the side drawer becomes a full-screen takeover. */
+@media (max-width: 640px) {
+  .inspector-panel { width: 100vw; }
+}

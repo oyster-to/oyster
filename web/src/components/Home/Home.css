@@ -2123,3 +2123,19 @@
   background: rgba(124, 107, 255, 0.18);
   border-color: rgba(124, 107, 255, 0.5);
 }
+
+/* ——— Mobile collapse (cloud remote view dogfood; applies locally too) ——— */
+@media (max-width: 640px) {
+  /* Header: desktop padding eats a phone screen. */
+  .home-header { padding: 28px 16px 0; }
+  .home-title { font-size: 28px; }
+  /* Tab strip: full-width, horizontally scrollable, no wrap. */
+  .home-tabs { overflow-x: auto; scrollbar-width: none; }
+  .home-tabs::-webkit-scrollbar { display: none; }
+  .home-tab { padding: 8px 10px; white-space: nowrap; }
+  .home-tab-scope { display: none; } /* crumb is desktop chrome */
+  /* Filter chips wrap to two rows rather than overflowing. */
+  .home-section-head { flex-wrap: wrap; row-gap: 6px; }
+  /* Sections breathe less. */
+  .home-section { padding: 0 16px; }
+}
