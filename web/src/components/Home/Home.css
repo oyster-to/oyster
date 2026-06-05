@@ -2134,13 +2134,21 @@
   .home-header { padding: 18px 16px 0; }
   .home-title { font-size: 28px; }
   /* Tab strip: full-width, horizontally scrollable, no wrap. Pulled closer
-     to the title to recover vertical air. */
-  .home-tabs { overflow-x: auto; scrollbar-width: none; margin-top: 18px; }
+     to the title to recover vertical air. Left padding normalised to 16px so
+     the first tab's underline aligns with the title glyph above. */
+  .home-tabs { overflow-x: auto; scrollbar-width: none; margin-top: 18px; padding-left: 16px; padding-right: 16px; }
   .home-tabs::-webkit-scrollbar { display: none; }
   .home-tab { padding: 8px 10px; white-space: nowrap; }
+  /* Zero the first tab's left padding so its label text + active underline
+     start exactly on the 16px shared edge (the tab button box edge = edge). */
+  .home-tab:first-child { padding-left: 0; }
   .home-tab-scope { display: none; } /* crumb is desktop chrome */
-  /* Filter chips sit closer to the table below. */
-  .home-section-head { padding-bottom: 8px; }
+  /* Filter chips: section-head left padding reduced to 6px so that the
+     10px section padding + 6px = 16px shared edge. Table-wrap similarly
+     6px so 10 + 6 = 16px. */
+  .home-section-head { padding: 0 6px 8px; }
+  /* Table card: align its left edge to the shared 16px edge. */
+  .home-table-wrap { padding: 0 6px; }
   /* Sessions: with the Full/Compact toggle gone, lay the filter chips as a
      single horizontally-scrollable row (mirrors the .home-tabs treatment).
      Scoped to the sessions panel so the Artefacts kind dropdown — which is
@@ -2164,9 +2172,6 @@
   .home-section { margin-top: 28px; padding: 0 10px; }
   /* Breadcrumb (avatar/spaces bar): trim its pinned padding. */
   .home-breadcrumb { padding: 10px 16px 8px; }
-  /* Table card: drop its own side gutter to near-zero so the row content
-     gets the full content width; keep the rounded corners. */
-  .home-table-wrap { padding: 0 2px; }
   /* Collapsed card rows: tighter internal padding and a narrower status-pip
      track (was 14px in the 720px collapse block) to reclaim left inset. */
   .home-row { grid-template-columns: 10px 1fr auto; padding: 10px 12px; }
