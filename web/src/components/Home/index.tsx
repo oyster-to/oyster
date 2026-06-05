@@ -1183,6 +1183,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               key={t}
               type="button"
               role="tab"
+              id={`home-tab-${t}`}
+              aria-controls={`home-tabpanel-${t}`}
               aria-selected={activeTab === t}
               className={`home-tab${activeTab === t ? " active" : ""}`}
               onClick={() => setActiveTab(t)}
@@ -1211,7 +1213,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         </div>
 
         {activeTab === "sessions" && (
-        <section className="home-section">
+        <section className="home-section" role="tabpanel" id="home-tabpanel-sessions" aria-labelledby="home-tab-sessions">
           <div className="home-section-head">
             <span className="home-section-stats">
               {FILTER_ORDER.map((f) => {
@@ -1312,7 +1314,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         )}
 
         {activeTab === "artefacts" && (
-        <section className="home-section">
+        <section className="home-section" role="tabpanel" id="home-tabpanel-artefacts" aria-labelledby="home-tab-artefacts">
           <div className="home-section-head" style={kindMenuOpen ? { zIndex: 40 } : undefined}>
             <span className="home-section-stats">
               {ARTEFACT_SOURCE_ORDER.map((src) => {
@@ -1505,7 +1507,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         )}
 
         {activeTab === "memories" && (
-        <section className="home-section">
+        <section className="home-section" role="tabpanel" id="home-tabpanel-memories" aria-labelledby="home-tab-memories">
           <div className="home-section-head">
             <span className="home-section-spacer" />
             <button

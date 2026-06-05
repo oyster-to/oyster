@@ -286,7 +286,10 @@ export default function App() {
     }
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [getUrlState]);
+    // `artifacts` in deps: the handler resolves /a/<id> URLs against it, so a
+    // once-registered listener would hold the first render's empty array and
+    // never reopen a viewer on back/forward. Re-registering per update is cheap.
+  }, [getUrlState, artifacts]);
 
   // Push URL when space changes via pill click
   const handleSpaceChange = useCallback((space: string) => {
