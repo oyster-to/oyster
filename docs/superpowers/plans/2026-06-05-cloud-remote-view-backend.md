@@ -298,16 +298,22 @@ describe("GET /api/sessions/:id/events", () => {
     expect(events.map((e: any) => e.id)).toEqual([offsetOf(1)]); // latest 1 below cursor
   });
 
-  it("404s for a session with no chunks", async () => { /* metadata only, no putChunk → expect [] or 404: assert [] (empty array — simplest contract) */ });
+  it("returns [] for a session with metadata but no chunks", async () => {
+    // setup: POST metadata only, no putChunk
+    const res = await signedFetch(`/api/sessions/${sid}/events`, { method: "GET" }, token);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual([]);
+  });
 
   it("requires auth", async () => {
     const res = await SELF.fetch(`https://example.com/api/sessions/${sid}/events`);
     expect(res.status).toBe(401);
   });
 
-  it("rejects free tier", async () => {
-    // mirror the status code the existing manifest-route free-tier test
-    // in sessions-routes.test.ts expects — use the same expectation here
+  it("rejects free tier with 403", async () => {
+    const { token: freeToken } = await makeFreeSession();
+    const res = await signedFetch(`/api/sessions/${sid}/events`, { method: "GET" }, freeToken);
+    expect(res.status).toBe(403); // matches the manifest route's pro gate
   });
 });
 ```
@@ -350,11 +356,16 @@ interface ChunkRow {
 }
 
 export async function handleSessionEventsGet(req: Request, env: Env, sessionId: string): Promise<Response> {
-  // Auth + tier gate + metadata row (cwd, bytes_generation): copy the
-  // opening block of handleSessionsBytesManifestGet in worker.ts verbatim —
-  // same resolveSession call, same pro-tier rejection, same metadata
-  // SELECT. Keep the same error codes so clients see one behaviour.
-  // The block yields: `user`, `generation`, and the row's `cwd`.
+  // Auth + tier gate + metadata row: copy the opening block of
+  // handleSessionsBytesManifestGet in worker.ts (~line 700) — same
+  // resolveSession call (401 "sign_in_required"), same pro-tier rejection
+  // (403 "pro_required") — but EXTEND its metadata SELECT: the manifest
+  // handler reads only `bytes_generation, active_device_id`; this handler
+  // additionally needs `cwd` (for renderEvent's path relativisation):
+  //   SELECT bytes_generation, cwd FROM synced_session_metadata
+  //    WHERE owner_id = ? AND session_id = ? LIMIT 1
+  // Missing row → 404 "session_not_found" (same as manifest handler).
+  // The block yields: `user`, `generation`, `cwd`.
 
   const rows = await env.DB.prepare(
     `SELECT chunk_number, start_offset, end_offset, plaintext_sha256
@@ -510,7 +521,7 @@ share.oyster.to hosts untrusted published HTML and is same-site with the apex �
 **Files:**
 - Modify: `infra/oyster-cloud/src/json.ts` (add helper) and `infra/oyster-cloud/src/worker.ts` (apply)
 - Modify: `infra/oyster-publish/src/worker.ts` (add same helper locally + apply)
-- Test: `infra/oyster-cloud/test/origin-guard.test.ts`, plus the equivalent in oyster-publish's test setup if one exists (check `infra/oyster-publish/` for a test dir; if there is none, do not introduce a test framework — note it in the commit message)
+- Test: `infra/oyster-cloud/test/origin-guard.test.ts` AND `infra/oyster-publish/test/origin-guard.test.ts` — oyster-publish has a full vitest-pool-workers setup (`vitest.config.ts`, 14 test files in `test/`); crib its existing helpers for an equivalent three-case test against one mutating route (e.g. `PATCH /api/publish/:token`)
 
 - [ ] **Step 1: Write the failing test (oyster-cloud)**
 
@@ -611,8 +622,8 @@ Add the identical `rejectBadOrigin` (with its comment) to `infra/oyster-publish/
 - [ ] **Step 5: Run both workers' checks**
 
 Run: `cd infra/oyster-cloud && npm test && npm run typecheck`
-Run: `cd infra/oyster-publish && npx tsc --noEmit 2>/dev/null || true` — and `npm test` if a test script exists.
-Expected: green. Also re-run the full oyster-cloud suite — pre-existing push tests must still pass (they send no Origin).
+Run: `cd infra/oyster-publish && npm test && npx tsc --noEmit`
+Expected: green in both, including all pre-existing suites — push tests must still pass (they send no Origin).
 
 - [ ] **Step 6: Commit**
 
@@ -859,3 +870,4 @@ PR body should link the spec and note: no changelog entry (no consumer-visible c
 - Cloud-mode web build, responsive pass, device filter UI — UI slice, post-PR1
 - `app.oyster.to` + one-time-code cookie handshake — productization
 - Known wrinkle for the UI slice: a `MAX_CHUNKS`-capped response can return fewer than `limit` events while older history still exists; the local UI reads short pages as "history exhausted". The cloud client adapter must handle this (e.g. always offer "load more" until an empty page).
+- Live-tail polling note for the UI slice: an `after=` poll whose cursor sits inside the last chunk re-decrypts that chunk even when nothing changed (the cursor is a line *start*, so the chunk always "contains newer bytes"). The cheap no-op poll is: poll `GET .../manifest` (D1-only, no R2) and call `/events?after=` only when `total_size` grew. Don't add worker-side caching for this in the backend slice.
