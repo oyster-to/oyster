@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiPath } from "../data/http";
+import { caps } from "../caps";
 
 // One-shot fetch of the local device identity. Used to distinguish "local"
 // (this device produced it) from "remote" (another device produced it,
@@ -26,6 +27,7 @@ export interface DeviceIdentity {
 let pending: Promise<DeviceIdentity | null> | null = null;
 
 async function fetchIdentity(): Promise<DeviceIdentity | null> {
+  if (caps.cloud) return null; // no device identity endpoint on the worker
   try {
     const res = await fetch(apiPath("/api/device/identity"));
     if (!res.ok) {

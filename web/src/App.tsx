@@ -212,7 +212,7 @@ export default function App() {
         }
       }
     }).catch((err) => { console.warn("[oyster] server unreachable:", err.message); setLoaded(true); setConnected(false); });
-    fetchSpaces().then(setSpaces).catch(() => setConnected(false));
+    if (caps.hasScopes) fetchSpaces().then(setSpaces).catch(() => setConnected(false));
   }, []);
 
   // Poll for status updates every 5 seconds; handle pending reveals
@@ -231,7 +231,7 @@ export default function App() {
           setTimeout(() => setRevealId(null), 3000);
         }
       }).catch(() => setConnected(false));
-      fetchSpaces().then(setSpaces).catch(() => setConnected(false));
+      if (caps.hasScopes) fetchSpaces().then(setSpaces).catch(() => setConnected(false));
     }, 5000);
     return () => clearInterval(interval);
   }, []);
