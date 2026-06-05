@@ -15,6 +15,7 @@ import {
   originDeviceChipFor,
 } from "./utils";
 import type { PresenceInfo } from "../../hooks/useTerminalPresence";
+import { caps } from "../../caps";
 
 export type SessionRowView = "full" | "compact";
 
@@ -55,10 +56,12 @@ export function SessionRow({
 }: SessionRowProps) {
   const time = formatRelative(session.lastEventAt) ?? "—";
   const hasTitle = !!session.title;
-  const title = session.title ?? "Untitled";
   const cwdBasename = session.cwd
     ? session.cwd.split(/[\\/]/).filter(Boolean).pop() ?? session.cwd
     : "";
+  // Untitled sessions fall back to the folder name, then a short id — never
+  // a raw UUID. Improves local too; primary win is the cloud remote view.
+  const title = session.title ?? (cwdBasename || session.id.slice(0, 8));
   const remoteChip = originDeviceChipFor(session, myDeviceId);
   const activeChip = activeWriterChipFor(session, myDeviceId);
 
@@ -127,7 +130,7 @@ export function SessionRow({
             )}
             {hasTitle ? title : <span className="session-untitled">{title}</span>}
           </span>
-          {livePresence && canConnect && (
+          {caps.canChat && livePresence && canConnect && (
             <button
               type="button"
               className="sl-chip sl-chip--connect"
@@ -137,7 +140,7 @@ export function SessionRow({
               Connect
             </button>
           )}
-          {canResume && (
+          {caps.canChat && canResume && (
             <button
               type="button"
               className="sl-chip sl-chip--resume"

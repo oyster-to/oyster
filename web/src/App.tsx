@@ -682,9 +682,9 @@ export default function App() {
         onSpaceChange={handleSpaceChange}
         selectedProjectId={activeProjectId}
         onSelectProject={handleProjectScopeChange}
-        onPromoteFolderToSpace={handlePromoteFolderToSpace}
-        onSpaceDelete={handleSpaceDelete}
-        onSpaceUpdate={handleSpaceUpdate}
+        onPromoteFolderToSpace={caps.canWrite ? handlePromoteFolderToSpace : undefined}
+        onSpaceDelete={caps.canWrite ? handleSpaceDelete : undefined}
+        onSpaceUpdate={caps.canWrite ? handleSpaceUpdate : undefined}
         onLaunchClaude={handleLaunchClaudeFromProject}
         onLaunchClaudeFromSession={handleLaunchClaudeFromSession}
         onOpenRemoteInOyster={handleOpenRemoteInOyster}
@@ -718,7 +718,7 @@ export default function App() {
           const w = windows.find((x) => x.terminalId === terminalId);
           if (w) dispatch({ type: "CLOSE", id: w.id });
         }}
-        onOpenNewSession={handleOpenNewSession}
+        onOpenNewSession={caps.canChat ? handleOpenNewSession : undefined}
         onOpenAsk={caps.canChat ? () => { setAskOpen(true); setAskEverOpened(true); } : undefined}
         onConnectSession={handleConnectSession}
         userSpaceCount={FORCE_ONBOARDING ? 0 : spaces.filter((s) => s.id !== "home" && s.id !== "__all__" && s.id !== "__archived__").length}

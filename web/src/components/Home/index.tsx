@@ -26,6 +26,7 @@ import { AttachOrphanPopover } from "./AttachOrphanPopover";
 import { MemoryCard } from "./MemoryCard";
 import { VaultInfo } from "./VaultInfo";
 import { homeRelative, renderPipCounts, stateColor } from "./utils";
+import { caps } from "../../caps";
 import { VAULT, type ArtefactSource, type StateFilter } from "./types";
 import { attachFolder, fetchAllProjects } from "../../data/projects-api";
 import { ProjectTile } from "./ProjectTile";
@@ -222,6 +223,15 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // across spaces.
   useEffect(() => { setShowAttachForm(false); }, [projectsSpaceId]);
   const [stateFilter, setStateFilter] = useState<StateFilter>("all");
+  // Cloud-only origin-device filter. Local builds never set deviceFilter
+  // (the chip row is caps.cloud-gated), so it's inert there.
+  const [deviceFilter, setDeviceFilter] = useState<string | null>(null);
+  // Distinct origin-device labels — the cloud view's primary grouping.
+  const deviceLabels = useMemo(() => {
+    const out = new Set<string>();
+    for (const s of sessions) if (s.originDeviceLabel) out.add(s.originDeviceLabel);
+    return [...out].sort();
+  }, [sessions]);
   const [sessionsView, setSessionsView] = useStickyView("oyster.home.sessionsView", "full", ["full", "compact"] as const);
   const [activeTab, setActiveTab] = useStickyView("oyster.home.activeTab", "sessions", ["sessions", "artefacts", "memories"] as const);
   const [artefactsView, setArtefactsView] = useStickyView("oyster.home.artefactsView", "icons", ["icons", "table"] as const);
@@ -374,6 +384,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     // "done" chip folds in disconnected + dormant so the list matches the count.
     else if (stateFilter === "done") list = folderScopedSessions.filter((s) => s.state === "done" || s.state === "disconnected" || s.displayState === "dormant");
     else list = folderScopedSessions.filter((s) => s.displayState === stateFilter);
+    // Cloud-only: narrow to one origin device when its chip is active.
+    if (deviceFilter) list = list.filter((s) => s.originDeviceLabel === deviceFilter);
     // Pin live (open terminal) rows to the top; within each group preserve
     // descending last-activity order.
     return list.slice().sort((a, b) => {
@@ -382,7 +394,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
       if (aLive !== bLive) return aLive - bLive;
       return (b.lastEventAt ?? "").localeCompare(a.lastEventAt ?? "");
     });
-  }, [folderScopedSessions, stateFilter, presence.byId]);
+  }, [folderScopedSessions, stateFilter, deviceFilter, presence.byId]);
 
   // Per-space session counts + a grand total for the Home card. Buckets by
   // `displayState` so dormant rows fold into `done` — matches the home
@@ -848,6 +860,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             <LayoutGroup id="home-breadcrumb">
             <div className="home-breadcrumb-inner">
             <AuthBadge />
+            {caps.hasScopes && (<>
             <button
               type="button"
               className={`home-breadcrumb-pill home-breadcrumb-pill--home${isHomeView && !showVault ? " selected" : ""}`}
@@ -945,6 +958,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 <span aria-hidden="true">+</span>
               )}
             </button>
+            </>)}
             </div>
             <div className="home-breadcrumb-inner home-breadcrumb-inner--right-cluster">
               {onTerminalFocus && onTerminalRestore && onTerminalStop && presence.totalLive > 0 && (
@@ -985,7 +999,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             home-space-card / home-spaces-section CSS is kept around in
             case the cards return as a settings or dashboard surface. */}
 
-        {isHomeView && (sortedProjects.length > 0 || orphanCwdGroups.length > 0 || (projectArtefactCounts[VAULT] ?? 0) > 0) && (
+        {caps.hasScopes && isHomeView && (sortedProjects.length > 0 || orphanCwdGroups.length > 0 || (projectArtefactCounts[VAULT] ?? 0) > 0) && (
           <div className="home-section home-projects-section">
             <div className="home-section-head">
               <span className="home-section-label">Projects</span>
@@ -1114,7 +1128,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           </div>
         )}
 
-        {projectsSpaceId && (
+        {caps.hasScopes && projectsSpaceId && (
           spaceProjectsError ? (
             <div className="home-spaces-section">
               <div className="home-spaces-grid">
@@ -1220,7 +1234,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         <section className="home-section" role="tabpanel" id="home-tabpanel-sessions" aria-labelledby="home-tab-sessions">
           <div className="home-section-head">
             <span className="home-section-stats">
-              {FILTER_ORDER.map((f) => {
+              {FILTER_ORDER.filter((f) => caps.canChat || f !== "live-terminals").map((f) => {
                 const count = stateCounts[f];
                 if (count === 0 && f !== "all" && f !== "live") return null;
                 const isLiveTerminals = f === "live-terminals";
@@ -1242,6 +1256,21 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   </span>
                 );
               })}
+              {caps.cloud && deviceLabels.length > 1 && (
+                <>
+                  <span className="stat-divider" aria-hidden="true" />
+                  {deviceLabels.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      className={`stat-btn${deviceFilter === d ? " active" : ""}`}
+                      onClick={() => setDeviceFilter(deviceFilter === d ? null : d)}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </>
+              )}
             </span>
             <span className="home-section-spacer" />
             <div className="view-toggle-text">
@@ -1540,16 +1569,18 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             {lastSyncMessage && (
               <span className="home-memories-sync-msg">{lastSyncMessage}</span>
             )}
-            <button
-              type="button"
-              className="home-memories-add-btn"
-              onClick={() => setShowAddMemory((v) => !v)}
-              aria-expanded={showAddMemory}
-            >
-              {showAddMemory ? "Cancel" : "+ Add memory"}
-            </button>
+            {caps.canWrite && (
+              <button
+                type="button"
+                className="home-memories-add-btn"
+                onClick={() => setShowAddMemory((v) => !v)}
+                aria-expanded={showAddMemory}
+              >
+                {showAddMemory ? "Cancel" : "+ Add memory"}
+              </button>
+            )}
           </div>
-          {showAddMemory && (
+          {caps.canWrite && showAddMemory && (
             <AddMemoryForm
               defaultSpaceId={scopedSpace}
               spaces={spaces}
