@@ -83,7 +83,10 @@ export default function App() {
   }, [activeSpace]);
 
   const [spotlightOpen, setSpotlightOpen] = useState(false);
-  const [askOpen, setAskOpen] = useState(false);
+  // Open on /session/<id> loads: useChatSession restores that conversation
+  // into the panel, so the panel must be visible for the restore to mean
+  // anything ("refresh reloads this conversation").
+  const [askOpen, setAskOpen] = useState(() => window.location.pathname.startsWith("/session/"));
 
   // OnboardingDock's "Set up Oyster" (and any oyster:send-prompt dispatcher)
   // lands in the Ask panel — make sure the panel is visible when it does.
