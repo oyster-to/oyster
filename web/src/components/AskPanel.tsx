@@ -94,7 +94,7 @@ interface Props {
   onAiError?: (message: string | null) => void;
 }
 
-export function AskPanel({ open, onClose, scopeLabel, spaces = [], activeSpace, onSpaceChange, artifacts = [], onArtifactOpen, onArtifactPublish, onArtifactUnpublish, onAiError }: Props) {
+export function AskPanel({ open, onClose, scopeLabel, scopeContext, spaces = [], activeSpace, onSpaceChange, artifacts = [], onArtifactOpen, onArtifactPublish, onArtifactUnpublish, onAiError }: Props) {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [statusText, setStatusText] = useState("");
@@ -410,7 +410,9 @@ export function AskPanel({ open, onClose, scopeLabel, spaces = [], activeSpace, 
     resetTracking();
 
     try {
-      await sendMessage(sessionId, content);
+      // Scope context rides ahead of the user's text so the agent's MCP
+      // tools act where the user is looking. The displayed bubble stays raw.
+      await sendMessage(sessionId, scopeContext ? `${scopeContext}\n\n${content}` : content);
     } catch (err) {
       console.error("Failed to send message:", err);
       setStreaming(false);
@@ -420,7 +422,7 @@ export function AskPanel({ open, onClose, scopeLabel, spaces = [], activeSpace, 
         : "Can't reach Oyster — check that the server is running";
       onAiError?.(msg);
     }
-  }, [input, streaming, sessionId, setMessages, setExpanded, pushSessionUrl, resetTracking, spaces, onSpaceChange, subseq, artifacts, activeSpace, onArtifactOpen, scoreArtifacts, onAiError, onArtifactPublish, publishableArtifacts, onArtifactUnpublish, livePublications]);
+  }, [input, streaming, sessionId, setMessages, setExpanded, pushSessionUrl, resetTracking, spaces, onSpaceChange, subseq, artifacts, activeSpace, onArtifactOpen, scoreArtifacts, onAiError, onArtifactPublish, publishableArtifacts, onArtifactUnpublish, livePublications, scopeContext]);
 
   // Drain any queued prompt as soon as the session is ready AND nothing
   // is streaming. handleSend's other guard is `streaming`; if we drained

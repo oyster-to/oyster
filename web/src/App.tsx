@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Home } from "./components/Home";
 import { GroupPopup } from "./components/GroupPopup";
 import { AskPanel } from "./components/AskPanel";
@@ -27,6 +27,7 @@ import { recordRecentProjectId } from "./lib/new-session-recents";
 import { useSessions } from "./hooks/useSessions";
 import { NewSessionPicker } from "./components/NewSessionPicker";
 import { useAllProjects, fetchAllProjects } from "./data/all-projects";
+import { VAULT } from "./components/Home/types";
 import "./App.css";
 
 // `?onboarding=force` wipes the dock's persisted state and pretends this
@@ -352,7 +353,32 @@ export default function App() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
   const [initialPickerQuery, setInitialPickerQuery] = useState<string | undefined>(undefined);
-  const { projects: allProjects, loading: allProjectsLoading } = useAllProjects(pickerOpen);
+  const { projects: allProjects, loading: allProjectsLoading } = useAllProjects(pickerOpen || askOpen);
+
+  // Scope label + outbound-context line for the Ask panel. Label mirrors the
+  // Home crumb shapes; context is what the agent actually reads — omitted at
+  // "everything" so unscoped chats stay clean.
+  const askScope = useMemo((): { label: string; context: string | null } => {
+    if (activeProjectId === VAULT) {
+      return {
+        label: "vault",
+        context: `[Scope: the user is viewing the Vault — artefacts created in Oyster itself, not tied to a repo.]`,
+      };
+    }
+    const project = activeProjectId ? allProjects.find((p) => p.id === activeProjectId) ?? null : null;
+    const spaceId = project?.spaceId ?? (activeSpace !== "home" && activeSpace !== "__all__" && activeSpace !== "__archived__" ? activeSpace : null);
+    const spaceName = spaceId ? spaces.find((s) => s.id === spaceId)?.displayName ?? spaceId : null;
+    if (project) {
+      return {
+        label: `${spaceName ? spaceName + " › " : ""}${project.name}`,
+        context: `[Scope: ${spaceName ? `space "${spaceName}", ` : ""}project "${project.name}"${project.recentPath ? ` at ${project.recentPath}` : ""}.]`,
+      };
+    }
+    if (spaceName) {
+      return { label: spaceName, context: `[Scope: space "${spaceName}".]` };
+    }
+    return { label: "everything", context: null };
+  }, [activeProjectId, activeSpace, allProjects, spaces]);
 
   // Shared spawn path used by NewSessionPicker — same as
   // handleLaunchClaudeFromProject but renders errors in-modal instead
@@ -835,8 +861,8 @@ export default function App() {
       <AskPanel
         open={askOpen}
         onClose={() => setAskOpen(false)}
-        scopeLabel="everything"
-        scopeContext={null}
+        scopeLabel={askScope.label}
+        scopeContext={askScope.context}
         spaces={spaces}
         activeSpace={activeSpace}
         onSpaceChange={handleSpaceChange}
