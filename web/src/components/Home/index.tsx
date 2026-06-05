@@ -318,6 +318,14 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     setSelectedCwd(null);
   }, [scopedSpace, isHomeView]);
 
+  // URL-driven project scope (deep link, back/forward) must beat the
+  // Home-local folder filter — folderScopedSessions checks selectedCwd
+  // first, so a surviving cwd would silently shadow the project in the URL.
+  // Tile clicks already cross-clear; this covers the popstate path.
+  useEffect(() => {
+    if (selectedProjectId !== null) setSelectedCwd(null);
+  }, [selectedProjectId]);
+
   // Auto-reset the live-terminals filter if there are no live terminals
   // (e.g. the last terminal was stopped, or the user switched to a space
   // with none). Without this the pill disappears but the filter sticks,
@@ -373,13 +381,11 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     });
   }, [folderScopedSessions, stateFilter, presence.byId]);
 
-  // Per-space session counts + a separate orphan tally (sessions with
-  // spaceId === null) + a grand total for the Home card. Buckets by
+  // Per-space session counts + a grand total for the Home card. Buckets by
   // `displayState` so dormant rows fold into `done` — matches the home
   // chip semantics where `disconnected` means the 30min–8h band only.
   const { sessionCountsBySpace, totalCounts } = useMemo(() => {
     const bySpace: Record<string, { total: number; running: number; active: number; waiting: number; disconnected: number; done: number }> = {};
-    const orphans = { total: 0, running: 0, active: 0, waiting: 0, disconnected: 0, done: 0 };
     const total = { total: 0, running: 0, active: 0, waiting: 0, disconnected: 0, done: 0 };
     const bump = (c: { active: number; waiting: number; disconnected: number; done: number }, ds: DisplayState) => {
       if (ds === "dormant") c.done++;
@@ -395,13 +401,9 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         bump(c, s.displayState);
         if (presence.byId[s.id]) c.running++;
         bySpace[s.spaceId] = c;
-      } else {
-        orphans.total++;
-        bump(orphans, s.displayState);
-        if (presence.byId[s.id]) orphans.running++;
       }
     }
-    return { sessionCountsBySpace: bySpace, orphanCounts: orphans, totalCounts: total };
+    return { sessionCountsBySpace: bySpace, totalCounts: total };
   }, [sessions, presence.byId]);
 
   // Per-project live-session counts, keyed by project_id. Used by
@@ -498,9 +500,15 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // + globals; at Vault scope, globals only.
   const scopedMemories = useMemo(() => {
     if (selectedProjectId === VAULT) return memories.filter((m) => !m.space_id);
-    const spaceForScope = selectedProject?.spaceId ?? scopedSpace;
-    return spaceForScope
-      ? memories.filter((m) => !m.space_id || m.space_id === spaceForScope)
+    if (selectedProjectId) {
+      // Project scope: its space + globals. When the space can't resolve
+      // (registry still loading, or the project is unassigned) show globals
+      // only — never the whole pile under a project's title.
+      const sp = selectedProject?.spaceId ?? null;
+      return memories.filter((m) => !m.space_id || (sp !== null && m.space_id === sp));
+    }
+    return scopedSpace
+      ? memories.filter((m) => !m.space_id || m.space_id === scopedSpace)
       : memories;
   }, [memories, scopedSpace, selectedProject, selectedProjectId]);
 
@@ -646,13 +654,12 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   }, [desktopProps.artifacts]);
 
   // Scope-only artefact total for the tab count (source/kind filters are
-  // tab-internal and shouldn't change the tab's headline number).
-  const scopedArtefactsTotal = useMemo(() => {
-    const list = desktopProps.artifacts;
-    if (selectedProjectId === VAULT) return list.filter((a) => !a.projectId).length;
-    if (selectedProjectId) return list.filter((a) => a.projectId === selectedProjectId).length;
-    return list.length;
-  }, [desktopProps.artifacts, selectedProjectId]);
+  // tab-internal and shouldn't change the tab's headline number). Derived
+  // from projectArtefactCounts — same VAULT/projectId bucketing — so the
+  // badge and the tile counts can't drift apart.
+  const scopedArtefactsTotal = selectedProjectId
+    ? (projectArtefactCounts[selectedProjectId] ?? 0)
+    : desktopProps.artifacts.length;
 
   // Filter + collapse to an incremental preview. Each "Show more" click
   // grows artefactsLimit by ARTEFACTS_PREVIEW; the cap applies to both
@@ -808,6 +815,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     ? "vault"
     : selectedProject
       ? `${selectedProject.spaceId ? (spaces.find((s) => s.id === selectedProject.spaceId)?.displayName ?? selectedProject.spaceId) + " › " : ""}${selectedProject.name}`
+    : selectedCwd
+      ? homeRelative(selectedCwd)
       : isArchivedView
         ? "archived"
       : isAllView
@@ -1184,16 +1193,16 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               </span>
             </button>
           ))}
-          {/* Crumb only when a project/Vault narrows the scope — at plain
-              space scope it would just echo the selected pill and title. */}
-          {selectedProjectId !== null && (
+          {/* Crumb only when a project/Vault/folder narrows the scope — at
+              plain space scope it would just echo the selected pill and title. */}
+          {(selectedProjectId !== null || selectedCwd !== null) && (
             <span className="home-tab-scope">
               scope: {scopeCrumb}
               <button
                 type="button"
                 className="home-tab-scope-clear"
-                onClick={() => onSelectProject(null)}
-                aria-label="Clear project scope"
+                onClick={() => { onSelectProject(null); setSelectedCwd(null); }}
+                aria-label="Clear scope"
               >
                 ✕
               </button>
