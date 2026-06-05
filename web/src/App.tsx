@@ -87,12 +87,16 @@ export default function App() {
   // into the panel, so the panel must be visible for the restore to mean
   // anything ("refresh reloads this conversation").
   const [askOpen, setAskOpen] = useState(() => window.location.pathname.startsWith("/session/"));
+  // Latch: once the panel has opened, keep the projects list warm — the
+  // useFetched-backed hook resets to [] on disable, which would blank the
+  // scope chip/context for a beat on every reopen.
+  const [askEverOpened, setAskEverOpened] = useState(() => window.location.pathname.startsWith("/session/"));
 
   // OnboardingDock's "Set up Oyster" (and any oyster:send-prompt dispatcher)
   // lands in the Ask panel — make sure the panel is visible when it does.
   // AskPanel's own listener handles the actual send.
   useEffect(() => {
-    const handler = () => setAskOpen(true);
+    const handler = () => { setAskOpen(true); setAskEverOpened(true); };
     window.addEventListener("oyster:send-prompt", handler);
     return () => window.removeEventListener("oyster:send-prompt", handler);
   }, []);
@@ -273,6 +277,10 @@ export default function App() {
   // Sync state from browser back/forward
   useEffect(() => {
     function handlePopState() {
+      // /session/<id> URLs carry no space/project — landing on one via
+      // back/forward must not stomp the active scope (the thread that
+      // pushed it is still about wherever the user was).
+      if (window.location.pathname.startsWith("/session/")) return;
       const { space, artifactId, groupName, projectId } = getUrlState();
       setActiveSpace(space);
       setActiveProjectId(projectId);
@@ -351,12 +359,10 @@ export default function App() {
 
 
   const viewers = windows.filter((w) => w.type === "viewer");
-  const terminalWindow = windows.find((w) => w.type === "terminal");
   const claudeTerminals = windows.filter((w) => w.type === "claude_terminal");
   // Tabs in the fullscreen terminal toolbar list every open terminal so
   // the user can switch without leaving fullscreen.
   const liveTerminals: Array<{ id: string; title: string }> = [
-    ...(terminalWindow ? [{ id: terminalWindow.id, title: terminalWindow.title || "opencode" }] : []),
     ...claudeTerminals.map((t) => ({ id: t.id, title: t.title || "claude" })),
   ];
 
@@ -365,12 +371,15 @@ export default function App() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
   const [initialPickerQuery, setInitialPickerQuery] = useState<string | undefined>(undefined);
-  const { projects: allProjects, loading: allProjectsLoading } = useAllProjects(pickerOpen || askOpen);
+  const { projects: allProjects, loading: allProjectsLoading } = useAllProjects(pickerOpen || askOpen || askEverOpened);
 
   // Scope label + outbound-context line for the Ask panel. Label mirrors the
   // Home crumb shapes; context is what the agent actually reads — omitted at
   // "everything" so unscoped chats stay clean.
   const askScope = useMemo((): { label: string; context: string | null } => {
+    if (activeSpace === "__archived__") {
+      return { label: "archived", context: "[Scope: the user is browsing archived artefacts.]" };
+    }
     if (activeProjectId === VAULT) {
       return {
         label: "vault",
@@ -690,7 +699,7 @@ export default function App() {
           if (w) dispatch({ type: "CLOSE", id: w.id });
         }}
         onOpenNewSession={handleOpenNewSession}
-        onOpenAsk={() => setAskOpen(true)}
+        onOpenAsk={() => { setAskOpen(true); setAskEverOpened(true); }}
         onConnectSession={handleConnectSession}
         userSpaceCount={FORCE_ONBOARDING ? 0 : spaces.filter((s) => s.id !== "home" && s.id !== "__all__" && s.id !== "__archived__").length}
         publishedCount={FORCE_ONBOARDING ? 0 : artifacts.filter((a) => a.publication != null && a.publication.unpublishedAt == null).length}
@@ -778,21 +787,6 @@ export default function App() {
             />
           );
         })}
-        {terminalWindow && (
-          <TerminalWindow
-            key={terminalWindow.id}
-            id={terminalWindow.id}
-            defaultX={120}
-            defaultY={60}
-            zIndex={terminalWindow.zIndex}
-            onFocus={() => dispatch({ type: "FOCUS", id: terminalWindow.id })}
-            onClose={() => dispatch({ type: "MINIMISE", id: terminalWindow.id })}
-            fullscreen={terminalWindow.fullscreen}
-            onToggleFullscreen={() => dispatch({ type: "TOGGLE_FULLSCREEN", id: terminalWindow.id })}
-            liveTerminals={liveTerminals}
-            onSwitchTerminal={(targetId) => dispatch({ type: "SWITCH_FULLSCREEN_TERMINAL", id: targetId })}
-          />
-        )}
         {claudeTerminals.map((w, i) => {
           // PTY alive iff some session row reports this terminalId as live.
           // After Stop / natural exit / cross-tab kill, the server clears
@@ -870,6 +864,9 @@ export default function App() {
         );
       })()}
 
+      {/* Always mounted: the thread + SSE stream live in the panel's hooks,
+          and its oyster:send-prompt listener must exist before the panel is
+          opened. Conditional mounting would lose both. */}
       <AskPanel
         open={askOpen}
         onClose={() => setAskOpen(false)}

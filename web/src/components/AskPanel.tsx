@@ -115,7 +115,7 @@ export function AskPanel({ open, onClose, scopeLabel, scopeContext, spaces = [],
     return () => { cancelled = true; };
   }, []);
 
-  const { messages, setMessages, sessionId, setExpanded, pushSessionUrl } = useChatSession();
+  const { messages, setMessages, sessionId, pushSessionUrl } = useChatSession();
 
   // Compute slash autocomplete items
   const subseq = useCallback((query: string, target: string) => {
@@ -269,6 +269,12 @@ export function AskPanel({ open, onClose, scopeLabel, scopeContext, spaces = [],
     }
   }, [messages, open]);
 
+  // The omnikey handler died with the bottom bar — focus the input when the
+  // panel opens so "click ✦, start typing" just works.
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
   // Queue for prompts dispatched before the chat session has finished
   // initialising. createSession() can take a few seconds while OpenCode
   // boots; without this, a prompt dispatched via the `oyster:send-prompt`
@@ -321,7 +327,6 @@ export function AskPanel({ open, onClose, scopeLabel, scopeContext, spaces = [],
       } else {
         const available = spaces.map(s => s.id).join(", ");
         setMessages(prev => [...prev, { role: "assistant", content: `No space matching "${q}". Available: ${available}` }]);
-        setExpanded(true);
       }
       return;
     }
@@ -347,7 +352,6 @@ export function AskPanel({ open, onClose, scopeLabel, scopeContext, spaces = [],
           } else {
             const available = spaces.map(s => s.id).join(", ");
             setMessages(prev => [...prev, { role: "assistant", content: `No space matching "${arg.trim()}". Available: ${available}` }]);
-            setExpanded(true);
           }
         }
 
@@ -356,7 +360,6 @@ export function AskPanel({ open, onClose, scopeLabel, scopeContext, spaces = [],
 
           if (scored.length === 0) {
             setMessages(prev => [...prev, { role: "assistant", content: `No artifact matching "${arg.trim()}"` }]);
-            setExpanded(true);
           } else if (scored.length === 1 || scored[0].score >= scored[1].score * 2) {
             onArtifactOpen(scored[0].a);
           } else {
@@ -370,7 +373,6 @@ export function AskPanel({ open, onClose, scopeLabel, scopeContext, spaces = [],
           const scored = scoreArtifacts(q).filter(({ a }) => allowed.has(a.id));
           if (scored.length === 0) {
             setMessages(prev => [...prev, { role: "assistant", content: `No artifact matching "${arg.trim()}"` }]);
-            setExpanded(true);
           } else if (scored.length === 1 || scored[0].score >= scored[1].score * 2) {
             onArtifactPublish(scored[0].a);
           } else {
@@ -384,7 +386,6 @@ export function AskPanel({ open, onClose, scopeLabel, scopeContext, spaces = [],
           const scored = scoreArtifacts(q).filter(({ a }) => allowed.has(a.id));
           if (scored.length === 0) {
             setMessages(prev => [...prev, { role: "assistant", content: `No live publication matching "${arg.trim()}"` }]);
-            setExpanded(true);
           } else if (scored.length === 1 || scored[0].score >= scored[1].score * 2) {
             onArtifactUnpublish(scored[0].a);
           } else {
@@ -399,7 +400,6 @@ export function AskPanel({ open, onClose, scopeLabel, scopeContext, spaces = [],
     setInput("");
     setMessages((prev) => [...prev, { role: "user", content }]);
     setStreaming(true);
-    setExpanded(true);
     setStatusText("thinking...");
     onAiError?.(null);
 
@@ -422,7 +422,7 @@ export function AskPanel({ open, onClose, scopeLabel, scopeContext, spaces = [],
         : "Can't reach Oyster — check that the server is running";
       onAiError?.(msg);
     }
-  }, [input, streaming, sessionId, setMessages, setExpanded, pushSessionUrl, resetTracking, spaces, onSpaceChange, subseq, artifacts, activeSpace, onArtifactOpen, scoreArtifacts, onAiError, onArtifactPublish, publishableArtifacts, onArtifactUnpublish, livePublications, scopeContext]);
+  }, [input, streaming, sessionId, setMessages, pushSessionUrl, resetTracking, spaces, onSpaceChange, subseq, artifacts, activeSpace, onArtifactOpen, scoreArtifacts, onAiError, onArtifactPublish, publishableArtifacts, onArtifactUnpublish, livePublications, scopeContext]);
 
   // Drain any queued prompt as soon as the session is ready AND nothing
   // is streaming. handleSend's other guard is `streaming`; if we drained
@@ -633,7 +633,7 @@ export function AskPanel({ open, onClose, scopeLabel, scopeContext, spaces = [],
                 else { setInput(item.label + ("args" in item && item.args ? " " : "")); }
                 return;
               }
-              if (e.key === "Escape") { setInput(""); return; }
+              if (e.key === "Escape") { e.stopPropagation(); setInput(""); return; }
             }
             if (e.key === "Enter") handleSend();
           }}

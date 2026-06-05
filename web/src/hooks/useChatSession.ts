@@ -42,10 +42,15 @@ function getSessionIdFromUrl(): string | null {
   return match ? match[1] : null;
 }
 
+// Outbound messages carry a "[Scope: …]\n\n" context prefix (AskPanel).
+// The live bubble shows the raw text; restored bubbles must match.
+function stripScopePrefix(text: string): string {
+  return text.replace(/^\[Scope:[^\]]*\]\n\n/, "");
+}
+
 export function useChatSession() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
   const hasPushedUrl = useRef(false);
 
   // Initialize session: fresh on home (/), restore on session URL (/session/:id)
@@ -63,13 +68,14 @@ export function useChatSession() {
           const restored: Message[] = [];
           for (const msg of existing) {
             const tp = msg.parts.filter((p: Record<string, unknown>) => p.type === "text" && p.text);
-            const content = tp.map((p: Record<string, unknown>) => p.text).join("");
+            const isUser = msg.info.role === "user";
+            const content = tp.map((p: Record<string, unknown>) => isUser ? stripScopePrefix(p.text as string) : p.text).join("");
 
             // Build ordered MessagePart[] from all text + tool parts
             const msgParts: MessagePart[] = [];
             for (const p of msg.parts) {
               if (p.type === "text" && p.text) {
-                msgParts.push({ type: "text", text: p.text as string });
+                msgParts.push({ type: "text", text: isUser ? stripScopePrefix(p.text as string) : p.text as string });
               } else if (p.type === "tool") {
                 const toolName = ((p.tool || p.toolName || p.name || "") as string).toLowerCase();
                 msgParts.push({
@@ -100,7 +106,6 @@ export function useChatSession() {
           }
           if (restored.length > 0) {
             setMessages(restored);
-            setExpanded(true);
           }
         } else {
           // Home — always create a fresh session
@@ -122,7 +127,6 @@ export function useChatSession() {
 
       // Navigating to home (/) or a space (/space/*) — reset chat to fresh state
       setMessages([]);
-      setExpanded(false);
       setSessionId(null);
       hasPushedUrl.current = false;
       createSession().then((s) => setSessionId(s.id)).catch(console.error);
@@ -142,5 +146,5 @@ export function useChatSession() {
     }
   }
 
-  return { messages, setMessages, sessionId, expanded, setExpanded, pushSessionUrl };
+  return { messages, setMessages, sessionId, pushSessionUrl };
 }
