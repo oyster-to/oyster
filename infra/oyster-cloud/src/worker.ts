@@ -1,4 +1,4 @@
-import { jsonOk, jsonError } from "./json.js";
+import { jsonOk, jsonError, rejectBadOrigin } from "./json.js";
 import type { Env } from "./session.js";
 import { resolveSession } from "./session.js";
 import { encryptChunk, decryptChunk, sha256Hex, type ChunkAad } from "./encryption.js";
@@ -79,6 +79,8 @@ export default {
 };
 
 async function handleMemoryEventsPost(req: Request, env: Env): Promise<Response> {
+  const badOrigin = rejectBadOrigin(req);
+  if (badOrigin) return badOrigin;
   const user = await resolveSession(req, env);
   if (!user) return jsonError(401, "sign_in_required");
   if (user.tier !== "pro") return jsonError(403, "pro_required");
@@ -367,6 +369,8 @@ function isValidSession(s: unknown): s is IncomingSession {
 }
 
 async function handleSessionsMetadataPost(req: Request, env: Env): Promise<Response> {
+  const badOrigin = rejectBadOrigin(req);
+  if (badOrigin) return badOrigin;
   const user = await resolveSession(req, env);
   if (!user) return jsonError(401, "sign_in_required");
   if (user.tier !== "pro") return jsonError(403, "pro_required");
@@ -518,6 +522,8 @@ async function handleSessionsBytesChunkPut(
   sessionId: string,
   chunkNumber: number,
 ): Promise<Response> {
+  const badOrigin = rejectBadOrigin(req);
+  if (badOrigin) return badOrigin;
   const user = await resolveSession(req, env);
   if (!user) return jsonError(401, "sign_in_required");
   if (user.tier !== "pro") return jsonError(403, "pro_required");
@@ -842,6 +848,8 @@ async function handleSessionsBytesReset(
   env: Env,
   sessionId: string,
 ): Promise<Response> {
+  const badOrigin = rejectBadOrigin(req);
+  if (badOrigin) return badOrigin;
   const user = await resolveSession(req, env);
   if (!user) return jsonError(401, "sign_in_required");
   if (user.tier !== "pro") return jsonError(403, "pro_required");

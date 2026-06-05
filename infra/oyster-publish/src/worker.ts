@@ -115,6 +115,8 @@ export default {
 // ─── Handlers (bodies in tasks 2.5 and 2.6) ────────────────────────────────
 
 async function handlePublishUpload(req: Request, env: Env): Promise<Response> {
+  const badOrigin = rejectBadOrigin(req);
+  if (badOrigin) return badOrigin;
   // Step 1: session.
   const user = await resolveSession(req, env);
   if (!user) return jsonError(401, "sign_in_required", "Sign in to publish artefacts.");
@@ -384,6 +386,8 @@ async function handleSpacesMine(req: Request, env: Env): Promise<Response> {
 }
 
 async function handleSpacesPut(req: Request, env: Env, spaceId: string): Promise<Response> {
+  const badOrigin = rejectBadOrigin(req);
+  if (badOrigin) return badOrigin;
   const user = await resolveSession(req, env);
   if (!user) return jsonError(401, "sign_in_required");
   if (!spaceId || spaceId.includes("/")) return jsonError(400, "invalid_space_id");
@@ -480,6 +484,8 @@ async function handleSpacesPut(req: Request, env: Env, spaceId: string): Promise
 }
 
 async function handleSpacesDelete(req: Request, env: Env, spaceId: string): Promise<Response> {
+  const badOrigin = rejectBadOrigin(req);
+  if (badOrigin) return badOrigin;
   const user = await resolveSession(req, env);
   if (!user) return jsonError(401, "sign_in_required");
   if (!spaceId || spaceId.includes("/")) return jsonError(400, "invalid_space_id");
@@ -514,6 +520,8 @@ async function handleSpacesDelete(req: Request, env: Env, spaceId: string): Prom
 }
 
 async function handlePublishPatch(req: Request, env: Env, shareToken: string): Promise<Response> {
+  const badOrigin = rejectBadOrigin(req);
+  if (badOrigin) return badOrigin;
   // Metadata-only update: change mode + password without re-uploading bytes.
   // Used by the cloud-only "Edit share…" flow so a publication can be reset
   // from any signed-in device, with or without a local copy of the artefact.
@@ -593,6 +601,8 @@ async function handlePublishPatch(req: Request, env: Env, shareToken: string): P
 }
 
 async function handlePublishDelete(req: Request, env: Env, shareToken: string): Promise<Response> {
+  const badOrigin = rejectBadOrigin(req);
+  if (badOrigin) return badOrigin;
   const user = await resolveSession(req, env);
   if (!user) return jsonError(401, "sign_in_required");
 
@@ -663,6 +673,22 @@ export async function resolveSession(req: Request, env: Env): Promise<SessionUse
 
   if (!row) return null;
   return { id: row.id, email: row.email, tier: row.tier };
+}
+
+// Browser-origin guard for mutating routes (spec
+// 2026-06-05-cloud-remote-view-design.md). share.oyster.to serves
+// untrusted published HTML and is *same-site* with the apex, so
+// SameSite=Lax alone doesn't stop credentialed cross-origin fetches from
+// it. Non-browser clients (the local Oyster server) send no Origin
+// header — absence passes.
+const ALLOWED_BROWSER_ORIGINS = new Set(["https://oyster.to", "https://www.oyster.to"]);
+
+function rejectBadOrigin(req: Request): Response | null {
+  const origin = req.headers.get("origin");
+  if (origin && !ALLOWED_BROWSER_ORIGINS.has(origin)) {
+    return jsonError(403, "bad_origin");
+  }
+  return null;
 }
 
 export function jsonError(status: number, code: string, message?: string, extra: Record<string, unknown> = {}): Response {
