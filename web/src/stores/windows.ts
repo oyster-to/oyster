@@ -26,7 +26,6 @@ export type WindowAction =
   | { type: "MINIMISE"; id: string }
   | { type: "CLOSE_ALL_VIEWERS" }
   | { type: "UPDATE_STATUS"; id: string; statusText: string }
-  | { type: "OPEN_TERMINAL" }
   | {
       type: "OPEN_CLAUDE_TERMINAL";
       terminalId: string;
@@ -129,27 +128,6 @@ export function windowsReducer(
       return state.map((w) =>
         w.id === action.id ? { ...w, statusText: action.statusText } : w
       );
-    case "OPEN_TERMINAL": {
-      const existing = state.find((w) => w.type === "terminal");
-      if (existing) {
-        topZ++;
-        return state.map((w) =>
-          w.id === existing.id ? { ...w, zIndex: topZ } : w
-        );
-      }
-      topZ++;
-      return [
-        ...state,
-        {
-          id: "terminal-" + nextId++,
-          type: "terminal",
-          title: "opencode",
-          statusText: "",
-          zIndex: topZ,
-          fullscreen: false,
-        },
-      ];
-    }
     case "OPEN_CLAUDE_TERMINAL": {
       // Always appends — multiple Claude terminals can coexist.
       topZ++;

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Home } from "./components/Home";
 import { GroupPopup } from "./components/GroupPopup";
-import { ChatBar } from "./components/ChatBar";
+import { AskPanel } from "./components/AskPanel";
 import { PublishModal } from "./components/PublishModal";
 import { ViewerWindow } from "./components/ViewerWindow";
 import { TerminalWindow } from "./components/TerminalWindow";
@@ -27,6 +27,7 @@ import { recordRecentProjectId } from "./lib/new-session-recents";
 import { useSessions } from "./hooks/useSessions";
 import { NewSessionPicker } from "./components/NewSessionPicker";
 import { useAllProjects, fetchAllProjects } from "./data/all-projects";
+import { VAULT } from "./components/Home/types";
 import "./App.css";
 
 // `?onboarding=force` wipes the dock's persisted state and pretends this
@@ -82,22 +83,32 @@ export default function App() {
   }, [activeSpace]);
 
   const [spotlightOpen, setSpotlightOpen] = useState(false);
+  // Open on /session/<id> loads: useChatSession restores that conversation
+  // into the panel, so the panel must be visible for the restore to mean
+  // anything ("refresh reloads this conversation").
+  const [askOpen, setAskOpen] = useState(() => window.location.pathname.startsWith("/session/"));
+  // Latch: once the panel has opened, keep the projects list warm — the
+  // useFetched-backed hook resets to [] on disable, which would blank the
+  // scope chip/context for a beat on every reopen.
+  const [askEverOpened, setAskEverOpened] = useState(() => window.location.pathname.startsWith("/session/"));
+
+  // OnboardingDock's "Set up Oyster" (and any oyster:send-prompt dispatcher)
+  // lands in the Ask panel — make sure the panel is visible when it does.
+  // AskPanel's own listener handles the actual send.
+  useEffect(() => {
+    const handler = () => { setAskOpen(true); setAskEverOpened(true); };
+    window.addEventListener("oyster:send-prompt", handler);
+    return () => window.removeEventListener("oyster:send-prompt", handler);
+  }, []);
 
   // Global keyboard shortcuts
-  const chatInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setSpotlightOpen((v) => !v);
       }
-      if (e.key === "Escape") setSpotlightOpen(false);
-      // Any printable key focuses chat bar when not already in an input
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "BUTTON" && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.length === 1) {
-        chatInputRef.current?.focus();
-        // Don't preventDefault — let the character appear in the input
-      }
+      if (e.key === "Escape") { setSpotlightOpen(false); setAskOpen(false); }
     }
     document.addEventListener("keydown", handleKeyDown);
     // Prevent browser from opening dropped files/folders (but allow text drops)
@@ -121,7 +132,6 @@ export default function App() {
   }, []);
   const [, setLoaded] = useState(false);
   const [revealId, setRevealId] = useState<string | null>(null);
-  const [showHardcoreGate, setShowHardcoreGate] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(() => getUrlState().groupName);
   // Auto-close the group popup when the group goes empty (e.g. the user
   // archived the last artifact from within it). Without this, the popup
@@ -267,6 +277,15 @@ export default function App() {
   // Sync state from browser back/forward
   useEffect(() => {
     function handlePopState() {
+      // /session/<id> URLs carry no space/project — landing on one via
+      // back/forward must not stomp the active scope (the thread that
+      // pushed it is still about wherever the user was). It must, however,
+      // show the thread the URL refers to (mirrors the initial-load seed).
+      if (window.location.pathname.startsWith("/session/")) {
+        setAskOpen(true);
+        setAskEverOpened(true);
+        return;
+      }
       const { space, artifactId, groupName, projectId } = getUrlState();
       setActiveSpace(space);
       setActiveProjectId(projectId);
@@ -345,12 +364,10 @@ export default function App() {
 
 
   const viewers = windows.filter((w) => w.type === "viewer");
-  const terminalWindow = windows.find((w) => w.type === "terminal");
   const claudeTerminals = windows.filter((w) => w.type === "claude_terminal");
   // Tabs in the fullscreen terminal toolbar list every open terminal so
   // the user can switch without leaving fullscreen.
   const liveTerminals: Array<{ id: string; title: string }> = [
-    ...(terminalWindow ? [{ id: terminalWindow.id, title: terminalWindow.title || "opencode" }] : []),
     ...claudeTerminals.map((t) => ({ id: t.id, title: t.title || "claude" })),
   ];
 
@@ -359,7 +376,35 @@ export default function App() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
   const [initialPickerQuery, setInitialPickerQuery] = useState<string | undefined>(undefined);
-  const { projects: allProjects, loading: allProjectsLoading } = useAllProjects(pickerOpen);
+  const { projects: allProjects, loading: allProjectsLoading } = useAllProjects(pickerOpen || askOpen || askEverOpened);
+
+  // Scope label + outbound-context line for the Ask panel. Label mirrors the
+  // Home crumb shapes; context is what the agent actually reads — omitted at
+  // "everything" so unscoped chats stay clean.
+  const askScope = useMemo((): { label: string; context: string | null } => {
+    if (activeSpace === "__archived__") {
+      return { label: "archived", context: "[Scope: the user is browsing archived artefacts.]" };
+    }
+    if (activeProjectId === VAULT) {
+      return {
+        label: "vault",
+        context: `[Scope: the user is viewing the Vault — artefacts created in Oyster itself, not tied to a repo.]`,
+      };
+    }
+    const project = activeProjectId ? allProjects.find((p) => p.id === activeProjectId) ?? null : null;
+    const spaceId = project?.spaceId ?? (activeSpace !== "home" && activeSpace !== "__all__" && activeSpace !== "__archived__" ? activeSpace : null);
+    const spaceName = spaceId ? spaces.find((s) => s.id === spaceId)?.displayName ?? spaceId : null;
+    if (project) {
+      return {
+        label: `${spaceName ? spaceName + " › " : ""}${project.name}`,
+        context: `[Scope: ${spaceName ? `space "${spaceName}", ` : ""}project "${project.name}"${project.recentPath ? ` at ${project.recentPath}` : ""}.]`,
+      };
+    }
+    if (spaceName) {
+      return { label: spaceName, context: `[Scope: space "${spaceName}".]` };
+    }
+    return { label: "everything", context: null };
+  }, [activeProjectId, activeSpace, allProjects, spaces]);
 
   // Shared spawn path used by NewSessionPicker — same as
   // handleLaunchClaudeFromProject but renders errors in-modal instead
@@ -475,21 +520,6 @@ export default function App() {
     }
   }
 
-  function handleOpenTerminal() {
-    const seen = localStorage.getItem("oyster-hardcore-seen");
-    if (!seen) {
-      setShowHardcoreGate(true);
-      return;
-    }
-    dispatch({ type: "OPEN_TERMINAL" });
-  }
-
-  function confirmHardcore() {
-    localStorage.setItem("oyster-hardcore-seen", "1");
-    setShowHardcoreGate(false);
-    dispatch({ type: "OPEN_TERMINAL" });
-  }
-
   async function handleArtifactStop(artifact: Artifact) {
     const appName = artifact.id.replace("app:", "");
     await stopAppApi(appName);
@@ -567,7 +597,6 @@ export default function App() {
     [],
   );
 
-  // T16-T18 will pass this to Desktop, ViewerWindow, and ChatBar.
   const handleArtifactPublish = useCallback((artifact: Artifact) => {
     if (artifact.builtin || artifact.plugin || artifact.status === "generating") return;
     setPublishingArtifact(artifact);
@@ -675,6 +704,7 @@ export default function App() {
           if (w) dispatch({ type: "CLOSE", id: w.id });
         }}
         onOpenNewSession={handleOpenNewSession}
+        onOpenAsk={() => { setAskOpen(true); setAskEverOpened(true); }}
         onConnectSession={handleConnectSession}
         userSpaceCount={FORCE_ONBOARDING ? 0 : spaces.filter((s) => s.id !== "home" && s.id !== "__all__" && s.id !== "__archived__").length}
         publishedCount={FORCE_ONBOARDING ? 0 : artifacts.filter((a) => a.publication != null && a.publication.unpublishedAt == null).length}
@@ -762,21 +792,6 @@ export default function App() {
             />
           );
         })}
-        {terminalWindow && (
-          <TerminalWindow
-            key={terminalWindow.id}
-            id={terminalWindow.id}
-            defaultX={120}
-            defaultY={60}
-            zIndex={terminalWindow.zIndex}
-            onFocus={() => dispatch({ type: "FOCUS", id: terminalWindow.id })}
-            onClose={() => dispatch({ type: "MINIMISE", id: terminalWindow.id })}
-            fullscreen={terminalWindow.fullscreen}
-            onToggleFullscreen={() => dispatch({ type: "TOGGLE_FULLSCREEN", id: terminalWindow.id })}
-            liveTerminals={liveTerminals}
-            onSwitchTerminal={(targetId) => dispatch({ type: "SWITCH_FULLSCREEN_TERMINAL", id: targetId })}
-          />
-        )}
         {claudeTerminals.map((w, i) => {
           // PTY alive iff some session row reports this terminalId as live.
           // After Stop / natural exit / cross-tab kill, the server clears
@@ -820,31 +835,6 @@ export default function App() {
         })}
       </div>
 
-      {showHardcoreGate && (
-        <div className="hardcore-gate-overlay" onClick={() => setShowHardcoreGate(false)}>
-          <div className="hardcore-gate" onClick={(e) => e.stopPropagation()}>
-            <div className="hardcore-gate-icon">
-              <div className="hardcore-glow" />
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="url(#bolt-grad)" />
-                <defs>
-                  <linearGradient id="bolt-grad" x1="3" y1="2" x2="20" y2="22">
-                    <stop offset="0%" stopColor="#7c6bff" />
-                    <stop offset="100%" stopColor="#6366f1" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
-            <h2 className="hardcore-title">Ultra Hardcore</h2>
-            <p>This opens the shell. You're talking directly to the engine — no guardrails, no undo, full control.</p>
-            <div className="hardcore-gate-actions">
-              <button className="hardcore-cancel" onClick={() => setShowHardcoreGate(false)}>I'll pass</button>
-              <button className="hardcore-confirm" onClick={confirmHardcore}>Game on</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {publishingArtifact && (() => {
         const fresh = artifacts.find((a) => a.id === publishingArtifact.id) ?? publishingArtifact;
         return <PublishModal artifact={fresh} onClose={() => setPublishingArtifact(null)} />;
@@ -879,12 +869,17 @@ export default function App() {
         );
       })()}
 
-      <ChatBar
-        onOpenTerminal={handleOpenTerminal}
+      {/* Always mounted: the thread + SSE stream live in the panel's hooks,
+          and its oyster:send-prompt listener must exist before the panel is
+          opened. Conditional mounting would lose both. */}
+      <AskPanel
+        open={askOpen}
+        onClose={() => setAskOpen(false)}
+        scopeLabel={askScope.label}
+        scopeContext={askScope.context}
         spaces={spaces}
         activeSpace={activeSpace}
         onSpaceChange={handleSpaceChange}
-        inputRef={chatInputRef}
         artifacts={artifacts}
         onArtifactOpen={handleArtifactClick}
         onArtifactPublish={handleArtifactPublish}

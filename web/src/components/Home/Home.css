@@ -81,11 +81,10 @@
   padding-bottom: 240px;
 }
 
-/* Soft fade behind the chat bar so content dissolves into the bg rather
-   than colliding with the pills. Matches docs/mockups/brain-prototype.html
-   exactly — bottom 30% solid (chat bar zone), then taper. Earlier pass
-   tapered too aggressively and washed the artefacts grid in a dark
-   rectangle. Sits above .home-scroll, below ChatBar. */
+/* Soft fade at the bottom so content dissolves into the bg rather than
+   running hard to the edge. Matches docs/mockups/brain-prototype.html
+   exactly — bottom 30% solid, then taper. Earlier pass tapered too
+   aggressively and washed the artefacts grid in a dark rectangle. */
 .home::before {
   content: "";
   position: fixed;

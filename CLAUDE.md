@@ -35,7 +35,7 @@ Browser → http://localhost:4444
 
 ## Mental Models
 
-**Spaces** — organisational nodes. Each space has an ID, display name, optional repo path, and colour. Navigated via pills at the bottom of the chat bar, or via `#space` / `/s space` commands.
+**Spaces** — organisational nodes. Each space has an ID, display name, optional repo path, and colour. Navigated via pills in the top bar, or via `#space` / `/s space` commands in the Ask panel.
 
 **Artefacts** — typed outputs on the surface (app, notes, diagram, deck, wireframe, table, map). Registered in SQLite, files in `~/Oyster/spaces/<space-id>/` (user work) or `~/Oyster/apps/` (installed bundles). `source_origin` tracks provenance: `manual` | `discovered` | `ai_generated`.
 
@@ -53,7 +53,7 @@ Browser → http://localhost:4444
 - `opencode.json` — OpenCode config (model, MCP endpoints)
 - `web/src/App.tsx` — root component, state, SSE subscription
 - `web/src/components/Desktop.tsx` — surface grid, topbar, sort/filter/view
-- `web/src/components/ChatBar.tsx` — chat input, slash commands, space pills
+- `web/src/components/AskPanel.tsx` — Ask Oyster panel: chat input, slash commands, message thread
 
 ## How to build and run
 
