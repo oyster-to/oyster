@@ -210,4 +210,53 @@ describe("GET /api/sessions/:id/events", () => {
     const res = await signedFetch(`/api/sessions/some-id/events`, { method: "GET" }, token);
     expect(res.status).toBe(403);
   });
+
+  it("ids are correct across a chunk boundary", async () => {
+    const { token } = await makeProSession();
+    const sid = `s-${crypto.randomUUID()}`;
+    await signedFetch("/api/sessions/metadata", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessions: [sampleSession(sid, 1000, { cwd: CWD })] }),
+    }, token);
+
+    const enc = new TextEncoder();
+    // Chunk 1: lines 0 and 1 (bytes [0, offsetOf(2)))
+    const chunk1Bytes = enc.encode(LINES[0]! + "\n" + LINES[1]! + "\n");
+    const chunk1End = chunk1Bytes.byteLength; // == offsetOf(2)
+    // Chunk 2: lines 2–4 + PARTIAL_TAIL, starting at chunk1End
+    const chunk2Bytes = enc.encode(LINES[2]! + "\n" + LINES[3]! + "\n" + LINES[4]! + "\n" + PARTIAL_TAIL);
+
+    const { res: put1 } = await putChunk(token, sid, 1, chunk1Bytes, 0, 0);
+    expect(put1.status).toBe(200);
+    const { res: put2 } = await putChunk(token, sid, 2, chunk2Bytes, chunk1End, 0);
+    expect(put2.status).toBe(200);
+
+    const res = await signedFetch(`/api/sessions/${sid}/events`, { method: "GET" }, token);
+    expect(res.status).toBe(200);
+    const events = await res.json() as Array<{ id: number; sessionId: string; role: string; text: string; ts: string | null; raw: null }>;
+
+    expect(events).toHaveLength(3);
+    expect(events[0]!.id).toBe(offsetOf(0));
+    expect(events[0]!.role).toBe("user");
+    expect(events[0]!.text).toBe("hello");
+    expect(events[1]!.id).toBe(offsetOf(1));
+    expect(events[1]!.role).toBe("assistant");
+    expect(events[1]!.text).toBe("hi there");
+    expect(events[2]!.id).toBe(offsetOf(4));
+    expect(events[2]!.role).toBe("tool");
+    expect(events[2]!.text).toBe("[Edit a.ts]");
+
+    expect(events[0]!.ts).toBe("2026-05-10T10:00:01Z");
+    expect(events[0]!.sessionId).toBe(sid);
+    expect(events[0]!.raw).toBeNull();
+  });
+
+  it("404s for an unknown session", async () => {
+    const { token } = await makeProSession();
+    const unknownId = crypto.randomUUID();
+    const res = await signedFetch(`/api/sessions/${unknownId}/events`, { method: "GET" }, token);
+    expect(res.status).toBe(404);
+    expect((await res.json() as { error: string }).error).toBe("session_not_found");
+  });
 });
