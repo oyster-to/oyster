@@ -216,6 +216,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   useEffect(() => { setShowAttachForm(false); }, [projectsSpaceId]);
   const [stateFilter, setStateFilter] = useState<StateFilter>("all");
   const [sessionsView, setSessionsView] = useStickyView("oyster.home.sessionsView", "full", ["full", "compact"] as const);
+  const [activeTab, setActiveTab] = useStickyView("oyster.home.activeTab", "sessions", ["sessions", "artefacts", "memories"] as const);
   const [artefactsView, setArtefactsView] = useStickyView("oyster.home.artefactsView", "icons", ["icons", "table"] as const);
   const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
   const [pendingMemoryDelete, setPendingMemoryDelete] = useState<Memory | null>(null);
@@ -680,6 +681,15 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     return counts;
   }, [effectiveDesktopProps.artifacts]);
 
+  // Scope-only artefact total for the tab count (source/kind filters are
+  // tab-internal and shouldn't change the tab's headline number).
+  const scopedArtefactsTotal = useMemo(() => {
+    const list = effectiveDesktopProps.artifacts;
+    if (selectedProjectId === VAULT) return list.filter((a) => !a.projectId).length;
+    if (selectedProjectId) return list.filter((a) => a.projectId === selectedProjectId).length;
+    return list.length;
+  }, [effectiveDesktopProps.artifacts, selectedProjectId]);
+
   // Filter + collapse to an incremental preview. Each "Show more" click
   // grows artefactsLimit by ARTEFACTS_PREVIEW; the cap applies to both
   // icon and table views so busy spaces don't push later sections far
@@ -829,6 +839,21 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     : isAllView ? "All"
     : isArchivedView ? "Archived"
     : activeSpaceRow?.displayName ?? scopedSpace ?? "";
+
+  const selectedProject = selectedProjectId && selectedProjectId !== VAULT
+    ? allProjects.find((p) => p.id === selectedProjectId) ?? null
+    : null;
+  const scopeCrumb = selectedProjectId === VAULT
+    ? "vault"
+    : selectedProject
+      ? `${selectedProject.spaceId ? (spaces.find((s) => s.id === selectedProject.spaceId)?.displayName ?? selectedProject.spaceId) + " › " : ""}${selectedProject.name}`
+      : isArchivedView
+        ? "archived"
+      : isAllView
+        ? "all"
+      : scopedSpace
+        ? (activeSpaceRow?.displayName ?? scopedSpace)
+        : "everything";
 
   return (
     <div className="home">
@@ -1219,9 +1244,40 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           )
         )}
 
+        <div className="home-tabs" role="tablist" aria-label="Scoped content">
+          {(["sessions", "artefacts", "memories"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === t}
+              className={`home-tab${activeTab === t ? " active" : ""}`}
+              onClick={() => setActiveTab(t)}
+            >
+              {t === "sessions" ? "Sessions" : t === "artefacts" ? "Artefacts" : "Memories"}
+              <span className="home-tab-count">
+                {t === "sessions" ? stateCounts.all : t === "artefacts" ? scopedArtefactsTotal : scopedMemories.length}
+              </span>
+            </button>
+          ))}
+          <span className="home-tab-scope">
+            scope: {scopeCrumb}
+            {selectedProjectId !== null && (
+              <button
+                type="button"
+                className="home-tab-scope-clear"
+                onClick={() => setSelectedProjectId(null)}
+                aria-label="Clear project scope"
+              >
+                ✕
+              </button>
+            )}
+          </span>
+        </div>
+
+        {activeTab === "sessions" && (
         <section className="home-section">
           <div className="home-section-head">
-            <span className="home-section-label">Sessions</span>
             <span className="home-section-stats">
               {FILTER_ORDER.map((f) => {
                 const count = stateCounts[f];
@@ -1318,10 +1374,11 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             </div>
           )}
         </section>
+        )}
 
+        {activeTab === "artefacts" && (
         <section className="home-section">
           <div className="home-section-head" style={kindMenuOpen ? { zIndex: 40 } : undefined}>
-            <span className="home-section-label">Artefacts</span>
             <span className="home-section-stats">
               {ARTEFACT_SOURCE_ORDER.map((src) => {
                 const count = artefactSourceCounts[src];
@@ -1510,11 +1567,11 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             </>
           )}
         </section>
+        )}
 
+        {activeTab === "memories" && (
         <section className="home-section">
           <div className="home-section-head">
-            <span className="home-section-label">Memories</span>
-            <span className="home-artefacts-count">{scopedMemories.length}</span>
             <span className="home-section-rule" />
             <button
               type="button"
@@ -1596,6 +1653,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             </div>
           )}
         </section>
+        )}
         </>)}
       </div>
       <InspectorPanel active={activePanel} onClose={() => setActivePanel(null)}>
