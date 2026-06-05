@@ -2016,7 +2016,6 @@
   justify-content: center;
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid var(--home-border);
 }
 .home-projects-show-more {
   font-family: var(--font-mono);
