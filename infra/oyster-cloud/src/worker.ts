@@ -3,6 +3,7 @@ import type { Env } from "./session.js";
 import { resolveSession } from "./session.js";
 import { encryptChunk, decryptChunk, sha256Hex, type ChunkAad } from "./encryption.js";
 import { handleSessionEventsGet } from "./transcript-events.js";
+import { handleAppShell } from "./app-shell.js";
 
 // Safe decode helper used by all bytes routes. decodeURIComponent throws
 // URIError on malformed percent-encoding (e.g. "%G"); we'd rather a 400 than
@@ -15,6 +16,21 @@ function safeDecode(raw: string): string | null {
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
+
+    // oyster.to/app — remote-view shell (spec 2026-06-05-cloud-remote-view).
+    // Lives on the apex so the host-only oyster_session cookie (#397)
+    // authenticates it with no auth-worker changes. The shell's API calls
+    // are same-origin: /app/api/* is rewritten onto the /api/* dispatch
+    // below (URL.pathname is mutable).
+    if (url.hostname === "www.oyster.to" && url.pathname.startsWith("/app")) {
+      return Response.redirect(`https://oyster.to${url.pathname}${url.search}`, 301);
+    }
+    if ((url.pathname === "/app" || url.pathname === "/app/") && req.method === "GET") {
+      return handleAppShell(req, env);
+    }
+    if (url.pathname.startsWith("/app/api/")) {
+      url.pathname = url.pathname.slice("/app".length);
+    }
 
     if (url.pathname === "/health" && req.method === "GET") {
       return new Response("ok", { status: 200 });
