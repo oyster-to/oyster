@@ -1681,6 +1681,23 @@ body {
   justify-self: end;
 }
 
+/* "Ask Oyster" launcher row — sits last in the list, faint divider above. */
+.spotlight-result--ask {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0 0 12px 12px;
+  margin-top: 4px;
+}
+.spotlight-result-ask-glyph {
+  color: #7c6bff;
+  font-size: 12px;
+  line-height: 1;
+  justify-self: center;
+}
+.spotlight-result-ask-query {
+  color: rgba(232, 233, 240, 0.7);
+  font-style: italic;
+}
+
 .spotlight-result-space {
   font-size: 0.72rem;
   color: rgba(232, 233, 240, 0.3);

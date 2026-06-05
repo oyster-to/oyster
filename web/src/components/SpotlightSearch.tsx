@@ -43,7 +43,8 @@ const TYPE_OPTS: { value: 'session' | 'artefact' | 'memory'; color: string }[] =
 type SpotlightHit =
   | { kind: "artefact"; artifact: Artifact }
   | { kind: "transcript"; hit: TranscriptHit }
-  | { kind: "memory"; memory: Memory };
+  | { kind: "memory"; memory: Memory }
+  | { kind: "ask" };
 
 export function SpotlightSearch({ artifacts, spaces, onOpen, onClose }: Props) {
   const [query, setQuery] = useState("");
@@ -236,11 +237,16 @@ export function SpotlightSearch({ artifacts, spaces, onOpen, onClose }: Props) {
       .slice(0, 10);
   }, [query, filter.type, filter.spaceId, artifacts]);
 
+  // Any non-empty query gets an "Ask Oyster" row as the final hit — ⌘K is
+  // the keyboard path to the Ask panel. No row on the empty-query recent
+  // feed (nothing to ask).
+  const askHit: SpotlightHit[] = query.trim() ? [{ kind: "ask" }] : [];
+
   // Whichever list is on screen drives keyboard nav. The recent feed only
   // shows when searchHits is empty AND query/filter are empty, so the two
   // never overlap.
-  const flatHits: SpotlightHit[] = searchHits.length > 0
-    ? searchHits
+  const flatHits: SpotlightHit[] = searchHits.length > 0 || askHit.length > 0
+    ? [...searchHits, ...askHit]
     : recentFeed.map((a): SpotlightHit => ({ kind: "artefact", artifact: a }));
 
   useEffect(() => {
@@ -255,6 +261,16 @@ export function SpotlightSearch({ artifacts, spaces, onOpen, onClose }: Props) {
   }, [selected]);
 
   function activate(hit: SpotlightHit) {
+    if (hit.kind === "ask") {
+      // Reuses the Ask-panel plumbing wholesale: App opens the panel on
+      // this event; AskPanel routes the text through handleSend (scope
+      // prefix, session-boot queueing).
+      window.dispatchEvent(new CustomEvent("oyster:send-prompt", {
+        detail: { text: query.trim() },
+      }));
+      onClose();
+      return;
+    }
     if (hit.kind === "artefact") {
       onOpen(hit.artifact);
     } else if (hit.kind === "transcript") {
@@ -344,7 +360,10 @@ export function SpotlightSearch({ artifacts, spaces, onOpen, onClose }: Props) {
   const showResults = artefactHits.length > 0
     || transcriptHits.length > 0 || transcriptsLoading
     || memoryHits.length > 0 || memoriesLoading;
-  const showEmpty = !!query.trim() && !transcriptsLoading && !memoriesLoading && flatHits.length === 0;
+  // "Empty" = no search results — the ask row still renders beneath the
+  // message (flatHits is never empty while a query exists), so keyboard
+  // state stays coherent and the dead end becomes an action.
+  const showEmpty = !!query.trim() && !transcriptsLoading && !memoriesLoading && searchHits.length === 0;
 
   return (
     <div className="spotlight-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -503,11 +522,28 @@ export function SpotlightSearch({ artifacts, spaces, onOpen, onClose }: Props) {
                 </div>
               );
             })}
+
+            {askHit.length > 0 && (
+              <AskRow
+                query={query.trim()}
+                selected={selected === flatHits.length - 1}
+                onSelect={() => setSelected(flatHits.length - 1)}
+                onActivate={() => activate({ kind: "ask" })}
+              />
+            )}
           </div>
         )}
 
         {showEmpty && (
-          <div className="spotlight-empty">No results for "{query}"</div>
+          <div className="spotlight-results">
+            <div className="spotlight-empty">No results for "{query}"</div>
+            <AskRow
+              query={query.trim()}
+              selected={selected === flatHits.length - 1}
+              onSelect={() => setSelected(flatHits.length - 1)}
+              onActivate={() => activate({ kind: "ask" })}
+            />
+          </div>
         )}
 
         {!showResults && !showEmpty && recentFeed.length > 0 && (
@@ -533,6 +569,31 @@ export function SpotlightSearch({ artifacts, spaces, onOpen, onClose }: Props) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** The "Ask Oyster" launcher row — last hit whenever a query exists.
+ *  Selecting it fires the query at the Ask panel via oyster:send-prompt
+ *  and closes Spotlight. Rendered in both the results list and the
+ *  no-results state. */
+function AskRow({ query, selected, onSelect, onActivate }: {
+  query: string;
+  selected: boolean;
+  onSelect: () => void;
+  onActivate: () => void;
+}) {
+  return (
+    <div
+      className={`spotlight-result spotlight-result--ask${selected ? " spotlight-result--selected" : ""}`}
+      onMouseEnter={onSelect}
+      onClick={onActivate}
+    >
+      <span className="spotlight-result-ask-glyph" aria-hidden="true">✦</span>
+      <span className="spotlight-result-label">
+        Ask Oyster: <span className="spotlight-result-ask-query">{query}</span>
+      </span>
+      <span className="spotlight-result-badge">↵ ask</span>
     </div>
   );
 }
