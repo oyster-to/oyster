@@ -2139,9 +2139,26 @@
   .home-tabs::-webkit-scrollbar { display: none; }
   .home-tab { padding: 8px 10px; white-space: nowrap; }
   .home-tab-scope { display: none; } /* crumb is desktop chrome */
-  /* Filter chips wrap to two rows rather than overflowing, and sit closer
-     to the table below. */
-  .home-section-head { flex-wrap: wrap; row-gap: 6px; padding-bottom: 8px; }
+  /* Filter chips sit closer to the table below. */
+  .home-section-head { padding-bottom: 8px; }
+  /* Sessions: with the Full/Compact toggle gone, lay the filter chips as a
+     single horizontally-scrollable row (mirrors the .home-tabs treatment).
+     Scoped to the sessions panel so the Artefacts kind dropdown — which is
+     absolutely positioned inside its own .home-section-head — isn't clipped
+     by overflow-y (overflow-x: auto implies overflow-y: auto). */
+  #home-tabpanel-sessions .home-section-head {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #home-tabpanel-sessions .home-section-head::-webkit-scrollbar { display: none; }
+  /* The chips live in an inner inline-flex that wraps by default — pin it to
+     a single line too, and stop both the inner row and its buttons shrinking. */
+  #home-tabpanel-sessions .home-section-stats { flex-wrap: nowrap; }
+  #home-tabpanel-sessions .home-section-stats .stat-btn { flex-shrink: 0; }
+  /* Artefacts: the kind dropdown can't take overflow clipping, so keep that
+     head wrapping to rows as before. */
+  #home-tabpanel-artefacts .home-section-head { flex-wrap: wrap; row-gap: 6px; }
   /* Sections breathe less + reclaim side margin for the squeezed content
      column. */
   .home-section { margin-top: 28px; padding: 0 10px; }

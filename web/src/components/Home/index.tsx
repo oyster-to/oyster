@@ -35,6 +35,7 @@ import { createSpace } from "../../data/spaces-api";
 import { deleteMemory, type Memory } from "../../data/memories-api";
 import { ApiError, apiPath } from "../../data/http";
 import { useTerminalPresence } from "../../hooks/useTerminalPresence";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import type { WindowState } from "../../stores/windows";
 import { RunningTerminalsPill } from "../Topbar/RunningTerminalsPill";
 import { NewSessionPill } from "../Topbar/NewSessionPill";
@@ -233,6 +234,11 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     return [...out].sort();
   }, [sessions]);
   const [sessionsView, setSessionsView] = useStickyView("oyster.home.sessionsView", "full", ["full", "compact"] as const);
+  // Phones force COMPACT (FULL's extra title weight + artefact-chip line waste
+  // vertical space on a ~390px screen). The persisted preference is left
+  // untouched so desktop keeps the user's choice when they cross the breakpoint.
+  const isMobile = useIsMobile();
+  const effectiveSessionsView = isMobile ? "compact" : sessionsView;
   const [activeTab, setActiveTab] = useStickyView("oyster.home.activeTab", "sessions", ["sessions", "artefacts", "memories"] as const);
   const [artefactsView, setArtefactsView] = useStickyView("oyster.home.artefactsView", "icons", ["icons", "table"] as const);
   const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
@@ -1283,6 +1289,9 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               )}
             </span>
             <span className="home-section-spacer" />
+            {/* Toggle hidden on phones — COMPACT is forced there. JS gate (not
+                CSS) so the chips row reflows without the reserved space. */}
+            {!isMobile && (
             <div className="view-toggle-text">
               <button
                 type="button"
@@ -1299,6 +1308,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 Compact
               </button>
             </div>
+            )}
           </div>
 
           {loading && sessions.length === 0 ? (
@@ -1321,7 +1331,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                     <SessionRow
                       key={session.id}
                       session={session}
-                      view={sessionsView}
+                      view={effectiveSessionsView}
                       myDeviceId={myDeviceId}
                       livePresence={presence.byId[session.id]}
                       projectName={session.projectId ? projectNameById[session.projectId] ?? null : null}
