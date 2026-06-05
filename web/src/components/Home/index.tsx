@@ -37,6 +37,7 @@ import { useTerminalPresence } from "../../hooks/useTerminalPresence";
 import type { WindowState } from "../../stores/windows";
 import { RunningTerminalsPill } from "../Topbar/RunningTerminalsPill";
 import { NewSessionPill } from "../Topbar/NewSessionPill";
+import { AskPill } from "../Topbar/AskPill";
 import { OnboardingDock } from "../OnboardingDock";
 import "./Home.css";
 
@@ -76,6 +77,8 @@ interface Props {
   /** Open the new-session palette. When omitted, the pill is hidden
    *  (e.g. in test contexts that don't wire it up). */
   onOpenNewSession?: () => void;
+  /** Open the Ask Oyster panel — renders the ✦ Ask pill when provided. */
+  onOpenAsk?: () => void;
   /** Focus / restore the live terminal for a session id. Threaded into
    *  SessionInspector so the primary action can read "Connect" when a
    *  live PTY exists. */
@@ -171,7 +174,7 @@ const FILTER_LABELS: Record<StateFilter, string> = {
   all: "all",
 };
 
-export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenArtifact, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount, publishedCount, selectedProjectId, onSelectProject }: Props) {
+export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenArtifact, onOpenNewSession, onOpenAsk, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount, publishedCount, selectedProjectId, onSelectProject }: Props) {
   const presence = useTerminalPresence(sessions, terminalWindows ?? []);
   const signedIn = useAuthSignedIn();
   const myDevice = useMyDeviceId();
@@ -953,6 +956,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   onStop={onTerminalStop}
                 />
               )}
+              {onOpenAsk && <AskPill onClick={onOpenAsk} />}
               {onOpenNewSession && <NewSessionPill onClick={onOpenNewSession} />}
             </div>
             <OnboardingDock userSpaceCount={userSpaceCount} publishedCount={publishedCount} />

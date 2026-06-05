@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Home } from "./components/Home";
 import { GroupPopup } from "./components/GroupPopup";
-import { ChatBar } from "./components/ChatBar";
+import { AskPanel } from "./components/AskPanel";
 import { PublishModal } from "./components/PublishModal";
 import { ViewerWindow } from "./components/ViewerWindow";
 import { TerminalWindow } from "./components/TerminalWindow";
@@ -82,9 +82,9 @@ export default function App() {
   }, [activeSpace]);
 
   const [spotlightOpen, setSpotlightOpen] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
 
   // Global keyboard shortcuts
-  const chatInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -92,12 +92,6 @@ export default function App() {
         setSpotlightOpen((v) => !v);
       }
       if (e.key === "Escape") setSpotlightOpen(false);
-      // Any printable key focuses chat bar when not already in an input
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "BUTTON" && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.length === 1) {
-        chatInputRef.current?.focus();
-        // Don't preventDefault — let the character appear in the input
-      }
     }
     document.addEventListener("keydown", handleKeyDown);
     // Prevent browser from opening dropped files/folders (but allow text drops)
@@ -121,7 +115,6 @@ export default function App() {
   }, []);
   const [, setLoaded] = useState(false);
   const [revealId, setRevealId] = useState<string | null>(null);
-  const [showHardcoreGate, setShowHardcoreGate] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(() => getUrlState().groupName);
   // Auto-close the group popup when the group goes empty (e.g. the user
   // archived the last artifact from within it). Without this, the popup
@@ -475,21 +468,6 @@ export default function App() {
     }
   }
 
-  function handleOpenTerminal() {
-    const seen = localStorage.getItem("oyster-hardcore-seen");
-    if (!seen) {
-      setShowHardcoreGate(true);
-      return;
-    }
-    dispatch({ type: "OPEN_TERMINAL" });
-  }
-
-  function confirmHardcore() {
-    localStorage.setItem("oyster-hardcore-seen", "1");
-    setShowHardcoreGate(false);
-    dispatch({ type: "OPEN_TERMINAL" });
-  }
-
   async function handleArtifactStop(artifact: Artifact) {
     const appName = artifact.id.replace("app:", "");
     await stopAppApi(appName);
@@ -567,7 +545,6 @@ export default function App() {
     [],
   );
 
-  // T16-T18 will pass this to Desktop, ViewerWindow, and ChatBar.
   const handleArtifactPublish = useCallback((artifact: Artifact) => {
     if (artifact.builtin || artifact.plugin || artifact.status === "generating") return;
     setPublishingArtifact(artifact);
@@ -675,6 +652,7 @@ export default function App() {
           if (w) dispatch({ type: "CLOSE", id: w.id });
         }}
         onOpenNewSession={handleOpenNewSession}
+        onOpenAsk={() => setAskOpen(true)}
         onConnectSession={handleConnectSession}
         userSpaceCount={FORCE_ONBOARDING ? 0 : spaces.filter((s) => s.id !== "home" && s.id !== "__all__" && s.id !== "__archived__").length}
         publishedCount={FORCE_ONBOARDING ? 0 : artifacts.filter((a) => a.publication != null && a.publication.unpublishedAt == null).length}
@@ -820,31 +798,6 @@ export default function App() {
         })}
       </div>
 
-      {showHardcoreGate && (
-        <div className="hardcore-gate-overlay" onClick={() => setShowHardcoreGate(false)}>
-          <div className="hardcore-gate" onClick={(e) => e.stopPropagation()}>
-            <div className="hardcore-gate-icon">
-              <div className="hardcore-glow" />
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="url(#bolt-grad)" />
-                <defs>
-                  <linearGradient id="bolt-grad" x1="3" y1="2" x2="20" y2="22">
-                    <stop offset="0%" stopColor="#7c6bff" />
-                    <stop offset="100%" stopColor="#6366f1" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
-            <h2 className="hardcore-title">Ultra Hardcore</h2>
-            <p>This opens the shell. You're talking directly to the engine — no guardrails, no undo, full control.</p>
-            <div className="hardcore-gate-actions">
-              <button className="hardcore-cancel" onClick={() => setShowHardcoreGate(false)}>I'll pass</button>
-              <button className="hardcore-confirm" onClick={confirmHardcore}>Game on</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {publishingArtifact && (() => {
         const fresh = artifacts.find((a) => a.id === publishingArtifact.id) ?? publishingArtifact;
         return <PublishModal artifact={fresh} onClose={() => setPublishingArtifact(null)} />;
@@ -879,12 +832,14 @@ export default function App() {
         );
       })()}
 
-      <ChatBar
-        onOpenTerminal={handleOpenTerminal}
+      <AskPanel
+        open={askOpen}
+        onClose={() => setAskOpen(false)}
+        scopeLabel="everything"
+        scopeContext={null}
         spaces={spaces}
         activeSpace={activeSpace}
         onSpaceChange={handleSpaceChange}
-        inputRef={chatInputRef}
         artifacts={artifacts}
         onArtifactOpen={handleArtifactClick}
         onArtifactPublish={handleArtifactPublish}

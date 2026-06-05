@@ -78,11 +78,15 @@ const SLASH_COMMANDS = [
 ];
 
 interface Props {
-  onOpenTerminal: () => void;
+  open: boolean;
+  onClose: () => void;
+  /** Crumb-shaped scope label for the header chip ("everything" / space / "space › project" / "vault"). */
+  scopeLabel: string;
+  /** Context line prepended to outbound messages; null at "everything" scope. (Wired in Task 2 — pass null until then.) */
+  scopeContext: string | null;
   spaces?: Space[];
   activeSpace?: string;
   onSpaceChange?: (space: string) => void;
-  inputRef?: React.RefObject<HTMLInputElement | null>;
   artifacts?: Artifact[];
   onArtifactOpen?: (artifact: Artifact) => void;
   onArtifactPublish?: (artifact: Artifact) => void;
@@ -90,16 +94,14 @@ interface Props {
   onAiError?: (message: string | null) => void;
 }
 
-export function ChatBar({ onOpenTerminal, spaces = [], activeSpace, onSpaceChange, inputRef: externalInputRef, artifacts = [], onArtifactOpen, onArtifactPublish, onArtifactUnpublish, onAiError }: Props) {
+export function AskPanel({ open, onClose, scopeLabel, spaces = [], activeSpace, onSpaceChange, artifacts = [], onArtifactOpen, onArtifactPublish, onArtifactUnpublish, onAiError }: Props) {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [copied, setCopied] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const localInputRef = useRef<HTMLInputElement>(null);
-  const inputRef = externalInputRef || localInputRef;
+  const inputRef = useRef<HTMLInputElement>(null);
   const [placeholder, setPlaceholder] = useState(() => placeholders[Math.floor(Math.random() * placeholders.length)]);
   const placeholderIndexRef = useRef(0);
   const [providerConfigured, setProviderConfigured] = useState<boolean | null>(null);
@@ -113,7 +115,7 @@ export function ChatBar({ onOpenTerminal, spaces = [], activeSpace, onSpaceChang
     return () => { cancelled = true; };
   }, []);
 
-  const { messages, setMessages, sessionId, expanded, setExpanded, pushSessionUrl } = useChatSession();
+  const { messages, setMessages, sessionId, setExpanded, pushSessionUrl } = useChatSession();
 
   // Compute slash autocomplete items
   const subseq = useCallback((query: string, target: string) => {
@@ -262,21 +264,10 @@ export function ChatBar({ onOpenTerminal, spaces = [], activeSpace, onSpaceChang
   }, [sessionId, onAiError]);
 
   useEffect(() => {
-    if (expanded) {
+    if (open) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, expanded]);
-
-  // Click outside chatbar collapses the messages panel
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (expanded && wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setExpanded(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [expanded, setExpanded]);
+  }, [messages, open]);
 
   // Queue for prompts dispatched before the chat session has finished
   // initialising. createSession() can take a few seconds while OpenCode
@@ -473,87 +464,84 @@ export function ChatBar({ onOpenTerminal, spaces = [], activeSpace, onSpaceChang
   }
 
   return (
-    <div ref={wrapperRef} className="chatbar-wrapper">
-      {/* Messages panel — expands upward */}
-      {messages.length > 0 && (
-        <div className={`chatbar-messages ${expanded ? "chat-expanded" : "chat-collapsed"}${slashOpen ? " slash-dimmed" : ""}`}>
-          <div className="chatbar-actions">
-            <button
-              className={`chatbar-copy ${copied ? "copied" : ""}`}
-              onClick={handleCopyChat}
-              title="Copy chat"
-            >
-              {copied ? "copied" : "copy"}
-            </button>
-            <button
-              className="chatbar-collapse"
-              onClick={() => setExpanded(false)}
-              title="Collapse"
-            >
-              ↓
-            </button>
-          </div>
-          {messages.filter((msg) => msg.content || msg.parts?.length || msg.question || msg.role === "user").map((msg, i) => (
-            <div key={msg.id || i} className={`chat-bubble ${msg.role}`}>
-              {msg.role === "assistant" && msg.parts && msg.parts.length > 0 ? (
-                msg.parts.map((part, pi) =>
-                  part.type === "text" && part.text ? (
-                    <div key={pi} className="chat-markdown" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(marked.parse(part.text) as string) }} />
-                  ) : part.type === "tool" && part.tool ? (
-                    <ToolBlock key={part.tool.id} tool={part.tool} />
-                  ) : part.type === "reasoning" && part.text ? (
-                    <ReasoningBlock key={pi} text={part.text} />
-                  ) : null
-                )
-              ) : msg.role === "assistant" && msg.content ? (
-                <div className="chat-markdown" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(marked.parse(msg.content) as string) }} />
-              ) : (
-                msg.content
-              )}
-              {msg.question && (
-                <div className="question-options">
-                  {msg.question.options.map((opt) => (
-                    <button
-                      key={opt.label}
-                      className="question-option-btn"
-                      onClick={async () => {
-                        const qId = msg.question!.id;
-                        setMessages((prev) =>
-                          prev.map((m) =>
-                            m.question?.id === qId
-                              ? { ...m, question: undefined }
-                              : m
-                          )
-                        );
-                        setMessages((prev) => [
-                          ...prev,
-                          { role: "user", content: opt.label },
-                        ]);
-                        setStreaming(true);
-                        setStatusText("thinking...");
-                        resetTracking();
-                        try {
-                          await replyToQuestion(qId, [[opt.label]]);
-                        } catch (err) {
-                          console.error("Failed to reply to question:", err);
-                          setStreaming(false);
-                          setStatusText("");
-                        }
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-          <div ref={bottomRef} />
-        </div>
-      )}
+    <div className={`ask-panel${open ? " open" : ""}`} aria-hidden={!open}>
+      <div className="ask-panel-header">
+        <span className="ask-panel-title">✦ Ask Oyster</span>
+        <span className="ask-panel-scope" title="Answers consider your current scope">{scopeLabel}</span>
+        <button type="button" className="ask-panel-close" onClick={onClose} aria-label="Close Ask Oyster">✕</button>
+      </div>
 
-      {/* Input bar */}
-      <div className="chatbar-bar" onClick={() => { if (messages.length > 0 && !expanded) setExpanded(true); }}>
+      {/* Messages feed — same inner markup as before, new container class */}
+      <div className={`ask-panel-messages${slashOpen ? " slash-dimmed" : ""}`}>
+        {messages.length > 0 && (
+          <>
+            <div className="chatbar-actions">
+              <button className={`chatbar-copy ${copied ? "copied" : ""}`} onClick={handleCopyChat} title="Copy chat">
+                {copied ? "copied" : "copy"}
+              </button>
+            </div>
+            {messages.filter((msg) => msg.content || msg.parts?.length || msg.question || msg.role === "user").map((msg, i) => (
+              <div key={msg.id || i} className={`chat-bubble ${msg.role}`}>
+                {msg.role === "assistant" && msg.parts && msg.parts.length > 0 ? (
+                  msg.parts.map((part, pi) =>
+                    part.type === "text" && part.text ? (
+                      <div key={pi} className="chat-markdown" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(marked.parse(part.text) as string) }} />
+                    ) : part.type === "tool" && part.tool ? (
+                      <ToolBlock key={part.tool.id} tool={part.tool} />
+                    ) : part.type === "reasoning" && part.text ? (
+                      <ReasoningBlock key={pi} text={part.text} />
+                    ) : null
+                  )
+                ) : msg.role === "assistant" && msg.content ? (
+                  <div className="chat-markdown" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(marked.parse(msg.content) as string) }} />
+                ) : (
+                  msg.content
+                )}
+                {msg.question && (
+                  <div className="question-options">
+                    {msg.question.options.map((opt) => (
+                      <button
+                        key={opt.label}
+                        className="question-option-btn"
+                        onClick={async () => {
+                          const qId = msg.question!.id;
+                          setMessages((prev) =>
+                            prev.map((m) =>
+                              m.question?.id === qId
+                                ? { ...m, question: undefined }
+                                : m
+                            )
+                          );
+                          setMessages((prev) => [
+                            ...prev,
+                            { role: "user", content: opt.label },
+                          ]);
+                          setStreaming(true);
+                          setStatusText("thinking...");
+                          resetTracking();
+                          try {
+                            await replyToQuestion(qId, [[opt.label]]);
+                          } catch (err) {
+                            console.error("Failed to reply to question:", err);
+                            setStreaming(false);
+                            setStatusText("");
+                          }
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            <div ref={bottomRef} />
+          </>
+        )}
+      </div>
+
+      {/* Input row — same inner markup as the old chatbar-bar, minus the bolt */}
+      <div className="ask-panel-inputrow">
         {/* Slash command autocomplete — floats above input */}
         {slashOpen && (
           <div className="slash-autocomplete">
@@ -578,20 +566,6 @@ export function ChatBar({ onOpenTerminal, spaces = [], activeSpace, onSpaceChang
             ))}
           </div>
         )}
-        <div
-          className="chatbar-oyster"
-          onClick={onOpenTerminal}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            stroke="none"
-          >
-            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-          </svg>
-        </div>
         {streaming && statusText ? (
           <div className="chatbar-status">{statusText}</div>
         ) : null}
@@ -660,9 +634,6 @@ export function ChatBar({ onOpenTerminal, spaces = [], activeSpace, onSpaceChang
               if (e.key === "Escape") { setInput(""); return; }
             }
             if (e.key === "Enter") handleSend();
-          }}
-          onFocus={() => {
-            if (messages.length > 0) setExpanded(true);
           }}
           onBlur={() => {
             if (!input.trim()) {
