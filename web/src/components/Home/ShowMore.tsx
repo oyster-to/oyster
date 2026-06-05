@@ -2,6 +2,8 @@
 // Extracted from Home/index.tsx. Optional keyboard hints surface the
 // global shortcuts where they make sense (search anywhere; new-session
 // in the Sessions section).
+import { caps } from "../../caps";
+
 export function ShowMore({
   onClick,
   remaining,
@@ -20,15 +22,19 @@ export function ShowMore({
       </button>
       <span className="home-show-more-hint">
         {remaining} more
-        {searchHint && (
-          <>
-            {" · "}<kbd>⌘K</kbd> to search
-          </>
-        )}
-        {newSessionHint && (
-          <>
-            {" · "}<kbd>⌘/</kbd> new session
-          </>
+        {caps.canChat && (
+          <span className="home-more-hints">
+            {searchHint && (
+              <>
+                {" · "}<kbd>⌘K</kbd> to search
+              </>
+            )}
+            {newSessionHint && (
+              <>
+                {" · "}<kbd>⌘/</kbd> new session
+              </>
+            )}
+          </span>
         )}
       </span>
     </div>

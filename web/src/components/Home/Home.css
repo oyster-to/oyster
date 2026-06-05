@@ -2175,4 +2175,8 @@
   /* Collapsed card rows: tighter internal padding and a narrower status-pip
      track (was 14px in the 720px collapse block) to reclaim left inset. */
   .home-row { grid-template-columns: 10px 1fr auto; padding: 10px 12px; }
+  /* Keyboard hints are meaningless on touch — hide on all mobile widths. */
+  .home-more-hints { display: none; }
+  /* Show more pill: prevent two-line tall-oval wrapping. */
+  .home-memories-toggle { white-space: nowrap; }
 }
