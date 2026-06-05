@@ -169,6 +169,11 @@ interface OutgoingSession {
   ended_at: string | null;
   model: string | null;
   cwd: string | null;
+  /** Local space/project classification. Synced so the cloud remote view
+   *  can scope sessions by space the way the local Home surface does.
+   *  Null for orphan sessions (cwd matches no space). */
+  space_id: string | null;
+  project_id: string | null;
   last_event_at: string;
   sync_dirty_at: number;
   /** Stable per-device id from the local device_identity singleton.
@@ -207,7 +212,7 @@ export function createSessionSyncService(deps: SessionSyncDeps): SessionSyncServ
   // guard (don't push another owner's events; same posture as memory sync).
   const scanDirty = deps.db.prepare(
     `SELECT id, agent, title, state, started_at, ended_at, model, cwd,
-            last_event_at, sync_dirty_at
+            space_id, project_id, last_event_at, sync_dirty_at
        FROM sessions
       WHERE sync_dirty_at IS NOT NULL
         AND cloud_owner_id = ?

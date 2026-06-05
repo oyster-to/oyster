@@ -357,6 +357,13 @@ interface IncomingSession {
   state: string;
   cwd: string | null;
   model: string | null;
+  /** Local space classification — scopes the session in the cloud remote
+   *  view's space switcher. Null for orphan sessions (cwd matches no space)
+   *  and for sessions synced before this field existed (re-pushed lazily). */
+  space_id?: string | null;
+  /** Local project classification (a project belongs to a space). Same
+   *  null-tolerance as space_id. */
+  project_id?: string | null;
   started_at: string;
   ended_at: string | null;
   last_event_at: string;
@@ -385,7 +392,7 @@ function isValidSession(s: unknown): s is IncomingSession {
   // array) would either crash D1 .bind() with TypeError or silently coerce
   // to a useless string representation. Each malformed session is rejected
   // individually so the rest of the batch still lands.
-  for (const key of ["title", "cwd", "model", "ended_at", "device_id", "device_label"] as const) {
+  for (const key of ["title", "cwd", "model", "ended_at", "device_id", "device_label", "space_id", "project_id"] as const) {
     const v = o[key];
     if (v !== null && v !== undefined && typeof v !== "string") return false;
   }
@@ -437,8 +444,8 @@ async function handleSessionsMetadataPost(req: Request, env: Env): Promise<Respo
       const result = await env.DB.prepare(
         `INSERT INTO synced_session_metadata
            (owner_id, session_id, device_id, device_label, agent, title, state, cwd, model,
-            started_at, ended_at, last_event_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            space_id, project_id, started_at, ended_at, last_event_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(owner_id, session_id) DO UPDATE SET
            device_id     = excluded.device_id,
            device_label  = COALESCE(excluded.device_label, synced_session_metadata.device_label),
@@ -447,6 +454,8 @@ async function handleSessionsMetadataPost(req: Request, env: Env): Promise<Respo
            state         = excluded.state,
            cwd           = excluded.cwd,
            model         = excluded.model,
+           space_id      = excluded.space_id,
+           project_id    = excluded.project_id,
            started_at    = excluded.started_at,
            ended_at      = excluded.ended_at,
            last_event_at = excluded.last_event_at,
@@ -459,6 +468,7 @@ async function handleSessionsMetadataPost(req: Request, env: Env): Promise<Respo
       ).bind(
         user.id, s.id, s.device_id ?? null, s.device_label ?? null, s.agent,
         s.title ?? null, s.state, s.cwd ?? null, s.model ?? null,
+        s.space_id ?? null, s.project_id ?? null,
         s.started_at, s.ended_at ?? null, s.last_event_at, s.sync_dirty_at,
       ).run();
       // changes > 0 means a row was inserted or LWW won an update. changes 0
@@ -487,7 +497,8 @@ async function handleSessionsMetadataGet(req: Request, env: Env): Promise<Respon
   type Row = {
     session_id: string; device_id: string | null; device_label: string | null;
     agent: string; title: string | null;
-    state: string; cwd: string | null; model: string | null; started_at: string;
+    state: string; cwd: string | null; model: string | null;
+    space_id: string | null; project_id: string | null; started_at: string;
     ended_at: string | null; last_event_at: string;
     bytes_generation: number; active_device_id: string | null;
     has_bytes: number; total_bytes: number; updated_at: number;
@@ -500,7 +511,7 @@ async function handleSessionsMetadataGet(req: Request, env: Env): Promise<Respon
   // wire shape is always a number.
   const { results } = await env.DB.prepare(
     `SELECT m.session_id, m.device_id, m.device_label, m.agent, m.title, m.state,
-            m.cwd, m.model, m.started_at, m.ended_at, m.last_event_at,
+            m.cwd, m.model, m.space_id, m.project_id, m.started_at, m.ended_at, m.last_event_at,
             m.bytes_generation, m.active_device_id, m.updated_at,
             CASE WHEN EXISTS (
               SELECT 1 FROM synced_session_chunks c

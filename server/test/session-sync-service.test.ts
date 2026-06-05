@@ -12,6 +12,7 @@ function harness() {
     CREATE TABLE sessions (
       id                    TEXT PRIMARY KEY,
       space_id              TEXT,
+      project_id            TEXT,
       agent                 TEXT NOT NULL,
       title                 TEXT,
       state                 TEXT NOT NULL,
@@ -166,6 +167,43 @@ describe("SessionSyncService", () => {
     // device_label rides alongside so Device B can render "From MacBook-Pro"
     // without needing a separate hostname-lookup round-trip.
     expect(body.sessions[0]!.device_label).toBe("MacBook-Pro");
+  });
+
+  it("pushPending includes space_id + project_id in the wire payload", async () => {
+    // Cloud space switcher: the pushed metadata carries each session's local
+    // space/project scope so the remote view can filter by space.
+    const { db, profileBinding } = harness();
+    profileBinding.bindToOwner("user-A");
+    db.prepare(
+      `INSERT INTO sessions (id, space_id, project_id, agent, state, last_event_at, sync_dirty_at, cloud_owner_id)
+       VALUES ('s1', 'spc-1', 'prj-1', 'claude-code', 'done', datetime('now'), 1000, 'user-A')`,
+    ).run();
+    // Orphan session: no space/project → nulls flow through.
+    db.prepare(
+      `INSERT INTO sessions (id, agent, state, last_event_at, sync_dirty_at, cloud_owner_id)
+       VALUES ('s2', 'claude-code', 'done', datetime('now'), 1001, 'user-A')`,
+    ).run();
+
+    let capturedBody: string | null = null;
+    const fetchSpy = vi.fn(async (_url: string | URL, init?: RequestInit) => {
+      capturedBody = init?.body as string;
+      return new Response(JSON.stringify({ accepted: ["s1", "s2"] }), { status: 200 });
+    });
+    const svc = createSessionSyncService({
+      db, profileBinding,
+      currentUser: () => ({ id: "user-A", email: "a@a", tier: "pro" }),
+      sessionToken: () => "tok",
+      workerBase: "https://example.com",
+      fetch: fetchSpy as unknown as typeof fetch,
+    });
+    await svc.pushPending();
+    const body = JSON.parse(capturedBody ?? "{}") as {
+      sessions: Array<{ id: string; space_id: string | null; project_id: string | null }>
+    };
+    const s1 = body.sessions.find((s) => s.id === "s1");
+    const s2 = body.sessions.find((s) => s.id === "s2");
+    expect(s1).toMatchObject({ space_id: "spc-1", project_id: "prj-1" });
+    expect(s2).toMatchObject({ space_id: null, project_id: null });
   });
 
   it("pushPending tolerates missing device_identity (device_id null in payload)", async () => {
