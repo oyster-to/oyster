@@ -1,6 +1,6 @@
 import { type IncomingMessage, type ServerResponse } from "node:http";
 import { spawn, execSync } from "node:child_process";
-import { broadcastRaw, broadcastSynthetic } from "./opencode-events.js";
+import { emitChatEvent, broadcastSynthetic } from "./opencode-events.js";
 import { bootMark } from "./boot-timer.js";
 
 let shuttingDown = false;
@@ -211,19 +211,20 @@ export function startAutoApprover(
               try {
                 const wrapper = JSON.parse(line.slice(6));
                 // /global/event wraps every event in { payload, directory, project, workspace }.
-                // Unwrap so downstream consumers (the browser EventSource at
-                // /api/chat/events, and the permission/file checks below) see
-                // the same { type, properties } shape /event used to emit.
+                // Unwrap so downstream consumers (the browser, via the ui-events
+                // {command:"chat"} envelope, and the permission/file checks below)
+                // see the same { type, properties } shape /event used to emit.
                 const event = wrapper && typeof wrapper === "object" && "payload" in wrapper
                   ? wrapper.payload
                   : wrapper;
                 if (!event || typeof event !== "object") continue;
 
-                // Fan out the unwrapped event to any connected browser clients.
+                // Fan out the unwrapped event to any connected browser clients
+                // (rides the shared /api/ui/events stream as {command:"chat"}).
                 // A single upstream subscription avoids multiplying opencode load
                 // by the number of open tabs and gives us a place to inject
                 // server-originated synthetic events.
-                broadcastRaw(`data: ${JSON.stringify(event)}\n\n`);
+                emitChatEvent(event);
 
                 if (event.type === "permission.asked") {
                   const requestId = event.properties.id;

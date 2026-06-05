@@ -4,6 +4,17 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- **Sessions list shows everything** — the Sessions tab lists all sessions; no more "Show more" clicks.
+- **Better on small windows** — compact rows, tighter spacing and a cleaner layout when the window is narrow.
+
+### Fixed
+
+- **Untitled sessions get a name** — sessions without a title now show their folder name instead of a raw ID.
+
+## [0.11.0] - 2026-06-05
+
 ### Added
 
 - **Sessions show what they produced.** Each session now lists the docs, decks, tables, and diagrams it created or worked on — filled in automatically from your agent's activity, with no manual tagging.
@@ -11,11 +22,10 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 - **Move a project between spaces — or out of one.** A project's ⋯ menu now offers "Move to space…": relocate it (and its sessions) to another space, or remove it from its space entirely. Removed projects stay on Home, ready to re-file.
 - **Ask to see a past session, and Oyster opens it.** Say "show me the session about X" and the agent finds it and opens it in the inspector — jumping straight to the relevant moment when it can. It can also list your recent sessions on request.
 - **Filter artefacts by kind.** The Artefacts section gains a Kind filter — narrow to apps, decks, diagrams, notes, tables, or wireframes, alongside the existing source filters.
+- **Ask from anywhere.** Search (Cmd+K) gains an "Ask Oyster" row — type a question, hit Enter, and the Ask panel opens with the answer streaming. No-result searches offer it too.
 
 ### Changed
 
-- **Sessions list shows everything** — the Sessions tab lists all sessions; no more "Show more" clicks.
-- **Better on small windows** — compact rows, tighter spacing and a cleaner layout when the window is narrow.
 - **Ask Oyster moves to a side panel** — chat now opens from the ✦ Ask button in the top bar and slides in beside your work, instead of a bar pinned to the bottom of every page. It knows which space and project you're looking at.
 - **Bottom chat bar removed** — and with it, typing-anywhere-to-chat and the ⚡ terminal shortcut.
 - **One surface, three tabs** — Sessions, Artefacts and Memories now sit in tabs below your projects, scoped by the selected space and project, with a scope crumb showing where you are.
@@ -25,7 +35,7 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 
 ### Fixed
 
-- **Untitled sessions get a name** — sessions without a title now show their folder name instead of a raw ID.
+- **Multiple Oyster tabs no longer freeze the app.** Each tab held two permanent event streams, hitting the browser's per-site connection limit at three tabs — every request then stalled silently. One stream per tab now, so working across several tabs is comfortable.
 - **Sessions table names the repo** — the project column shows the repository name instead of the space, and steps aside when a project is selected.
 - **Onboarding reflects what you've actually done.** "Publish your first artefact" now ticks only when you have a live publication (and un-ticks if you unpublish), and the setup icon fills as a progress ring — becoming the 🦪 only once every step is done.
 - **Artefacts table view has column headers.** The table view now labels its columns (Name · Space · Kind · Created), matching the sessions list.

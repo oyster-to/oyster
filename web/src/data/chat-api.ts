@@ -1,3 +1,4 @@
+import { subscribeUiEvents } from "./ui-events";
 import { apiPath } from "./http";
 
 const SESSION_KEY = "oyster-session-id";
@@ -114,22 +115,15 @@ export async function sendMessage(
 export function subscribeToEvents(
   onEvent: (event: ChatEvent) => void
 ): () => void {
-  const es = new EventSource(apiPath("/api/chat/events"));
-
-  es.onmessage = (e) => {
-    try {
-      const event: ChatEvent = JSON.parse(e.data);
-      onEvent(event);
-    } catch {
-      // ignore parse errors
-    }
-  };
-
-  es.onerror = () => {
-    // EventSource auto-reconnects
-  };
-
-  return () => es.close();
+  // Chat events ride the shared /api/ui/events stream as a
+  // {command:"chat"} envelope — one SSE connection per tab instead of a
+  // dedicated chat stream (Chrome caps HTTP/1.1 at 6 connections per
+  // origin; two streams per tab stalled every fetch at three tabs).
+  // Unwrap the envelope and preserve this function's callback contract.
+  return subscribeUiEvents((e) => {
+    if (e.command !== "chat") return;
+    onEvent(e.payload as ChatEvent);
+  });
 }
 
 export async function replyToQuestion(
