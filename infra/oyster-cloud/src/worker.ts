@@ -2,6 +2,7 @@ import { jsonOk, jsonError } from "./json.js";
 import type { Env } from "./session.js";
 import { resolveSession } from "./session.js";
 import { encryptChunk, decryptChunk, sha256Hex, type ChunkAad } from "./encryption.js";
+import { handleSessionEventsGet } from "./transcript-events.js";
 
 // Safe decode helper used by all bytes routes. decodeURIComponent throws
 // URIError on malformed percent-encoding (e.g. "%G"); we'd rather a 400 than
@@ -64,6 +65,13 @@ export default {
       const sessionId = safeDecode(resetMatch[1]);
       if (sessionId === null) return jsonError(400, "invalid_session_id");
       return handleSessionsBytesReset(req, env, sessionId);
+    }
+
+    const eventsMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/events$/);
+    if (eventsMatch && eventsMatch[1] && req.method === "GET") {
+      const sessionId = safeDecode(eventsMatch[1]);
+      if (sessionId === null) return jsonError(400, "invalid_session_id");
+      return handleSessionEventsGet(req, env, sessionId);
     }
 
     return jsonError(404, "not_found");
