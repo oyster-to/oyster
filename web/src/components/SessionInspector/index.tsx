@@ -7,6 +7,8 @@ import {
   SessionNotFoundError,
 } from "../../data/sessions-api";
 import { subscribeUiEvents } from "../../data/ui-events";
+import { caps } from "../../caps";
+import { fetchCloudSessionSize } from "../../data/cloud-sessions";
 import type {
   Session,
   SessionEvent,
@@ -86,6 +88,11 @@ export function SessionInspector({ sessionId, focusEventId, initialSearchQuery, 
   // permanently null until tab switch or next SSE.
   const [bootstrapDone, setBootstrapDone] = useState(false);
 
+  // The live-append closure, ref-exposed so the cloud manifest-poll effect
+  // can trigger it without duplicating the {after} append logic. Populated
+  // by the live-update effect below regardless of mode.
+  const refetchLiveRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     const reqId = ++latestReqId.current;
     setError(null);
@@ -118,7 +125,10 @@ export function SessionInspector({ sessionId, focusEventId, initialSearchQuery, 
         setSession(s);
         setEvents(ev);
         setArtefacts(art);
-        setHasMoreOlder(ev.length >= PAGE_SIZE);
+        // Cloud caps work at 4 chunks/request, so a non-empty page shorter
+        // than PAGE_SIZE can still have older history — only an EMPTY page
+        // means exhausted there.
+        setHasMoreOlder(caps.cloud ? ev.length > 0 : ev.length >= PAGE_SIZE);
         setBootstrapDone(true);
       })
       .catch((err) => {
@@ -193,21 +203,52 @@ export function SessionInspector({ sessionId, focusEventId, initialSearchQuery, 
       }, 200);
     }
 
-    const unsubscribe = subscribeUiEvents((event) => {
-      if (
-        event.command === "session_changed"
-        && (event.payload as { id?: string } | null)?.id === sessionId
-      ) {
-        refetchLive();
-      }
-    });
+    refetchLiveRef.current = refetchLive;
+
+    // SSE subscription only exists locally. In cloud the manifest-poll
+    // effect is the sole live driver — the 12s synthetic session_changed
+    // (payload.id: "") must not drive {after} fetches, and gating the
+    // subscription off makes that intent explicit (and guards against
+    // future broadcast events). Spec: 2026-06-05-cloud-remote-view.
+    const unsubscribe = caps.hasSse
+      ? subscribeUiEvents((event) => {
+          if (
+            event.command === "session_changed"
+            && (event.payload as { id?: string } | null)?.id === sessionId
+          ) {
+            refetchLive();
+          }
+        })
+      : () => {};
 
     return () => {
       if (timer) clearTimeout(timer);
       if (inflight) inflight.abort();
       unsubscribe();
+      refetchLiveRef.current = null;
     };
   }, [sessionId, bootstrapDone]);
+
+  // Cloud live tail: poll the chunk manifest (D1-only, no R2 decrypt on the
+  // worker) and fetch events only when the transcript actually grew. The
+  // SSE path doesn't exist remotely. Spec: 2026-06-05-cloud-remote-view.
+  useEffect(() => {
+    if (!caps.cloud) return;
+    if (!session || !["active", "waiting"].includes(session.state)) return;
+    let lastSize = -1;
+    let stop = false;
+    const tick = async () => {
+      if (stop || document.visibilityState !== "visible") return;
+      try {
+        const size = await fetchCloudSessionSize(sessionId);
+        if (lastSize >= 0 && size > lastSize) refetchLiveRef.current?.();
+        lastSize = size;
+      } catch { /* transient — next tick retries */ }
+    };
+    const t = setInterval(tick, 5_000);
+    tick();
+    return () => { stop = true; clearInterval(t); };
+  }, [sessionId, session?.state]);
 
   // Mirror events into a ref so live SSE fetches can read the freshest
   // last-id without re-running their effect on every append.
@@ -232,7 +273,7 @@ export function SessionInspector({ sessionId, focusEventId, initialSearchQuery, 
       if (fresh.length > 0) {
         setEvents((prev) => (prev ? [...fresh, ...prev] : fresh));
       }
-      setHasMoreOlder(older.length >= PAGE_SIZE);
+      setHasMoreOlder(caps.cloud ? older.length > 0 : older.length >= PAGE_SIZE);
     } catch (err) {
       console.warn("[SessionInspector] load older failed:", err);
     } finally {
