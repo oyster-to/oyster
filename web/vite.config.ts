@@ -34,10 +34,6 @@ export default defineConfig(({ mode }) => ({
   server: {
     port: 7337,
     proxy: {
-      '/api/chat/events': {
-        target,
-        headers: { Accept: 'text/event-stream' },
-      },
       '/api/ui/events': {
         target,
         headers: { Accept: 'text/event-stream' },
