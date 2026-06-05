@@ -85,6 +85,15 @@ export default function App() {
   const [spotlightOpen, setSpotlightOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
 
+  // OnboardingDock's "Set up Oyster" (and any oyster:send-prompt dispatcher)
+  // lands in the Ask panel — make sure the panel is visible when it does.
+  // AskPanel's own listener handles the actual send.
+  useEffect(() => {
+    const handler = () => setAskOpen(true);
+    window.addEventListener("oyster:send-prompt", handler);
+    return () => window.removeEventListener("oyster:send-prompt", handler);
+  }, []);
+
   // Global keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
