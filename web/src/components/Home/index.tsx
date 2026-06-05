@@ -89,6 +89,10 @@ interface Props {
    *  computes it from the unscoped artefact pile so a space pill can't
    *  hide a publication that lives in another space. */
   publishedCount?: number;
+  /** Project scope (a project id or the VAULT sentinel) — owned by App
+   *  so it's URL-addressable. */
+  selectedProjectId: string | null;
+  onSelectProject: (projectId: string | null) => void;
 }
 
 const ARTEFACT_SOURCE_ORDER: ArtefactSource[] = ["all", "manual", "ai_generated", "discovered", "published", "pinned"];
@@ -167,7 +171,7 @@ const FILTER_LABELS: Record<StateFilter, string> = {
   all: "all",
 };
 
-export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenArtifact, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount, publishedCount }: Props) {
+export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromoteFolderToSpace, onSpaceDelete, onSpaceUpdate, onLaunchClaude, onLaunchClaudeFromSession, onOpenRemoteInOyster, terminalWindows, onTerminalFocus, onTerminalRestore, onTerminalStop, onOpenArtifact, onOpenNewSession, onConnectSession, sessions, sessionsLoading: loading, sessionsError: error, userSpaceCount, publishedCount, selectedProjectId, onSelectProject }: Props) {
   const presence = useTerminalPresence(sessions, terminalWindows ?? []);
   const signedIn = useAuthSignedIn();
   const myDevice = useMyDeviceId();
@@ -260,10 +264,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // Right-click context menu on a breadcrumb pill — owns rename / color /
   // delete entry points. Anchored by the clicked pill's bounding rect.
   const [pillCtx, setPillCtx] = useState<{ spaceId: string; rect: DOMRect } | null>(null);
-  // Project-tile filter: null = "All" (no folder scope), "__vault__" =
-  // native artefacts, otherwise a source_id. The tile grid is the canonical
-  // surface for switching between folders; selection is exclusive.
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const selectedProject = selectedProjectId && selectedProjectId !== VAULT
     ? allProjects.find((p) => p.id === selectedProjectId) ?? null
     : null;
@@ -306,24 +306,15 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
 
   // Collapse limits + filter reset on scope change — switching from a
   // 60-item Home view to a single-space view shouldn't carry over either
-  // the "show more" depth, source filter, or tile selection. Exception:
-  // the Active-projects jump arrow lets the user "open this space with
-  // this project pre-selected" — the click stashes a source_id in the
-  // pending ref before triggering onSpaceChange, and this effect honours
-  // it instead of the default null reset.
-  const pendingFolderSelection = useRef<string | null>(null);
+  // the "show more" depth, source filter, or tile selection. Project scope
+  // (selectedProjectId) is now URL-addressable and owned by App; App clears
+  // it on space change via handleSpaceChange, so this effect doesn't touch it.
   useEffect(() => {
     setMemoriesLimit(MEMORIES_PREVIEW);
     setArtefactsLimit(ARTEFACTS_PREVIEW);
     setSessionsLimit(SESSIONS_PREVIEW);
     setArtefactSource("all");
     setArtefactKind("all");
-    if (pendingFolderSelection.current) {
-      setSelectedProjectId(pendingFolderSelection.current);
-      pendingFolderSelection.current = null;
-    } else {
-      setSelectedProjectId(null);
-    }
     setSelectedCwd(null);
   }, [scopedSpace, isHomeView]);
 
@@ -1001,7 +992,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   <button
                     type="button"
                     className="home-projects-strip-tile-body"
-                    onClick={() => { setSelectedCwd(null); setSelectedProjectId(selectedProjectId === VAULT ? null : VAULT); }}
+                    onClick={() => { setSelectedCwd(null); onSelectProject(selectedProjectId === VAULT ? null : VAULT); }}
                     title="Artefacts created in Oyster itself — not tied to a repo"
                   >
                     <div className="home-projects-strip-name">
@@ -1023,7 +1014,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   artefactCount={projectArtefactCounts[p.id] ?? 0}
                   sessionCounts={sessionCountsByProject[p.id]}
                   selected={selectedProjectId === p.id}
-                  onSelect={() => { setSelectedCwd(null); setSelectedProjectId(selectedProjectId === p.id ? null : p.id); }}
+                  onSelect={() => { setSelectedCwd(null); onSelectProject(selectedProjectId === p.id ? null : p.id); }}
                   onChanged={refreshAllProjects}
                   isLastProject={false}
                   spaceTotalSessions={0}
@@ -1047,7 +1038,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                     <button
                       type="button"
                       className="home-projects-strip-tile-body"
-                      onClick={() => { setSelectedProjectId(null); setSelectedCwd(isSelected ? null : p.cwd); }}
+                      onClick={() => { onSelectProject(null); setSelectedCwd(isSelected ? null : p.cwd); }}
                       title={p.cwd}
                     >
                       <div className="home-projects-strip-name home-projects-strip-name--folder">
@@ -1166,7 +1157,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               projectArtefactCounts={projectArtefactCounts}
               sessionCountsByProject={sessionCountsByProject}
               selectedProjectId={selectedProjectId}
-              setSelectedProjectId={setSelectedProjectId}
+              setSelectedProjectId={onSelectProject}
               spaceTotalSessions={scopedSessions.length}
               spaces={moveSpaceOptions}
               showAttachForm={showAttachForm}
@@ -1200,7 +1191,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               <button
                 type="button"
                 className="home-tab-scope-clear"
-                onClick={() => setSelectedProjectId(null)}
+                onClick={() => onSelectProject(null)}
                 aria-label="Clear project scope"
               >
                 ✕
