@@ -26,14 +26,16 @@ import { AttachOrphanPopover } from "./AttachOrphanPopover";
 import { MemoryCard } from "./MemoryCard";
 import { VaultInfo } from "./VaultInfo";
 import { homeRelative, renderPipCounts, stateColor } from "./utils";
+import { caps } from "../../caps";
 import { VAULT, type ArtefactSource, type StateFilter } from "./types";
 import { attachFolder, fetchAllProjects } from "../../data/projects-api";
 import { ProjectTile } from "./ProjectTile";
 import { useFetched } from "../../hooks/useFetched";
 import { createSpace } from "../../data/spaces-api";
 import { deleteMemory, type Memory } from "../../data/memories-api";
-import { ApiError } from "../../data/http";
+import { ApiError, apiPath } from "../../data/http";
 import { useTerminalPresence } from "../../hooks/useTerminalPresence";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import type { WindowState } from "../../stores/windows";
 import { RunningTerminalsPill } from "../Topbar/RunningTerminalsPill";
 import { NewSessionPill } from "../Topbar/NewSessionPill";
@@ -153,11 +155,6 @@ const LIVE_STATES: SessionState[] = ["active", "waiting"];
 
 const EMPTY_COUNTS = { total: 0, running: 0, active: 0, waiting: 0, disconnected: 0, done: 0 };
 
-// Sessions list cap. Busy spaces can run dozens of concurrent sessions
-// and previously pushed Artefacts below the fold; ten keeps the section
-// compact in both icon and table views and Show more surfaces the rest.
-const SESSIONS_PREVIEW = 10;
-
 // Memory list shows this many rows by default; user clicks "Show all N"
 // to expand. Five is small enough to fit alongside Sessions and Artefacts
 // without scroll-thrash, large enough that single-space views (typically
@@ -222,7 +219,21 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // across spaces.
   useEffect(() => { setShowAttachForm(false); }, [projectsSpaceId]);
   const [stateFilter, setStateFilter] = useState<StateFilter>("all");
+  // Cloud-only origin-device filter. Local builds never set deviceFilter
+  // (the chip row is caps.cloud-gated), so it's inert there.
+  const [deviceFilter, setDeviceFilter] = useState<string | null>(null);
+  // Distinct origin-device labels — the cloud view's primary grouping.
+  const deviceLabels = useMemo(() => {
+    const out = new Set<string>();
+    for (const s of sessions) if (s.originDeviceLabel) out.add(s.originDeviceLabel);
+    return [...out].sort();
+  }, [sessions]);
   const [sessionsView, setSessionsView] = useStickyView("oyster.home.sessionsView", "full", ["full", "compact"] as const);
+  // Phones force COMPACT (FULL's extra title weight + artefact-chip line waste
+  // vertical space on a ~390px screen). The persisted preference is left
+  // untouched so desktop keeps the user's choice when they cross the breakpoint.
+  const isMobile = useIsMobile();
+  const effectiveSessionsView = isMobile ? "compact" : sessionsView;
   const [activeTab, setActiveTab] = useStickyView("oyster.home.activeTab", "sessions", ["sessions", "artefacts", "memories"] as const);
   const [artefactsView, setArtefactsView] = useStickyView("oyster.home.artefactsView", "icons", ["icons", "table"] as const);
   const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
@@ -240,7 +251,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   const [lastSyncMessage, setLastSyncMessage] = useState<string | null>(null);
   const lastAutoReconcileRef = useRef<number>(0);
   const AUTO_THROTTLE_MS = 10_000;
-  const [sessionsLimit, setSessionsLimit] = useState(SESSIONS_PREVIEW);
   // Artefact source filter (#280) + 3-row collapse. Reset on scope change
   // so each space starts compact and at "all".
   const [artefactSource, setArtefactSource] = useState<ArtefactSource>("all");
@@ -274,7 +284,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
 
   const triggerSetupScan = useCallback(async () => {
     try {
-      const res = await fetch("/api/setup/scan", { method: "POST" });
+      const res = await fetch(apiPath("/api/setup/scan"), { method: "POST" });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         alert(`Couldn't scan for spaces: ${text || res.statusText}`);
@@ -315,7 +325,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   useEffect(() => {
     setMemoriesLimit(MEMORIES_PREVIEW);
     setArtefactsLimit(ARTEFACTS_PREVIEW);
-    setSessionsLimit(SESSIONS_PREVIEW);
     setArtefactSource("all");
     setArtefactKind("all");
     setSelectedCwd(null);
@@ -374,6 +383,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     // "done" chip folds in disconnected + dormant so the list matches the count.
     else if (stateFilter === "done") list = folderScopedSessions.filter((s) => s.state === "done" || s.state === "disconnected" || s.displayState === "dormant");
     else list = folderScopedSessions.filter((s) => s.displayState === stateFilter);
+    // Cloud-only: narrow to one origin device when its chip is active.
+    if (deviceFilter) list = list.filter((s) => s.originDeviceLabel === deviceFilter);
     // Pin live (open terminal) rows to the top; within each group preserve
     // descending last-activity order.
     return list.slice().sort((a, b) => {
@@ -382,7 +393,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
       if (aLive !== bLive) return aLive - bLive;
       return (b.lastEventAt ?? "").localeCompare(a.lastEventAt ?? "");
     });
-  }, [folderScopedSessions, stateFilter, presence.byId]);
+  }, [folderScopedSessions, stateFilter, deviceFilter, presence.byId]);
 
   // Per-space session counts + a grand total for the Home card. Buckets by
   // `displayState` so dormant rows fold into `done` — matches the home
@@ -750,7 +761,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     setReconciling(true);
     setLastSyncMessage(null);
     try {
-      const res = await fetch("/api/memories/reconcile?reason=manual", { method: "POST" });
+      const res = await fetch(apiPath("/api/memories/reconcile?reason=manual"), { method: "POST" });
       if (res.ok) {
         const data = await res.json() as { applied?: number; status?: string };
         await refreshMemories();
@@ -775,7 +786,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     const now = Date.now();
     if (now - lastAutoReconcileRef.current < AUTO_THROTTLE_MS) return;
     lastAutoReconcileRef.current = now;
-    fetch(`/api/memories/reconcile?reason=${reason}`, { method: "POST" })
+    fetch(apiPath(`/api/memories/reconcile?reason=${reason}`), { method: "POST" })
       .then((r) => r.ok ? r.json() : null)
       .then((data: { applied?: number } | null) => {
         if (data?.applied && data.applied > 0) refreshMemories();
@@ -848,6 +859,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             <LayoutGroup id="home-breadcrumb">
             <div className="home-breadcrumb-inner">
             <AuthBadge />
+            {caps.hasSpaces && (<>
             <button
               type="button"
               className={`home-breadcrumb-pill home-breadcrumb-pill--home${isHomeView && !showVault ? " selected" : ""}`}
@@ -866,6 +878,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 <path d="M11.03 2.59a1.5 1.5 0 0 1 1.94 0l7.5 6.363A1.5 1.5 0 0 1 21 10.097V19.5a2.5 2.5 0 0 1-2.5 2.5H15v-4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v4H5.5A2.5 2.5 0 0 1 3 19.5v-9.403a1.5 1.5 0 0 1 .53-1.137l7.5-6.37Z"/>
               </svg>
             </button>
+            {caps.hasProjects && (
             <button
               type="button"
               className={`home-breadcrumb-pill home-breadcrumb-pill--vault${showVaultPage ? " selected" : ""}`}
@@ -883,6 +896,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               )}
               <Shield size={14} strokeWidth={2} fill="currentColor" aria-hidden="true" style={{ position: "relative", zIndex: 1 }} />
             </button>
+            )}
             {realSpaces.map((space) => {
               const counts = sessionCountsBySpace[space.id] ?? EMPTY_COUNTS;
               const tip = [
@@ -900,6 +914,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   onClick={() => onSpaceChange(space.id)}
                   onContextMenu={(e) => {
                     e.preventDefault();
+                    if (!caps.canWrite) return; // read-only build: no rename/delete menu
                     setPillCtx({ spaceId: space.id, rect: e.currentTarget.getBoundingClientRect() });
                   }}
                   title={tip}
@@ -920,6 +935,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 </button>
               );
             })}
+            {caps.canWrite && (
             <button
               type="button"
               className="home-breadcrumb-pill home-breadcrumb-pill--add"
@@ -945,7 +961,12 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 <span aria-hidden="true">+</span>
               )}
             </button>
+            )}
+            </>)}
             </div>
+            {/* Terminals / Ask / New-session are all local-only; in cloud the
+                wrapper would otherwise paint as an empty styled husk. */}
+            {caps.canChat && (
             <div className="home-breadcrumb-inner home-breadcrumb-inner--right-cluster">
               {onTerminalFocus && onTerminalRestore && onTerminalStop && presence.totalLive > 0 && (
                 <RunningTerminalsPill
@@ -959,7 +980,9 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
               {onOpenAsk && <AskPill onClick={onOpenAsk} />}
               {onOpenNewSession && <NewSessionPill onClick={onOpenNewSession} />}
             </div>
-            <OnboardingDock userSpaceCount={userSpaceCount} publishedCount={publishedCount} />
+            )}
+            {/* local setup affordance */}
+            {caps.canChat && <OnboardingDock userSpaceCount={userSpaceCount} publishedCount={publishedCount} />}
             </LayoutGroup>
           </nav>
 
@@ -985,7 +1008,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             home-space-card / home-spaces-section CSS is kept around in
             case the cards return as a settings or dashboard surface. */}
 
-        {isHomeView && (sortedProjects.length > 0 || orphanCwdGroups.length > 0 || (projectArtefactCounts[VAULT] ?? 0) > 0) && (
+        {caps.hasProjects && isHomeView && (sortedProjects.length > 0 || orphanCwdGroups.length > 0 || (projectArtefactCounts[VAULT] ?? 0) > 0) && (
           <div className="home-section home-projects-section">
             <div className="home-section-head">
               <span className="home-section-label">Projects</span>
@@ -1114,7 +1137,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           </div>
         )}
 
-        {projectsSpaceId && (
+        {caps.hasProjects && projectsSpaceId && (
           spaceProjectsError ? (
             <div className="home-spaces-section">
               <div className="home-spaces-grid">
@@ -1220,7 +1243,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
         <section className="home-section" role="tabpanel" id="home-tabpanel-sessions" aria-labelledby="home-tab-sessions">
           <div className="home-section-head">
             <span className="home-section-stats">
-              {FILTER_ORDER.map((f) => {
+              {FILTER_ORDER.filter((f) => caps.canChat || f !== "live-terminals").map((f) => {
                 const count = stateCounts[f];
                 if (count === 0 && f !== "all" && f !== "live") return null;
                 const isLiveTerminals = f === "live-terminals";
@@ -1242,8 +1265,26 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   </span>
                 );
               })}
+              {caps.cloud && deviceLabels.length > 1 && (
+                <>
+                  <span className="stat-divider" aria-hidden="true" />
+                  {deviceLabels.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      className={`stat-btn${deviceFilter === d ? " active" : ""}`}
+                      onClick={() => setDeviceFilter(deviceFilter === d ? null : d)}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </>
+              )}
             </span>
             <span className="home-section-spacer" />
+            {/* Toggle hidden on phones — COMPACT is forced there. JS gate (not
+                CSS) so the chips row reflows without the reserved space. */}
+            {!isMobile && (
             <div className="view-toggle-text">
               <button
                 type="button"
@@ -1260,6 +1301,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                 Compact
               </button>
             </div>
+            )}
           </div>
 
           {loading && sessions.length === 0 ? (
@@ -1278,11 +1320,11 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                     <span role="columnheader">Reason</span>
                     <span role="columnheader">Last active</span>
                   </div>
-                  {visibleSessions.slice(0, sessionsLimit).map((session) => (
+                  {visibleSessions.map((session) => (
                     <SessionRow
                       key={session.id}
                       session={session}
-                      view={sessionsView}
+                      view={effectiveSessionsView}
                       myDeviceId={myDeviceId}
                       livePresence={presence.byId[session.id]}
                       projectName={session.projectId ? projectNameById[session.projectId] ?? null : null}
@@ -1296,14 +1338,6 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   ))}
                 </div>
               </div>
-              {sessionsLimit < visibleSessions.length && (
-                <ShowMore
-                  onClick={() => setSessionsLimit((n) => n + SESSIONS_PREVIEW)}
-                  remaining={visibleSessions.length - sessionsLimit}
-                  searchHint
-                  newSessionHint
-                />
-              )}
             </>
           )}
           {stateCounts.all === 0 && isHomeView && !loading && (
@@ -1430,7 +1464,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                     onClick={async () => {
                       setSigningIn(true);
                       try {
-                        const res = await fetch("/api/auth/login", { method: "POST" });
+                        const res = await fetch(apiPath("/api/auth/login"), { method: "POST" });
                         if (!res.ok) throw new Error(String(res.status));
                         const body = (await res.json()) as { sign_in_url: string };
                         window.open(body.sign_in_url, "_blank", "noopener,noreferrer");
@@ -1540,16 +1574,18 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             {lastSyncMessage && (
               <span className="home-memories-sync-msg">{lastSyncMessage}</span>
             )}
-            <button
-              type="button"
-              className="home-memories-add-btn"
-              onClick={() => setShowAddMemory((v) => !v)}
-              aria-expanded={showAddMemory}
-            >
-              {showAddMemory ? "Cancel" : "+ Add memory"}
-            </button>
+            {caps.canWrite && (
+              <button
+                type="button"
+                className="home-memories-add-btn"
+                onClick={() => setShowAddMemory((v) => !v)}
+                aria-expanded={showAddMemory}
+              >
+                {showAddMemory ? "Cancel" : "+ Add memory"}
+              </button>
+            )}
           </div>
-          {showAddMemory && (
+          {caps.canWrite && showAddMemory && (
             <AddMemoryForm
               defaultSpaceId={scopedSpace}
               spaces={spaces}

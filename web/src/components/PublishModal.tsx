@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Link2 } from "lucide-react";
 import type { Artifact, ArtefactPublication } from "../../../shared/types";
 import { publishArtifact, unpublishArtifact, unpublishCloudShare, updateCloudShare, PublishApiError } from "../data/publish-api";
+import { apiPath } from "../data/http";
 import { useCopyLink } from "../hooks/useCopyLink";
 import { ConfirmModal } from "./ConfirmModal";
 import { subscribeUiEvents } from "../data/ui-events";
@@ -58,7 +59,7 @@ export function PublishModal({ artifact, onClose }: Props) {
     let cancelled = false;
     const refresh = async () => {
       try {
-        const res = await fetch("/api/auth/whoami");
+        const res = await fetch(apiPath("/api/auth/whoami"));
         if (!res.ok) throw new Error(String(res.status));
         const body = (await res.json()) as { user: { email: string; tier?: string } | null };
         if (cancelled) return;
@@ -235,7 +236,7 @@ export function PublishModal({ artifact, onClose }: Props) {
   async function handleSignIn() {
     setError(null);
     try {
-      const res = await fetch("/api/auth/login", { method: "POST" });
+      const res = await fetch(apiPath("/api/auth/login"), { method: "POST" });
       if (!res.ok) throw new Error(String(res.status));
       const body = (await res.json()) as { sign_in_url: string; expires_in: number };
       window.open(body.sign_in_url, "_blank", "noopener,noreferrer");
@@ -256,7 +257,7 @@ export function PublishModal({ artifact, onClose }: Props) {
     const tick = async () => {
       if (cancelled) return;
       try {
-        const res = await fetch("/api/auth/whoami");
+        const res = await fetch(apiPath("/api/auth/whoami"));
         if (!res.ok) return;
         const body = (await res.json()) as { user: { email: string; tier?: string } | null };
         if (cancelled) return;

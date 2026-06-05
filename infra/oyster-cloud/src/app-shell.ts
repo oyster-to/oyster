@@ -1,14 +1,9 @@
-// app-shell.ts — throwaway whoami shell for the remote view's backend
-// slice (spec 2026-06-05-cloud-remote-view-design.md). Proves the chain
-// browser → apex cookie → worker → sessions metadata end-to-end. The UI
-// slice (blocked on unified-scope-ux PR1) replaces this with the real
-// cloud-mode web build.
+// app-shell.ts — serves the cloud remote-view SPA at /app
+// (spec 2026-06-05-cloud-remote-view). Hashed assets pass straight through
+// to the ASSETS binding (public); navigations (index.html) are auth-gated so
+// a signed-out visitor lands on a sign-in prompt rather than an empty SPA.
 import type { Env } from "./session.js";
 import { resolveSession } from "./session.js";
-
-function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
 
 function page(body: string): string {
   return `<!doctype html>
@@ -20,31 +15,26 @@ function page(body: string): string {
 
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" };
 
-export async function handleAppShell(req: Request, env: Env): Promise<Response> {
+const SIGN_IN_BODY = `<h1>Oyster</h1><p>Not signed in. <a href="https://oyster.to/auth/sign-in">Sign in</a>, then come back to <a href="/app">/app</a>.</p>`;
+
+/** Serve the cloud SPA: hashed assets pass straight through to the ASSETS
+ *  binding; navigations (index.html) require a signed-in user. */
+export async function handleAppShell(req: Request, env: Env, url: URL): Promise<Response> {
+  const sub = url.pathname.slice("/app".length) || "/";
+  // Hashed asset requests (js/css/img) — public, immutable, no auth. The
+  // ASSETS binding is keyed without the /app prefix (directory root is
+  // dist-cloud), so we strip /app before forwarding.
+  if (sub.startsWith("/assets/") || /\.(js|css|svg|png|ico|woff2?)$/.test(sub)) {
+    return env.ASSETS.fetch(new Request(new URL(sub, url.origin), req));
+  }
+  // Everything else is a navigation → auth-gate, then SPA index.
   const user = await resolveSession(req, env);
   if (!user) {
-    return new Response(
-      page(`<h1>Oyster</h1><p>Not signed in. <a href="https://oyster.to/auth/sign-in">Sign in</a>, then come back to <a href="/app">/app</a>.</p>`),
-      { status: 401, headers: HTML_HEADERS },
-    );
+    return new Response(page(SIGN_IN_BODY), { status: 401, headers: HTML_HEADERS });
   }
-  return new Response(
-    page(`<h1>Oyster</h1>
-<p>Signed in as <strong>${esc(user.email)}</strong> (${esc(user.tier)}).</p>
-<h2>Sessions</h2><ol id="s"><li>loading…</li></ol>
-<script>
-fetch("/app/api/sessions/metadata").then(function (r) { return r.json(); }).then(function (d) {
-  var ol = document.getElementById("s");
-  ol.innerHTML = "";
-  var sessions = (d.sessions || []).slice(0, 20);
-  if (!sessions.length) { ol.innerHTML = "<li>none synced yet</li>"; return; }
-  sessions.forEach(function (s) {
-    var li = document.createElement("li"); // textContent — titles are untrusted
-    li.textContent = (s.title || s.session_id) + " — " + (s.device_label || s.device_id) + " (" + s.state + ")";
-    ol.appendChild(li);
-  });
-});
-</script>`),
-    { headers: HTML_HEADERS },
-  );
+  // A signed-in FREE user gets the index too; the data APIs will 403. Acceptable v1.
+  // Use "/" not "/index.html": Cloudflare ASSETS applies clean-URL canonicalisation
+  // and redirects /index.html → /, causing a 307 loop. The canonical path for the
+  // dist-cloud index file in the ASSETS binding namespace is "/".
+  return env.ASSETS.fetch(new Request(new URL("/", url.origin), req));
 }

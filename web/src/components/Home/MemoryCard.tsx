@@ -3,6 +3,7 @@ import { Trash2 } from "lucide-react";
 import type { Memory } from "../../data/memories-api";
 import type { Space } from "../../../../shared/types";
 import { formatRelative, spaceLabelFor } from "./utils";
+import { caps } from "../../caps";
 
 interface MemoryCardProps {
   memory: Memory;
@@ -18,15 +19,17 @@ export function MemoryCard({ memory, spaces, showSpaceChip, onOpenSession, onReq
 
   return (
     <div className="home-memory">
-      <button
-        type="button"
-        className="home-memory-delete"
-        onClick={() => onRequestDelete(memory)}
-        title="Forget this memory"
-        aria-label="Forget this memory"
-      >
-        <Trash2 size={13} />
-      </button>
+      {caps.canWrite && (
+        <button
+          type="button"
+          className="home-memory-delete"
+          onClick={() => onRequestDelete(memory)}
+          title="Forget this memory"
+          aria-label="Forget this memory"
+        >
+          <Trash2 size={13} />
+        </button>
+      )}
       <div className="home-memory-text">{memory.content}</div>
       <div className="home-memory-meta">
         {showSpaceChip && spaceLabel && <span className="home-memory-space">{spaceLabel}</span>}

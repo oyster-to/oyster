@@ -28,7 +28,19 @@ import { useSessions } from "./hooks/useSessions";
 import { NewSessionPicker } from "./components/NewSessionPicker";
 import { useAllProjects, fetchAllProjects } from "./data/all-projects";
 import { VAULT } from "./components/Home/types";
+import { apiPath } from "./data/http";
+import { caps } from "./caps";
 import "./App.css";
+
+// Client routes live under /app in the cloud build (oyster.to/app). Strip the
+// base before parsing a pathname, and re-add it on every history write so the
+// route logic below can stay base-agnostic. Both are no-ops locally
+// (routeBase === "").
+const stripBase = (pathname: string) =>
+  caps.routeBase && (pathname === caps.routeBase || pathname.startsWith(caps.routeBase + "/"))
+    ? pathname.slice(caps.routeBase.length) || "/"
+    : pathname;
+const withBase = (path: string) => `${caps.routeBase}${path}`;
 
 // `?onboarding=force` wipes the dock's persisted state and pretends this
 // is a fresh install — lets us iterate on 0/3 hero copy without touching
@@ -51,19 +63,20 @@ export default function App() {
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [publishingArtifact, setPublishingArtifact] = useState<Artifact | null>(null);
   const getUrlState = useCallback((): { space: string; artifactId: string | null; groupName: string | null; hash: string; projectId: string | null } => {
-    const artifactMatch = window.location.pathname.match(/^\/s\/([^/]+)\/a\/([^/]+)$/);
+    const path = stripBase(window.location.pathname);
+    const artifactMatch = path.match(/^\/s\/([^/]+)\/a\/([^/]+)$/);
     if (artifactMatch) {
       return { space: artifactMatch[1], artifactId: artifactMatch[2], groupName: null, hash: window.location.hash || "", projectId: null };
     }
-    const groupMatch = window.location.pathname.match(/^\/s\/([^/]+)\/g\/([^/]+)$/);
+    const groupMatch = path.match(/^\/s\/([^/]+)\/g\/([^/]+)$/);
     if (groupMatch) {
       return { space: groupMatch[1], artifactId: null, groupName: decodeURIComponent(groupMatch[2]), hash: "", projectId: null };
     }
-    const projectMatch = window.location.pathname.match(/^\/s\/([^/]+)\/p\/([^/]+)$/);
+    const projectMatch = path.match(/^\/s\/([^/]+)\/p\/([^/]+)$/);
     if (projectMatch) {
       return { space: projectMatch[1], artifactId: null, groupName: null, hash: "", projectId: decodeURIComponent(projectMatch[2]) };
     }
-    const spaceMatch = window.location.pathname.match(/^\/s\/([^/]+?)\/?$/);
+    const spaceMatch = path.match(/^\/s\/([^/]+?)\/?$/);
     return { space: spaceMatch ? spaceMatch[1] : "home", artifactId: null, groupName: null, hash: "", projectId: null };
   }, []);
 
@@ -77,8 +90,8 @@ export default function App() {
     const target = projectId
       ? `/s/${activeSpace}/p/${encodeURIComponent(projectId)}`
       : `/s/${activeSpace}`;
-    if (window.location.pathname !== target) {
-      window.history.pushState(null, "", target);
+    if (stripBase(window.location.pathname) !== target) {
+      window.history.pushState(null, "", withBase(target));
     }
   }, [activeSpace]);
 
@@ -104,7 +117,9 @@ export default function App() {
   // Global keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      // Spotlight is unmounted in cloud (caps.canChat false), so ⌘K would
+      // toggle dead state with nothing to render — keep the shortcut inert there.
+      if (caps.canChat && (e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setSpotlightOpen((v) => !v);
       }
@@ -126,8 +141,8 @@ export default function App() {
 
   // Redirect bare `/` to `/s/home` so every space has a uniform URL
   useEffect(() => {
-    if (window.location.pathname === "/") {
-      window.history.replaceState(null, "", "/s/home");
+    if (stripBase(window.location.pathname) === "/") {
+      window.history.replaceState(null, "", withBase("/s/home"));
     }
   }, []);
   const [, setLoaded] = useState(false);
@@ -197,7 +212,7 @@ export default function App() {
         }
       }
     }).catch((err) => { console.warn("[oyster] server unreachable:", err.message); setLoaded(true); setConnected(false); });
-    fetchSpaces().then(setSpaces).catch(() => setConnected(false));
+    if (caps.hasSpaces) fetchSpaces().then(setSpaces).catch(() => setConnected(false));
   }, []);
 
   // Poll for status updates every 5 seconds; handle pending reveals
@@ -210,13 +225,13 @@ export default function App() {
         if (revealed) {
           setActiveSpace(revealed.spaceId);
           setActiveProjectId(null);
-          window.history.pushState(null, "", `/s/${revealed.spaceId}`);
+          window.history.pushState(null, "", withBase(`/s/${revealed.spaceId}`));
           if (revealed.groupName) setOpenGroup(revealed.groupName);
           setRevealId(revealed.id);
           setTimeout(() => setRevealId(null), 3000);
         }
       }).catch(() => setConnected(false));
-      fetchSpaces().then(setSpaces).catch(() => setConnected(false));
+      if (caps.hasSpaces) fetchSpaces().then(setSpaces).catch(() => setConnected(false));
     }, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -229,7 +244,7 @@ export default function App() {
       const { spaceId, label, url, artifactKind, id } = event.payload as { spaceId: string; label: string; url: string; artifactKind: ArtifactKind; id: string };
       setActiveSpace(spaceId);
       setActiveProjectId(null);
-      window.history.pushState(null, "", `/s/${spaceId}/a/${id}`);
+      window.history.pushState(null, "", withBase(`/s/${spaceId}/a/${id}`));
       dispatch({ type: "CLOSE_ALL_VIEWERS" });
       dispatch({ type: "OPEN_VIEWER", title: label, path: url, fullscreen: shouldOpenFullscreen(artifactKind) });
     }
@@ -237,7 +252,7 @@ export default function App() {
       const { spaceId } = event.payload as { spaceId: string };
       setActiveSpace(spaceId);
       setActiveProjectId(null);
-      window.history.pushState(null, "", `/s/${spaceId}`);
+      window.history.pushState(null, "", withBase(`/s/${spaceId}`));
       dispatch({ type: "CLOSE_ALL_VIEWERS" });
     }
     if (event.command === "artifact_changed") {
@@ -313,8 +328,8 @@ export default function App() {
   // Push URL when space changes via pill click
   const handleSpaceChange = useCallback((space: string) => {
     const target = `/s/${space}`;
-    if (window.location.pathname !== target) {
-      window.history.pushState(null, "", target);
+    if (stripBase(window.location.pathname) !== target) {
+      window.history.pushState(null, "", withBase(target));
     }
     setActiveSpace(space);
     setActiveProjectId(null);
@@ -468,7 +483,7 @@ export default function App() {
       const cmd = e.metaKey || e.ctrlKey;
       // Only the bare combo — ignore shift/alt variants so we don't trample
       // any chord shortcut a user has come to expect.
-      if (cmd && !e.shiftKey && !e.altKey && e.key === "/") {
+      if (caps.canChat && cmd && !e.shiftKey && !e.altKey && e.key === "/") {
         e.preventDefault();
         void handleOpenNewSession();
       }
@@ -479,6 +494,13 @@ export default function App() {
 
   async function handleArtifactClick(artifact: Artifact) {
     if (artifact.status === "generating") return;
+
+    // Cloud mode: every artefact row is a publication; clicking opens the
+    // public share page in a new tab (no local viewer / dev server).
+    if (caps.cloud) {
+      window.open(artifact.url, "_blank", "noopener");
+      return;
+    }
 
     // Cloud-only ghost: this user's publication, no local artefact backing it.
     // Click opens the public URL so they can verify what's live without a
@@ -516,7 +538,7 @@ export default function App() {
       const fullscreen = shouldOpenFullscreen(artifact.artifactKind);
       dispatch({ type: "OPEN_VIEWER", title: artifact.label, path: artifact.url, fullscreen });
       setViewerHash("");
-      window.history.pushState(null, "", `/s/${activeSpace}/a/${artifact.id}`);
+      window.history.pushState(null, "", withBase(`/s/${activeSpace}/a/${artifact.id}`));
     }
   }
 
@@ -624,7 +646,7 @@ export default function App() {
     // Try to resolve the actual file path from the server
     let fileHint = "";
     try {
-      const res = await fetch(`/api/resolve-path?url=${encodeURIComponent(error.path)}`);
+      const res = await fetch(apiPath(`/api/resolve-path?url=${encodeURIComponent(error.path)}`));
       if (res.ok) {
         const data = await res.json();
         if (data.filePath) fileHint = `\n\nThe source file is: ${data.filePath}`;
@@ -637,7 +659,7 @@ export default function App() {
   }
 
   return (
-    <div className="oyster-shell">
+    <div className={`oyster-shell${caps.canChat ? "" : " oyster-shell--no-chatbar"}`}>
       {!connected && (
         <div className="connection-banner">
           <span>Oyster server not connected</span>
@@ -667,9 +689,9 @@ export default function App() {
         onSpaceChange={handleSpaceChange}
         selectedProjectId={activeProjectId}
         onSelectProject={handleProjectScopeChange}
-        onPromoteFolderToSpace={handlePromoteFolderToSpace}
-        onSpaceDelete={handleSpaceDelete}
-        onSpaceUpdate={handleSpaceUpdate}
+        onPromoteFolderToSpace={caps.canWrite ? handlePromoteFolderToSpace : undefined}
+        onSpaceDelete={caps.canWrite ? handleSpaceDelete : undefined}
+        onSpaceUpdate={caps.canWrite ? handleSpaceUpdate : undefined}
         onLaunchClaude={handleLaunchClaudeFromProject}
         onLaunchClaudeFromSession={handleLaunchClaudeFromSession}
         onOpenRemoteInOyster={handleOpenRemoteInOyster}
@@ -697,14 +719,14 @@ export default function App() {
           });
         }}
         onTerminalStop={async (terminalId) => {
-          await fetch(`/api/terminals/${encodeURIComponent(terminalId)}`, { method: "DELETE" });
+          await fetch(apiPath(`/api/terminals/${encodeURIComponent(terminalId)}`), { method: "DELETE" });
           // Also close any open panel for this terminal — Stop is a finish
           // action; the user doesn't need the dead panel hanging around.
           const w = windows.find((x) => x.terminalId === terminalId);
           if (w) dispatch({ type: "CLOSE", id: w.id });
         }}
-        onOpenNewSession={handleOpenNewSession}
-        onOpenAsk={() => { setAskOpen(true); setAskEverOpened(true); }}
+        onOpenNewSession={caps.canChat ? handleOpenNewSession : undefined}
+        onOpenAsk={caps.canChat ? () => { setAskOpen(true); setAskEverOpened(true); } : undefined}
         onConnectSession={handleConnectSession}
         userSpaceCount={FORCE_ONBOARDING ? 0 : spaces.filter((s) => s.id !== "home" && s.id !== "__all__" && s.id !== "__archived__").length}
         publishedCount={FORCE_ONBOARDING ? 0 : artifacts.filter((a) => a.publication != null && a.publication.unpublishedAt == null).length}
@@ -722,7 +744,7 @@ export default function App() {
           onArtifactStop: handleArtifactStop,
           onGroupClick: (name) => {
             setOpenGroup(name);
-            window.history.pushState(null, "", `/s/${activeSpace}/g/${encodeURIComponent(name.toLowerCase())}`);
+            window.history.pushState(null, "", withBase(`/s/${activeSpace}/g/${encodeURIComponent(name.toLowerCase())}`));
           },
           onSpaceChange: handleSpaceChange,
           onConvertToSpace: handleConvertToSpace,
@@ -762,7 +784,7 @@ export default function App() {
               onFocus={() => dispatch({ type: "FOCUS", id: w.id })}
               onClose={() => {
                 dispatch({ type: "CLOSE", id: w.id });
-                window.history.pushState(null, "", `/s/${activeSpace}`);
+                window.history.pushState(null, "", withBase(`/s/${activeSpace}`));
               }}
               onToggleFullscreen={() => dispatch({ type: "TOGGLE_FULLSCREEN", id: w.id })}
               hasPrev={hasPrev}
@@ -786,13 +808,13 @@ export default function App() {
                     title: next.label,
                     artifactPath: next.url,
                   });
-                  window.history.replaceState(null, "", `/s/${activeSpace}/a/${next.id}`);
+                  window.history.replaceState(null, "", withBase(`/s/${activeSpace}/a/${next.id}`));
                 }
               }}
             />
           );
         })}
-        {claudeTerminals.map((w, i) => {
+        {caps.canChat && claudeTerminals.map((w, i) => {
           // PTY alive iff some session row reports this terminalId as live.
           // After Stop / natural exit / cross-tab kill, the server clears
           // session.terminalId on the linked row, so this flips to false.
@@ -817,7 +839,7 @@ export default function App() {
               linkedSessionId={w.linkedSessionId}
               ptyAlive={ptyAlive}
               onStop={ptyAlive && w.terminalId ? async () => {
-                await fetch(`/api/terminals/${encodeURIComponent(w.terminalId!)}`, { method: "DELETE" });
+                await fetch(apiPath(`/api/terminals/${encodeURIComponent(w.terminalId!)}`), { method: "DELETE" });
                 // Close the panel too — Stop is a finish action, not a pause.
                 dispatch({ type: "CLOSE", id: w.id });
               } : undefined}
@@ -825,7 +847,7 @@ export default function App() {
                 // Route to /s/<space>/sessions/<id>; the space prefix is required
                 // by the active routing today, so use the current activeSpace
                 // (the session inspector itself does its own resolve).
-                window.history.pushState(null, "", `/s/${activeSpace}/sessions/${sessionId}`);
+                window.history.pushState(null, "", withBase(`/s/${activeSpace}/sessions/${sessionId}`));
                 // Nudge the router (mirrors how artifact navigation triggers
                 // a popstate elsewhere).
                 window.dispatchEvent(new PopStateEvent("popstate"));
@@ -863,31 +885,35 @@ export default function App() {
           onArtifactStop={handleArtifactStop}
           onClose={() => {
             setOpenGroup(null);
-            window.history.pushState(null, "", `/s/${activeSpace}`);
+            window.history.pushState(null, "", withBase(`/s/${activeSpace}`));
           }}
         />
         );
       })()}
 
-      {/* Always mounted: the thread + SSE stream live in the panel's hooks,
-          and its oyster:send-prompt listener must exist before the panel is
-          opened. Conditional mounting would lose both. */}
-      <AskPanel
-        open={askOpen}
-        onClose={() => setAskOpen(false)}
-        scopeLabel={askScope.label}
-        scopeContext={askScope.context}
-        spaces={spaces}
-        activeSpace={activeSpace}
-        onSpaceChange={handleSpaceChange}
-        artifacts={artifacts}
-        onArtifactOpen={handleArtifactClick}
-        onArtifactPublish={handleArtifactPublish}
-        onArtifactUnpublish={handleArtifactUnpublish}
-        onAiError={setAiError}
-      />
+      {/* Gated off in cloud (caps.canChat false): no chat engine to talk to,
+          so the panel + its oyster:send-prompt listener aren't needed. When
+          on, it's always mounted so the thread + SSE stream live in the
+          panel's hooks and the listener exists before the panel opens —
+          conditional-on-`open` mounting would lose both. */}
+      {caps.canChat && (
+        <AskPanel
+          open={askOpen}
+          onClose={() => setAskOpen(false)}
+          scopeLabel={askScope.label}
+          scopeContext={askScope.context}
+          spaces={spaces}
+          activeSpace={activeSpace}
+          onSpaceChange={handleSpaceChange}
+          artifacts={artifacts}
+          onArtifactOpen={handleArtifactClick}
+          onArtifactPublish={handleArtifactPublish}
+          onArtifactUnpublish={handleArtifactUnpublish}
+          onAiError={setAiError}
+        />
+      )}
 
-      {spotlightOpen && (
+      {caps.canChat && spotlightOpen && (
         <SpotlightSearch
           artifacts={artifacts}
           spaces={spaces}
@@ -896,7 +922,7 @@ export default function App() {
         />
       )}
 
-      {setupProposal && (
+      {caps.canWrite && setupProposal && (
         <SetupProposalPanel
           proposal={setupProposal}
           onClose={() => setSetupProposal(null)}

@@ -1,21 +1,26 @@
 export type { Artifact, ArtifactKind, ArtifactStatus, IconStatus, SessionJoinedForArtifact } from "../../../shared/types";
 import type { Artifact, SessionJoinedForArtifact } from "../../../shared/types";
-import { getJson, patchJson, postJson, postEmpty, del } from "./http";
+import { getJson, patchJson, postJson, postEmpty, del, apiPath } from "./http";
+import { caps } from "../caps";
+import { fetchCloudPublications } from "./cloud-publications";
 
-export async function fetchArtifacts(): Promise<Artifact[]> {
-  return getJson<Artifact[]>("/api/artifacts");
+export async function fetchArtifacts(signal?: AbortSignal): Promise<Artifact[]> {
+  // Cloud Artefacts tab = your publications (apex publish worker), not the
+  // local artefact registry.
+  if (caps.cloud) return fetchCloudPublications(signal);
+  return getJson<Artifact[]>(apiPath("/api/artifacts"), signal);
 }
 
 // startApp/stopApp keep their bespoke shape: server routes are GETs and the
 // callers in App.tsx tolerate any response (no throw on non-OK). Promoting
 // to getJson would change that contract — out of scope for this refactor.
 export async function startApp(name: string): Promise<{ status: string; port?: number }> {
-  const res = await fetch(`/api/apps/${name}/start`);
+  const res = await fetch(apiPath(`/api/apps/${name}/start`));
   return res.json();
 }
 
 export async function stopApp(name: string): Promise<{ status: string }> {
-  const res = await fetch(`/api/apps/${name}/stop`);
+  const res = await fetch(apiPath(`/api/apps/${name}/stop`));
   return res.json();
 }
 
@@ -23,31 +28,34 @@ export async function updateArtifact(
   id: string,
   fields: { label?: string; group_name?: string | null },
 ): Promise<Artifact> {
-  return patchJson<Artifact>(`/api/artifacts/${encodeURIComponent(id)}`, fields);
+  return patchJson<Artifact>(apiPath(`/api/artifacts/${encodeURIComponent(id)}`), fields);
 }
 
 export async function archiveArtifact(id: string): Promise<void> {
-  return postEmpty(`/api/artifacts/${encodeURIComponent(id)}/archive`);
+  return postEmpty(apiPath(`/api/artifacts/${encodeURIComponent(id)}/archive`));
 }
 
 export async function listArchivedArtifacts(): Promise<Artifact[]> {
-  return getJson<Artifact[]>("/api/artifacts/archived");
+  // No archived-publication concept in cloud — the apex publish API only
+  // exposes live publications.
+  if (caps.cloud) return [];
+  return getJson<Artifact[]>(apiPath("/api/artifacts/archived"));
 }
 
 export async function restoreArtifact(id: string): Promise<void> {
-  return postEmpty(`/api/artifacts/${encodeURIComponent(id)}/restore`);
+  return postEmpty(apiPath(`/api/artifacts/${encodeURIComponent(id)}/restore`));
 }
 
 export async function uninstallPlugin(id: string): Promise<void> {
-  return postEmpty(`/api/plugins/${encodeURIComponent(id)}/uninstall`);
+  return postEmpty(apiPath(`/api/plugins/${encodeURIComponent(id)}/uninstall`));
 }
 
 export async function pinArtifact(id: string): Promise<{ id: string; pinnedAt: number }> {
-  return postJson<{ id: string; pinnedAt: number }>(`/api/artifacts/${encodeURIComponent(id)}/pin`);
+  return postJson<{ id: string; pinnedAt: number }>(apiPath(`/api/artifacts/${encodeURIComponent(id)}/pin`));
 }
 
 export async function unpinArtifact(id: string): Promise<void> {
-  return del(`/api/artifacts/${encodeURIComponent(id)}/pin`);
+  return del(apiPath(`/api/artifacts/${encodeURIComponent(id)}/pin`));
 }
 
 export async function renameGroup(
@@ -55,7 +63,7 @@ export async function renameGroup(
   oldName: string,
   newName: string,
 ): Promise<{ updated: number }> {
-  return patchJson<{ updated: number }>("/api/groups", {
+  return patchJson<{ updated: number }>(apiPath("/api/groups"), {
     space_id: spaceId,
     old_name: oldName,
     new_name: newName,
@@ -63,7 +71,7 @@ export async function renameGroup(
 }
 
 export async function archiveGroup(spaceId: string, name: string): Promise<{ archived: number }> {
-  return postJson<{ archived: number }>("/api/groups/archive", { space_id: spaceId, name });
+  return postJson<{ archived: number }>(apiPath("/api/groups/archive"), { space_id: spaceId, name });
 }
 
 export async function fetchSessionsForArtifact(
@@ -71,7 +79,7 @@ export async function fetchSessionsForArtifact(
   signal?: AbortSignal,
 ): Promise<SessionJoinedForArtifact[]> {
   return getJson<SessionJoinedForArtifact[]>(
-    `/api/artifacts/${encodeURIComponent(id)}/sessions`,
+    apiPath(`/api/artifacts/${encodeURIComponent(id)}/sessions`),
     signal,
   );
 }

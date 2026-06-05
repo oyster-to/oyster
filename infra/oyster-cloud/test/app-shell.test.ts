@@ -24,22 +24,36 @@ describe("GET /app", () => {
     expect(await res.text()).toContain("Sign in");
   });
 
-  it("serves the whoami shell when signed in", async () => {
+  it("serves the SPA index when signed in", async () => {
     const { token } = await makeProSession();
     const res = await SELF.fetch("https://example.com/app", {
       headers: { Cookie: `oyster_session=${token}` },
     });
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("Signed in as");
+    expect(html).toContain("oyster");
   });
 
-  it("rewrites /app/api/* onto the API dispatch", async () => {
+  it("serves hashed assets publicly (no auth)", async () => {
+    const res = await SELF.fetch("https://example.com/app/assets/app.js");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("fixture");
+  });
+
+  it("rewrites /app/api/* onto the API dispatch (not the SPA catch-all)", async () => {
     const { token } = await makeProSession();
     const res = await SELF.fetch("https://example.com/app/api/sessions/metadata", {
       headers: { Cookie: `oyster_session=${token}` },
     });
     expect(res.status).toBe(200);
+    // Guards the dispatch-order trap: if the SPA catch-all had swallowed the
+    // rewrite this would be text/html, not JSON.
+    expect(res.headers.get("content-type")).toContain("application/json");
     expect(await res.json()).toHaveProperty("sessions");
+  });
+
+  it("rejects non-GET methods under /app", async () => {
+    const res = await SELF.fetch("https://example.com/app", { method: "POST" });
+    expect(res.status).toBe(405);
   });
 });

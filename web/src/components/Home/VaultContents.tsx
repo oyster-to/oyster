@@ -1,6 +1,7 @@
 // Vault inventory list (cloud-sync teaser body). Extracted from
 // Home/index.tsx.
 import { useEffect, useState } from "react";
+import { apiPath } from "../../data/http";
 import { formatBytes, pluralize } from "./utils";
 
 interface VaultInventoryEntry {
@@ -25,7 +26,7 @@ export function VaultContents() {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/vault/inventory")
+    fetch(apiPath("/api/vault/inventory"))
       .then((r) => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
       .then((data) => { if (!cancelled) setInv(data); })
       .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : String(err)); });

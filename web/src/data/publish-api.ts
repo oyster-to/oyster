@@ -40,12 +40,16 @@ export class PublishApiError extends Error {
   }
 }
 
+import { apiPath } from "./http";
+import { caps } from "../caps";
+import { unpublishCloud, setCloudAccessMode } from "./cloud-publications";
+
 async function send<T>(
   method: "POST" | "DELETE",
   artifactId: string,
   body?: { mode: string; password?: string },
 ): Promise<T> {
-  const res = await fetch(`/api/artifacts/${encodeURIComponent(artifactId)}/publish`, {
+  const res = await fetch(apiPath(`/api/artifacts/${encodeURIComponent(artifactId)}/publish`), {
     method,
     headers: body ? { "content-type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -75,6 +79,16 @@ export function unpublishArtifact(artifactId: string): Promise<UnpublishResponse
 // so it works on devices that never had the artefact locally — pick any
 // device, retire any of your live publications.
 export async function unpublishCloudShare(shareToken: string): Promise<UnpublishResponse> {
+  // Cloud build: the local-server `/api/publish/by-token/.../unpublish` proxy
+  // doesn't exist on the workers. Hit the apex publish route directly
+  // (DELETE /api/publish/:token, Origin allowlisted). The worker returns no
+  // useful body, so synthesise the UnpublishResponse callers expect.
+  if (caps.cloud) {
+    await unpublishCloud(shareToken);
+    return { ok: true, share_token: shareToken, unpublished_at: Date.now() };
+  }
+  // Apex route (oyster-publish worker) — deliberately NOT apiPath-wrapped:
+  // in the cloud build these must hit /api/publish/* on the apex, not /app/api/*.
   const res = await fetch(`/api/publish/by-token/${encodeURIComponent(shareToken)}/unpublish`, {
     method: "POST",
   });
@@ -105,6 +119,24 @@ export async function updateCloudShare(
   password?: string,
   label?: string,
 ): Promise<UpdateShareResponse> {
+  // Cloud build: hit the apex publish route directly (PATCH /api/publish/:token,
+  // Origin allowlisted). Only open↔signin transitions are in scope here;
+  // password mode requires the by-token proxy path that the workers don't
+  // expose, so reject it with a clear message rather than silently failing.
+  if (caps.cloud) {
+    if (mode === "password") {
+      throw new PublishApiError(400, "unsupported_mode", "Password-protected sharing isn't available from the cloud view.");
+    }
+    await setCloudAccessMode(shareToken, mode);
+    return {
+      share_token: shareToken,
+      share_url: `https://share.oyster.to/p/${shareToken}`,
+      mode,
+      updated_at: Date.now(),
+    };
+  }
+  // Apex route (oyster-publish worker) — deliberately NOT apiPath-wrapped:
+  // in the cloud build these must hit /api/publish/* on the apex, not /app/api/*.
   const res = await fetch(`/api/publish/by-token/${encodeURIComponent(shareToken)}/update`, {
     method: "POST",
     headers: { "content-type": "application/json" },

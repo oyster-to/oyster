@@ -2,6 +2,17 @@
 
 All notable changes to Oyster are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Sessions list shows everything** — the Sessions tab lists all sessions; no more "Show more" clicks.
+- **Better on small windows** — compact rows, tighter spacing and a cleaner layout when the window is narrow.
+
+### Fixed
+
+- **Untitled sessions get a name** — sessions without a title now show their folder name instead of a raw ID.
+
 ## [0.11.0] - 2026-06-05
 
 ### Added

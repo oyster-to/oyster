@@ -17,23 +17,38 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
 
-    // oyster.to/app — remote-view shell (spec 2026-06-05-cloud-remote-view).
+    // oyster.to/app — remote-view SPA (spec 2026-06-05-cloud-remote-view).
     // Lives on the apex so the host-only oyster_session cookie (#397)
-    // authenticates it with no auth-worker changes. The shell's API calls
-    // are same-origin: /app/api/* is rewritten onto the /api/* dispatch
-    // below (URL.pathname is mutable).
+    // authenticates it with no auth-worker changes. Dispatch order is
+    // load-bearing: the /app/api/* rewrite MUST run before the /app* SPA
+    // catch-all, which would otherwise swallow same-origin API calls.
+
+    // 1) www → apex.
     if (url.hostname === "www.oyster.to" && url.pathname.startsWith("/app")) {
       return Response.redirect(`https://oyster.to${url.pathname}${url.search}`, 308);
     }
-    if ((url.pathname === "/app" || url.pathname === "/app/") && req.method === "GET") {
-      return handleAppShell(req, env);
-    }
+    // 2) /app/api/* → /api/* rewrite. A rewritten path no longer starts with
+    //    /app/, so the SPA catch-all below never sees it (URL.pathname is mutable).
     if (url.pathname.startsWith("/app/api/")) {
       url.pathname = url.pathname.slice("/app".length);
+    }
+    // 3) Everything else under /app is the SPA: hashed assets are public,
+    //    navigations are auth-gated (signed-out → sign-in page).
+    if (url.pathname === "/app" || url.pathname.startsWith("/app/")) {
+      if (req.method !== "GET") return jsonError(405, "method_not_allowed");
+      return handleAppShell(req, env, url);
     }
 
     if (url.pathname === "/health" && req.method === "GET") {
       return new Response("ok", { status: 200 });
+    }
+
+    // Identity for the remote-view badge. Any signed-in user (no pro gate) —
+    // the badge just shows who you are; pro features gate themselves elsewhere.
+    if (url.pathname === "/api/me" && req.method === "GET") {
+      const user = await resolveSession(req, env);
+      if (!user) return jsonError(401, "sign_in_required");
+      return jsonOk({ email: user.email, tier: user.tier });
     }
 
     if (url.pathname === "/api/memories/events" && req.method === "POST") {
@@ -342,6 +357,13 @@ interface IncomingSession {
   state: string;
   cwd: string | null;
   model: string | null;
+  /** Local space classification — scopes the session in the cloud remote
+   *  view's space switcher. Null for orphan sessions (cwd matches no space)
+   *  and for sessions synced before this field existed (re-pushed lazily). */
+  space_id?: string | null;
+  /** Local project classification (a project belongs to a space). Same
+   *  null-tolerance as space_id. */
+  project_id?: string | null;
   started_at: string;
   ended_at: string | null;
   last_event_at: string;
@@ -370,7 +392,7 @@ function isValidSession(s: unknown): s is IncomingSession {
   // array) would either crash D1 .bind() with TypeError or silently coerce
   // to a useless string representation. Each malformed session is rejected
   // individually so the rest of the batch still lands.
-  for (const key of ["title", "cwd", "model", "ended_at", "device_id", "device_label"] as const) {
+  for (const key of ["title", "cwd", "model", "ended_at", "device_id", "device_label", "space_id", "project_id"] as const) {
     const v = o[key];
     if (v !== null && v !== undefined && typeof v !== "string") return false;
   }
@@ -422,8 +444,8 @@ async function handleSessionsMetadataPost(req: Request, env: Env): Promise<Respo
       const result = await env.DB.prepare(
         `INSERT INTO synced_session_metadata
            (owner_id, session_id, device_id, device_label, agent, title, state, cwd, model,
-            started_at, ended_at, last_event_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            space_id, project_id, started_at, ended_at, last_event_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(owner_id, session_id) DO UPDATE SET
            device_id     = excluded.device_id,
            device_label  = COALESCE(excluded.device_label, synced_session_metadata.device_label),
@@ -432,6 +454,10 @@ async function handleSessionsMetadataPost(req: Request, env: Env): Promise<Respo
            state         = excluded.state,
            cwd           = excluded.cwd,
            model         = excluded.model,
+           -- COALESCE: a scope-less push (pre-upgrade client) must not erase scope
+           -- a newer client established; absence means "didn't compute it", not "clear".
+           space_id      = COALESCE(excluded.space_id, synced_session_metadata.space_id),
+           project_id    = COALESCE(excluded.project_id, synced_session_metadata.project_id),
            started_at    = excluded.started_at,
            ended_at      = excluded.ended_at,
            last_event_at = excluded.last_event_at,
@@ -444,6 +470,7 @@ async function handleSessionsMetadataPost(req: Request, env: Env): Promise<Respo
       ).bind(
         user.id, s.id, s.device_id ?? null, s.device_label ?? null, s.agent,
         s.title ?? null, s.state, s.cwd ?? null, s.model ?? null,
+        s.space_id ?? null, s.project_id ?? null,
         s.started_at, s.ended_at ?? null, s.last_event_at, s.sync_dirty_at,
       ).run();
       // changes > 0 means a row was inserted or LWW won an update. changes 0
@@ -472,7 +499,8 @@ async function handleSessionsMetadataGet(req: Request, env: Env): Promise<Respon
   type Row = {
     session_id: string; device_id: string | null; device_label: string | null;
     agent: string; title: string | null;
-    state: string; cwd: string | null; model: string | null; started_at: string;
+    state: string; cwd: string | null; model: string | null;
+    space_id: string | null; project_id: string | null; started_at: string;
     ended_at: string | null; last_event_at: string;
     bytes_generation: number; active_device_id: string | null;
     has_bytes: number; total_bytes: number; updated_at: number;
@@ -485,7 +513,7 @@ async function handleSessionsMetadataGet(req: Request, env: Env): Promise<Respon
   // wire shape is always a number.
   const { results } = await env.DB.prepare(
     `SELECT m.session_id, m.device_id, m.device_label, m.agent, m.title, m.state,
-            m.cwd, m.model, m.started_at, m.ended_at, m.last_event_at,
+            m.cwd, m.model, m.space_id, m.project_id, m.started_at, m.ended_at, m.last_event_at,
             m.bytes_generation, m.active_device_id, m.updated_at,
             CASE WHEN EXISTS (
               SELECT 1 FROM synced_session_chunks c

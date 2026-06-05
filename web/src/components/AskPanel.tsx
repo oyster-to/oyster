@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { sendMessage, replyToQuestion, formatChatError, ChatSendError } from "../data/chat-api";
+import { apiPath } from "../data/http";
 import { useChatSession } from "../hooks/useChatSession";
 import { useChatEvents } from "../hooks/useChatEvents";
 import type { ToolPart } from "../hooks/useChatSession";
@@ -108,7 +109,7 @@ export function AskPanel({ open, onClose, scopeLabel, scopeContext, spaces = [],
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/chat/provider-status")
+    fetch(apiPath("/api/chat/provider-status"))
       .then((r) => (r.ok ? r.json() : { configured: false }))
       .then((data) => { if (!cancelled) setProviderConfigured(Boolean(data.configured)); })
       .catch(() => { if (!cancelled) setProviderConfigured(false); });

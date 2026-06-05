@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { apiPath } from "../data/http";
+import { caps } from "../caps";
 
 // One-shot fetch of the local device identity. Used to distinguish "local"
 // (this device produced it) from "remote" (another device produced it,
@@ -25,8 +27,9 @@ export interface DeviceIdentity {
 let pending: Promise<DeviceIdentity | null> | null = null;
 
 async function fetchIdentity(): Promise<DeviceIdentity | null> {
+  if (caps.cloud) return null; // no device identity endpoint on the worker
   try {
-    const res = await fetch("/api/device/identity");
+    const res = await fetch(apiPath("/api/device/identity"));
     if (!res.ok) {
       // 503 = not seeded yet, retry on next hook mount. Other failures also
       // retryable — leave the cache empty so a subsequent hook re-fires.

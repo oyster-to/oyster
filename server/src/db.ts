@@ -796,6 +796,31 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
        ON sessions(sync_dirty_at) WHERE sync_dirty_at IS NOT NULL`,
   );
 
+  // One-time re-push for the session space/project scope (cloud space
+  // switcher). synced_session_metadata gained space_id/project_id columns
+  // (migration 0012), but sessions already pushed up carry NULL scope in the
+  // cloud until their origin device re-pushes. Bump sync_dirty_at past
+  // cloud_synced_at on every already-synced session so the next reconcile
+  // re-pushes them all once with the new fields. Never-synced dirty rows
+  // (cloud_synced_at IS NULL) already re-push naturally — left untouched so
+  // their original dirty timestamp / LWW ordering is preserved.
+  //
+  // Gated via app_state so the bump fires exactly once per install, not on
+  // every boot (which would force a full re-push every reconcile forever).
+  {
+    const flag = db.prepare(
+      `INSERT OR IGNORE INTO app_state (key, value, applied_at)
+       VALUES ('session_scope_repush_v1_done', '1', ?)`,
+    ).run(Date.now());
+    if (flag.changes > 0) {
+      db.exec(`
+        UPDATE sessions
+           SET sync_dirty_at = CAST(strftime('%s','now') AS INTEGER) * 1000
+         WHERE cloud_synced_at IS NOT NULL
+      `);
+    }
+  }
+
   // Classify slash-command machinery (`<command-…>`, `<local-command-…>`,
   // `<system-reminder>`) at ingest so the transcript reader and the FTS
   // search index can both ignore it while the raw row stays on disk for

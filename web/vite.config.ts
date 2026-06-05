@@ -27,6 +27,13 @@ const pkg = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'u
 
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  // Read from process.env rather than vite's `mode` — the cloud script sets
+  // VITE_OYSTER_MODE=cloud in the env before vite runs; `mode` is always
+  // "production" for `vite build` regardless of this flag.
+  base: process.env.VITE_OYSTER_MODE === "cloud" ? "/app/" : "/",
+  build: {
+    outDir: process.env.VITE_OYSTER_MODE === "cloud" ? "dist-cloud" : "dist",
+  },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __APP_ENV__: JSON.stringify(mode === 'production' ? 'prod' : 'dev'),

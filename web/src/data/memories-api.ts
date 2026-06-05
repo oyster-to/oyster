@@ -1,6 +1,8 @@
 // Surfaces memories created via mcp__oyster__remember. v1 is read-only —
 // writes still go through the MCP tool surface.
-import { getJson, postJson, del } from "./http";
+import { getJson, postJson, del, apiPath } from "./http";
+import { caps } from "../caps";
+import { fetchCloudMemories } from "./cloud-memories";
 
 export interface Memory {
   id: string;
@@ -14,9 +16,10 @@ export interface Memory {
 }
 
 export async function fetchMemories(spaceId?: string | null, signal?: AbortSignal): Promise<Memory[]> {
+  if (caps.cloud) return fetchCloudMemories(signal);
   const url = spaceId
-    ? `/api/memories?space_id=${encodeURIComponent(spaceId)}`
-    : "/api/memories";
+    ? apiPath(`/api/memories?space_id=${encodeURIComponent(spaceId)}`)
+    : apiPath("/api/memories");
   return getJson<Memory[]>(url, signal);
 }
 
@@ -27,7 +30,7 @@ export async function searchMemories(
   const params = new URLSearchParams({ q: query });
   if (opts.spaceId) params.set("space_id", opts.spaceId);
   if (opts.limit !== undefined) params.set("limit", String(opts.limit));
-  return getJson<Memory[]>(`/api/memories/search?${params.toString()}`, opts.signal);
+  return getJson<Memory[]>(apiPath(`/api/memories/search?${params.toString()}`), opts.signal);
 }
 
 export interface CreateMemoryInput {
@@ -37,7 +40,7 @@ export interface CreateMemoryInput {
 }
 
 export async function createMemory(input: CreateMemoryInput): Promise<Memory> {
-  return postJson<Memory>("/api/memories", {
+  return postJson<Memory>(apiPath("/api/memories"), {
     content: input.content,
     space_id: input.space_id || undefined,
     tags: input.tags?.length ? input.tags : undefined,
@@ -45,5 +48,5 @@ export async function createMemory(input: CreateMemoryInput): Promise<Memory> {
 }
 
 export async function deleteMemory(id: string): Promise<void> {
-  return del(`/api/memories/${encodeURIComponent(id)}`);
+  return del(apiPath(`/api/memories/${encodeURIComponent(id)}`));
 }

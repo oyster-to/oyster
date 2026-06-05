@@ -14,6 +14,7 @@ import type {
   SetupProposalFolder,
   SetupApplyResult,
 } from "../../../shared/types";
+import { apiPath } from "../data/http";
 import "./SetupProposalPanel.css";
 
 // Container ids used by dnd-kit to identify drop targets. Spaces use the
@@ -206,7 +207,7 @@ export function SetupProposalPanel({ proposal, onClose, onApplied }: Props) {
             paths: s.folders.map((f) => f.path),
           })),
       };
-      const res = await fetch("/api/setup/apply", {
+      const res = await fetch(apiPath("/api/setup/apply"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

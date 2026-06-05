@@ -9,6 +9,7 @@ import { formatRelative } from "./utils";
 import { pinArtifact, unpinArtifact } from "../../data/artifacts-api";
 import { unpublishArtifact, unpublishCloudShare, updateCloudShare } from "../../data/publish-api";
 import { PromptModal } from "../PromptModal";
+import { caps } from "../../caps";
 
 interface ArtefactTableProps {
   artifacts: Parameters<typeof Desktop>[0]["artifacts"];
@@ -157,30 +158,32 @@ export function ArtefactTable({ artifacts, spaces, onArtifactClick, onArtifactPu
 
           {!isCloudOnly && (
             <>
-              {ctx.artifact.pinnedAt != null ? (
-                <button
-                  className="space-ctx-item"
-                  onClick={async () => {
-                    const a = ctx.artifact;
-                    setCtx(null);
-                    try { await unpinArtifact(a.id); }
-                    catch (err) { setError((err as Error).message); }
-                  }}
-                >
-                  Unpin
-                </button>
-              ) : (
-                <button
-                  className="space-ctx-item"
-                  onClick={async () => {
-                    const a = ctx.artifact;
-                    setCtx(null);
-                    try { await pinArtifact(a.id); }
-                    catch (err) { setError((err as Error).message); }
-                  }}
-                >
-                  Pin
-                </button>
+              {caps.canWrite && (
+                ctx.artifact.pinnedAt != null ? (
+                  <button
+                    className="space-ctx-item"
+                    onClick={async () => {
+                      const a = ctx.artifact;
+                      setCtx(null);
+                      try { await unpinArtifact(a.id); }
+                      catch (err) { setError((err as Error).message); }
+                    }}
+                  >
+                    Unpin
+                  </button>
+                ) : (
+                  <button
+                    className="space-ctx-item"
+                    onClick={async () => {
+                      const a = ctx.artifact;
+                      setCtx(null);
+                      try { await pinArtifact(a.id); }
+                      catch (err) { setError((err as Error).message); }
+                    }}
+                  >
+                    Pin
+                  </button>
+                )
               )}
 
               {!ctx.artifact.builtin && !ctx.artifact.plugin && onArtifactPublish && (

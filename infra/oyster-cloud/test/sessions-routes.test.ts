@@ -280,6 +280,75 @@ describe("POST /api/sessions/metadata", () => {
     expect(body.sessions.find((s) => s.session_id === sid)?.device_label).toBe("MacBookPro");
   });
 
+  it("persists space_id + project_id and returns them from GET", async () => {
+    // Scopes the session in the cloud remote view's space switcher. Worker
+    // accepts both on POST, stores them, and returns them on GET.
+    const { token, userId } = await makeProSession();
+    const sid = `s-${crypto.randomUUID()}`;
+    const post = await signedFetch("/api/sessions/metadata", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        sessions: [sampleSession(sid, 1000, { space_id: "spc-1", project_id: "prj-1" })],
+      }),
+    }, token);
+    expect(post.status).toBe(200);
+    const row = await env.DB.prepare(
+      `SELECT space_id, project_id FROM synced_session_metadata WHERE owner_id = ? AND session_id = ?`,
+    ).bind(userId, sid).first<{ space_id: string; project_id: string }>();
+    expect(row).toMatchObject({ space_id: "spc-1", project_id: "prj-1" });
+    const get = await signedFetch("/api/sessions/metadata", { method: "GET" }, token);
+    const body = await get.json() as { sessions: Array<{ session_id: string; space_id: string | null; project_id: string | null }> };
+    const ours = body.sessions.find((s) => s.session_id === sid);
+    expect(ours?.space_id).toBe("spc-1");
+    expect(ours?.project_id).toBe("prj-1");
+  });
+
+  it("old client (no scope fields) → space_id/project_id stored + returned as null", async () => {
+    // Backward compat: a session pushed without scope fields must land with
+    // NULL scope, not crash D1.bind or reject the push.
+    const { token, userId } = await makeProSession();
+    const sid = `s-${crypto.randomUUID()}`;
+    const post = await signedFetch("/api/sessions/metadata", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessions: [sampleSession(sid, 1000)] }),  // no space_id/project_id
+    }, token);
+    expect(post.status).toBe(200);
+    const body = await post.json() as { accepted: string[] };
+    expect(body.accepted).toEqual([sid]);
+    const row = await env.DB.prepare(
+      `SELECT space_id, project_id FROM synced_session_metadata WHERE owner_id = ? AND session_id = ?`,
+    ).bind(userId, sid).first<{ space_id: string | null; project_id: string | null }>();
+    expect(row).toMatchObject({ space_id: null, project_id: null });
+    const get = await signedFetch("/api/sessions/metadata", { method: "GET" }, token);
+    const list = await get.json() as { sessions: Array<{ session_id: string; space_id: string | null; project_id: string | null }> };
+    const ours = list.sessions.find((s) => s.session_id === sid);
+    expect(ours?.space_id).toBeNull();
+    expect(ours?.project_id).toBeNull();
+  });
+
+  it("LWW update changes space_id/project_id when a newer push wins", async () => {
+    const { token, userId } = await makeProSession();
+    const sid = `s-${crypto.randomUUID()}`;
+    await signedFetch("/api/sessions/metadata", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessions: [sampleSession(sid, 1000, { space_id: "spc-old", project_id: "prj-old" })] }),
+    }, token);
+    await signedFetch("/api/sessions/metadata", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessions: [sampleSession(sid, 2000, { space_id: "spc-new", project_id: "prj-new" })] }),
+    }, token);
+    const row = await env.DB.prepare(
+      `SELECT space_id, project_id, updated_at FROM synced_session_metadata WHERE owner_id = ? AND session_id = ?`,
+    ).bind(userId, sid).first<{ space_id: string; project_id: string; updated_at: number }>();
+    expect(row?.space_id).toBe("spc-new");
+    expect(row?.project_id).toBe("prj-new");
+    expect(row?.updated_at).toBe(2000);
+  });
+
   it("rejects an over-long device_label by nulling it (keeps the session push valid)", async () => {
     // Defence-in-depth — a buggy or malicious client should not be able to
     // stuff a 1KB label into the chip. Cap is 64 chars; over-long values

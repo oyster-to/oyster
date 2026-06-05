@@ -11,6 +11,9 @@ export default defineWorkersConfig({
           d1Databases: ["DB"],
           // In-memory R2 bucket for session bytes tests.
           r2Buckets: ["SESSIONS_BUCKET"],
+          // Static SPA assets fixture for the /app serving tests. Mirrors the
+          // production [assets] binding (dist-cloud) at directory root.
+          assets: { directory: "./test/fixtures/app-assets", binding: "ASSETS" },
           // Encryption key fed in as a binding for tests; in production it's
           // a wrangler secret.
           bindings: {

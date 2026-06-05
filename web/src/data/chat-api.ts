@@ -1,4 +1,5 @@
 import { subscribeUiEvents } from "./ui-events";
+import { apiPath } from "./http";
 
 const SESSION_KEY = "oyster-session-id";
 
@@ -13,7 +14,7 @@ export interface ChatEvent {
 }
 
 export async function createSession(): Promise<ChatSession> {
-  const res = await fetch("/api/chat/session", {
+  const res = await fetch(apiPath("/api/chat/session"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -41,7 +42,7 @@ export async function getOrCreateSession(): Promise<string> {
   const stored = localStorage.getItem(SESSION_KEY);
   if (stored) {
     // Verify the session still exists
-    const res = await fetch(`/api/chat/session/${stored}`);
+    const res = await fetch(apiPath(`/api/chat/session/${stored}`));
     if (res.ok) return stored;
   }
   const session = await createSession();
@@ -96,7 +97,7 @@ export async function sendMessage(
 ): Promise<void> {
   // Fire and forget — we get streaming updates via SSE
   // But we do await to surface network/proxy errors to the caller
-  const res = await fetch(`/api/chat/session/${sessionId}/message`, {
+  const res = await fetch(apiPath(`/api/chat/session/${sessionId}/message`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -129,7 +130,7 @@ export async function replyToQuestion(
   questionId: string,
   answers: string[][]
 ): Promise<void> {
-  const res = await fetch(`/api/chat/question/${questionId}/reply`, {
+  const res = await fetch(apiPath(`/api/chat/question/${questionId}/reply`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ answers }),
@@ -140,7 +141,7 @@ export async function replyToQuestion(
 export async function loadMessages(
   sessionId: string
 ): Promise<Array<{ info: { id: string; role: "user" | "assistant" }; parts: Array<Record<string, unknown>> }>> {
-  const res = await fetch(`/api/chat/session/${sessionId}/message`);
+  const res = await fetch(apiPath(`/api/chat/session/${sessionId}/message`));
   if (!res.ok) return [];
   return res.json();
 }

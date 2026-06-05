@@ -15,15 +15,30 @@ import type {
   SessionEvent,
   SessionArtifactJoined,
 } from "../../../shared/types";
-import { ApiError, getJson } from "./http";
+import { ApiError, getJson, apiPath } from "./http";
+import { caps } from "../caps";
+import {
+  fetchCloudSessions,
+  fetchCloudSession,
+  CloudSessionNotFoundError,
+} from "./cloud-sessions";
 
-export async function fetchSessions(): Promise<Session[]> {
-  return getJson<Session[]>("/api/sessions");
+export async function fetchSessions(signal?: AbortSignal): Promise<Session[]> {
+  if (caps.cloud) return fetchCloudSessions(signal);
+  return getJson<Session[]>(apiPath("/api/sessions"), signal);
 }
 
 export async function fetchSession(id: string, signal?: AbortSignal): Promise<Session> {
+  if (caps.cloud) {
+    try {
+      return await fetchCloudSession(id, signal);
+    } catch (err) {
+      if (err instanceof CloudSessionNotFoundError) throw new SessionNotFoundError(id);
+      throw err;
+    }
+  }
   try {
-    return await getJson<Session>(`/api/sessions/${encodeURIComponent(id)}`, signal);
+    return await getJson<Session>(apiPath(`/api/sessions/${encodeURIComponent(id)}`), signal);
   } catch (err) {
     // Callers (SessionInspector) branch on this to render a "no longer
     // available" state vs. a generic error banner.
@@ -60,12 +75,13 @@ export async function fetchSessionEvents(
   if (opts.around !== undefined) params.set("around", String(opts.around));
   if (opts.limit !== undefined) params.set("limit", String(opts.limit));
   const qs = params.toString();
-  const url = `/api/sessions/${encodeURIComponent(id)}/events${qs ? `?${qs}` : ""}`;
+  const url = apiPath(`/api/sessions/${encodeURIComponent(id)}/events${qs ? `?${qs}` : ""}`);
   return getJson<SessionEvent[]>(url, opts.signal);
 }
 
 export async function fetchSessionArtifacts(id: string, signal?: AbortSignal): Promise<SessionArtifactJoined[]> {
-  return getJson<SessionArtifactJoined[]>(`/api/sessions/${encodeURIComponent(id)}/artifacts`, signal);
+  if (caps.cloud) return [];
+  return getJson<SessionArtifactJoined[]>(apiPath(`/api/sessions/${encodeURIComponent(id)}/artifacts`), signal);
 }
 
 /** R6 traceable recall: memories tied to this session — written by it
@@ -90,7 +106,8 @@ export interface SessionMemory {
 }
 
 export async function fetchSessionMemory(id: string, signal?: AbortSignal): Promise<SessionMemory> {
-  return getJson<SessionMemory>(`/api/sessions/${encodeURIComponent(id)}/memory`, signal);
+  if (caps.cloud) return { written: [], pulled: [] };
+  return getJson<SessionMemory>(apiPath(`/api/sessions/${encodeURIComponent(id)}/memory`), signal);
 }
 
 /** A transcript-search hit returned by GET /api/sessions/search.
@@ -117,10 +134,11 @@ export async function searchTranscripts(
   query: string,
   opts: { limit?: number; spaceId?: string | null; signal?: AbortSignal } = {},
 ): Promise<TranscriptHit[]> {
+  if (caps.cloud) return [];
   const params = new URLSearchParams({ q: query });
   if (opts.limit !== undefined) params.set("limit", String(opts.limit));
   if (opts.spaceId) params.set("space_id", opts.spaceId);
-  return getJson<TranscriptHit[]>(`/api/sessions/search?${params.toString()}`, opts.signal);
+  return getJson<TranscriptHit[]>(apiPath(`/api/sessions/search?${params.toString()}`), opts.signal);
 }
 
 // The list endpoint strips `raw` from every event to keep the payload
@@ -132,8 +150,9 @@ export async function fetchSessionEventRaw(
   eventId: number,
   signal?: AbortSignal,
 ): Promise<string | null> {
+  if (caps.cloud) return null;
   const ev = await getJson<SessionEvent>(
-    `/api/sessions/${encodeURIComponent(sessionId)}/events/${eventId}`,
+    apiPath(`/api/sessions/${encodeURIComponent(sessionId)}/events/${eventId}`),
     signal,
   );
   return ev.raw;
@@ -168,7 +187,8 @@ export async function resumeSession(
   sessionId: string,
   opts: { targetCwd?: string; force?: boolean } = {},
 ): Promise<SessionResumeResponse> {
-  const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/resume`, {
+  if (caps.cloud) throw new Error("not available in remote view");
+  const res = await fetch(apiPath(`/api/sessions/${encodeURIComponent(sessionId)}/resume`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(opts),

@@ -1,4 +1,4 @@
-import { getJson, postJson, patchJson, del } from "./http";
+import { getJson, postJson, patchJson, del, apiPath } from "./http";
 
 // Mirrors `Project` in server/src/project-service.ts. Defined locally to
 // avoid a server-side type import that would pull in better-sqlite3 types.
@@ -25,15 +25,15 @@ export async function fetchProjectsForSpace(spaceId: string, signal?: AbortSigna
   // `spaceProjectsError` so the UI can distinguish "no projects" from
   // "projects failed to load". `useFetched` already ignores aborts, and
   // SessionRow's inline caller has its own `.catch` for menu-open races.
-  return getJson<Project[]>(`/api/projects?space_id=${encodeURIComponent(spaceId)}`, signal);
+  return getJson<Project[]>(apiPath(`/api/projects?space_id=${encodeURIComponent(spaceId)}`), signal);
 }
 
 export async function fetchAllProjects(signal?: AbortSignal): Promise<Project[]> {
-  return getJson<Project[]>("/api/projects", signal);
+  return getJson<Project[]>(apiPath("/api/projects"), signal);
 }
 
 export async function createProject(spaceId: string, name: string): Promise<Project> {
-  return postJson<Project>("/api/projects", { space_id: spaceId, name });
+  return postJson<Project>(apiPath("/api/projects"), { space_id: spaceId, name });
 }
 
 // Idempotent full attach: creates the project (or adopts an existing one if
@@ -46,7 +46,7 @@ export async function attachFolder(
   path: string,
   name?: string,
 ): Promise<{ project: Project; claimed: number }> {
-  return postJson("/api/projects/attach-folder", { space_id: spaceId, path, name });
+  return postJson(apiPath("/api/projects/attach-folder"), { space_id: spaceId, path, name });
 }
 
 // Merge `from` into `into`: migrate sessions/artefacts/cached paths,
@@ -59,20 +59,20 @@ export async function absorbProject(
   intoId: string,
   fromId: string,
 ): Promise<{ sessionsMoved: number; artefactsMoved: number; pathsMoved: number }> {
-  return postJson(`/api/projects/${encodeURIComponent(intoId)}/absorb`, { from: fromId });
+  return postJson(apiPath(`/api/projects/${encodeURIComponent(intoId)}/absorb`), { from: fromId });
 }
 
 export async function renameProject(projectId: string, name: string): Promise<Project> {
-  return patchJson<Project>(`/api/projects/${encodeURIComponent(projectId)}`, { name });
+  return patchJson<Project>(apiPath(`/api/projects/${encodeURIComponent(projectId)}`), { name });
 }
 
 // Move a project to another space, or detach it (spaceId = null →
 // "unassigned"). The project's sessions follow it server-side. Returns the
 // updated project (with its new spaceId).
 export async function moveProject(projectId: string, spaceId: string | null): Promise<Project> {
-  return patchJson<Project>(`/api/projects/${encodeURIComponent(projectId)}`, { space_id: spaceId });
+  return patchJson<Project>(apiPath(`/api/projects/${encodeURIComponent(projectId)}`), { space_id: spaceId });
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
-  await del(`/api/projects/${encodeURIComponent(projectId)}`);
+  await del(apiPath(`/api/projects/${encodeURIComponent(projectId)}`));
 }

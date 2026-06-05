@@ -6,7 +6,25 @@
 
 import { useEffect, useRef, useState } from "react";
 import { subscribeUiEvents } from "../data/ui-events";
+import { apiPath } from "../data/http";
+import { caps } from "../caps";
 import "./AuthBadge.css";
+
+// Fetch the canonical signed-in identity. Cloud reaches the worker's
+// /api/me (200 {email,tier} → signed-in; non-200 → signed-out). Local reaches
+// the local server's whoami ({user} envelope). Returns the user or null.
+async function fetchWhoami(): Promise<AuthUser | null> {
+  if (caps.cloud) {
+    const res = await fetch(apiPath("/api/me"));
+    if (!res.ok) return null;
+    const body = (await res.json()) as { email: string };
+    return { id: body.email, email: body.email };
+  }
+  const res = await fetch(apiPath("/api/auth/whoami"));
+  if (!res.ok) throw new Error(String(res.status));
+  const body = (await res.json()) as { user: AuthUser | null };
+  return body.user;
+}
 
 interface AuthUser {
   id: string;
@@ -60,14 +78,12 @@ export function AuthBadge() {
     let cancelled = false;
     const refresh = async () => {
       try {
-        const res = await fetch("/api/auth/whoami");
-        if (!res.ok) throw new Error(String(res.status));
-        const body = (await res.json()) as { user: AuthUser | null };
+        const next = await fetchWhoami();
         if (cancelled) return;
-        setUser(body.user);
+        setUser(next);
         setPending(null);
         clearAbortTimeout();
-        setPhase(body.user ? "signed-in" : "signed-out");
+        setPhase(next ? "signed-in" : "signed-out");
       } catch {
         if (cancelled) return;
         setPhase("signed-out");
@@ -92,12 +108,13 @@ export function AuthBadge() {
   // paper cut, but the fallback is cheap and keeps dev sane. SSE remains
   // the fast path; polling only fires while we're waiting for sign-in.
   useEffect(() => {
+    if (caps.cloud) return; // signing-in phase is unreachable in cloud; defensive
     if (phase !== "signing-in" || !pending) return;
     let cancelled = false;
     const tick = async () => {
       if (cancelled) return;
       try {
-        const res = await fetch("/api/auth/whoami");
+        const res = await fetch(apiPath("/api/auth/whoami"));
         if (!res.ok) return;
         const body = (await res.json()) as { user: AuthUser | null };
         if (cancelled) return;
@@ -146,7 +163,7 @@ export function AuthBadge() {
     setSignOutError(null);
     setMenuOpen(true); // surface the hint+cancel popover immediately
     try {
-      const res = await fetch("/api/auth/login", { method: "POST", signal: controller.signal });
+      const res = await fetch(apiPath("/api/auth/login"), { method: "POST", signal: controller.signal });
       if (!res.ok) throw new Error(String(res.status));
       const body = (await res.json()) as SignInPending;
       // Defence-in-depth: even if the abort raced past the network
@@ -185,8 +202,28 @@ export function AuthBadge() {
   const handleSignOut = async () => {
     setMenuOpen(false);
     setSignOutError(null);
+    if (caps.cloud) {
+      // Cloud signs out against the apex auth worker (same origin as the
+      // SPA). The host-only oyster_session cookie rides along automatically;
+      // the worker revokes the session row and clears the cookie. Then we
+      // reload /app, which the worker will 401 → sign-in page.
+      try {
+        const res = await fetch("/auth/sign-out", { method: "POST" });
+        if (!res.ok) {
+          setSignOutError("Sign-out failed. Try again.");
+          console.error("[auth] sign-out returned", res.status);
+          return;
+        }
+      } catch (err) {
+        setSignOutError("Sign-out failed. Try again.");
+        console.error("[auth] sign-out failed:", err);
+        return;
+      }
+      window.location.href = "/app";
+      return;
+    }
     try {
-      const res = await fetch("/api/auth/logout", { method: "POST" });
+      const res = await fetch(apiPath("/api/auth/logout"), { method: "POST" });
       if (!res.ok) {
         // Local server failed to sign out (cloud unreachable / D1
         // transient). Don't flip the UI — the user is still signed in
@@ -273,6 +310,8 @@ export function AuthBadge() {
         {menuOpen && (
           <div className="auth-chip__menu" role="menu">
             <div className="auth-chip__menu-email">{user.email}</div>
+            {/* Local POSTs to the server's /api/auth/logout; cloud POSTs to the
+                apex auth worker's /auth/sign-out (same origin as the SPA). */}
             <button
               type="button"
               className="auth-chip__menu-item"
