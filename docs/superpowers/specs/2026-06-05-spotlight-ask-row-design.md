@@ -22,7 +22,11 @@ conventions and reuses the PR 2 plumbing wholesale.
 - Activating it dispatches the existing `oyster:send-prompt` event with the
   query and closes Spotlight. App already opens the panel on that event;
   AskPanel already sends through `handleSend` (scope prefix, session-boot
-  queueing). **No App/AskPanel changes.**
+  queueing). **No App changes.** One AskPanel change shipped with this PR
+  (review finding): `handleSend` now also queues prompts that arrive while a
+  response is streaming — ⌘K makes rapid re-asking a one-keystroke move, and
+  a mid-stream ask was previously dropped silently. The existing drain
+  effect fires the queued prompt when the stream ends.
 - Render: last row of the results list; on the no-results state the row
   renders beneath the "No results" message, so a dead end becomes an action.
 - No row on the empty-query recent feed (nothing to ask).
