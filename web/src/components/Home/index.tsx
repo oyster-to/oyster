@@ -190,16 +190,26 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     error: spaceProjectsError,
     refresh: refreshSpaceProjects,
   } = useSpaceProjects(projectsSpaceId);
-  // All projects across all spaces — used by the Home-view tile strip.
-  // Only fetched when on Home (enabled when isMetaScope and not Elsewhere).
+  // All projects across all spaces — used by the Home-view tile strip and
+  // session-row project labels in every scope.
   const {
     data: allProjects,
     refresh: refreshAllProjects,
   } = useFetched<import("../../data/projects-api").Project[]>(
     fetchAllProjects,
     [],
-    { enabled: isMetaScope, ssEvent: "session_changed" },
+    // Always fetched: feeds session-row project labels in every scope,
+    // plus the Home tile strip.
+    { enabled: true, ssEvent: "session_changed" },
   );
+  // Repo names for session-row labels — never the space displayName
+  // (scope already says the space; two repos in one space must stay
+  // distinguishable). Falls back to cwd basename inside SessionRow.
+  const projectNameById = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const p of allProjects) out[p.id] = p.name;
+    return out;
+  }, [allProjects]);
   const [showAttachForm, setShowAttachForm] = useState(false);
   // Reset the attach form whenever scope changes so it doesn't carry
   // across spaces.
@@ -1262,10 +1272,10 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
           ) : (
             <>
               <div className="home-table-wrap">
-                <div className="home-table">
+                <div className={`home-table${selectedProjectId !== null && selectedProjectId !== VAULT ? " home-table--no-project" : ""}`}>
                   <div className="home-row home-row--header" role="row">
                     <span aria-hidden="true" />
-                    <span role="columnheader">Project</span>
+                    {(selectedProjectId === null || selectedProjectId === VAULT) && <span role="columnheader">Project</span>}
                     <span role="columnheader">Title</span>
                     <span role="columnheader">Agent</span>
                     <span role="columnheader">Reason</span>
@@ -1276,9 +1286,10 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                       key={session.id}
                       session={session}
                       view={sessionsView}
-                      spaces={spaces}
                       myDeviceId={myDeviceId}
                       livePresence={presence.byId[session.id]}
+                      projectName={session.projectId ? projectNameById[session.projectId] ?? null : null}
+                      hideProject={selectedProjectId !== null && selectedProjectId !== VAULT}
                       onOpen={(id) => setActivePanel({ kind: "session", id })}
                       onTerminalFocus={onTerminalFocus}
                       onTerminalRestore={onTerminalRestore}

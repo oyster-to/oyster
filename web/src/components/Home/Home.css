@@ -523,6 +523,12 @@
 .home-row:hover { background: rgba(124, 107, 255, 0.05); }
 .home-row:last-child { border-bottom: none; }
 
+/* Project scope active — the project column is hidden (the scope crumb
+   names it), so the title takes its track. */
+.home-table--no-project .home-row {
+  grid-template-columns: 18px 1fr 130px 150px 130px;
+}
+
 .home-row-status {
   width: 8px;
   height: 8px;
