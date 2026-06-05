@@ -105,7 +105,7 @@ build: {
 },
 ```
 
-(Adapt to the file's existing shape — it currently exports a plain config object; convert minimally. Keep all proxy config as-is; it's dev-only.)
+(The file already uses the `defineConfig(({ mode }) => ...)` function form — add `base` and `build.outDir` inside the existing callback. Keep all proxy config as-is; it's dev-only.)
 
 `web/package.json` scripts: add `"build:cloud": "VITE_OYSTER_MODE=cloud tsc -b && VITE_OYSTER_MODE=cloud vite build"`.
 Root `package.json`: add `"build:cloud": "cd web && npm run build:cloud"`.
@@ -215,7 +215,9 @@ export async function fetchCloudSessionSize(id: string, signal?: AbortSignal): P
 }
 ```
 
-Adjust the `Session` import path/fields to the real type in `shared/types.ts` (read it; if `Session` has additional required fields, default them explicitly — never `as any`). If the cast `as Session` is needed for optional-field mismatch, prefer filling fields over casting; keep the cast only if the type genuinely has local-only required members, with a comment.
+Verified against `shared/types.ts`: the field list above covers every required `Session` member. The `as Session` cast IS required — `agent`/`state`/`displayState` are string unions (`SessionAgent`, `SessionState`, `DisplayState`) and the cloud metadata types them as plain `string`. Keep the cast with this comment: `// cast: cloud metadata carries agent/state as plain strings; runtime values match the unions`. Never `as any`.
+
+Note: `fetchSessionEvents`'s `around` param is unsupported by the cloud endpoint but unreachable in cloud — `focusEventId` is only ever passed from Spotlight, which is hidden (verified: SessionInspector/index.tsx:109, Props line 29).
 
 - [ ] **Step 2: Cloud branches in `sessions-api.ts`**
 
@@ -275,7 +277,7 @@ const withBase = (path: string) => `${caps.routeBase}${path}`;
 ```
 
 - `getUrlState()` parses `stripBase(window.location.pathname)` instead of the raw pathname.
-- Every `history.pushState(null, "", "/s/...")` site wraps the target with `withBase(...)` (grep `pushState` in App.tsx — space change, project scope handler, artifact deep-link, popstate writes; ~5 sites).
+- Every `history.pushState(null, "", "/s/...")` site wraps the target with `withBase(...)` — grep BOTH `pushState` AND `replaceState` in App.tsx (space change, project scope handler, artifact deep-link, popstate writes; ~5+ sites).
 
 - [ ] **Step 2: Gate local-only mounts**
 
@@ -409,14 +411,24 @@ useEffect(() => {
 }, [sessionId, session?.state]);
 ```
 
-`refreshAfterCursor` = whatever the existing `session_changed` handler calls to do the `{after: lastEventId}` append (extract/reuse that function — read the effect at ~lines 149-210 and call the same code path; do NOT duplicate the append logic). Import `fetchCloudSessionSize` from the cloud adapter and `caps`.
+`refreshAfterCursor` = the existing `refetchLive` closure (defined INSIDE the live-update effect at line ~154 — it cannot be called from a sibling effect as-is). Extract it using the file's existing `loadOlderRef` pattern (line ~220): store the callback in a ref the SSE effect populates, and have the cloud effect call `refetchLiveRef.current?.()`. Do NOT duplicate the append logic. Import `fetchCloudSessionSize` from the cloud adapter and `caps`.
 
-- [ ] **Step 2: Verify + manual check**
+- [ ] **Step 2: Cloud-mode adjustments to the existing live/paging paths**
+
+(a) Gate the existing `session_changed` live-append effect with `caps.hasSse` (add an early `if (!caps.hasSse) return;`): in cloud mode the 12s synthetic poll from ui-events would otherwise trigger an `{after}` fetch — which decrypts the tail chunk server-side — every tick even when idle. The manifest poll above is the ONLY live driver in cloud.
+
+(b) Short-page paging fix: the cloud endpoint caps work at 4 chunks per request, so a non-empty page SHORTER than `PAGE_SIZE` can still have older history (e.g. chunks dense with skipped protocol lines). At both `setHasMoreOlder` sites (bootstrap ~line 121, load-older ~line 235), branch:
+
+```ts
+setHasMoreOlder(caps.cloud ? page.length > 0 : page.length >= PAGE_SIZE);
+```
+
+(`page` = the fetched array at that site — `ev`/`older` respectively.) In cloud, only an EMPTY page means exhausted.
 
 Run: `cd web && npx tsc -b && npm run lint && npm run build:cloud` — clean.
-Manual (local regression): inspector still live-appends locally via SSE.
+Manual (local regression): inspector still live-appends locally via SSE; load-older paging unchanged locally.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add web/src/components/SessionInspector
@@ -463,9 +475,22 @@ function toArtifact(p: Publication): Artifact {
     url: shareUrl(p.share_token),
     artifactKind: p.artifact_kind,
     sourceOrigin: "manual",
-    publication: { shareToken: p.share_token, mode: p.mode },
+    // Full ArtefactPublication shape (shared/types.ts:65) — the UI reads
+    // `shareMode` and treats `unpublishedAt === null` as "live"; a partial
+    // object makes every publication invisibly filtered out.
+    publication: {
+      shareToken: p.share_token,
+      shareUrl: shareUrl(p.share_token),
+      shareMode: p.mode,
+      publishedAt: p.published_at,
+      updatedAt: p.updated_at,
+      unpublishedAt: null, // /api/publish/mine returns live publications only
+    },
     createdAt: new Date(p.published_at).toISOString(),
-    spaceId: p.space_id,
+    spaceId: p.space_id,   // Artifact.spaceId is `string` — null is benign here
+    status: "online",
+    runtimeKind: "",
+    runtimeConfig: {},
   } as Artifact;
 }
 
@@ -475,21 +500,21 @@ export async function fetchCloudPublications(signal?: AbortSignal): Promise<Arti
 }
 
 export function unpublishCloud(token: string): Promise<void> {
-  return del(`/api/publish/${encodeURIComponent(token)}`);
+  return del<void>(`/api/publish/${encodeURIComponent(token)}`);
 }
 
 export function setCloudAccessMode(token: string, mode: "open" | "signin"): Promise<void> {
-  return patchJson(`/api/publish/${encodeURIComponent(token)}`, { mode });
+  return patchJson<void>(`/api/publish/${encodeURIComponent(token)}`, { mode });
 }
 ```
 
-Reality-check every assumption against the code before using: the `Artifact` type's real required fields (`shared/types.ts`) and `publication` sub-shape (mirror whatever the local server returns so ArtefactTable's existing publication chip/menu code just works — grep `publication` in ArtefactTable.tsx + Desktop); the `del`/`patchJson` helper names in `http.ts`; the PATCH body shape oyster-publish expects (`infra/oyster-publish/src/worker.ts` handlePublishPatch — verify field name `mode` and allowed transitions; password mode changes are out of scope). NOTE: `/api/publish/mine` is an apex path NOT under `/app/api` — do not wrap with `apiPath`.
+Verified against the code (don't re-derive): `http.ts` exports `getJson`/`patchJson`/`del` (patchJson/del return `Promise<T>` — hence the `<void>` type args; if `del` isn't generic, drop the arg and adjust). `ArtefactPublication` real fields are `shareToken, shareUrl, shareMode, publishedAt, updatedAt, unpublishedAt` — `mode` is WRONG, the UI reads `shareMode` (ArtefactTable.tsx:258, Desktop.tsx:310) and checks `unpublishedAt === null`. `Artifact` requires `status`/`runtimeKind`/`runtimeConfig` (defaults above). oyster-publish PATCH accepts `{mode}` for open↔signin (worker.ts:522-538; password transitions need `password_hash` — out of scope). Exact value for `status`: check the `ArtifactStatus` union in shared/types.ts and use its idle/ready member. NOTE: `/api/publish/*` are apex paths NOT under `/app/api` — do not wrap with `apiPath`.
 
 - [ ] **Step 2: Wire into the Artefacts tab**
 
 `artifacts-api.ts`: `fetchArtifacts()` → `if (caps.cloud) return fetchCloudPublications(signal);`; `listArchivedArtifacts()` → `if (caps.cloud) return [];`. The Home artefacts tab then populates with publications through the existing data flow (App fetches artifacts → desktopProps). 
 Open behaviour: in cloud mode a tile/row click opens the share URL in a new tab instead of the local viewer. Find the artifact-click dispatch (App.tsx `onArtifactClick`, ~435-476): at its top, `if (caps.cloud) { window.open(a.url, "_blank", "noopener"); return; }`.
-ArtefactTable context menu: wire unpublish → `unpublishCloud(token)` + refetch, access mode open↔signin → `setCloudAccessMode` + refetch, when `caps.cloud` (the local handlers call local endpoints; branch at the handler callsite). Source/kind filter chips and icons/table toggle work unchanged.
+ArtefactTable context menu: wire unpublish → `unpublishCloud(token)` + refetch, access mode open↔signin → `setCloudAccessMode` + refetch, when `caps.cloud` (the local handlers call local endpoints; branch at the handler callsite). **Trap:** ArtefactTable.tsx:149 and Desktop.tsx:338 already call `unpublishCloudShare` from `publish-api.ts`, which hits the LOCAL server proxy route (`/api/publish/by-token/:token/unpublish`) — that 404s in the cloud build. Branch those existing callsites on `caps.cloud` → `unpublishCloud`, don't only add new handlers. Source/kind filter chips and icons/table toggle work unchanged (verified: tiles render icons only — no iframe/preview of `url`, so external share URLs are safe in the icons view).
 
 - [ ] **Step 3: Verify**
 
@@ -517,7 +542,7 @@ git commit -m "web: cloud artefacts tab = publications with share-link open + li
 // (created/forgotten/purged); there is no materialized read API. Fold the
 // log into current state client-side: a memory is live iff it has a
 // created event with a payload and no forgotten/purged tombstone.
-import type { Memory } from "../../../shared/types";
+import type { Memory } from "./memories-api"; // Memory lives there, NOT in shared/types
 import { getJson, apiPath } from "./http";
 
 interface MemoryEvent {
@@ -544,6 +569,7 @@ export async function fetchCloudMemories(signal?: AbortSignal): Promise<Memory[]
       tags: ev.payload.tags ?? [],
       space_id: ev.space_id,
       created_at: new Date(ev.created_at).toISOString(),
+      source_session_id: null, // not carried by the sync event log
     } as Memory);
   }
   for (const id of dead) live.delete(id);
@@ -551,7 +577,7 @@ export async function fetchCloudMemories(signal?: AbortSignal): Promise<Memory[]
 }
 ```
 
-Verify the `Memory` type's real fields (snake_case per MemoryCard's `memory.created_at`/`memory.space_id` usage) and whether `created_at` is rendered as ISO or epoch — match what MemoryCard expects. If `GET /api/memories/events` is paginated (check the worker handler for cursor params), follow the cursor until exhausted.
+Verify the `Memory` type's remaining fields against `web/src/data/memories-api.ts:5` (it's snake_case; `source_session_id` is required — defaulted above) and whether `created_at` is rendered as ISO or epoch — match what MemoryCard expects. `GET /api/memories/events` is NOT paginated (verified: worker.ts handleMemoryEventsGet returns everything) — no cursor-following needed.
 
 - [ ] **Step 2: Branch + verify + commit**
 
@@ -650,19 +676,27 @@ Check wrangler 4.x docs/behaviour for `run_worker_first` (the worker must keep h
 
 - [ ] **Step 2: Worker dispatch — auth-gated SPA**
 
-Replace the `/app` shell block in `worker.ts` (keep the www redirect and the `/app/api/` rewrite exactly as they are):
+Rework the three `/app` blocks in `worker.ts`. ⚠️ **ORDER IS LOAD-BEARING and CHANGES from today's:** currently the shell block (exact `/app` match) sits BEFORE the `/app/api/` rewrite. The new catch-all uses `startsWith("/app/")`, which would swallow `/app/api/*` if left in the shell's current position — every SPA API call would get index.html. The final order MUST be:
 
 ```ts
-    // oyster.to/app — cloud remote view SPA. The worker gates entry: the
-    // index is only served to a signed-in pro user; signed-out gets the
-    // sign-in page. Static assets (hashed js/css, no secrets) are public.
-    // /app/api/* is rewritten onto /api/* below, BEFORE this block's
-    // catch-all (order matters — keep the rewrite first).
+    // 1) www → apex (unchanged)
+    if (url.hostname === "www.oyster.to" && url.pathname.startsWith("/app")) {
+      return Response.redirect(`https://oyster.to${url.pathname}${url.search}`, 308);
+    }
+    // 2) /app/api/* → /api/* rewrite (unchanged — MUST run before the
+    //    catch-all below, which would otherwise swallow API calls)
+    if (url.pathname.startsWith("/app/api/")) {
+      url.pathname = url.pathname.slice("/app".length);
+    }
+    // 3) Everything else under /app is the SPA: hashed assets are public,
+    //    navigations are auth-gated (signed-out → sign-in page).
     if (url.pathname === "/app" || url.pathname.startsWith("/app/")) {
       if (req.method !== "GET") return jsonError(405, "method_not_allowed");
       return handleAppShell(req, env, url);
     }
 ```
+
+(A rewritten `/app/api/...` request no longer starts with `/app/`, so block 3 never sees it. The Task 9 tests assert this explicitly.)
 
 And `app-shell.ts` becomes the gate + asset proxy (keep `esc`, `page`, the 401 sign-in HTML; drop the whoami body):
 
@@ -692,7 +726,7 @@ Update `test/app-shell.test.ts`: the vitest-pool-workers config needs the assets
 - unauth GET /app → 401 HTML containing "Sign in" (unchanged)
 - auth GET /app → 200 HTML (now asserts the fixture index content, not "Signed in as")
 - auth GET /app/assets/app.js → 200 WITHOUT auth too (public assets): assert both
-- GET /app/api/sessions/metadata with cookie → 200 (rewrite untouched)
+- GET /app/api/sessions/metadata with cookie → 200 JSON with a `sessions` property (guards the dispatch-order trap: if the catch-all swallowed the rewrite, this would return index.html — assert the content-type is application/json, not text/html)
 
 - [ ] **Step 4: Verify + commit**
 
