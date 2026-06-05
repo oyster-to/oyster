@@ -1495,7 +1495,7 @@
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 10px;
 }
-/* Orphan-cwd tiles (Elsewhere / Unassigned view). Same two-piece pattern
+/* Orphan-cwd tiles (unclaimed folders on Home). Same two-piece pattern
    as ProjectTile: outer div is the chrome + jump-button anchor; inner
    <button> covers the body click target. */
 .home-projects-strip-tile {

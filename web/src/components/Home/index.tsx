@@ -179,8 +179,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
     error: memoriesError,
     refresh: refreshMemories,
   } = useMemories();
-  // Space sources only fetch when scoped to a real space — Home / Elsewhere
-  // / All / Archived don't have a single source list. Identifies the
+  // Space sources only fetch when scoped to a real space — Home / All /
+  // Archived don't have a single source list. Identifies the
   // "zero sources attached" pitfall (#266) at a glance.
   const isMetaScope = activeSpace === "home" || activeSpace === "__all__" || activeSpace === "__archived__";
   const projectsSpaceId = !isMetaScope ? activeSpace : null;
@@ -242,8 +242,8 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   const [artefactKind, setArtefactKind] = useState<ArtifactKind | "all">("all");
   const [kindMenuOpen, setKindMenuOpen] = useState(false);
   const [artefactsLimit, setArtefactsLimit] = useState(ARTEFACTS_PREVIEW);
-  // Cwd-based tile filter: drives session narrowing on both Home default
-  // and showElsewhere. Lives alongside selectedProjectId; resets when scope changes.
+  // Cwd-based tile filter: drives session narrowing for orphan-folder tiles
+  // on Home. Lives alongside selectedProjectId; resets when scope changes.
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null);
   // Cwd of the orphan tile currently mid-promotion (or mid-attach). Disables
   // every FolderPlus button so a slow server response can't kick off a
@@ -340,7 +340,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
 
   // Folder-narrowed sessions: when a project tile is selected, sessions
   // filter to that source (or sessions without a source for VAULT, or
-  // by cwd when a cwd-based tile is picked on Home or showElsewhere).
+  // by cwd when an orphan-folder tile is picked on Home).
   const folderScopedSessions = useMemo(() => {
     if (selectedCwd) return scopedSessions.filter((s) => s.cwd === selectedCwd);
     if (selectedProjectId === VAULT) return scopedSessions.filter((s) => !s.projectId);
@@ -477,9 +477,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   // renders Home as its own pill, so a `home` row in the spaces table would
   // surface a redundant card. __all__ and __archived__ are similar.
   // Sort by most recent session activity desc; spaces with no sessions
-  // fall to the bottom in their original (alphabetical) order. Home and
-  // Elsewhere cards are rendered around this list — always first / always
-  // last regardless of activity.
+  // fall to the bottom in their original (alphabetical) order.
   // Stable breadcrumb order: bucket by strongest signal (green → amber →
   // red → quiet), then alphabetise within each bucket. Sorting by
   // last-activity caused pill order to flip every time a session updated,
@@ -704,10 +702,10 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
   );
   const filteredArtefactsTotal = filteredArtefacts.length;
 
-  // Resolve the active artefact against the FULL artifact list, not the
-  // showElsewhere-filtered one. Cross-navigating from a session inspector
-  // to an artefact in a different scope (e.g. clicking a registered-space
-  // artefact while the user is in Elsewhere mode) shouldn't close the panel.
+  // Resolve the active artefact against the FULL artifact list so
+  // cross-scope navigation from a session inspector (e.g. clicking a
+  // registered-space artefact while in a different scope) doesn't
+  // close the panel.
   const activeArtefact = activePanel?.kind === "artefact"
     ? desktopProps.artifacts.find((a) => a.id === activePanel.id)
     : null;
