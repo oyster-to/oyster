@@ -325,6 +325,7 @@
 </ul>
 <h3>Fixed</h3>
 <ul>
+<li><strong>Multiple Oyster tabs no longer freeze the app.</strong> Each tab held two permanent event streams, hitting the browser&#39;s per-site connection limit at three tabs — every request then stalled silently. One stream per tab now, so working across several tabs is comfortable.</li>
 <li><strong>Sessions table names the repo</strong> — the project column shows the repository name instead of the space, and steps aside when a project is selected.</li>
 <li><strong>Onboarding reflects what you&#39;ve actually done.</strong> &quot;Publish your first artefact&quot; now ticks only when you have a live publication (and un-ticks if you unpublish), and the setup icon fills as a progress ring — becoming the 🦪 only once every step is done.</li>
 <li><strong>Artefacts table view has column headers.</strong> The table view now labels its columns (Name · Space · Kind · Created), matching the sessions list.</li>
