@@ -108,6 +108,7 @@ export function AuthBadge() {
   // paper cut, but the fallback is cheap and keeps dev sane. SSE remains
   // the fast path; polling only fires while we're waiting for sign-in.
   useEffect(() => {
+    if (caps.cloud) return; // signing-in phase is unreachable in cloud; defensive
     if (phase !== "signing-in" || !pending) return;
     let cancelled = false;
     const tick = async () => {
