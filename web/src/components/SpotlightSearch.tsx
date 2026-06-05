@@ -256,7 +256,10 @@ export function SpotlightSearch({ artifacts, spaces, onOpen, onClose }: Props) {
   }, [query]);
 
   useEffect(() => {
-    const el = listRef.current?.children[selected] as HTMLElement | undefined;
+    // Look the highlighted row up by class rather than child index — the
+    // results container also holds section labels, loading rows, and the
+    // ask row, so children[selected] doesn't map onto hits.
+    const el = listRef.current?.querySelector<HTMLElement>(".spotlight-result--selected");
     el?.scrollIntoView({ block: "nearest" });
   }, [selected]);
 

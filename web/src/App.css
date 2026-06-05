@@ -1681,6 +1681,12 @@ body {
   justify-self: end;
 }
 
+/* Nested in the results container (no-results state) the container's own
+   top border does the dividing — drop the message's duplicate. */
+.spotlight-results .spotlight-empty {
+  border-top: none;
+}
+
 /* "Ask Oyster" launcher row — sits last in the list, faint divider above. */
 .spotlight-result--ask {
   border-top: 1px solid rgba(255, 255, 255, 0.06);
