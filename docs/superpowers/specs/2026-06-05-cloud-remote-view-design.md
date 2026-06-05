@@ -6,7 +6,7 @@
 
 ## What
 
-A mobile-first web view at `https://cloud.oyster.to` where a signed-in Pro user can browse their cloud-synced session transcripts (including live tail of in-flight sessions), see and lightly manage their published artifacts, and see which device each session ran on. It mirrors the existing local web UI rather than introducing a new one — the same components, made responsive, fed by cloud data. Long-term this surface is the seed of a phone app; v1 is a dogfood tool for the author.
+A mobile-first web view at `https://oyster.to/app` (later `app.oyster.to`) where a signed-in Pro user can browse their cloud-synced session transcripts (including live tail of in-flight sessions), see and lightly manage their published artifacts, and see which device each session ran on. It mirrors the existing local web UI rather than introducing a new one — the same components, made responsive, fed by cloud data. Long-term this surface is the seed of a phone app; v1 is a dogfood tool for the author.
 
 ## Why
 
@@ -24,14 +24,15 @@ Session transcripts are already pushed to Cloudflare (encrypted chunks in R2, me
 ## Architecture
 
 ```
-Phone/desktop browser → https://cloud.oyster.to
+Phone/desktop browser → https://oyster.to/app  (apex cookie already valid, #397)
                             |
                   oyster-cloud Worker (infra/oyster-cloud)
                    - serves cloud-mode web build (static assets, same origin)
+                   - /app/api/* → /api/* rewrite (same-origin API calls)
                    - GET /api/sessions/metadata   (exists: incl. device_id/label)
                    - GET /api/sessions/:id/events (NEW: R2 chunk → decrypt → parse → paged turns)
-                   - publish action proxies       (forward to oyster-publish with same cookie)
                    - D1 oyster-auth + R2 oyster-session-bytes (existing bindings)
+                   (publish admin = oyster.to/api/publish/* — already same-origin, no proxy)
 ```
 
 Key existing facts this design leans on:
@@ -55,15 +56,19 @@ Known cost, accepted for v1: AES-GCM cannot be range-read, so reading a chunk's 
 
 The cloud-mode web build is served *by* the oyster-cloud worker, so the app keeps calling relative `/api/...` paths exactly as it does locally — no CORS on the read path, and the `oyster_session` cookie rides along automatically. The worker implements only the subset of local API routes the cloud UI actually uses; everything else is hidden by the mode flag, not stubbed.
 
-### Auth cookie (decision)
+### Auth: serve from the apex (decision, revised)
 
-The cookie today is host-only (`oyster_session=…; HttpOnly; Secure; SameSite=Lax`, no `Domain` — auth-worker worker.ts:148), so the browser will not present it at cloud.oyster.to. **v1: widen to `Domain=.oyster.to`** — and because `share.oyster.to` serves arbitrary user-published HTML (same-site, so SameSite=Lax does not protect), this MUST ship together with: ① Origin checks rejecting any state-changing request whose `Origin` isn't `https://cloud.oyster.to`, on both cloud and publish admin routes; ② no `Access-Control-Allow-Origin` on these APIs. Productization step: replace with a code-exchange handshake so cloud.oyster.to sets its own host-only cookie.
+The cookie is **deliberately** host-only on the apex (`oyster_session=…; HttpOnly; Secure; SameSite=Lax`, no `Domain` — auth-worker worker.ts:138-149, issue #397: it must not leak to share.oyster.to, where untrusted published content runs). Widening it is therefore off the table.
 
-Unauthenticated visits to cloud.oyster.to redirect to the existing `oyster.to/auth` sign-in and bounce back.
+**v1: the remote view lives at `oyster.to/app/*`**, routed to the oyster-cloud worker (path-scoped apex routes are the house style — `/auth/*`, `/api/publish/*`, `/p/*`). The cookie is already there; zero auth-worker changes. The shell's API calls are same-origin via an `/app/api/*` → `/api/*` rewrite inside the worker. Productization step: move to `app.oyster.to` with a one-time-code handshake (shared-D1 exchange) so it sets its own host-only cookie.
+
+Regardless: share.oyster.to is *same-site* with the apex, so SameSite=Lax does not stop credentialed fetches from published HTML — all mutating `/api/*` routes on oyster-cloud and oyster-publish get Origin checks (absent Origin = non-browser client, allowed; foreign Origin = 403). This closes a pre-existing gap, not just a new one. The `/p/:token` password-unlock POST is exempt (legitimately posted from share.oyster.to).
+
+Unauthenticated visits to oyster.to/app get a sign-in link to the existing `oyster.to/auth` flow.
 
 ### Publish actions
 
-Thin proxy routes on the cloud worker forward unpublish / access-mode changes to `oyster-publish`'s existing admin endpoints with the same cookie. Keeps everything same-origin rather than opening CORS on oyster.to.
+Already same-origin: the publish admin endpoints live at `oyster.to/api/publish/*`, the same origin as `/app`. The cloud UI calls them directly — no proxy, no CORS.
 
 ## UI
 
@@ -119,7 +124,7 @@ When an open session's metadata says it's live, the inspector polls `GET /api/se
 - **Don't fake the local events API contract.** Local pages by event-id windowing; cloud pages by byte cursor. A thin client-side adapter in cloud mode is the seam — don't contort the worker.
 - **One capabilities object** (`caps.canChat`, `caps.canWrite`, …) set once per build — no scattered `mode === 'cloud'` conditionals through Home/index.tsx.
 - **Live-tail cursor is byte-offset-based** — polls decrypt only chunks newer than the cursor (delta chunks are small); never re-decrypt the full tail chunk per poll.
-- Wrangler route widens from `cloud.oyster.to/api/*` to the whole host — `/api/*` must keep precedence over asset fallback.
+- New wrangler routes are additive (`oyster.to/app*`); `cloud.oyster.to/api/*` is untouched, so the local sync clients see no change.
 - Old sessions may have null `device_label` — the device filter tolerates it.
 
 ## Implementation notes
