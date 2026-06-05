@@ -30,15 +30,21 @@ CREATE TABLE IF NOT EXISTS app_handoff_codes (
   expires_at  INTEGER NOT NULL,   -- created_at + 60_000
   consumed_at INTEGER
 );
+
+-- The GC path scans on expires_at; index it now while the table is empty.
+CREATE INDEX IF NOT EXISTS idx_app_handoff_codes_expires_at
+ON app_handoff_codes (expires_at);
 ```
 
-Mirror the table in `infra/oyster-cloud/test/fixtures/seed.ts` in the same commit (invariant 5).
+**Time units: all three timestamp columns are milliseconds since epoch** (`Date.now()`), matching every other auth-worker table (`sessions.expires_at`, `magic_link_tokens.expires_at`, `device_codes.expires_at` are all ms). TTL is `created_at + 60_000`. No seconds anywhere in this slice.
+
+Mirror the table **and the index** in `infra/oyster-cloud/test/fixtures/seed.ts` in the same commit (invariant 5).
 
 ### auth-worker (apex): `GET /auth/app-handoff?return=<path>`
 
 - **Valid apex cookie** → mint a raw 32-byte token (`randomToken(32)`, the existing helper), insert its sha256 hash with a 60s TTL, then 302 →
   `https://app.oyster.to/auth/callback?code=<raw>[&return=<encoded path>]`.
-  Opportunistic GC on each mint: `DELETE FROM app_handoff_codes WHERE expires_at < ? LIMIT 100` (mirrors `device_codes`).
+  Opportunistic GC on each mint: `DELETE FROM app_handoff_codes WHERE expires_at < ? LIMIT 100` (mirrors the `device_codes` GC already running in production, so D1's `DELETE … LIMIT` support is proven there — but the test fixture's SQLite build may differ, so a GC test must pass against the fixture; if `DELETE … LIMIT` fails there, fall back to the subquery form `DELETE FROM app_handoff_codes WHERE code_hash IN (SELECT code_hash FROM app_handoff_codes WHERE expires_at < ? LIMIT 100)` in both code and test).
 - **No/invalid cookie** → 302 → `/auth/sign-in?return=/auth/app-handoff`. Requires one exact-match addition to the `validateReturnPath` allowlist in `infra/auth-worker/src/return-path.ts`: the literal path `/auth/app-handoff` (no query — the validator's no-query rule stands). After sign-in, the existing return-path machinery lands the user back on the handoff, now with a cookie, and the first branch fires.
 - **`return` pass-through validation** (handoff → callback): must start with `/`, must not start with `//`, no control characters, ≤ 256 chars. Anything failing validation is dropped (callback defaults to `/`). Consequence: **deep links survive the silent-SSO path only**; a full sign-in lands on `/`. Accepted for dogfood.
 - No new rate limit: minting requires a valid session cookie; the unauthenticated branch is a pure redirect.
@@ -76,6 +82,7 @@ Top-level `fetch` becomes a hostname split. Order remains load-bearing and regre
 
 **`oyster.to` / `www.oyster.to`**:
 - `/app` and `/app/*` → 308 → `https://app.oyster.to/<path minus /app>` preserving query (invariant 7). `/app` exactly → `https://app.oyster.to/`. These routes stay in wrangler.toml indefinitely; the shell-serving and rewrite code for the apex is deleted.
+- **Path-boundary guard:** match `pathname === "/app" || pathname.startsWith("/app/")` — never a bare `startsWith("/app")`. The current worker's www branch (`worker.ts:27`) has exactly this bug: `www.oyster.to/application` 308s today. Fix it in this slice and pin it with a negative test (`/application` → 404, both hosts).
 
 **`cloud.oyster.to/api/*`**: untouched — local-server sync traffic, Bearer-authenticated.
 
@@ -126,7 +133,8 @@ The service binding preserves the browser's `Origin: https://app.oyster.to` head
 **oyster-cloud (vitest-pool-workers):**
 - Callback matrix: valid code → Set-Cookie (host-only, HttpOnly, Secure, Lax, no Domain) + 302 to `/` or validated `return`; reused code → retry page; expired code → retry page; revoked session → retry page; concurrent double-burn → exactly one winner.
 - Sign-out: revokes the row (subsequent `resolveSession` fails), clears cookie, origin-guarded.
-- 308s: `/app`, `/app/`, `/app/foo`, `/app/foo?a=1&b=2` on apex and www (invariant 7).
+- 308s: `/app`, `/app/`, `/app/foo`, `/app/foo?a=1&b=2` on apex and www (invariant 7); negative: `/application` does NOT redirect on either host.
+- GC: expired handoff rows are deleted by the `DELETE … LIMIT` form against the test fixture (see §1 for the subquery fallback if the fixture's SQLite rejects it).
 - Dispatch: `/api/publish/mine` and `/api/spaces/mine` on the app host route to the `PUBLISH` binding (stub `Fetcher` in env); `/api/sessions/...` on the app host hits the existing handlers bare; signed-out navigation 302s to the handoff; hashed assets bypass auth.
 - Origin guard: mutation with `Origin: https://app.oyster.to` passes; foreign origin still 403s.
 
@@ -144,6 +152,7 @@ One sitting, manual deploys from the merged branch, in order:
 3. Deploy oyster-publish (origin allowlist; inert)
 4. `npm run build:cloud` (new base `/`)
 5. Deploy oyster-cloud (custom domain provisions DNS/cert on first deploy; `/app` flips to 308s in the same deploy as the new hostname goes live)
+6. **Remote smoke test immediately after step 5** — first-deploy provisioning is the fragile moment. Minimum: `curl -I https://app.oyster.to/` (expect 302 to the handoff, proving DNS + cert + worker), `curl -I https://oyster.to/app` (expect 308 to `https://app.oyster.to/`), then the authenticated pass with the E2E token: `curl -b "oyster_session=$TOKEN" https://app.oyster.to/api/me` and `/api/publish/mine` (proves cookie path + service binding end-to-end). Then the real dogfood: phone.
 
 Old `/app` bookmarks 308 over forever. CHANGELOG: still deferred — the cloud remote view is unannounced; this slice moves an unannounced surface.
 
