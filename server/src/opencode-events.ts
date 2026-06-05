@@ -1,63 +1,28 @@
-// Browser-facing chat event stream. We maintain a single upstream subscription
-// to opencode's /event SSE endpoint (in opencode-manager) and fan out to N
-// registered browser clients. This lets us inject server-originated synthetic
-// events (e.g. from stderr pattern matches in #203) alongside proxied ones —
-// the previous per-client pass-through didn't allow that.
-
-import type { IncomingMessage, ServerResponse } from "node:http";
+// Chat event fan-out. We maintain a single upstream subscription to
+// opencode's /global/event SSE endpoint (in opencode-manager) and emit each
+// event into the shared /api/ui/events stream as a `{command:"chat"}`
+// envelope — one SSE connection per tab instead of a dedicated chat stream.
+// (Chrome caps HTTP/1.1 at 6 connections per origin; with two streams per
+// tab, three Oyster tabs stalled every fetch on the origin.) This module
+// also lets us inject server-originated synthetic events (e.g. from stderr
+// pattern matches in #203) alongside proxied ones.
 
 type SyntheticEvent = { type: string; properties?: Record<string, unknown> };
 
-const clients = new Set<ServerResponse>();
+// Injected by index.ts at startup (wraps broadcastUiEvent). Indirection
+// avoids a circular import — index.ts owns the ui-events client set.
+let sink: ((event: unknown) => void) | null = null;
 
-// Caller is responsible for the local-origin check (the same
-// rejectIfNonLocalOrigin gate used for /api/ui/events). Chat SSE
-// carries assistant output — a cross-origin page in the same browser
-// must not be able to open an EventSource against it. We also don't
-// set Access-Control-Allow-Origin here; the outer handler's wildcard
-// header would otherwise make this world-readable.
-export function attachChatEventClient(req: IncomingMessage, res: ServerResponse) {
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
-    Connection: "keep-alive",
-  });
-  clients.add(res);
-  req.on("close", () => {
-    clients.delete(res);
-  });
+export function setChatEventSink(fn: (event: unknown) => void) {
+  sink = fn;
 }
 
-// Mirror broadcastUiEvent's leak-safe pattern in index.ts: if close
-// doesn't fire cleanly, ended/destroyed responses would otherwise stay
-// in the set and we'd throw on every subsequent broadcast. We also
-// cap per-client buffering — chat SSE can emit many tokens per second
-// during a long assistant response, so a stalled tab could otherwise
-// grow Node's internal writable buffer without bound.
-const MAX_CLIENT_BUFFER_BYTES = 1_000_000;
-
-export function broadcastRaw(chunk: string) {
-  for (const res of clients) {
-    if (res.writableEnded || res.destroyed) {
-      clients.delete(res);
-      continue;
-    }
-    if (res.writableLength > MAX_CLIENT_BUFFER_BYTES) {
-      // Client can't keep up — drop rather than grow forever.
-      // EventSource in the browser will auto-reconnect.
-      try { res.end(); } catch { /* best effort */ }
-      clients.delete(res);
-      continue;
-    }
-    try {
-      res.write(chunk);
-    } catch {
-      clients.delete(res);
-    }
-  }
+/** Emit one opencode (or synthetic) chat event to all connected browsers
+ *  via the shared ui-events stream. No-op before the sink is wired. */
+export function emitChatEvent(event: unknown) {
+  sink?.(event);
 }
 
 export function broadcastSynthetic(event: SyntheticEvent) {
-  const payload = `data: ${JSON.stringify(event)}\n\n`;
-  broadcastRaw(payload);
+  emitChatEvent(event);
 }

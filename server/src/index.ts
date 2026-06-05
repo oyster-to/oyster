@@ -65,7 +65,7 @@ import {
   startAutoApprover,
   proxyToOpenCode,
 } from "./opencode-manager.js";
-import { attachChatEventClient } from "./opencode-events.js";
+import { setChatEventSink } from "./opencode-events.js";
 import { sweepOrphanOpenCodeProcesses } from "./opencode-orphan-sweep.js";
 import { attachWebSocket, handleLegacyUpgrade } from "./pty-manager.js";
 import { ClaudePtyManager } from "./claude-pty-manager.js";
@@ -749,10 +749,28 @@ process.on("unhandledRejection", (err) => {
 
 const uiClients = new Set<ServerResponse>();
 
+// Cap per-client buffering: chat events ride this stream and can emit many
+// token deltas per second during a long assistant response — a stalled tab
+// would otherwise grow Node's internal writable buffer without bound. Drop
+// the laggard; its EventSource auto-reconnects.
+const MAX_CLIENT_BUFFER_BYTES = 1_000_000;
+
 function broadcastUiEvent(event: UiCommand) {
   const data = `data: ${JSON.stringify(event)}\n\n`;
   for (const client of uiClients) {
     if (client.writableEnded || client.destroyed) {
+      uiClients.delete(client);
+      continue;
+    }
+    if (client.writableLength > MAX_CLIENT_BUFFER_BYTES) {
+      // Dropping a laggard loses any imperative one-shot commands
+      // (open_artifact, switch_space) sent during the gap — accepted:
+      // the cap only trips on an already-frozen tab, and steady state
+      // self-heals (5s artifact/space poll; chat keeps streaming).
+      // destroy(), not end(): no point flushing 1MB to a frozen tab, and
+      // tearing the socket down makes the route's close handler fire
+      // promptly (clearing its heartbeat interval).
+      try { client.destroy(); } catch { /* best effort */ }
       uiClients.delete(client);
       continue;
     }
@@ -763,6 +781,13 @@ function broadcastUiEvent(event: UiCommand) {
     }
   }
 }
+
+// Chat events (opencode + synthetic) ride the same stream as a
+// {command:"chat"} envelope — one SSE connection per tab. See
+// opencode-events.ts for why this is a sink injection.
+setChatEventSink((event) => {
+  broadcastUiEvent({ version: 1, command: "chat", payload: event });
+});
 
 // ── HTTP request handler ──
 
@@ -883,10 +908,11 @@ async function handleHttpRequest(req: IncomingMessage, res: ServerResponse) {
     startApp, stopApp, isPortOpen, waitForReady,
   })) return;
 
-  // GET /api/ui/events — SSE stream for UI commands.
-  // Local-origin only. The stream carries `mcp_client_connected` +
-  // `mcp_tool_called` events (connected-agent telemetry), which a
-  // cross-origin page in the same browser must not be able to observe
+  // GET /api/ui/events — SSE stream for UI commands AND chat events
+  // (the {command:"chat"} envelope — one connection per tab).
+  // Local-origin only. The stream carries connected-agent telemetry
+  // (`mcp_client_connected` + `mcp_tool_called`) and assistant output,
+  // neither of which a cross-origin page in the same browser may observe
   // by opening an EventSource against a running local Oyster.
   if (url === "/api/ui/events") {
     if (rejectIfNonLocalOrigin()) return;
@@ -922,14 +948,10 @@ async function handleHttpRequest(req: IncomingMessage, res: ServerResponse) {
     return;
   }
 
-  // Chat SSE carries assistant output. Same origin gate as /api/ui/events:
-  // a cross-origin page in the same browser must not be able to open an
-  // EventSource against a running local Oyster and read the user's chat.
-  if (url === "/api/chat/events" || url.startsWith("/api/chat/events?")) {
-    if (rejectIfNonLocalOrigin()) return;
-    attachChatEventClient(req, res);
-    return;
-  }
+  // /api/chat/events retired: chat events now ride /api/ui/events as a
+  // {command:"chat"} envelope (one SSE per tab — connection-pool fix). The
+  // ui-events route carries the same local-origin gate, so assistant output
+  // remains unreadable to cross-origin pages.
 
   if (url === "/api/chat/doc") {
     await proxyToOpenCode(req, res, "/doc", getOpenCodePort());
