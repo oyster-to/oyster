@@ -915,6 +915,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
                   onClick={() => onSpaceChange(space.id)}
                   onContextMenu={(e) => {
                     e.preventDefault();
+                    if (!caps.canWrite) return; // read-only build: no rename/delete menu
                     setPillCtx({ spaceId: space.id, rect: e.currentTarget.getBoundingClientRect() });
                   }}
                   title={tip}
