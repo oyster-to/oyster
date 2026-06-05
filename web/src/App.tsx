@@ -37,7 +37,7 @@ import "./App.css";
 // route logic below can stay base-agnostic. Both are no-ops locally
 // (routeBase === "").
 const stripBase = (pathname: string) =>
-  caps.routeBase && pathname.startsWith(caps.routeBase)
+  caps.routeBase && (pathname === caps.routeBase || pathname.startsWith(caps.routeBase + "/"))
     ? pathname.slice(caps.routeBase.length) || "/"
     : pathname;
 const withBase = (path: string) => `${caps.routeBase}${path}`;
@@ -483,7 +483,7 @@ export default function App() {
       const cmd = e.metaKey || e.ctrlKey;
       // Only the bare combo — ignore shift/alt variants so we don't trample
       // any chord shortcut a user has come to expect.
-      if (cmd && !e.shiftKey && !e.altKey && e.key === "/") {
+      if (caps.canChat && cmd && !e.shiftKey && !e.altKey && e.key === "/") {
         e.preventDefault();
         void handleOpenNewSession();
       }
