@@ -1105,6 +1105,7 @@ body.gb-knob-values .knob-val { display: block; }
 }
 /* Key badge — reuse .pat-lbl look. */
 .h-key { margin-left: auto; }
+.h-pat { font-size: 10px; color: var(--hot); opacity: .8; min-width: 22px; }
 /* Inline edit input. */
 .h-edit {
   flex: 1 1 auto;
