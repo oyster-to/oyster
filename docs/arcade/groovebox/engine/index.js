@@ -436,6 +436,19 @@ export function createEngine() {
       return punchPresets;
     },
     getPunchPresets() { return punchPresets; },
+    // v3.5 editor TEST pad: audition an UNSAVED draft preset momentarily.
+    // Same runner path as punch(); no slot state. UI gates on isPlaying().
+    punchPreview(preset, on) {
+      if (!started || !validatePreset(preset)) return;
+      const beatSeconds = 60 / Tone.Transport.bpm.value;
+      const timing = {
+        sixteenth: beatSeconds / 4,
+        beatSeconds,
+        barSeconds: stepsPerBar(song.meter) * (beatSeconds / 4),
+      };
+      for (const a of preset.automations) _runAutomation(a, !!on, timing);
+    },
+    isPlaying() { return playing; },
     queueFill(name)         { fillQueue.push(name); return fillQueue.length; },
     unqueueAt(i)            { if (i >= 0 && i < fillQueue.length) fillQueue.splice(i, 1); return fillQueue.slice(); },
     clearQueue()            { fillQueue = []; },
