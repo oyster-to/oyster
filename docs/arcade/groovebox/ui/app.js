@@ -8,6 +8,10 @@ import { heartbeats } from '../songs/heartbeats.js';
 import { digitalLove } from '../songs/digital-love.js';
 import { memoryReboot } from '../songs/memory-reboot.js';
 import { takeOnMe } from '../songs/take-on-me.js';
+import { firstRoll } from '../songs/first-roll.js';
+import { pressStart } from '../songs/press-start.js';
+import { scallywag } from '../songs/scallywag.js';
+import { booWaltz } from '../songs/boo-waltz.js';
 import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
 import { openPunchEditor, isPunchEditorOpen } from './punch-editor.js';
@@ -40,7 +44,7 @@ function knobTip(k) {
   return info ? info[0] + ' — ' + info[1] : k;
 }
 
-const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, heartbeats, 'digital-love': digitalLove, 'memory-reboot': memoryReboot, 'take-on-me': takeOnMe };
+const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, heartbeats, 'digital-love': digitalLove, 'memory-reboot': memoryReboot, 'take-on-me': takeOnMe, 'first-roll': firstRoll, 'press-start': pressStart, scallywag, 'boo-waltz': booWaltz };
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -57,7 +61,7 @@ let _openLaneId = null;
 let _draggedLaneId = null;
 
 // ─── Section drag-reorder state ───────────────────────────────────────────────
-const SECTION_IDS = ['viz', 'master', 'punch', 'strips', 'fills', 'arrange'];
+const SECTION_IDS = ['viz', 'master', 'punch', 'strips', 'fills'];
 let _draggedSecId = null;
 
 function refreshStates() {
@@ -709,20 +713,20 @@ function renderPatterns() {
   const chain = eng.getChain();
   const editIdx = eng.getEditPatternIndex();
 
-  const head = document.createElement('div');
-  head.className = 'arrange-head';
-  head.innerHTML = `<span class="albl">PATTERNS</span><span class="pat-editing">Editing: Pattern ${editIdx + 1}</span><span class="pat-playing" id="pat-playing"></span>`;
-  host.appendChild(head);
-
-  // Patterns row: slots + length + duplicate/delete for the selected pattern.
+  // Patterns row: small "patterns" label (matching chords/chain rows) + slots +
+  // duplicate/delete for the selected pattern.
   const prow = document.createElement('div');
   prow.className = 'pat-row';
+  const plbl = document.createElement('span');
+  plbl.className = 'pat-lbl';
+  plbl.textContent = 'patterns';
+  prow.appendChild(plbl);
   patterns.forEach((p, i) => {
     const b = document.createElement('button');
     b.className = 'pat-slot' + (i === editIdx ? ' sel' : '');
     b.dataset.idx = i;
     b.textContent = i + 1;
-    b.title = 'edit (loops while playing)';
+    b.title = 'click: edit this pattern — play will loop it';
     b.onclick = () => { eng.selectPattern(i); renderPatterns(); refreshVizPattern(); };
     prow.appendChild(b);
   });
@@ -800,16 +804,23 @@ function renderPatterns() {
   syncStripGrooves();   // edit pattern may have changed → resync strip dropdowns
 }
 
-// Build the chord line for pattern `idx`: "chords" label + chord chips (or a
-// "＋ chords" affordance when empty) + the key badge. The chip area is clickable
-// (cursor:text) → beginChordEdit swaps in the text input.
+// Build the chord line for pattern `idx`: "chords" label + a P<n> marker + chord
+// chips (or a "＋ chords" affordance when empty) + the key badge. The chip area is
+// clickable → beginChordEdit swaps in the text input. During playback the row
+// FOLLOWS THE SOUNDING PATTERN (updatePatternsPlayback rebuilds it on pattern
+// change) — watching is the default, editing is the explicit click.
 function buildChordLine(idx) {
   const row = document.createElement('div');
   row.className = 'chord-row';
+  row.dataset.idx = idx;
   const lbl = document.createElement('span');
   lbl.className = 'pat-lbl';
   lbl.textContent = 'chords';
   row.appendChild(lbl);
+  const pmark = document.createElement('span');
+  pmark.className = 'h-pat';
+  pmark.textContent = 'P' + (idx + 1);
+  row.appendChild(pmark);
 
   const chips = document.createElement('div');
   chips.className = 'h-chips';
@@ -900,23 +911,29 @@ function updatePatternsPlayback(target) {
   host.querySelectorAll('.chain-chip').forEach(c => {
     c.classList.toggle('playing', !isPattern && +c.dataset.pos === target.chainPos);
   });
-  // Sounding-chord glow on the chord line — only when the SOUNDING pattern is the
-  // one displayed (the chord chips show the edit pattern's chords).
-  const chordChips = host.querySelectorAll('.chord-row .h-chip');
-  if (chordChips.length) {
-    const editIdx = eng.getEditPatternIndex();
-    const sounding = target.patternIdx === editIdx
-      ? target.barInPattern % chordChips.length
-      : -1;
+  // Chord line follows the SOUNDING pattern (unless the user is mid-edit):
+  // rebuild it when the sounding pattern changes, then light the live chord.
+  const row = host.querySelector('.chord-row');
+  if (row && !host.querySelector('.h-edit') && +row.dataset.idx !== target.patternIdx) {
+    row.replaceWith(buildChordLine(target.patternIdx));
+  }
+  const liveRow = host.querySelector('.chord-row');
+  const chordChips = liveRow ? liveRow.querySelectorAll('.h-chip:not(.h-empty)') : [];
+  if (chordChips.length && +liveRow.dataset.idx === target.patternIdx) {
+    const sounding = target.barInPattern % chordChips.length;
     chordChips.forEach(chip => chip.classList.toggle('sounding', +chip.dataset.idx === sounding));
   }
-  const lbl = host.querySelector('#pat-playing');
+  // Status spans now live in the transport row (#song-status), not in #arrange.
+  const lbl = document.getElementById('pat-playing');
   if (lbl) {
     const chain = eng.getChain();
+    const verb = eng.isPlaying() ? 'Playing' : 'Will play';
     lbl.textContent = isPattern
-      ? `Playing: Pattern ${target.patternIdx + 1} (loop)`
-      : `Playing: Chain · ${chain.map((pi, i) => (i === target.chainPos ? '▸' : '') + (pi + 1)).join(' ')}`;
+      ? `▶ ${verb}: Pattern ${target.patternIdx + 1} (loop)`
+      : `▶ ${verb}: Chain · ${chain.map((pi, i) => (i === target.chainPos ? '▸' : '') + (pi + 1)).join(' ')}`;
   }
+  const ed = document.querySelector('#song-status .pat-editing');
+  if (ed) ed.textContent = `✎ Pattern ${eng.getEditPatternIndex() + 1}`;
 }
 
 // Tell the viz the edit pattern changed (rebuilds the open editor).
@@ -994,9 +1011,11 @@ document.getElementById('play').onclick = async function() {
   if (this.classList.contains('on')) {
     eng.stop(); this.classList.remove('on'); this.textContent='▶ play';
     stopMeterLoop();
+    updatePatternsPlayback(eng.getPlaybackTarget());
   } else {
     await eng.play(); this.classList.add('on'); this.textContent='⏹ stop';
     startMeterLoop();
+    updatePatternsPlayback(eng.getPlaybackTarget());
   }
 };
 document.getElementById('bpm').oninput = e => { eng.setTempo(+e.target.value); document.getElementById('bpmv').textContent = e.target.value; };
@@ -1448,7 +1467,12 @@ function initSectionWrappers() {
 }
 
 // ─── Initial load ─────────────────────────────────────────────────────────────
-eng.load(kids);
+const BOOT_SONG = 'press-start';
+eng.load(SONGS[BOOT_SONG]);
+// Pin the dropdown to the boot song so the selector, the loaded song, and the
+// credit line (set in mount from the loaded song) always agree — don't rely on
+// the option's `selected` attribute matching the boot song by coincidence.
+document.getElementById('songsel').value = BOOT_SONG;
 const initialSong = eng.getSong();
 document.getElementById('bpm').value = initialSong.bpm;
 document.getElementById('bpmv').textContent = initialSong.bpm;
