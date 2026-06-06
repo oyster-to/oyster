@@ -61,6 +61,7 @@ export const DEFAULT_PRESETS = [
         engage: { ramp: { unit: 'steps', value: 0 } }, release: { ramp: { unit: 'steps', value: 0.1 } } },
     ] },
   { name: 'CRUSH', key: '3', engageQuantize: 'immediate', releaseQuantize: 'immediate',
+    lanes: ['drums', 'bass'],   // crushed pads/melody read as noise — keep the grit on the rhythm section
     automations: [
       { module: 'crusher', param: 'wet', from: 'neutral', to: 0.9,
         engage: { ramp: { unit: 'steps', value: 0.5 } }, release: { ramp: { unit: 'steps', value: 0.5 } } },

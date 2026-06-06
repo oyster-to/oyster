@@ -94,7 +94,10 @@ describe('lane masks (v3.5 — per-preset targeting)', () => {
     expect(validatePreset({ ...base, lanes: ['drums', 'vocals'] })).toBe(false);
     expect(validatePreset({ ...base, lanes: 'drums' })).toBe(false);
   });
-  it('omitted lanes means all (other defaults carry no mask)', () => {
+  it('CRUSH targets the rhythm section by default', () => {
+    expect(DEFAULT_PRESETS.find(p => p.name === 'CRUSH').lanes).toEqual(['drums', 'bass']);
+  });
+  it('omitted lanes means all (DIVE/THROW/STOP carry no mask)', () => {
     expect(DEFAULT_PRESETS.find(p => p.name === 'DIVE').lanes).toBeUndefined();
   });
 });
