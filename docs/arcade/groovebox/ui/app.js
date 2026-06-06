@@ -475,6 +475,67 @@ function renderFills() {
   host.appendChild(row);
 }
 
+// ─── Punch-in FX pads (momentary; spec in project-notes/oyster/po20) ─────────
+const PUNCH_PADS = [
+  ['stutter', 'STUT',  '1'],
+  ['crush',   'CRUSH', '2'],
+  ['dive',    'DIVE',  '3'],
+  ['throw',   'THROW', '4'],
+  ['stop',    'STOP',  '5'],
+];
+const PUNCH_BY_KEY = Object.fromEntries(PUNCH_PADS.map(([name, , key]) => [key, name]));
+
+function setPunch(name, on) {
+  eng.punch(name, on);
+  document.querySelector(`#punch .punchpad[data-punch="${name}"]`)?.classList.toggle('held', on);
+}
+
+function renderPunch() {
+  const host = document.getElementById('punch');
+  if (!host) return;
+  host.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'punchrow';
+  const lbl = document.createElement('span');
+  lbl.className = 'flbl';
+  lbl.textContent = 'PUNCH';
+  row.appendChild(lbl);
+  for (const [name, label, key] of PUNCH_PADS) {
+    const pad = document.createElement('button');
+    pad.className = 'punchpad';
+    pad.dataset.punch = name;
+    pad.append(label);
+    const hint = document.createElement('span');
+    hint.className = 'punchkey';
+    hint.textContent = key;
+    pad.appendChild(hint);
+    pad.addEventListener('pointerdown', e => { e.preventDefault(); pad.setPointerCapture(e.pointerId); setPunch(name, true); });
+    const off = () => setPunch(name, false);
+    pad.addEventListener('pointerup', off);
+    pad.addEventListener('pointercancel', off);
+    row.appendChild(pad);
+  }
+  host.appendChild(row);
+}
+
+// Keys 1–5 mirror the pads. Guards: key auto-repeat, and typing into inputs /
+// selects / contenteditable (no keyboard hijack while renaming lanes etc.).
+function isTypingTarget(el) {
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+}
+document.addEventListener('keydown', e => {
+  const name = PUNCH_BY_KEY[e.key];
+  if (!name || e.repeat || isTypingTarget(document.activeElement)) return;
+  e.preventDefault();
+  setPunch(name, true);
+});
+document.addEventListener('keyup', e => {
+  const name = PUNCH_BY_KEY[e.key];
+  if (name) setPunch(name, false);
+});
+// Stuck-key guard: losing window focus releases every pad.
+window.addEventListener('blur', () => { for (const [name] of PUNCH_PADS) setPunch(name, false); });
+
 // ─── Master FX ───────────────────────────────────────────────────────────────
 function renderMaster() {
   const masterHost = document.getElementById('master');
@@ -614,6 +675,7 @@ function mount() {
   if (creditEl) creditEl.textContent = song.artist ? `${song.title || ''} — ${song.artist}` : '';
   renderStrips();
   renderFills();
+  renderPunch();
   renderMaster();
   renderArrange();
   viz = makeViz(document.getElementById('viz'), song, eng);
