@@ -849,6 +849,19 @@ body.gb-knob-values .knob-val { display: block; }
 @media (pointer: coarse) {
   .knob-dial { width: 42px; height: 42px; }
   .knob-ind  { top: 4px; height: 15px; transform-origin: 50% 17px; }
+
+  /* It's an instrument, not a document: press-and-hold must not start text
+     selection (Android Chrome's "more actions / translate" toolbar) or the
+     iOS callout. Editing fields and help text keep normal selection. */
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  input, textarea, #help-modal-box {
+    -webkit-user-select: text;
+    user-select: text;
+  }
 }
 
 /* ─── mute / solo buttons ────────────────────────────────────────────────── */
