@@ -47,6 +47,9 @@ let song;
 let viz;
 // Track which lane is currently open in the viz (for edit-button highlight).
 let _editingLaneId = null;
+// Mobile accordion — which lane's knob strip is expanded. Survives re-renders
+// (renderStrips re-applies it), mirroring the _editingLaneId pattern.
+let _openLaneId = null;
 
 // ─── Drag-reorder state ───────────────────────────────────────────────────────
 let _draggedLaneId = null;
@@ -121,6 +124,65 @@ function stopMeterLoop() {
   }
   if (_masterFillCache[0]) _masterFillCache[0].style.height = '0%';
   if (_masterFillCache[1]) _masterFillCache[1].style.height = '0%';
+}
+
+// Wrap kgroups in a single flex container so the mobile layout can scroll/wrap it.
+// Sticky edge arrows (shown via .fade-l/.fade-r) hint at off-screen knobs and
+// page the strip on tap.
+function makeKnobrow(groups) {
+  const row = document.createElement('div');
+  row.className = 'knobrow';
+  const mkHint = dir => {
+    const h = document.createElement('button');
+    h.type = 'button';
+    h.className = 'knob-scroll-hint ' + dir;
+    h.textContent = dir === 'l' ? '‹' : '›';
+    h.setAttribute('aria-label', dir === 'l' ? 'Scroll knobs left' : 'Scroll knobs right');
+    h.addEventListener('click', e => {
+      e.stopPropagation();
+      row.scrollBy({ left: dir === 'l' ? -140 : 140, behavior: 'smooth' });
+    });
+    return h;
+  };
+  row.appendChild(mkHint('l'));
+  for (const g of groups) row.appendChild(g);
+  row.appendChild(mkHint('r'));
+  row.addEventListener('scroll', () => updateKnobrowFade(row), { passive: true });
+  requestAnimationFrame(() => updateKnobrowFade(row));
+  return row;
+}
+
+// Edge-fade hint classes for horizontally scrollable knob strips. rAF-coalesced:
+// momentum scrolling and resize bursts fire many times per frame, but the
+// layout reads + class toggles only need to run once per paint.
+function updateKnobrowFade(row) {
+  if (row._fadeRaf) return;
+  row._fadeRaf = requestAnimationFrame(() => {
+    row._fadeRaf = null;
+    const overR = row.scrollLeft + row.clientWidth < row.scrollWidth - 1;
+    const overL = row.scrollLeft > 1;
+    row.classList.toggle('fade-r', overR);
+    row.classList.toggle('fade-l', overL);
+  });
+}
+function updateAllKnobrowFades() {
+  document.querySelectorAll('.knobrow').forEach(updateKnobrowFade);
+}
+window.addEventListener('resize', updateAllKnobrowFades);
+
+// Open/close the mobile accordion. null closes all. Single owner of the .open
+// class and aria-expanded so they can't drift.
+function setOpenLane(id) {
+  _openLaneId = id;
+  const host = document.getElementById('strips');
+  if (!host) return;
+  host.querySelectorAll('.lane').forEach(l => {
+    const open = !!id && l.dataset.lane === id;
+    l.classList.toggle('open', open);
+    const chev = l.querySelector('.lane-expand');
+    if (chev) chev.setAttribute('aria-expanded', String(open));
+  });
+  updateAllKnobrowFades();
 }
 
 function makeKgroup(label, knobDefs) {
@@ -239,6 +301,7 @@ function renderStrips() {
         <button class="lane-dup" data-lane="${lane.id}" title="Duplicate lane">⧉</button>
         <button class="lane-rm" data-lane="${lane.id}" title="Remove lane"${isLast ? ' disabled' : ''}>✕</button>
       </div>
+      <button type="button" class="lane-expand" data-lane="${lane.id}" title="Show/hide mixer knobs" aria-label="${esc(lane.name)} mixer knobs" aria-expanded="false"><svg class="le-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
     </div>`;
   }).join('');
 
@@ -370,7 +433,23 @@ function renderStrips() {
       { label: 'cmp',  value: 0,   onChange: v => eng.setLaneFX(id, 'comp',   v), tip: knobTip('cmp'),  k: 'cmp'  },
     ]);
 
-    msgroup.before(mixGrp, toneGrp, fxGrp);
+    const knobrow = makeKnobrow([mixGrp, toneGrp, fxGrp]);
+    msgroup.before(knobrow);
+
+    // Mobile accordion: chevron or lane header (not its controls) toggles the
+    // lane's knob strip — one lane open at a time. No-op on desktop (chevron
+    // hidden, knobrows always visible).
+    const chev = row.querySelector('.lane-expand');
+    const toggleOpen = () => setOpenLane(row.classList.contains('open') ? null : id);
+    chev.onclick = toggleOpen;
+    row.addEventListener('click', e => {
+      // Gate on the CSS breakpoint itself (chevron is display:none on desktop)
+      // so the JS behaviour can't desync from the @media value.
+      if (getComputedStyle(chev).display === 'none') return;
+      // .name owns dblclick-rename; .lvl is a readout, not a control.
+      if (e.target.closest('button, select, input, .knobrow, .lane-drag, .name, .lvl')) return;
+      toggleOpen();
+    });
   });
   // ─── Drag-to-reorder ────────────────────────────────────────────────────────
   host.querySelectorAll('.lane-drag').forEach(handle => {
@@ -426,6 +505,9 @@ function renderStrips() {
   cacheMeterFills();  // re-cache .lvl-fill refs after DOM rebuild
   renderViewTabs();   // rebuild quick-edit tabs to track the current lane list
   updateEmptyGroups(); // hide kgroups where all knobs are hidden
+  // Re-apply the accordion's open lane across the innerHTML rebuild (drop it
+  // if that lane was removed).
+  setOpenLane(host.querySelector(`.lane[data-lane="${_openLaneId}"]`) ? _openLaneId : null);
 }
 
 // Sync every strip groove dropdown to the EDIT pattern's picks. Called whenever
@@ -605,9 +687,7 @@ function renderMaster() {
     { label: 'vrb', value: 0, onChange: v => eng.setMasterFX('reverb', v), tip: knobTip('vrb'), k: 'vrb' },
     { label: 'cmp', value: 0, onChange: v => eng.setMasterFX('comp',   v), tip: knobTip('cmp'), k: 'cmp' },
   ]);
-  mwrap.appendChild(mixGrp);
-  mwrap.appendChild(toneGrp);
-  mwrap.appendChild(fxGrp);
+  mwrap.appendChild(makeKnobrow([mixGrp, toneGrp, fxGrp]));
 
   masterHost.appendChild(mwrap);
   cacheMeterFills();  // re-cache master meter fill refs after DOM rebuild
@@ -1096,6 +1176,36 @@ for (const [groupName, groupKeys] of _vsGroups) {
     row.appendChild(lbl);
     _vsForm.appendChild(row);
   }
+}
+
+// ── Display section: global UI toggles (all default off) ──
+{
+  const head = document.createElement('div');
+  head.className = 'vs-group-lbl';
+  head.textContent = 'DISPLAY';
+  _vsForm.appendChild(head);
+  // `key` doubles as the localStorage key and the body class, so one grep
+  // finds every representation of a toggle.
+  const addToggle = (label, key, onChange) => {
+    const row = document.createElement('label');
+    row.className = 'vs-row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = localStorage.getItem(key) === '1';
+    document.body.classList.toggle(key, cb.checked);
+    cb.addEventListener('change', () => {
+      document.body.classList.toggle(key, cb.checked);
+      localStorage.setItem(key, cb.checked ? '1' : '0');
+      if (onChange) onChange();
+    });
+    const lbl = document.createElement('span');
+    lbl.textContent = label;
+    row.appendChild(cb);
+    row.appendChild(lbl);
+    _vsForm.appendChild(row);
+  };
+  addToggle('Knob values', 'gb-knob-values');
+  addToggle('Wrap knobs (mobile)', 'gb-knob-wrap', updateAllKnobrowFades);
 }
 
 // Highlight the matching preset on load (based on already-restored hidden set).

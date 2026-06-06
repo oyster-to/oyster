@@ -657,8 +657,8 @@ input[type=range] {
 /* ─── § 5 — lane strips: aligned shared grid ────────────────────────────── */
 .lane {
   display: grid;
-  /* drag | name | pattern-select | meter | MIX | TONE | FX | M/S | actions */
-  grid-template-columns: 16px 64px minmax(150px,220px) 10px auto auto auto 56px auto;
+  /* drag | name | pattern-select | meter | knobs (MIX·TONE·FX) | M/S | actions */
+  grid-template-columns: 16px 64px minmax(150px,220px) 10px auto 56px auto;
   column-gap: 12px;
   align-items: center;
   background: var(--panel-2);
@@ -686,7 +686,8 @@ input[type=range] {
   border-color: #5a2030;
   color: #ff7da6;
 }
-.lane.silenced > :not(.msgroup) { opacity: .4; transition: opacity .15s; }
+/* keep the expand chevron full-strength — it's a control, not lane content */
+.lane.silenced > :not(.msgroup):not(.lane-expand) { opacity: .4; transition: opacity .15s; }
 
 .mctl { display:flex; gap:8px; align-items:center; }
 .mctl select { width:auto; }
@@ -721,6 +722,58 @@ input[type=range] {
   margin-left: 2px;
 }
 
+/* all kgroups of a strip live in one .knobrow — a horizontal scroll container.
+   On wide desktop it never overflows (inert); on tablet/mobile widths the
+   knobs swipe within the lane instead of blowing out the grid. */
+.knobrow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.knobrow::-webkit-scrollbar { display: none; }
+/* dials pass horizontal pans to the strip; vertical drags turn the knob */
+.knobrow .knob-dial { touch-action: pan-x; }
+
+/* edge arrows + gradient scrims (shown via JS .fade-l/.fade-r classes):
+   sticky to the strip edges, fade the clipped knobs, tap to page */
+.knob-scroll-hint {
+  position: sticky;
+  z-index: 2;
+  align-self: stretch;
+  flex: 0 0 30px;
+  width: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  height: auto;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--acc);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--acc) 45%, transparent);
+}
+.knob-scroll-hint.l {
+  left: 0;
+  margin-right: -30px;
+  background: linear-gradient(270deg, transparent, var(--panel-2) 70%);
+  justify-content: flex-start;
+}
+.knob-scroll-hint.r {
+  right: 0;
+  margin-left: -30px;
+  background: linear-gradient(90deg, transparent, var(--panel-2) 70%);
+  justify-content: flex-end;
+}
+.knobrow.fade-l .knob-scroll-hint.l { display: flex; }
+.knobrow.fade-r .knob-scroll-hint.r { display: flex; }
+
 /* legacy .knobs kept for master strip compatibility */
 .knobs {
   display: flex;
@@ -737,6 +790,7 @@ input[type=range] {
 }
 .knob-dial {
   width: 32px; height: 32px; border-radius: 50%; position: relative; cursor: ns-resize;
+  touch-action: none;          /* vertical drag — no scroll/zoom stealing */
   background: radial-gradient(circle at 38% 32%, #3a3e4e, #15171f 70%);
   box-shadow:
     inset 0 1px 1px rgba(255,255,255,0.15),
@@ -757,6 +811,40 @@ input[type=range] {
   color: var(--faint);
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+/* persistent numeric readout under the label — opt-in via body.gb-knob-values */
+.knob-val {
+  display: none;
+  font: 500 9px ui-monospace, Menlo, monospace;
+  color: var(--dim);
+  line-height: 1;
+}
+body.gb-knob-values .knob-val { display: block; }
+
+/* floating value bubble while dragging a knob (fixed → escapes overflow clips) */
+.knob-bubble {
+  position: fixed;
+  z-index: 200;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  background: var(--panel-3, #2a2e3a);
+  color: var(--ink);
+  border: 1px solid var(--acc);
+  border-radius: 6px;
+  font: 600 13px ui-monospace, Menlo, monospace;
+  padding: 3px 9px;
+  opacity: 0;
+  transition: opacity 0.12s;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.55), 0 0 8px color-mix(in srgb, var(--acc) 30%, transparent);
+}
+.knob-bubble.show { opacity: 1; }
+.knob-bubble.below { transform: translate(-50%, 0); }   /* flipped under the dial */
+
+/* bigger touch targets on touch devices */
+@media (pointer: coarse) {
+  .knob-dial { width: 42px; height: 42px; }
+  .knob-ind  { top: 4px; height: 15px; transform-origin: 50% 17px; }
 }
 
 /* ─── mute / solo buttons ────────────────────────────────────────────────── */
@@ -2090,3 +2178,125 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   font-weight: 700;
   box-shadow: 0 0 8px rgba(84,240,200,0.35);
 }
+
+/* accordion expand button: hidden by default; the mobile layout shows it */
+.lane-expand { display: none; }
+
+/* ═══ MOBILE LAYOUT (≤900px) ═════════════════════════════════════════════════
+   Lanes collapse to an accordion: header rows only; tap a lane (or its chevron)
+   to expand its knob strip — one open at a time. The strip swipes horizontally
+   with edge fades; body.gb-knob-wrap (Display setting) wraps it instead.
+   body.gb-knob-values — persistent numeric readout (global Display setting).
+*/
+@media (max-width: 900px) {
+  /* ── reclaim chrome: edge-to-edge — cabinet flattens into the page ── */
+  html, body { background: var(--bg); }   /* one flat surface, no bands at the page bottom */
+  body { padding: 0; }
+  .cabinet { padding: 0; border-radius: 0; box-shadow: none; background: var(--bg); }
+  .screw { display: none; }
+  .crt-vignette { display: none; }
+  .cabinet-inner { padding: 6px 4px 16px; border-radius: 0; box-shadow: none; }
+  #strips { padding: 6px 4px; }
+  #fills, #punch, #master { padding: 6px 8px; }
+  #viz, #strips, #fills, #punch, #master, #arrange { margin-bottom: 8px; }
+  .sec-drag { display: none; }   /* mouse-only affordance */
+  .titlebar { margin-bottom: 8px; }
+  h1 { font-size: 13px; letter-spacing: 0.1em; white-space: nowrap; }
+
+  /* ── transport: explicit grid — play+key / tempo / song, no orphan rows ── */
+  .transport {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "play  key"
+      "tempo tempo"
+      "song  song";
+    row-gap: 10px;
+    column-gap: 10px;
+  }
+  .transport-divider { display: none; }
+  #play { grid-area: play; height: 38px; font-size: 14px; }
+  .transport-key { grid-area: key; display: flex; align-items: center; gap: 8px; }
+  .transport-tempo { grid-area: tempo; min-width: 0; }
+  #bpm { flex: 1; min-width: 50px; }
+  .transport-song { grid-area: song; margin-left: 0; min-width: 0; }
+  .transport-song .song-wrap { flex: 1; min-width: 0; }
+  .transport-song select { width: 100%; }
+  /* drop labels that repeat what the control already says ("120 BPM" labels
+     the slider, "♪ Kids" labels the dropdown, tabs label themselves); KEY
+     stays — a bare stepper is ambiguous */
+  .transport-tempo .transport-lbl,
+  .transport-song .transport-lbl,
+  .vtabs-lbl { display: none; }
+  .vtabs { margin-bottom: 8px; }
+
+  /* ── lane accordion: header / select+expand / knobs (when open) ── */
+  .lane {
+    grid-template-columns: 16px 1fr auto auto;
+    grid-template-areas:
+      "drag name ms  actions"
+      "mctl mctl lvl pull";
+    column-gap: 8px;
+    row-gap: 8px;
+    padding: 8px;
+    cursor: pointer;
+  }
+  .lane.open {
+    grid-template-areas:
+      "drag  name  ms    actions"
+      "mctl  mctl  lvl   pull"
+      "knobs knobs knobs knobs";
+  }
+  .lane .lane-drag     { grid-area: drag; }
+  .lane .name          { grid-area: name; }
+  .lane .mctl          { grid-area: mctl; }
+  .lane .lvl           { grid-area: lvl; height: 26px; }
+  .lane .knobrow       { grid-area: knobs; justify-content: flex-start; }
+  .lane .msgroup       { grid-area: ms; }
+  .lane .lane-actions  { grid-area: actions; }
+
+  .lane .knobrow { display: none; }
+  .lane.open .knobrow {
+    display: flex;
+    animation: gbm-expand 0.16s ease;
+  }
+  .lane.open {
+    border-color: var(--acc-dim);
+  }
+
+  /* expand button — the accordion affordance: a square control beside the
+     groove select, with the unified button chrome + lucide chevron */
+  .lane-expand {
+    display: inline-flex;
+    grid-area: pull;
+    justify-self: end;          /* flush with the card's right edge, under ✕ */
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    padding: 0;
+    color: var(--acc);
+  }
+  .le-arrow {
+    display: block;
+    transition: transform 0.18s ease;
+  }
+  .lane.open .lane-expand {
+    border-color: var(--acc-dim);
+    background: color-mix(in srgb, var(--acc) 10%, var(--panel-2));
+  }
+  .lane.open .le-arrow { transform: rotate(180deg); }
+
+  /* ── master strip: label+meters row, knobs row (always visible) ── */
+  .masterfx { flex-wrap: wrap; row-gap: 8px; }
+  .masterfx .knobrow { flex: 1 1 100%; }
+
+  /* ── Display setting: wrap knobs onto extra rows instead of swiping ── */
+  body.gb-knob-wrap .knobrow { flex-wrap: wrap; row-gap: 10px; overflow-x: hidden; }
+}
+
+@keyframes gbm-expand {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+
