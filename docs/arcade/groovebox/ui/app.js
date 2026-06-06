@@ -232,6 +232,7 @@ function renderStrips() {
       <div class="msgroup">
         <button class="mute" data-lane="${lane.id}" aria-label="mute ${esc(lane.name)}" title="Mute">M</button>
         <button class="solo" data-lane="${lane.id}" aria-label="solo ${esc(lane.name)}" title="Solo">S</button>
+        <button class="arm${eng.getPunchArm(lane.id) ? ' armed' : ''}" data-lane="${lane.id}" aria-label="punch target ${esc(lane.name)}" title="Punch target — pads affect this lane">⚡</button>
       </div>
       <div class="lane-actions">
         ${editBtn}
@@ -290,6 +291,12 @@ function renderStrips() {
   host.querySelectorAll('.mute').forEach(b => b.onclick = () => {
     eng.toggleMute(b.dataset.lane);
     refreshStates();
+  });
+  host.querySelectorAll('.arm').forEach(b => b.onclick = () => {
+    const id = b.dataset.lane;
+    const on = !eng.getPunchArm(id);
+    eng.setPunchArm(id, on);
+    b.classList.toggle('armed', on);
   });
   host.querySelectorAll('.solo').forEach(b => b.onclick = () => {
     eng.toggleSolo(b.dataset.lane);
@@ -515,6 +522,14 @@ function renderPunch() {
     pad.addEventListener('pointercancel', off);
     row.appendChild(pad);
   }
+  // AMOUNT — the one performer-facing setting (DJM level/depth): scales how
+  // hard every pad hits. Effect internals stay fixed.
+  row.appendChild(makeKnob({
+    label: 'AMT',
+    value: eng.getPunchAmount(),
+    onChange: v => eng.setPunchAmount(v),
+    tip: 'Punch amount — how hard the pads hit',
+  }));
   host.appendChild(row);
 }
 
