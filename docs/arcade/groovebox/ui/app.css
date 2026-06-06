@@ -973,9 +973,15 @@ body.gb-knob-values .knob-val { display: block; }
 .brand-icon {
   display: inline-flex; align-items: center;
   color: var(--acc);
-  margin-right: 6px;
-  vertical-align: middle;
+  margin-right: 8px;
+  vertical-align: -3px;
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--acc) 40%, transparent));
+}
+.theme-icon {
+  display: inline-flex; align-items: center;
+  color: var(--faint);
+  margin-right: 5px;
+  vertical-align: middle;
 }
 
 /* ─── punch preset editor (v3.5 modal) ──────────────────────────────────── */
