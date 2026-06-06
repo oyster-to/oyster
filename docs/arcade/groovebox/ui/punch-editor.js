@@ -171,11 +171,14 @@ export function openPunchEditor({ slot, eng, onSaved }) {
       }
 
       // ramps
+      const PHASE_LABEL = { engage: 'fade in', release: 'fade out' };
       for (const phase of ['engage', 'release']) {
         const ramp = (a[phase] = a[phase] || { ramp: { unit: 'steps', value: 0.5 } }).ramp;
         const row = document.createElement('div');
         row.className = 'pe-row';
-        row.appendChild(label(phase));
+        const rl = label(PHASE_LABEL[phase]);
+        rl.title = 'How long the effect takes to morph ' + (phase === 'engage' ? 'in after press' : 'away after release') + ' — steps are 16th-note grid cells (16/bar), beats are quarter notes';
+        row.appendChild(rl);
         const rv = value(`${ramp.value}`);
         const s = slider(ramp.value / UNIT_MAX[ramp.unit], pos => {
           ramp.value = Math.round(pos * UNIT_MAX[ramp.unit] * 10) / 10;
@@ -206,9 +209,13 @@ export function openPunchEditor({ slot, eng, onSaved }) {
     // quantize
     const q = document.createElement('div');
     q.className = 'pe-row pe-q';
-    q.appendChild(label('press timing'));
+    const sl = label('snap · press');
+    sl.title = 'WHEN the effect fires after pressing: instantly, on the next bar, or at pattern start (bar 1)';
+    q.appendChild(sl);
     q.appendChild(select(QUANTIZE, draft.engageQuantize, v => { draft.engageQuantize = v; }));
-    q.appendChild(label('release timing'));
+    const rl2 = label('snap · release');
+    rl2.title = 'WHEN the release takes effect after letting go';
+    q.appendChild(rl2);
     q.appendChild(select(QUANTIZE, draft.releaseQuantize, v => { draft.releaseQuantize = v; }));
     modal.appendChild(q);
 
