@@ -4,7 +4,7 @@
 // The rich-resolution copies below live here ON PURPOSE — when the presets are
 // eventually re-authored as explicit JSON, this whole file is deleted.
 import { stepsPerBar } from './meter.js';
-import { chordAt } from './song.js';
+import { chordAt, deriveKey } from './song.js';
 import { resolveRef } from './patterns.js';
 
 const DRUM_SET_KEYS = ['kick', 'snare', 'hat', 'crash'];
@@ -270,10 +270,26 @@ export function flattenSong(rich) {
     return name;
   }
 
+  // The pattern's chords: the rich progression's chord on each absolute bar of
+  // the range (deep, JSON-clean copies). Resolving chord-relative grooves against
+  // pattern.chords[barInPattern] reproduces what the absolute-bar clock produced
+  // (the kids 4-bar patterns each carry the full F#m/D/A/E). Patterns whose chords
+  // differ are kept DISTINCT (folded into the dedup key below) so a reused
+  // lane-combo never silently inherits the wrong chords — parity decides.
+  const prog = rich.harmony?.progression ?? [];
+  function patternChords(barRange) {
+    if (!prog.length) return null;
+    return barRange.map(b => {
+      const c = chordAt(prog, b);
+      return c ? { name: c.name, root: c.root, voicing: [...c.voicing] } : null;
+    });
+  }
+
   function pushPattern(barRange) {
     const lanes = {};
     for (const lane of working) lanes[lane.id] = tryRelativeGroove(lane, barRange) ?? internGroove(lane.id, barRange);
-    const pat = { lanes };
+    const chords = patternChords(barRange);
+    const pat = chords ? { lanes, chords } : { lanes };
     const key = JSON.stringify(pat);
     if (seen.has(key)) return seen.get(key);
     patterns.push(pat);
@@ -307,14 +323,20 @@ export function flattenSong(rich) {
     ...(l.type === 'melody' ? { tone: l.tone || 'pulse' } : {}),
   }));
 
+  // Song key (for melody snap-to-scale + editor tinting). The chord progression
+  // now lives ON the patterns (pattern.chords), not in a global harmony layer.
+  // The authored key rides through when present; otherwise it's derived from the
+  // progression so the editor always has a key to read.
+  const key = prog.length
+    ? (rich.harmony?.key
+        ? { root: rich.harmony.key.root, mode: rich.harmony.key.mode }
+        : deriveKey(prog))
+    : null;
+
   return {
     version: 2,                                   // schema version — see DATA-MODEL.md
     title: rich.title, artist: rich.artist, meter: rich.meter, bpm: rich.bpm,
     lanes, grooves, patterns, chain, fills: rich.fills || {},
-    // Harmony carries through so chord-relative grooves resolve at play time.
-    // Deep, JSON-clean copy (no aliasing into the rich source).
-    ...(rich.harmony?.progression?.length
-      ? { harmony: { progression: rich.harmony.progression.map(c => ({ name: c.name, root: c.root, voicing: [...c.voicing] })) } }
-      : {}),
+    ...(key ? { key } : {}),
   };
 }

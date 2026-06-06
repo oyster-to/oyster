@@ -41,7 +41,8 @@ export const memoryReboot = {
     'crash build':{ kick:[0,8], snare:[14,15], crash:[12] },
     'tom roll':   { kick:[0,4], tom:[[8,7],[10,3],[12,2],[14,-2]] },
   },
-  harmony: { progression: [
+  // Key: B major — progression B–A–F#–C# centres on B; tonic = first chord.
+  harmony: { key: { root:'B', mode:'major' }, progression: [
     { name:'B', root:'B2', voicing:['B3','D#3','F#3'] },
     { name:'B', root:'B2', voicing:['B3','D#3','F#3'] },
     { name:'A', root:'A2', voicing:['A3','C#3','E3'] },

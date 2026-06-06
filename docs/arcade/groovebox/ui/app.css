@@ -28,6 +28,10 @@
   --hit2:         #1c2f54;   /* groove hit gradient bottom */
   --roll-bg:      #0f121a;   /* piano-roll / bass lane (white key) */
   --roll-bg-blk:  #0c0e14;   /* piano-roll / bass lane (black key) */
+  /* out-of-scale rows: a dimmer wash of the roll bg. Derived from --roll-bg so
+     it tracks every theme override (themes set --roll-bg on the same element). */
+  --roll-bg-out:  color-mix(in srgb, var(--roll-bg) 78%, var(--bg));
+  --roll-ctone:   color-mix(in srgb, var(--roll-bg) 80%, var(--acc)); /* chord-tone wash */
   --roll-note:    var(--acc); /* note blocks + bass notes */
   --grid-line:    #2a2e3a;   /* roll / scope gridlines */
   --scope:        #7dffe0;   /* scope trace */
@@ -1058,6 +1062,97 @@ body.gb-knob-values .knob-val { display: block; }
   border-color: rgba(255,91,158,0.4);
   background: transparent;
 }
+
+/* ─── chord line (inside the PATTERNS module, between patterns + chain) ───── */
+.chord-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 6px;
+  margin: 6px 0;
+}
+.h-chips {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  cursor: text;
+  min-height: 27px;
+}
+/* Chord chips — mirror .chain-chip styling. */
+.h-chip {
+  display: inline-flex;
+  align-items: center;
+  min-width: 30px;
+  height: 27px;
+  border-radius: 5px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.h-chip.h-empty { color: var(--faint); font-weight: 400; }
+/* Sounding chord — reuse the --hot "driving sound" glow language. */
+.h-chip.sounding {
+  border-color: var(--hot);
+  color: var(--hot);
+  box-shadow: 0 0 8px var(--hot);
+}
+/* Key badge — reuse .pat-lbl look. */
+.h-key { margin-left: auto; }
+/* Inline edit input. */
+.h-edit {
+  flex: 1 1 auto;
+  height: 27px;
+  border-radius: 5px;
+  padding: 0 10px;
+  border: 1px solid var(--acc-dim);
+  background: var(--panel-2);
+  color: var(--ink);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  font-family: inherit;
+}
+.h-edit:focus { outline: 2px solid var(--acc); outline-offset: -1px; }
+.h-edit.invalid { border-color: var(--hot); outline-color: var(--hot); }
+
+/* Snap-to-scale toggle — mirror .roll-mode-btn / .glen-btn look. */
+.snap-btn {
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--dim);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 -1px 0 rgba(0,0,0,0.2);
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.snap-btn:hover { background: var(--panel-3); border-color: var(--acc-dim); color: var(--ink); }
+.snap-btn.on {
+  background: rgba(84,240,200,0.10);
+  border-color: var(--acc);
+  color: var(--acc);
+  box-shadow: inset 0 -2px 0 var(--acc);
+}
+
+/* Blocks-grid key tint: out-of-scale rows dim; chord-tone cells brighten. The
+   :not(.hit) guard keeps placed-note styling (and the .now playhead) on top. */
+.bg-row.oos .vc:not(.hit) { background: var(--roll-bg-out); }
+.bg-row.oos .bg-lbl { opacity: 0.5; }
+.vc.ctone:not(.hit) { background: var(--roll-ctone); }
+.vc.ctone.bar-alt:not(.hit) { background: color-mix(in srgb, var(--roll-ctone) 88%, #000); }
+.bg-row.oos .vc.ctone:not(.hit) { background: color-mix(in srgb, var(--roll-bg-out) 70%, var(--acc)); }
 
 /* ─── master FX strip (panel chrome via #master) ────────────────────────── */
 .masterfx {

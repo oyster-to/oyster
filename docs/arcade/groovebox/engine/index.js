@@ -2,6 +2,7 @@ import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
 import { createVoiceForType, trigger } from './voices.js';
 import { laneByType, toggleMute as _toggleMute, soloExclusive as _soloExclusive, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane, moveLane as _moveLane } from './lanes.js';
+import { deriveKey } from './song.js';
 import { flattenSong } from './flatten.js';
 import {
   eventsForStepV2, advanceTarget, targetPattern,
@@ -299,7 +300,7 @@ export function createEngine() {
         }
         const patternIdx = targetPattern(target, song);
         const fillPat = activeFill ? (song.fills?.[activeFill] ?? null) : null;
-        for (const ev of eventsForStepV2(song, patternIdx, target.barInPattern, step % spb, fillPat, song.transpose || 0, Math.floor(step / spb))) {
+        for (const ev of eventsForStepV2(song, patternIdx, target.barInPattern, step % spb, fillPat, song.transpose || 0)) {
           const v = voices[ev.laneId];
           if (v) trigger(v, ev, t, sixteenth, barSeconds);
         }
@@ -331,6 +332,8 @@ export function createEngine() {
           const s = step; const qSnap = fillQueue.slice();
           const tSnap = { kind: target.kind, chainPos: target.kind === 'chain' ? target.pos : -1,
                           patternIdx: targetPattern(target, song), barInPattern: target.barInPattern };
+          // The sounding chord is derived in the UI from tSnap (patternIdx +
+          // barInPattern) against that pattern's own chords — no global clock.
           Tone.Draw.schedule(() => {
             onStepCb({ absStep: s, bar: Math.floor(s / spb), stepInBar: s % spb,
                        fill: activeFill, queue: qSnap, target: tSnap });
@@ -662,6 +665,23 @@ export function createEngine() {
     },
     moveLane(id, toIndex) {
       if (song) _moveLane(song, id, toIndex);
+    },
+    // ─── harmony (chords belong to PATTERNS) ────────────────────────────────────
+    getKey()           { return song?.key ?? null; },
+    getPatternChords(i){ return song?.patterns[i]?.chords ?? null; },
+    // Set the EDIT pattern's chords (the parsed array, one chord per bar, cycling).
+    // Relative-groove lanes read these live, so the change is audible immediately.
+    // song.key is re-derived from EVERY pattern's chords (an authored key is
+    // replaced on the first edit — acceptable).
+    setPatternChords(chords) {
+      if (!song) return;
+      const pat = song.patterns[editIdx];
+      if (!pat) return;
+      if (Array.isArray(chords) && chords.length) pat.chords = chords;
+      else delete pat.chords;
+      const all = song.patterns.flatMap(p => p.chords ?? []);
+      const key = deriveKey(all);
+      if (key) song.key = key; else delete song.key;
     },
     setTranspose(semis) {
       if (!song) return;

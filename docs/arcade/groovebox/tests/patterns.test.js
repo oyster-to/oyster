@@ -176,6 +176,22 @@ test('patternBars: mixed-length picks → max; missing/empty grooves floor at 1'
   expect(patternBars(s, 99)).toBe(1);              // bad index
 });
 
+test('patternBars includes pattern.chords (chords extend duration; cycle underneath)', () => {
+  const s = makeSong();
+  // Pattern 1 picks 1-bar grooves; 4 chords make it a 4-bar pattern.
+  s.patterns[1].chords = [
+    { name: 'Am', root: 'A2', voicing: ['A3'] },
+    { name: 'C',  root: 'C2', voicing: ['C3'] },
+    { name: 'G',  root: 'G2', voicing: ['G3'] },
+    { name: 'F',  root: 'F2', voicing: ['F3'] },
+  ];
+  expect(patternBars(s, 1)).toBe(4);                    // chords floor the duration
+  // A longer groove still wins over fewer chords.
+  s.grooves.melody.long = [[], [], [], [], [], [], [], []];   // 8-bar
+  s.patterns[1].lanes.melody = 'long';
+  expect(patternBars(s, 1)).toBe(8);
+});
+
 // ── groove pick / lookup ──
 test('setLaneGroove sets the edit pattern pick; rejects unknown grooves', () => {
   const s = makeSong();

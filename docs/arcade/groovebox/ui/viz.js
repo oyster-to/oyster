@@ -1,5 +1,5 @@
 import { stepsPerBar, beatStarts } from '../engine/meter.js';
-import { drumVoiceAudible, laneAudible } from '../engine/song.js';
+import { drumVoiceAudible, laneAudible, snapMidi, inScale, scalePitchClasses } from '../engine/song.js';
 import { laneByType } from '../engine/lanes.js';
 
 // ─── Canvas theme colour cache ────────────────────────────────────────────────
@@ -19,6 +19,8 @@ function themeColors() {
     playhead:g('--playhead'),
     rollBg:  g('--roll-bg'),
     rollBlk: g('--roll-bg-blk'),
+    rollOut: g('--roll-bg-out'),
+    ctone:   g('--roll-ctone'),
     ink:     g('--ink'),
     dim:     g('--dim'),
     faint:   g('--faint'),
@@ -104,6 +106,11 @@ export function makeViz(host, song, eng) {
     try { return localStorage.getItem('gb-rollmode') || 'piano'; } catch (_) { return 'piano'; }
   })();
 
+  // Snap-to-scale state (melody only; persisted; default ON).
+  let snapOn = (() => {
+    try { return localStorage.getItem('gb-snap') !== '0'; } catch (_) { return true; }
+  })();
+
   // Current edit target lane (set by editLane(id)).
   // Falls back to laneByType for the initial state.
   let _targetLane = null;
@@ -142,22 +149,54 @@ export function makeViz(host, song, eng) {
 
     const tc = themeColors();
 
+    // Key-aware tinting: dim out-of-scale rows; glow each bar's chord tones.
+    // No key → no tint (the keyboard reads neutral, like before).
+    const key = eng.getKey();
+    const scalePcs = key ? scalePitchClasses(key) : null;
+    // Chord tones come from the EDIT pattern's own chords (cycling per bar).
+    const chords = eng.getPatternChords(eng.getEditPatternIndex()) ?? [];
+
     // Draw pitch rows (keyboard column + grid background).
     for (let mm = ROLL_LO; mm <= ROLL_HI; mm++) {
       const y = (ROLL_HI - mm) * rh;
       const deg = ((mm % 12) + 12) % 12;
       const blk = BLACK_DEGREES.has(deg);
-      // Keyboard column — slightly darker than the roll bg.
-      ctx.fillStyle = blk ? tc.rollBlk : tc.rollBg;
+      // Out-of-scale rows wash dimmer; in-scale rows keep the normal bg.
+      const oos = scalePcs && !scalePcs.has(deg);
+      const bg = oos ? tc.rollOut : (blk ? tc.rollBlk : tc.rollBg);
+      // Keyboard column.
+      ctx.fillStyle = bg;
       ctx.fillRect(0, y, kbW, rh - 0.5);
       // Grid cell background.
-      ctx.fillStyle = blk ? tc.rollBlk : tc.rollBg;
+      ctx.fillStyle = bg;
       ctx.fillRect(kbW, y, gW, rh - 0.5);
       // C label.
       if (deg === 0) {
         ctx.fillStyle = tc.faint;
         ctx.font = '8px monospace';
         ctx.fillText('C' + (Math.floor(mm / 12) - 1), 3, y + rh - 2);
+      }
+    }
+
+    // Chord-tone glow: for each editor bar, brighten rows whose pitch-class is in
+    // that bar's chord, within the bar's x-range. The chord for editor bar b is
+    // the pattern's chords[b % len] — well-defined now that chords live on the
+    // pattern alongside the groove.
+    if (chords.length) {
+      for (let b = 0; b < BARS; b++) {
+        const chord = chords[b % chords.length];
+        if (!chord) continue;
+        const toneNotes = (chord.voicing || []).concat(chord.root ? [chord.root] : []);
+        const tonePcs = new Set(toneNotes.map(n => ((noteToMidi(n) % 12) + 12) % 12));
+        if (!tonePcs.size) continue;
+        const x0 = kbW + (b * spb) / totalSteps * gW;
+        const x1 = kbW + ((b + 1) * spb) / totalSteps * gW;
+        ctx.fillStyle = tc.ctone;
+        for (let mm = ROLL_LO; mm <= ROLL_HI; mm++) {
+          if (!tonePcs.has(((mm % 12) + 12) % 12)) continue;
+          const y = (ROLL_HI - mm) * rh;
+          ctx.fillRect(x0, y, x1 - x0, rh - 0.5);
+        }
       }
     }
 
@@ -217,8 +256,12 @@ export function makeViz(host, song, eng) {
     const absStep = Math.floor((cx - ROLL_KB) / gW * totalSteps);
     if (absStep < 0 || absStep >= totalSteps) return;
 
-    const midi = ROLL_HI - Math.floor(cy / cv.height * ROLL_ROWS);
+    let midi = ROLL_HI - Math.floor(cy / cv.height * ROLL_ROWS);
     if (midi < ROLL_LO || midi > ROLL_HI) return;
+
+    // Snap to the song's key (melody only; on by default, persisted).
+    const key = eng.getKey();
+    if (snapOn && key) midi = snapMidi(midi, key);
 
     const noteName = NMG[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
 
@@ -306,14 +349,20 @@ export function makeViz(host, song, eng) {
 
     const tc = themeColors();
 
+    // Key-aware tinting (read-only bass): dim out-of-scale rows. No key → neutral.
+    const key = eng.getKey();
+    const scalePcs = key ? scalePitchClasses(key) : null;
+
     // Draw pitch rows.
     for (let mm = BASS_LO; mm <= BASS_HI; mm++) {
       const y = (BASS_HI - mm) * rh;
       const deg = ((mm % 12) + 12) % 12;
       const blk = BLACK_DEGREES.has(deg);
-      ctx.fillStyle = blk ? tc.rollBlk : tc.rollBg;
+      const oos = scalePcs && !scalePcs.has(deg);
+      const bg = oos ? tc.rollOut : (blk ? tc.rollBlk : tc.rollBg);
+      ctx.fillStyle = bg;
       ctx.fillRect(0, y, kbW, rh - 0.5);
-      ctx.fillStyle = blk ? tc.rollBlk : tc.rollBg;
+      ctx.fillStyle = bg;
       ctx.fillRect(kbW, y, gW, rh - 0.5);
       // Label E and B and octave roots (E = deg 4, B = deg 11, C = deg 0).
       if (deg === 0) {
@@ -342,6 +391,20 @@ export function makeViz(host, song, eng) {
     const editing = soundingBar >= 0;
     const showBar = editing ? soundingBar : 0;
     const notes = bars[showBar] || [];
+
+    // Chord-tone glow for the shown bar — the edit pattern's chords[bar % len].
+    const chords = eng.getPatternChords(eng.getEditPatternIndex()) ?? [];
+    const chord = chords.length ? chords[showBar % chords.length] : null;
+    if (chord) {
+      const toneNotes = (chord.voicing || []).concat(chord.root ? [chord.root] : []);
+      const tonePcs = new Set(toneNotes.map(n => ((noteToMidi(n) % 12) + 12) % 12));
+      ctx.fillStyle = tc.ctone;
+      for (let mm = BASS_LO; mm <= BASS_HI; mm++) {
+        if (!tonePcs.has(((mm % 12) + 12) % 12)) continue;
+        const y = (BASS_HI - mm) * rh;
+        ctx.fillRect(kbW, y, gW, rh - 0.5);
+      }
+    }
 
     // Draw note blocks.
     ctx.fillStyle = tc.note;
@@ -376,14 +439,19 @@ export function makeViz(host, song, eng) {
   // Returns an HTML string for the segmented Piano/Blocks toggle.
   // `barCtrlLane` (optional): when given an editable lane, append the groove-
   // length selector into the toggle bar (melody only; bass is read-only).
-  function rollModeToggleHTML(barCtrlLane = null) {
+  function rollModeToggleHTML(barCtrlLane = null, showSnap = false) {
     const pa = rollMode === 'piano'  ? ' rm-on' : '';
     const ba = rollMode === 'blocks' ? ' rm-on' : '';
+    // Snap toggle shown for melody only, and only when the song has a key.
+    const snapBtn = (showSnap && eng.getKey())
+      ? `<button class="snap-btn${snapOn ? ' on' : ''}" data-snap title="Snap edits to the song's key">⊞ snap</button>`
+      : '';
     return `<div class="roll-mode-bar">`
       + `<span class="roll-mode-lbl">VIEW</span>`
       + `<button class="roll-mode-btn${pa}" data-rm="piano">Piano</button>`
       + `<button class="roll-mode-btn${ba}" data-rm="blocks">Blocks</button>`
       + (barCtrlLane ? barCountControlsHTML(barCtrlLane) : '')
+      + snapBtn
       + `</div>`;
   }
 
@@ -420,6 +488,12 @@ export function makeViz(host, song, eng) {
         paint(lastStepInBar);
       };
     });
+    const snapBtn = host.querySelector('.snap-btn');
+    if (snapBtn) snapBtn.onclick = () => {
+      snapOn = !snapOn;
+      try { localStorage.setItem('gb-snap', snapOn ? '1' : '0'); } catch (_) {}
+      snapBtn.classList.toggle('on', snapOn);
+    };
   }
 
   // ─── Blocks grid (pitch × step DOM grid) ─────────────────────────────────
@@ -470,17 +544,32 @@ export function makeViz(host, song, eng) {
     }
     headerRow += '</div>';
 
-    let html = rollModeToggleHTML(laneView === 'melody' ? L : null);
+    let html = rollModeToggleHTML(laneView === 'melody' ? L : null, laneView === 'melody');
     html += edLabelHTML(L);
     html += `<div class="bg-scroll"><div class="bg-grid" data-lv="${laneView}">`;
     html += headerRow;
+
+    // Key-aware tinting data: out-of-scale rows (.oos) + per-bar chord tones
+    // (.ctone). No key → no tint. Chord per editor bar = the edit pattern's
+    // chords[b % len].
+    const key = eng.getKey();
+    const scalePcs = key ? scalePitchClasses(key) : null;
+    const chords = eng.getPatternChords(eng.getEditPatternIndex()) ?? [];
+    const barTonePcs = [];   // [barIdx] → Set(pitchClass) | null
+    for (let b = 0; b < BARS; b++) {
+      const chord = chords.length ? chords[b % chords.length] : null;
+      if (!chord) { barTonePcs[b] = null; continue; }
+      const toneNotes = (chord.voicing || []).concat(chord.root ? [chord.root] : []);
+      barTonePcs[b] = new Set(toneNotes.map(n => ((noteToMidi(n) % 12) + 12) % 12));
+    }
 
     // One row per pitch, top = highest.
     for (let midi = hi; midi >= lo; midi--) {
       const deg = ((midi % 12) + 12) % 12;
       const blk = BLACK_DEGREES.has(deg);
       const lbl = pitchLabel(midi);
-      const rowClass = blk ? ' bg-blk' : '';
+      const oos = scalePcs && !scalePcs.has(deg);
+      const rowClass = (blk ? ' bg-blk' : '') + (oos ? ' oos' : '');
       let cells = `<div class="bg-lbl${rowClass}">${lbl}</div>`;
       for (let absStep = 0; absStep < totalSteps; absStep++) {
         const stepInBar = absStep % spb;
@@ -488,7 +577,9 @@ export function makeViz(host, song, eng) {
         const beatClass = beatSet.has(stepInBar) ? ' beat' : '';
         const altClass  = beatIdx % 2 === 1 ? ' bar-alt' : '';
         const downClass = stepInBar === 0 ? ' downbeat' : '';
-        cells += `<div class="vc${beatClass}${downClass}${altClass}" data-midi="${midi}" data-step="${absStep}"></div>`;
+        const barIdx = Math.floor(absStep / spb);
+        const ctoneClass = barTonePcs[barIdx]?.has(deg) ? ' ctone' : '';
+        cells += `<div class="vc${beatClass}${downClass}${altClass}${ctoneClass}" data-midi="${midi}" data-step="${absStep}"></div>`;
       }
       html += `<div class="bg-row${rowClass}">${cells}</div>`;
     }
@@ -557,6 +648,10 @@ export function makeViz(host, song, eng) {
     const st = absStep % spb;
 
     if (midi < ROLL_LO || midi > ROLL_HI) return;
+
+    // Snap to the song's key (melody only; on by default, persisted).
+    const key = eng.getKey();
+    if (snapOn && key) midi = snapMidi(midi, key);
 
     const noteName = NMG[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
 
@@ -673,7 +768,7 @@ export function makeViz(host, song, eng) {
       } else {
         // Melody view: canvas piano-roll.
         const mL = getTargetLane();
-        host.innerHTML = rollModeToggleHTML(mL) + edLabelHTML(mL) + '<canvas id="mroll"></canvas>';
+        host.innerHTML = rollModeToggleHTML(mL, true) + edLabelHTML(mL) + '<canvas id="mroll"></canvas>';
         wireRollModeToggle();
         wireBarCountControls(mL);
         const cv = host.querySelector('#mroll');

@@ -27,7 +27,8 @@ export const digitalLove = {
     'crash build':{ kick:[0,8], snare:[14,15], crash:[12] },
     'tom roll':   { kick:[0,4], tom:[[8,7],[10,3],[12,2],[14,-2]] },
   },
-  harmony: { progression: [
+  // Key: C# minor — opens on C#m (i); C#m–E are diatonic to C# natural minor.
+  harmony: { key: { root:'C#', mode:'minor' }, progression: [
     { name:'C#m', root:'C#2', voicing:['C#3','E3','G#3'] },
     { name:'E', root:'E2', voicing:['E3','G#3','B3'] },
   ]},
