@@ -660,8 +660,11 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
     .prepare("SELECT id, storage_config FROM artifacts WHERE removed_at IS NOT NULL AND storage_kind = 'filesystem'")
     .all() as Array<{ id: string; storage_config: string }>;
   if (tombstones.length > 0) {
+    // sync_dirty_at: an un-deleted row must reach the cloud mirror — without
+    // the stamp it stays invisible to artifact-sync (the promotion backfill
+    // above already ran this boot and skipped it as a tombstone).
     const update = db.prepare(
-      "UPDATE artifacts SET removed_at = NULL, storage_config = ?, project_id = ?, updated_at = datetime('now') WHERE id = ?",
+      "UPDATE artifacts SET removed_at = NULL, storage_config = ?, project_id = ?, updated_at = datetime('now'), sync_dirty_at = CAST(strftime('%s','now') AS INTEGER) * 1000 WHERE id = ?",
     );
     for (const row of tombstones) {
       let oldPath: string | undefined;
@@ -729,7 +732,8 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
     UPDATE session_artifacts
        SET artifact_id = (SELECT winner_id FROM artefact_dedup_winners WHERE loser_id = session_artifacts.artifact_id)
      WHERE artifact_id IN (SELECT loser_id FROM artefact_dedup_winners);
-    UPDATE artifacts SET removed_at = datetime('now')
+    UPDATE artifacts SET removed_at = datetime('now'),
+           sync_dirty_at = CAST(strftime('%s','now') AS INTEGER) * 1000
      WHERE id IN (SELECT loser_id FROM artefact_dedup_winners);
     DROP TABLE artefact_dedup_winners;
   `);

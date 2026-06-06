@@ -343,8 +343,10 @@ export class ProjectService {
       const sessions = this.db
         .prepare("UPDATE sessions SET project_id = ?, space_id = ? WHERE project_id = ?")
         .run(into.id, into.space_id, args.fromId);
+      // sync_dirty_at: rebinding changes the derived space_id the cloud
+      // mirror scopes by — re-push the moved rows.
       const artefacts = this.db
-        .prepare("UPDATE artifacts SET project_id = ? WHERE project_id = ?")
+        .prepare("UPDATE artifacts SET project_id = ?, sync_dirty_at = CAST(strftime('%s','now') AS INTEGER) * 1000 WHERE project_id = ?")
         .run(into.id, args.fromId);
       // De-dup PK conflicts (same path cached against both projects) by
       // dropping the loser's row before the bulk update.
@@ -390,7 +392,8 @@ export class ProjectService {
         .run(projectId);
       if (info.changes === 0) throw new Error(`Project "${projectId}" not found`);
       this.db.prepare("UPDATE sessions SET project_id = NULL WHERE project_id = ?").run(projectId);
-      this.db.prepare("UPDATE artifacts SET project_id = NULL WHERE project_id = ?").run(projectId);
+      // sync_dirty_at: demoted orphans lose their derived space_id — re-push.
+      this.db.prepare("UPDATE artifacts SET project_id = NULL, sync_dirty_at = CAST(strftime('%s','now') AS INTEGER) * 1000 WHERE project_id = ?").run(projectId);
     });
     tx();
   }

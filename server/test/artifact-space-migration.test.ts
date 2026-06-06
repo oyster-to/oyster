@@ -118,7 +118,7 @@ describe("backfillArtifactProjects", () => {
         id TEXT PRIMARY KEY, project_id TEXT,
         label TEXT, artifact_kind TEXT, storage_kind TEXT,
         storage_config TEXT, runtime_kind TEXT, runtime_config TEXT,
-        source_ref TEXT, removed_at TEXT
+        source_ref TEXT, removed_at TEXT, sync_dirty_at INTEGER
       );
     `);
     mem.exec(`INSERT INTO spaces (id,display_name,color,scan_status) VALUES ('w','W','#000','none')`);
@@ -165,7 +165,7 @@ describe("backfillArtifactProjects", () => {
         id TEXT PRIMARY KEY, space_id TEXT NOT NULL, project_id TEXT,
         label TEXT, artifact_kind TEXT, storage_kind TEXT,
         storage_config TEXT, runtime_kind TEXT, runtime_config TEXT,
-        source_ref TEXT, removed_at TEXT
+        source_ref TEXT, removed_at TEXT, sync_dirty_at INTEGER
       );
     `);
     mem.exec(`INSERT INTO spaces (id,display_name,color,scan_status) VALUES ('work','Work','#000','none'),('home','Home','#111','none')`);
