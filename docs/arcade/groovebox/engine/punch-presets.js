@@ -49,15 +49,16 @@ export function validatePreset(p) {
 // dogfood-approved level. These are seed data — never mutated in place.
 export const DEFAULT_PRESETS = [
   { name: 'STUTTER', key: '1', engageQuantize: 'immediate', releaseQuantize: 'immediate',
-    lanes: ['drums', 'bass'],   // chop the rhythm section; pads/melody ride on top
+    lanes: ['melody'],          // chop the topline; rhythm section rides underneath
     automations: [
       { module: 'gate', param: 'depth', from: 'neutral', to: 1, division: '1/8',
         engage: { ramp: { unit: 'steps', value: 0 } }, release: { ramp: { unit: 'steps', value: 0.1 } } },
     ] },
-  { name: 'CRUSH', key: '2', engageQuantize: 'immediate', releaseQuantize: 'immediate',
+  { name: 'STUTTER BASS', key: '2', engageQuantize: 'immediate', releaseQuantize: 'immediate',
+    lanes: ['drums', 'bass'],   // chop the rhythm section; pads/melody ride on top
     automations: [
-      { module: 'crusher', param: 'wet', from: 'neutral', to: 0.9,
-        engage: { ramp: { unit: 'steps', value: 0.5 } }, release: { ramp: { unit: 'steps', value: 0.5 } } },
+      { module: 'gate', param: 'depth', from: 'neutral', to: 1, division: '1/8',
+        engage: { ramp: { unit: 'steps', value: 0 } }, release: { ramp: { unit: 'steps', value: 0.1 } } },
     ] },
   { name: 'DIVE', key: '3', engageQuantize: 'immediate', releaseQuantize: 'immediate',
     automations: [
