@@ -83,11 +83,24 @@ export function openPunchEditor({ slot, eng, onSaved }) {
     stopPreview();
     backdrop.remove();
     document.removeEventListener('keydown', onKey, true);
+    document.removeEventListener('keyup', onKeyUp, true);
   }
   function onKey(e) {
-    if (e.key === 'Escape') { e.stopPropagation(); close(); }
+    if (e.key === 'Escape') { e.stopPropagation(); close(); return; }
+    // The edited pad's own key auditions the draft — same as holding TEST.
+    // (Other punch keys stay suppressed while the editor is open.)
+    if (e.key === draft.key && !e.repeat && e.target?.tagName !== 'INPUT' && e.target?.tagName !== 'SELECT') {
+      e.stopPropagation(); e.preventDefault();
+      if (!previewHeld && eng.isPlaying() && validatePreset(draft)) {
+        eng.punchPreview(draft, true); previewHeld = true;
+      }
+    }
+  }
+  function onKeyUp(e) {
+    if (e.key === draft.key) stopPreview();
   }
   document.addEventListener('keydown', onKey, true);
+  document.addEventListener('keyup', onKeyUp, true);
   backdrop.addEventListener('pointerdown', e => { if (e.target === backdrop) close(); });
 
   function save() {
@@ -118,7 +131,7 @@ export function openPunchEditor({ slot, eng, onSaved }) {
     badge.textContent = `key ${draft.key} · slot ${slot + 1} of 5`;
     const test = document.createElement('button');
     test.className = 'pe-test' + (playing ? '' : ' idle');
-    test.innerHTML = 'TEST<small>hold to hear</small>';
+    test.innerHTML = `TEST<small>hold · or key ${draft.key}</small>`;
     test.addEventListener('pointerdown', e => {
       e.preventDefault(); test.setPointerCapture(e.pointerId);
       if (!eng.isPlaying()) {            // live check — not the render-time snapshot
