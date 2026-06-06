@@ -134,9 +134,10 @@ function makeKnobrow(groups) {
   row.className = 'knobrow';
   const mkHint = dir => {
     const h = document.createElement('button');
+    h.type = 'button';
     h.className = 'knob-scroll-hint ' + dir;
     h.textContent = dir === 'l' ? '‹' : '›';
-    h.tabIndex = -1;
+    h.setAttribute('aria-label', dir === 'l' ? 'Scroll knobs left' : 'Scroll knobs right');
     h.addEventListener('click', e => {
       e.stopPropagation();
       row.scrollBy({ left: dir === 'l' ? -140 : 140, behavior: 'smooth' });
@@ -300,7 +301,7 @@ function renderStrips() {
         <button class="lane-dup" data-lane="${lane.id}" title="Duplicate lane">⧉</button>
         <button class="lane-rm" data-lane="${lane.id}" title="Remove lane"${isLast ? ' disabled' : ''}>✕</button>
       </div>
-      <button class="lane-expand" data-lane="${lane.id}" title="Show/hide mixer knobs" aria-expanded="false"><svg class="le-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+      <button type="button" class="lane-expand" data-lane="${lane.id}" title="Show/hide mixer knobs" aria-label="${esc(lane.name)} mixer knobs" aria-expanded="false"><svg class="le-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
     </div>`;
   }).join('');
 
