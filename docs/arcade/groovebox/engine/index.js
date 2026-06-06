@@ -155,6 +155,17 @@ export function createEngine() {
         for (const lane of s.lanes) {
           if (!voices[lane.id]) buildLane(lane);
         }
+        // Re-sync punch routing for REUSED lane graphs: the new song's lanes
+        // carry their own punchArm state, but matching-id graphs keep their
+        // old toPunch/toClean gains (review: song-switch desync).
+        for (const lane of s.lanes) {
+          const f = fx[lane.id];
+          if (f && f.toPunch) {
+            const armed = isPunchArmed(lane);
+            f.toPunch.gain.rampTo(armed ? 1 : 0, 0.01);
+            f.toClean.gain.rampTo(armed ? 0 : 1, 0.01);
+          }
+        }
       }
     },
     async play() {
@@ -291,7 +302,9 @@ export function createEngine() {
     setPunchArm(id, on) {
       if (!song) return;
       const lane = song.lanes.find(l => l.id === id);
-      if (lane) lane.punchArm = !!on;
+      // Armed is the default — only an explicit false is stored, so toggling
+      // a lane off and back on leaves no punchArm key to serialize.
+      if (lane) { if (on) delete lane.punchArm; else lane.punchArm = false; }
       const f = fx[id];
       if (f && f.toPunch) {
         f.toPunch.gain.rampTo(on ? 1 : 0, 0.01);
@@ -311,14 +324,16 @@ export function createEngine() {
       on = !!on;
       if (_punchHeld[name] === on) return;          // ignore repeat echoes
       _punchHeld[name] = on;
-      if (name === 'crush') punchCrush.wet.rampTo(on ? 0.5 : PUNCH_NEUTRAL.crushWet, 0.05);   // 6-bit @ 50% = lo-fi grit, not broken speaker
+      // Engaged targets: PUNCH_PARAMS scaled by the AMOUNT knob, read at press time.
+      if (name === 'crush') punchCrush.wet.rampTo(on ? PUNCH_PARAMS.crush.wet * punchAmount : PUNCH_NEUTRAL.crushWet, 0.05);
       else if (name === 'dive') {
-        punchFilter.frequency.rampTo(on ? 150 : PUNCH_NEUTRAL.filterFreq, 0.15);
-        punchFilter.Q.rampTo(on ? 8 : PUNCH_NEUTRAL.filterQ, 0.15);
+        const P = PUNCH_PARAMS.dive;
+        punchFilter.frequency.rampTo(on ? diveFreqForAmount(punchAmount) : PUNCH_NEUTRAL.filterFreq, P.ramp);
+        punchFilter.Q.rampTo(on ? PUNCH_NEUTRAL.filterQ + (P.q - PUNCH_NEUTRAL.filterQ) * punchAmount : PUNCH_NEUTRAL.filterQ, P.ramp);
       }
       else if (name === 'throw') {
-        if (on) punchThrow.wet.rampTo(0.6, 0.05);
-        else    punchThrow.wet.rampTo(PUNCH_NEUTRAL.throwWet, 1.5);   // tail rings out
+        if (on) punchThrow.wet.rampTo(PUNCH_PARAMS.throw.wet * punchAmount, 0.05);
+        else    punchThrow.wet.rampTo(PUNCH_NEUTRAL.throwWet, PUNCH_PARAMS.throw.release);   // tail rings out
       }
       else if (name === 'stop') {
         if (on) {
@@ -327,8 +342,8 @@ export function createEngine() {
           // rampTo pins the current value (setRampPoint → cancelAndHoldAtTime),
           // so it's safe mid-stutter / mid-anything — no explicit cancels.
           _gateReturnPending = false;
-          punchGate.gain.rampTo(0, 0.8);
-          punchTape.delayTime.rampTo(0.6, 0.8);
+          punchGate.gain.rampTo(0, PUNCH_PARAMS.stop.time);
+          punchTape.delayTime.rampTo(PUNCH_PARAMS.stop.depth * punchAmount, PUNCH_PARAMS.stop.time);
         } else {
           // Strict release order (spec safeguard 2), click-free on quick taps:
           // close the gate from wherever the slump got to (3ms), freeze the
