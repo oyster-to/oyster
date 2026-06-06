@@ -13,7 +13,7 @@ import {
   setLaneGroove as _setLaneGroove, addGroove as _addGroove, grooveFor,
   setGrooveBars as _setGrooveBars,
 } from './patterns.js';
-import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, laneInPunchBus } from './punch.js';
+import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, laneInPunchBus, engageCapture, releaseCapture } from './punch.js';
 import { DEFAULT_PRESETS, validatePreset } from './punch-presets.js';
 
 export function createEngine() {
@@ -31,10 +31,10 @@ export function createEngine() {
   // Punch v3: pre-wired neutral punch bus; presets are data (punch-presets.js)
   // executed by the automation runner (_runAutomation) over MODULE_PARAMS.
   let punchGate = null, punchCrush = null, punchFilter = null, punchThrow = null, punchTape = null;
-  let _punchBindings = null;                     // registry param id → live Tone param
+  const _punchCaptures = new Map();              // 'laneId|paramId' → { value: knob value at first engage, count }
   let punchPresets = DEFAULT_PRESETS;            // replaced via setPunchPresets (validated)
   const _slotHeld = [false, false, false, false, false];
-  let _gate = null;                              // active gate automation: { depth, division } | null
+  let _gate = null;                              // active gate: { depth, division, laneIds } | null
   let _tapeActive = false;                       // transport.tapeStop engaged (owns the gate)
   let _gateReturnPending = false;                // tapeStop released → gate returns on-grid
   const _pendingQuantized = [];                  // [{ when: 'bar'|'pattern', fn }]
@@ -48,6 +48,45 @@ export function createEngine() {
   let _fxInserted = {};
   // Stored after ensure() so buildLane can be called post-graph-init
   let _makeFX = null, _masterIn = null, _laneReverb = null;
+
+  // Lazy BitCrusher splice (shared by the CRU knob and punch pre-build):
+  // creating it at config time avoids the splice click at perform time.
+  function _ensureLaneCrush(id) {
+    const c = fx[id];
+    if (!c || c.crush) return;
+    c.crush = new Tone.BitCrusher(4);
+    c.crush.wet.value = 0;
+    c.drive.disconnect(c.slotCrush);
+    c.drive.connect(c.crush);
+    c.crush.connect(c.slotChorus);   // slotCrush is no longer needed; slotChorus is now the bridge
+    c.slotCrush.disconnect();
+    c.slotCrush.dispose();
+    c.slotCrush = null;
+    if (_fxInserted[id]) _fxInserted[id].crush = true;
+  }
+
+  // v4 per-lane punch: automations drive the masked lanes' OWN fx params
+  // (capture knob value at engage, restore at last release). Only tapeStop
+  // still uses the shared bus.
+  function _laneParam(f, id) {
+    if (id === 'filter.freq')    return f.filter.frequency;
+    if (id === 'filter.Q')       return f.filter.Q;
+    if (id === 'delay.wet')      return f.delay.wet;
+    if (id === 'delay.feedback') return f.delay.feedback;
+    if (id === 'crusher.wet')    return f.crush ? f.crush.wet : null;
+    return null;
+  }
+  function _maskedLanes(mask) {
+    return song ? song.lanes.filter(l => mask == null || mask.includes(l.type)) : [];
+  }
+  // Pre-build lazy nodes any preset needs, at config time (no perform-time click).
+  function _prebuildPunchNodes(presets) {
+    if (!started) return;
+    for (const p of presets) {
+      if (!p?.automations?.some(a => a.module === 'crusher')) continue;
+      for (const lane of _maskedLanes(p.lanes ?? null)) _ensureLaneCrush(lane.id);
+    }
+  }
 
   // Per-preset lane targeting: rebuild every lane's punch/clean crossfade from
   // chips ∩ the union of held presets' masks. Called on every press/release,
@@ -73,18 +112,30 @@ export function createEngine() {
   // release) against the live graph. gate.* and transport.tapeStop are
   // semantic modules (spec decision 6) — the runner owns their behaviour;
   // everything else maps through _punchBindings + the MODULE_PARAMS registry.
-  function _runAutomation(a, on, timing, atTime, amount = 1) {
+  function _runAutomation(a, on, timing, atTime, amount = 1, mask = null) {
     const id = `${a.module}.${a.param}`;
     const reg = MODULE_PARAMS[id];
     if (!reg) return;
     const ramp = Math.max(durationToSeconds(on ? a.engage?.ramp : a.release?.ramp, timing), 0.003);
     if (id === 'gate.depth') {
       if (on) {
-        _gate = { depth: (typeof a.to === 'number' ? a.to : 1) * amount, division: a.division || '1/16' };
+        // Chop each masked lane's fader (scaled by its captured knob value)
+        // in the step callback — no shared gate node involved.
+        const laneIds = [];
+        for (const lane of _maskedLanes(mask)) {
+          const f = fx[lane.id];
+          if (!f) continue;
+          engageCapture(_punchCaptures, lane.id + '|vol', f.vol.gain.value);
+          laneIds.push(lane.id);
+        }
+        _gate = { depth: (typeof a.to === 'number' ? a.to : 1) * amount, division: a.division || '1/16', laneIds };
       } else {
+        const laneIds = _gate ? _gate.laneIds : [];
         _gate = null;
-        // tapeStop owns the gate (v2 safeguard 1) — only restore when idle.
-        if (!_tapeActive) punchGate.gain.rampTo(PUNCH_NEUTRAL.gateGain, Math.max(ramp, 0.01));
+        for (const laneId of laneIds) {
+          const v = releaseCapture(_punchCaptures, laneId + '|vol');
+          if (v != null && fx[laneId]) fx[laneId].vol.gain.rampTo(v, Math.max(ramp, 0.01), atTime);
+        }
       }
       return;
     }
@@ -111,14 +162,25 @@ export function createEngine() {
       }
       return;
     }
-    const bound = _punchBindings[id];
-    if (!bound) return;
-    const from = (a.from === 'neutral' || a.from == null) ? reg.neutral : a.from;
     const scale = a.scale || reg.scale;
-    // atTime (quantized actions): schedule the ramp AT the boundary's audio
-    // time — the callback fires ~lookahead early, so ramping "now" would land
-    // a third of a second before the downbeat.
-    bound.rampTo(on ? scaleValue(from, a.to, amount, scale) : from, ramp, atTime);
+    for (const lane of _maskedLanes(mask)) {
+      const f = fx[lane.id];
+      const param = f && _laneParam(f, id);
+      if (!param) continue;
+      const key = lane.id + '|' + id;
+      if (on) {
+        // 'neutral' from = the lane's CURRENT (knob) value — captured once,
+        // refcounted across overlapping pads, restored at last release.
+        const captured = engageCapture(_punchCaptures, key, param.value);
+        const from = (a.from === 'neutral' || a.from == null) ? captured : a.from;
+        // atTime (quantized actions): schedule AT the boundary's audio time —
+        // the callback fires ~lookahead early.
+        param.rampTo(scaleValue(from, a.to, amount, scale), ramp, atTime);
+      } else {
+        const v = releaseCapture(_punchCaptures, key);
+        if (v != null) param.rampTo(v, ramp, atTime);
+      }
+    }
   }
 
   function buildLane(lane) {
@@ -190,15 +252,6 @@ export function createEngine() {
     punchFilter = new Tone.Filter({ type: 'lowpass', frequency: PUNCH_NEUTRAL.filterFreq, Q: PUNCH_NEUTRAL.filterQ }).connect(punchThrow);
     punchCrush  = new Tone.BitCrusher(6); punchCrush.wet.value = PUNCH_NEUTRAL.crushWet; punchCrush.connect(punchFilter);
     punchGate   = new Tone.Gain(PUNCH_NEUTRAL.gateGain).connect(punchCrush);
-    // Registry param → live Tone param. gate.* and transport.* are semantic —
-    // handled by the runner itself, not direct bindings.
-    _punchBindings = {
-      'crusher.wet':    punchCrush.wet,
-      'filter.freq':    punchFilter.frequency,
-      'filter.Q':       punchFilter.Q,
-      'delay.wet':      punchThrow.wet,
-      'delay.feedback': punchThrow.feedback,
-    };
     // Shared reverb bus — one convolver for all lanes (per-lane send gain controls amount).
     _laneReverb = new Tone.Reverb({ decay: 2.4, wet: 1 }).connect(masterIn);
     // Stereo output meters — tapped post-volume (silent sinks, don't alter audio chain).
@@ -242,6 +295,7 @@ export function createEngine() {
     masterComp.connect(scopeMaster);
     // Build per-lane graph
     buildLaneGraph(song.lanes);
+    _prebuildPunchNodes(punchPresets);
     started = true;
   }
 
@@ -267,9 +321,9 @@ export function createEngine() {
             voices[lane.id].lead.set({ oscillator: { type: lane.tone, width: 0.3 } });
           }
         }
-        // Re-sync punch routing for REUSED lane graphs (song-switch desync) —
-        // mask-aware recompute covers chips and any held presets.
+        // Re-sync punch routing for REUSED lane graphs (song-switch desync).
         _recomputePunchRouting();
+        _prebuildPunchNodes(punchPresets);
       }
     },
     async play() {
@@ -338,9 +392,14 @@ export function createEngine() {
           punchGate.gain.linearRampToValueAtTime(PUNCH_NEUTRAL.gateGain, t + 0.003);
           _gateReturnPending = false;
         }
-        if (_gate && !_tapeActive) {
-          for (const [at, v] of gateEventsForStep(t, sixteenth, step, _gate.division, _gate.depth))
-            punchGate.gain.linearRampToValueAtTime(v, at);
+        if (_gate) {
+          for (const laneId of _gate.laneIds) {
+            const f = fx[laneId];
+            const cap = _punchCaptures.get(laneId + '|vol');
+            if (!f || !cap) continue;
+            for (const [at, v] of gateEventsForStep(t, sixteenth, step, _gate.division, _gate.depth))
+              f.vol.gain.linearRampToValueAtTime(v * cap.value, at);
+          }
         }
         if (onStepCb) {
           const s = step; const qSnap = fillQueue.slice();
@@ -387,6 +446,15 @@ export function createEngine() {
       _slotHeld.fill(false);
       _gate = null; _tapeActive = false; _gateReturnPending = false; _pendingQuantized.length = 0;
       _previewMask = undefined;
+      // Restore every captured lane param to its knob value.
+      for (const [key, cap] of _punchCaptures) {
+        const [laneId, paramId] = [key.slice(0, key.indexOf('|')), key.slice(key.indexOf('|') + 1)];
+        const f = fx[laneId];
+        if (!f) continue;
+        const param = paramId === 'vol' ? f.vol.gain : _laneParam(f, paramId);
+        if (param) param.rampTo(cap.value, 0.02);
+      }
+      _punchCaptures.clear();
       _recomputePunchRouting();
       if (started) {
         const now = Tone.now();
@@ -427,12 +495,16 @@ export function createEngine() {
       };
       const q = on ? preset.engageQuantize : preset.releaseQuantize;
       const amount = preset.amount ?? 1;
-      const run = (atTime) => { for (const a of preset.automations) _runAutomation(a, on, timing, atTime, amount); };
+      const mask = preset.lanes ?? null;
+      const run = (atTime) => { for (const a of preset.automations) _runAutomation(a, on, timing, atTime, amount, mask); };
       if (q === 'immediate' || !playing) run();
       else _pendingQuantized.push({ when: q, fn: run });
     },
     setPunchPresets(presets) {
-      if (Array.isArray(presets) && presets.length === 5 && presets.every(validatePreset)) punchPresets = presets;
+      if (Array.isArray(presets) && presets.length === 5 && presets.every(validatePreset)) {
+        punchPresets = presets;
+        _prebuildPunchNodes(punchPresets);
+      }
       return punchPresets;
     },
     getPunchPresets() { return punchPresets; },
@@ -451,7 +523,8 @@ export function createEngine() {
         beatSeconds,
         barSeconds: stepsPerBar(song.meter) * (beatSeconds / 4),
       };
-      for (const a of preset.automations) _runAutomation(a, !!on, timing, undefined, amount);
+      if (on) _prebuildPunchNodes([preset]);   // draft may use crush on lanes without the node yet
+      for (const a of preset.automations) _runAutomation(a, !!on, timing, undefined, amount, preset.lanes ?? null);
     },
     isPlaying() { return playing; },
     queueFill(name)         { fillQueue.push(name); return fillQueue.length; },
@@ -575,18 +648,7 @@ export function createEngine() {
       }
       else if (param === 'drive')  { c.drive.wet.rampTo(v01 * 0.85, 0.08); c.drive.oversample = v01 > 0 ? '2x' : 'none'; }
       else if (param === 'crush') {
-        // Lazy-create BitCrusher on first use: splice it in place of slotCrush.
-        if (!c.crush) {
-          c.crush = new Tone.BitCrusher(4);
-          c.crush.wet.value = 0;
-          c.drive.disconnect(c.slotCrush);
-          c.drive.connect(c.crush);
-          c.crush.connect(c.slotChorus);   // slotCrush is no longer needed; slotChorus is now the bridge
-          c.slotCrush.disconnect();
-          c.slotCrush.dispose();
-          c.slotCrush = null;
-          if (_fxInserted[id]) _fxInserted[id].crush = true;
-        }
+        _ensureLaneCrush(id);
         c.crush.wet.rampTo(v01, 0.08);
       }
       else if (param === 'delay')  c.delay.wet.rampTo(v01 * 0.5, 0.08);
