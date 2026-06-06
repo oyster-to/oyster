@@ -35,9 +35,9 @@ export function createEngine() {
   let punchPresets = DEFAULT_PRESETS;            // replaced via setPunchPresets (validated)
   const _slotHeld = new Array(DEFAULT_PRESETS.length).fill(false);
   let _gate = null;                              // active gate: { depth, division, laneIds } | null
-  let _tapeActive = false;                       // transport.tapeStop engaged (owns the gate)
+  let _tapeActive = false;                       // transport.tapeStop engaged (owns the BUS punchGate; lane-fader gate is independent)
   let _gateReturnPending = false;                // tapeStop released → gate returns on-grid
-  const _pendingQuantized = [];                  // [{ when: 'bar'|'pattern', fn }]
+  const _pendingQuantized = [];                  // [{ when: 'bar'|'pattern', fn, slot, on }] — slot/on drive quick-tap annihilation
   let _previewMask;                              // editor TEST: draft's lane mask while held (undefined = no preview)
   let meterL = null, meterR = null;
   let scopeMaster = null, scopeLane = {};
@@ -65,9 +65,9 @@ export function createEngine() {
     if (_fxInserted[id]) _fxInserted[id].crush = true;
   }
 
-  // v4 per-lane punch: automations drive the masked lanes' OWN fx params
-  // (capture knob value at engage, restore at last release). Only tapeStop
-  // still uses the shared bus.
+  // v4 per-lane punch: automations drive the masked lanes' OWN fx params via
+  // _laneParam (capture knob value at engage, restore at last release —
+  // refcounted in _punchCaptures). Only tapeStop still uses the shared bus.
   function _laneParam(f, id) {
     if (id === 'filter.freq')    return f.filter.frequency;
     if (id === 'filter.Q')       return f.filter.Q;
@@ -295,8 +295,8 @@ export function createEngine() {
     masterComp.connect(scopeMaster);
     // Build per-lane graph
     buildLaneGraph(song.lanes);
-    _prebuildPunchNodes(punchPresets);
     started = true;
+    _prebuildPunchNodes(punchPresets);   // after started flips — the guard would no-op it otherwise
   }
 
   return {
