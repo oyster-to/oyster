@@ -44,7 +44,7 @@ enabled = true
 [[d1_databases]]
 binding = "DB"
 database_name = "gb-registry"
-database_id = "FILLED-AFTER-wrangler-d1-create"
+database_id = "e7426a6d-91b2-497c-965a-4df469bb0727"
 migrations_dir = "migrations"
 
 # Write rate limit: 5 writes / 60s / IP. (Binding periods only support 10|60s,
