@@ -316,10 +316,11 @@ export function SessionInspector({ sessionId, focusEventId, initialSearchQuery, 
   // transcript body. The two builds read from different places, so the
   // gate differs:
   //  - cloud: the worker renders events from synced chunks, so the only
-  //    blocker is "no chunks uploaded yet" (hasBytes). originDeviceId is
-  //    set on EVERY cloud session and jsonlAvailableLocally is always
-  //    false there — reusing the local predicate blacked out the whole
-  //    transcript view (the #454 gate predates cloud mode).
+  //    blocker is "no chunks uploaded yet" (hasBytes). The cloud adapter
+  //    hardcodes jsonlAvailableLocally to false and sessions carry their
+  //    origin device_id (nullable only on legacy pre-stamping rows) — so
+  //    the local predicate blacked out essentially every transcript
+  //    (the #454 gate predates cloud mode).
   //  - local: a remote session's jsonl hasn't been reassembled here yet;
   //    the Header above exposes the Resume affordance, and once the user
   //    resumes, the watcher ingests the jsonl.
