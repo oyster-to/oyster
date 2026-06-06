@@ -63,6 +63,11 @@ export function ArtefactTable({ artifacts, spaces, onArtifactClick, onArtifactPu
 
   const isPublished = ctx?.artifact.publication?.unpublishedAt === null;
   const isCloudOnly = !!ctx?.artifact.cloudOnly;
+  // In the cloud build, published registry rows need the same token-routed
+  // actions as cloud-only ghosts — the by-id routes in the other branch only
+  // exist on the local server. (Unpublished cloud rows never open this menu;
+  // see hasCloudMenu at the row.)
+  const cloudShareActions = isCloudOnly || (caps.cloud && isPublished);
 
   return (
     <div className="home-table-wrap">
@@ -75,18 +80,25 @@ export function ArtefactTable({ artifacts, spaces, onArtifactClick, onArtifactPu
         </div>
         {sorted.map((art) => {
           const space = spaces.find((s) => s.id === art.spaceId);
+          // Cloud registry rows without a publication aren't openable — the
+          // content lives on the origin device. Render them inert (no button
+          // semantics, no pointer) and skip the context menu, whose actions
+          // (pin, publish) all need the local server.
+          const inert = caps.cloud && !art.url;
+          const hasCloudMenu = !caps.cloud || art.publication?.unpublishedAt === null;
           return (
             <div
               key={art.id}
-              className="home-artefact-row"
-              role="button"
-              tabIndex={0}
-              onClick={() => onArtifactClick(art)}
+              className={`home-artefact-row${inert ? " home-artefact-row--inert" : ""}`}
+              role={inert ? undefined : "button"}
+              tabIndex={inert ? undefined : 0}
+              onClick={inert ? undefined : () => onArtifactClick(art)}
               onContextMenu={(e) => {
                 e.preventDefault();
+                if (!hasCloudMenu) return;
                 setCtx({ artifact: art, x: e.clientX, y: e.clientY });
               }}
-              onKeyDown={(e) => {
+              onKeyDown={inert ? undefined : (e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   onArtifactClick(art);
@@ -97,6 +109,14 @@ export function ArtefactTable({ artifacts, spaces, onArtifactClick, onArtifactPu
                 {art.label}
                 {art.publication?.unpublishedAt === null && (
                   <PublishedChip publication={art.publication} cloudOnly={art.cloudOnly} />
+                )}
+                {caps.cloud && art.originDeviceLabel && (
+                  <span
+                    className="home-remote-chip"
+                    title={`Lives on ${art.originDeviceLabel} — open Oyster there to work with it`}
+                  >
+                    <span aria-hidden="true">⌂</span> {art.originDeviceLabel}
+                  </span>
                 )}
               </span>
               <span className="home-artefact-row-space">
@@ -115,10 +135,11 @@ export function ArtefactTable({ artifacts, spaces, onArtifactClick, onArtifactPu
           className="space-ctx-menu"
           style={{ left: ctx.x, top: ctx.y, transform: "translateY(-100%)", marginTop: -8 }}
         >
-          {/* Cloud-only ghosts: Rename, Publish settings, Unpublish. All go
-              through metadata-only routes — no bytes required. Pin needs a
-              local row, so it's skipped. */}
-          {isCloudOnly && isPublished && (
+          {/* Cloud-only ghosts + published rows in the cloud build: Rename,
+              Publish settings, Unpublish. All go through token-routed
+              metadata-only routes — no bytes required. Pin needs a local
+              row, so it's skipped. */}
+          {cloudShareActions && isPublished && (
             <>
               <button
                 className="space-ctx-item"
@@ -156,7 +177,7 @@ export function ArtefactTable({ artifacts, spaces, onArtifactClick, onArtifactPu
             </>
           )}
 
-          {!isCloudOnly && (
+          {!cloudShareActions && (
             <>
               {caps.canWrite && (
                 ctx.artifact.pinnedAt != null ? (

@@ -4,6 +4,10 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **Your artefact library appears in the cloud remote view** — the Artefacts tab at app.oyster.to now lists everything in your registry (read-only), with a chip showing which device each artefact lives on. Published artefacts stay the openable ones.
+
 ### Changed
 
 - **Sessions list shows everything** — the Sessions tab lists all sessions; no more "Show more" clicks.

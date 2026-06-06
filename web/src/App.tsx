@@ -495,10 +495,12 @@ export default function App() {
   async function handleArtifactClick(artifact: Artifact) {
     if (artifact.status === "generating") return;
 
-    // Cloud mode: every artefact row is a publication; clicking opens the
-    // public share page in a new tab (no local viewer / dev server).
+    // Cloud mode: the only openable artefacts are published ones (url =
+    // public share page). Synced registry rows carry no url — their content
+    // lives on the origin device, so the click is a no-op (the row's
+    // "on <device>" chip explains why).
     if (caps.cloud) {
-      window.open(artifact.url, "_blank", "noopener");
+      if (artifact.url) window.open(artifact.url, "_blank", "noopener");
       return;
     }
 

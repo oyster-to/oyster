@@ -87,12 +87,14 @@ export class SqliteArtifactStore implements ArtifactStore {
       getAllArchived: db.prepare(
         `${SELECT} WHERE a.removed_at IS NOT NULL ORDER BY a.removed_at DESC`
       ),
+      // sync_dirty_at: every write stamps unix-ms so the artefact registry
+      // sync (artifact-sync-service.ts) picks the row up on its next drain.
       insert: db.prepare(
         hasSpaceCol
-          ? `INSERT INTO artifacts (id, owner_id, space_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, group_name, source_origin, source_ref, project_id)
-             VALUES (@id, @owner_id, '', @label, @artifact_kind, @storage_kind, @storage_config, @runtime_kind, @runtime_config, @group_name, COALESCE(@source_origin,'manual'), @source_ref, @project_id)`
-          : `INSERT INTO artifacts (id, owner_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, group_name, source_origin, source_ref, project_id)
-             VALUES (@id, @owner_id, @label, @artifact_kind, @storage_kind, @storage_config, @runtime_kind, @runtime_config, @group_name, COALESCE(@source_origin,'manual'), @source_ref, @project_id)`,
+          ? `INSERT INTO artifacts (id, owner_id, space_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, group_name, source_origin, source_ref, project_id, sync_dirty_at)
+             VALUES (@id, @owner_id, '', @label, @artifact_kind, @storage_kind, @storage_config, @runtime_kind, @runtime_config, @group_name, COALESCE(@source_origin,'manual'), @source_ref, @project_id, @sync_dirty_at)`
+          : `INSERT INTO artifacts (id, owner_id, label, artifact_kind, storage_kind, storage_config, runtime_kind, runtime_config, group_name, source_origin, source_ref, project_id, sync_dirty_at)
+             VALUES (@id, @owner_id, @label, @artifact_kind, @storage_kind, @storage_config, @runtime_kind, @runtime_config, @group_name, COALESCE(@source_origin,'manual'), @source_ref, @project_id, @sync_dirty_at)`,
       ),
       delete: db.prepare("DELETE FROM artifacts WHERE id = ?"),
     };
@@ -119,13 +121,13 @@ export class SqliteArtifactStore implements ArtifactStore {
   }
 
   insert(row: InsertRow): void {
-    this.stmts.insert.run({ project_id: null, source_origin: null, source_ref: null, ...row });
+    this.stmts.insert.run({ project_id: null, source_origin: null, source_ref: null, sync_dirty_at: Date.now(), ...row });
   }
 
   resurface(id: string): void {
     this.db.prepare(
-      "UPDATE artifacts SET removed_at = NULL, updated_at = datetime('now') WHERE id = ?"
-    ).run(id);
+      "UPDATE artifacts SET removed_at = NULL, updated_at = datetime('now'), sync_dirty_at = ? WHERE id = ?"
+    ).run(Date.now(), id);
   }
 
   private static readonly UPDATABLE_COLUMNS = new Set([
@@ -147,19 +149,22 @@ export class SqliteArtifactStore implements ArtifactStore {
     if (sets.length === 0) return;
 
     sets.push("updated_at = datetime('now')");
+    sets.push("sync_dirty_at = @sync_dirty_at");
+    values.sync_dirty_at = Date.now();
     this.db.prepare(`UPDATE artifacts SET ${sets.join(", ")} WHERE id = @id`).run(values);
   }
 
   remove(id: string): void {
-    this.db.prepare("UPDATE artifacts SET removed_at = datetime('now') WHERE id = ?").run(id);
+    // Tombstone: removed_at set + dirty so the deletion propagates to cloud.
+    this.db.prepare("UPDATE artifacts SET removed_at = datetime('now'), sync_dirty_at = ? WHERE id = ?").run(Date.now(), id);
   }
 
   pin(id: string, pinnedAt: number): void {
-    this.db.prepare("UPDATE artifacts SET pinned_at = ?, updated_at = datetime('now') WHERE id = ?").run(pinnedAt, id);
+    this.db.prepare("UPDATE artifacts SET pinned_at = ?, updated_at = datetime('now'), sync_dirty_at = ? WHERE id = ?").run(pinnedAt, Date.now(), id);
   }
 
   unpin(id: string): void {
-    this.db.prepare("UPDATE artifacts SET pinned_at = NULL, updated_at = datetime('now') WHERE id = ?").run(id);
+    this.db.prepare("UPDATE artifacts SET pinned_at = NULL, updated_at = datetime('now'), sync_dirty_at = ? WHERE id = ?").run(Date.now(), id);
   }
 
   // All rows that have been soft-deleted — newest first, for the Archived view.

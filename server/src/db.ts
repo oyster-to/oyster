@@ -133,6 +133,30 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
   // the user pinned the artefact, used to sort most-recently-pinned first.
   try { db.exec("ALTER TABLE artifacts ADD COLUMN pinned_at INTEGER"); } catch { /* already exists */ }
 
+  // Cloud mirror of the artefact registry — metadata only, no file content.
+  // Same dirty-tracking trio as sessions: the store stamps sync_dirty_at on
+  // every mutation; artifact-sync-service drains pending rows to D1 and
+  // records cloud_synced_at + cloud_owner_id on ack.
+  for (const sql of [
+    "ALTER TABLE artifacts ADD COLUMN sync_dirty_at INTEGER",
+    "ALTER TABLE artifacts ADD COLUMN cloud_synced_at INTEGER",
+    "ALTER TABLE artifacts ADD COLUMN cloud_owner_id TEXT",
+  ]) {
+    try { db.exec(sql); } catch { /* already exists */ }
+  }
+  // Promotion backfill, mirroring the spaces one above: rows that pre-date
+  // these columns (or were created on the free tier) get marked dirty exactly
+  // once so the whole registry reaches the cloud on first Pro sign-in.
+  // Tombstones (removed_at) are excluded — the cloud never knew them, so
+  // there's nothing to propagate.
+  db.exec(`
+    UPDATE artifacts
+       SET sync_dirty_at = CAST(strftime('%s','now') AS INTEGER) * 1000
+     WHERE sync_dirty_at IS NULL
+       AND cloud_synced_at IS NULL
+       AND removed_at IS NULL
+  `);
+
   // Profile binding (#318). Locks this local Oyster profile to one cloud
   // account on first Pro sign-in, preventing a second Pro user from pulling
   // their cloud data into the wrong local SQLite via cross-device sync.
