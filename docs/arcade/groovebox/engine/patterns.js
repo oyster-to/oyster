@@ -212,6 +212,19 @@ export function setLaneGroove(song, patternIdx, laneId, grooveName) {
   return true;
 }
 
+// addGroove(song, laneId, name, value) — register new named groove content for
+// a lane (share-import path). value is a groove VALUE: bars[] or, for note
+// lanes, { relative: true, bars }. Caller dedupes names; collision → false.
+export function addGroove(song, laneId, name, value) {
+  if (!song.lanes.some(l => l.id === laneId)) return false;
+  const bars = grooveBars(value);
+  if (!Array.isArray(bars) || bars.length < 1 || bars.length > 8) return false;
+  if (!song.grooves[laneId]) song.grooves[laneId] = {};
+  if (song.grooves[laneId][name]) return false;
+  song.grooves[laneId][name] = value;
+  return true;
+}
+
 // ── groove bar count ──────────────────────────────────────────────────────────
 // Groove lengths are powers of two (1/2/4/8). This keeps every groove dividing
 // the pattern's longest groove cleanly — no audible drift/wrapping.
