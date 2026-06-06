@@ -55,3 +55,33 @@ export function stutterEvents(t, sixteenth, ramp = 0.003, closed = 0) {
     [t + sixteenth, closed],
   ];
 }
+
+// ── v3: module-param registry + interpolation/timing math ────────────────────
+
+// Registry: neutral value + AMT interpolation space for every automatable
+// param. Presets may override scale per-automation; absent = this default.
+export const MODULE_PARAMS = {
+  'crusher.wet':        { neutral: 0,     scale: 'linear' },
+  'filter.freq':        { neutral: 20000, scale: 'log'    },
+  'filter.Q':           { neutral: 0.7,   scale: 'linear' },
+  'delay.wet':          { neutral: 0,     scale: 'linear' },
+  'delay.feedback':     { neutral: 0.55,  scale: 'linear' },
+  'gate.depth':         { neutral: 0,     scale: 'linear' },
+  'transport.tapeStop': { neutral: 0,     scale: 'linear' },
+};
+
+// AMT interpolation from→to in the param's space (amount 0 = from, 1 = to).
+export function scaleValue(from, to, amount, scale) {
+  if (scale === 'log') return from * Math.pow(to / from, amount);
+  return from + (to - from) * amount;
+}
+
+// Musical duration → seconds against the live tempo. Extensible by design:
+// 'seconds' is reserved for a future schema rev and rejected in v3.
+export function durationToSeconds(dur, t) {
+  if (!dur) return 0;
+  if (dur.unit === 'steps') return dur.value * t.sixteenth;
+  if (dur.unit === 'beats') return dur.value * t.beatSeconds;
+  if (dur.unit === 'bars')  return dur.value * t.barSeconds;
+  throw new Error(`punch: unsupported duration unit "${dur.unit}"`);
+}
