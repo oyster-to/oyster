@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, stutterEvents, laneInPunchBus } from '../engine/punch.js';
+import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, stutterEvents, laneInPunchBus, engageCapture, releaseCapture } from '../engine/punch.js';
 
 describe('PUNCH_NEUTRAL', () => {
   it('pins the idle chain to audibly-transparent values (spec safeguard 3)', () => {
@@ -127,5 +127,35 @@ describe('laneInPunchBus (active masks, union across held pads)', () => {
   });
   it('null mask in the set means all lanes', () => {
     expect(laneInPunchBus(lane, [null, ['drums']])).toBe(true);
+  });
+});
+
+describe('engageCapture / releaseCapture (per-lane knob capture, refcounted)', () => {
+  it('first engage captures the current value', () => {
+    const m = new Map();
+    expect(engageCapture(m, 'drums|filter.freq', 7000)).toBe(7000);
+    expect(m.get('drums|filter.freq')).toEqual({ value: 7000, count: 1 });
+  });
+  it('nested engage returns the ORIGINAL capture, not the punched value', () => {
+    const m = new Map();
+    engageCapture(m, 'k', 7000);
+    expect(engageCapture(m, 'k', 150)).toBe(7000);   // param already punched to 150
+    expect(m.get('k').count).toBe(2);
+  });
+  it('non-last release returns null (no restore yet)', () => {
+    const m = new Map();
+    engageCapture(m, 'k', 7000); engageCapture(m, 'k', 150);
+    expect(releaseCapture(m, 'k')).toBe(null);
+    expect(m.get('k').count).toBe(1);
+  });
+  it('last release returns the captured value and clears', () => {
+    const m = new Map();
+    engageCapture(m, 'k', 7000); engageCapture(m, 'k', 150);
+    releaseCapture(m, 'k');
+    expect(releaseCapture(m, 'k')).toBe(7000);
+    expect(m.has('k')).toBe(false);
+  });
+  it('release without engage is a safe null', () => {
+    expect(releaseCapture(new Map(), 'nope')).toBe(null);
   });
 });
