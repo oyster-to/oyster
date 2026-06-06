@@ -65,13 +65,17 @@ export default {
       return handleRegistry(req, d1Db(env.DB), env.EDIT_KEY_SECRET);
     }
 
-    // ─── Pretty share links: /s/<id>[@rev] → /?s=<id> ─────────────────────────
+    // ─── Pretty share links: /s/<id>[@rev] → groovebox app with ?s=<id> ───────
     // Redirect (not rewrite): index.html uses all-relative asset refs, so
-    // serving the app AT /s/<id> would break them. @rev is reserved syntax,
-    // ignored in v1 (never 404s).
+    // serving the app AT /s/<id> would break them. On groovebox.oyster.to the
+    // app lives at /; on arcade.oyster.to and wrangler dev (localhost) it lives
+    // at /groovebox/. @rev is reserved syntax, ignored in v1 (never 404s).
     {
       const m = url.pathname.match(/^\/s\/([a-z0-9]{4,16})(?:@\d+)?\/?$/i);
-      if (m) return Response.redirect(new URL(`/?s=${m[1].toLowerCase()}`, req.url).toString(), 302);
+      if (m) {
+        const base = url.hostname === 'groovebox.oyster.to' ? '/' : '/groovebox/';
+        return Response.redirect(new URL(`${base}?s=${m[1].toLowerCase()}`, req.url).toString(), 302);
+      }
     }
 
     // groovebox.oyster.to serves the groovebox at its root — rewrite every
