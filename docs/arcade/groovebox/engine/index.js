@@ -1,13 +1,25 @@
 import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
-import { eventsForStep } from './scheduler.js';
 import { createVoiceForType, trigger } from './voices.js';
-import { normalizeLanes, cachePoolsByType, laneByType, setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloExclusive, captureScene as _captureScene, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane, moveLane as _moveLane } from './lanes.js';
-import { sectionAt } from './arrangement.js';
+import { laneByType, toggleMute as _toggleMute, soloExclusive as _soloExclusive, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane, moveLane as _moveLane } from './lanes.js';
+import { flattenSong } from './flatten.js';
+import {
+  eventsForStepV2, advanceTarget, targetPattern,
+  addPattern as _addPattern, duplicatePattern as _duplicatePattern, removePattern as _removePattern,
+  setPatternBars as _setPatternBars, appendToChain as _appendToChain,
+  removeChainAt as _removeChainAt, moveChain as _moveChain,
+  toggleDrumStep as _toggleDrumStep, toggleNote as _toggleNote,
+} from './patterns.js';
 
 export function createEngine() {
   let song = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, pendingFill = null, activeFill = null, fillQueue = [];
-  let mode = 'live', songBar = 0;
+  // Playback target — what is driving sound. Follows the LAST CLICK even while
+  // stopped (spec): clicking sets `target` directly when stopped, or queues
+  // `pendingTarget` for the next bar boundary when playing. play() starts the
+  // current target from its top bar; stop() keeps the target.
+  let target = { kind: 'chain', pos: 0, barInPattern: 0 };
+  let pendingTarget = null;      // applied at the next bar boundary
+  let editIdx = 0;               // pattern open in the editors
   let keyQuantize = false, pendingTranspose = null;
   let masterComp = null, masterRev = null, masterVol = null, masterPan = null, masterWidth = null, masterEQ = null;
   let _widthOn = false;   // is the StereoWidener spliced into the master chain?
@@ -126,14 +138,16 @@ export function createEngine() {
 
   return {
     load(s) {
-      s.lanes = normalizeLanes(s.lanes, s);
-      song = s;
-      tempo = (typeof s.bpm === 'number' && isFinite(s.bpm)) ? s.bpm : tempo;
+      const v2 = (s.patterns && s.chain) ? s : flattenSong(s);
+      song = v2;
+      editIdx = 0; pendingTarget = null;
+      target = { kind: 'chain', pos: 0, barInPattern: 0 };
+      tempo = (typeof v2.bpm === 'number' && isFinite(v2.bpm)) ? v2.bpm : tempo;
       if (started) {
         for (const id of Object.keys(voices)) {
-          if (!s.lanes.some(l => l.id === id)) disposeLane(id);
+          if (!v2.lanes.some(l => l.id === id)) disposeLane(id);
         }
-        for (const lane of s.lanes) {
+        for (const lane of v2.lanes) {
           if (!voices[lane.id]) buildLane(lane);
         }
       }
@@ -142,7 +156,7 @@ export function createEngine() {
       if (!song) throw new Error('no song loaded');
       if (playing) return;                                   // ignore double-play (don't stack callbacks)
       await Tone.start(); ensure();
-      step = 0; songBar = 0;
+      step = 0;
       // Widen the scheduler lookahead: profiling showed events landing ~30-50ms
       // in the past under main-thread load (negative lead) with the default 100ms.
       // 300ms gives the lookahead scheduler enough buffer to stay ahead of jank.
@@ -163,47 +177,34 @@ export function createEngine() {
         const spb = stepsPerBar(song.meter);
         if (step % spb === 0) {
           if (pendingTranspose !== null) { song.transpose = pendingTranspose; pendingTranspose = null; }
-          const prevFill = activeFill;
-          if (mode === 'song' && song.arrangement && song.arrangement.length) {
-            const at = sectionAt(song.arrangement, songBar);
-            // Authored arrangement sections use type-keyed lane names; map by type → lane id
-            const L = at.section.lanes;
-            for (const [typeName, selection] of Object.entries(L)) {
-              const lane = laneByType(song.lanes, typeName);
-              if (lane) lane.selection = selection;
-            }
-            activeFill = at.isLastBar ? (at.section.fill || null) : null;
-            pendingFill = null;
-            songBar++;
+          if (step === 0) {
+            target = { ...target, barInPattern: 0 };       // play restarts the current target from its top bar
+          } else if (pendingTarget) {
+            target = pendingTarget; pendingTarget = null;  // switch at bar boundary
           } else {
-            activeFill = fillQueue.length ? fillQueue.shift() : pendingFill;
-            pendingFill = null;
+            target = advanceTarget(target, song);
           }
+          const prevFill = activeFill;
+          activeFill = fillQueue.length ? fillQueue.shift() : pendingFill;
+          pendingFill = null;
           if (prevFill && !activeFill) {
             const drumsVoice = voices[laneByType(song.lanes, 'drums')?.id];
             if (drumsVoice) drumsVoice.crash.triggerAttackRelease('8n', t, 0.9);
           }
         }
+        const patternIdx = targetPattern(target, song);
         const fillPat = activeFill ? (song.fills?.[activeFill] ?? null) : null;
-        for (const ev of eventsForStep(song, song.lanes, step, fillPat)) {
+        for (const ev of eventsForStepV2(song, patternIdx, target.barInPattern, step % spb, fillPat, song.transpose || 0)) {
           const v = voices[ev.laneId];
           if (v) trigger(v, ev, t, sixteenth, barSeconds);
         }
         if (onStepCb) {
-          const s = step; const sb = songBar; const qSnap = fillQueue.slice();
+          const s = step; const qSnap = fillQueue.slice();
+          const tSnap = { kind: target.kind, chainPos: target.kind === 'chain' ? target.pos : -1,
+                          patternIdx: targetPattern(target, song), barInPattern: target.barInPattern };
           Tone.Draw.schedule(() => {
-            const bar = Math.floor(s / spb);
-            onStepCb({
-              absStep: s,
-              bar,
-              stepInBar: s % spb,
-              fill: activeFill,
-              mode,
-              songIndex: (mode === 'song' && song.arrangement && song.arrangement.length)
-                ? sectionAt(song.arrangement, Math.max(0, sb - 1)).index
-                : -1,
-              queue: qSnap,
-            });
+            onStepCb({ absStep: s, bar: Math.floor(s / spb), stepInBar: s % spb,
+                       fill: activeFill, queue: qSnap, target: tSnap });
           }, t);
         }
         if (PERF) {
@@ -233,14 +234,13 @@ export function createEngine() {
     stop() {
       Tone.Transport.stop();
       if (repeatId !== null) { Tone.Transport.clear(repeatId); repeatId = null; }
-      step = 0; playing = false; pendingFill = null; activeFill = null; fillQueue = []; pendingTranspose = null;
+      step = 0; playing = false; pendingFill = null; activeFill = null; fillQueue = []; pendingTranspose = null; pendingTarget = null;
     },
     setTempo(bpm) { if (typeof bpm === 'number' && isFinite(bpm)) { tempo = bpm; Tone.Transport.bpm.value = bpm; } },
     onStep(cb) { onStepCb = cb; },
     getSong() { return song; },
     getLanes() { return song ? song.lanes : []; },
     // Lane ops by id
-    setLane(id, selection)  { if (song) _setLane(song.lanes, id, selection); },
     toggleMute(id)          { return song ? _toggleMute(song.lanes, id) : false; },
     toggleSolo(id)          { return song ? _soloExclusive(song.lanes, id) : false; },
     triggerFill(name)       { pendingFill = name; },
@@ -258,23 +258,47 @@ export function createEngine() {
       return dl ? _toggleDrumSolo(dl, voice) : false;
     },
     clearFill()  { pendingFill = null; activeFill = null; },
-    setMode(m)   { mode = m; songBar = 0; },
-    getMode()    { return mode; },
-    captureScene() {
-      if (song) {
-        song.arrangement = song.arrangement || [];
-        // captureScene returns { bars, lanes: { [laneId]: selection }, fill }
-        // For song-mode compatibility, we also need the type-keyed shape the arrangement expects.
-        // Re-encode back to type-keyed (for the 4 default lanes which have id===type).
-        const snapshot = _captureScene(song.lanes);
-        // Re-key lanes by type for authored arrangement back-compat
-        const typedLanes = {};
-        for (const lane of song.lanes) typedLanes[lane.type] = snapshot.lanes[lane.id];
-        song.arrangement.push({ ...snapshot, lanes: typedLanes });
-      }
-      return song ? song.arrangement.length : 0;
+    // ── patterns + chain ──────────────────────────────────────────────────────
+    getPatterns()        { return song ? song.patterns : []; },
+    getChain()           { return song ? song.chain : []; },
+    getEditPatternIndex(){ return editIdx; },
+    selectPattern(i) {
+      if (!song || !song.patterns[i]) return;
+      editIdx = i;
+      const next = { kind: 'pattern', idx: i, barInPattern: 0 };
+      if (playing) pendingTarget = next; else target = next;
     },
-    clearArrangement() { if (song) song.arrangement = []; },
+    playChain(pos) {
+      if (!song) return;
+      const p = Math.max(0, Math.min(pos, song.chain.length - 1));
+      const next = { kind: 'chain', pos: p, barInPattern: 0 };
+      if (playing) pendingTarget = next; else target = next;
+    },
+    getPlaybackTarget() {
+      return { kind: target.kind, chainPos: target.kind === 'chain' ? target.pos : -1,
+               patternIdx: song ? targetPattern(target, song) : 0, barInPattern: target.barInPattern,
+               pending: !!pendingTarget };
+    },
+    addPattern()            { return song ? _addPattern(song) : null; },
+    duplicatePattern(i)     { return song ? _duplicatePattern(song, i) : null; },
+    removePattern(i) {
+      if (!song || !_removePattern(song, i)) return false;
+      if (editIdx >= song.patterns.length) editIdx = song.patterns.length - 1;
+      if (target.kind === 'pattern') target = { kind: 'chain', pos: 0, barInPattern: 0 };
+      if (target.kind === 'chain' && target.pos >= song.chain.length) target = { kind: 'chain', pos: 0, barInPattern: 0 };
+      pendingTarget = null;
+      return true;
+    },
+    setPatternBars(i, n)    { if (song) _setPatternBars(song, i, n); },
+    appendToChain(i)        { if (song) _appendToChain(song, i); },
+    removeChainAt(pos) {
+      if (!song || !_removeChainAt(song, pos)) return false;
+      if (target.kind === 'chain' && target.pos >= song.chain.length) target = { kind: 'chain', pos: 0, barInPattern: 0 };
+      return true;
+    },
+    moveChain(from, to)     { if (song) _moveChain(song, from, to); },
+    toggleDrumStep(laneId, voice, barIdx, stepIdx) { if (song) _toggleDrumStep(song, editIdx, laneId, voice, barIdx, stepIdx); },
+    toggleNote(laneId, barIdx, stepIdx, note, dur) { if (song) _toggleNote(song, editIdx, laneId, barIdx, stepIdx, note, dur); },
     // setTone by lane id (melody lanes)
     setTone(id, type) {
       // Back-compat: if called with one arg (old API), treat it as the melody lane

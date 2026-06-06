@@ -1,52 +1,6 @@
-// ─── Lane-list normalisation ──────────────────────────────────────────────────
+// ─── Lane mutation helpers (Tone-free, unit-tested) ──────────────────────────
 import { emptyBarFor } from './patterns.js';
 
-const LANE_ORDER = ['drums', 'bass', 'chords', 'melody'];
-
-/**
- * normalizeLanes(authored)
- * Accepts either:
- *   - the authored object shape  { drums:{…}, bass:{…}, chords:{…}, melody:{…} }
- *   - or an already-normalised list  [{id,type,…}, …]
- * Returns a lane list. Idempotent.
- * Also caches `song._poolsByType` on the song object (caller must pass song as
- * second arg when available, or call cachePoolsByType separately).
- */
-export function normalizeLanes(authored, song) {
-  if (Array.isArray(authored)) {
-    // already a list — idempotent; still cache pools if song provided
-    if (song) cachePoolsByType(authored, song);
-    return authored;
-  }
-  const lanes = LANE_ORDER.map(type => {
-    const src = authored[type] || {};
-    const lane = { id: type, type, name: type, ...src };
-    // melody lanes get a default tone if not set
-    if (type === 'melody' && !lane.tone) lane.tone = 'pulse';
-    return lane;
-  });
-  if (song) cachePoolsByType(lanes, song);
-  return lanes;
-}
-
-/**
- * cachePoolsByType(lanes, song)
- * Stores `song._poolsByType = { drums, bass, chords, melody }` from the first
- * lane of each type that has a pool. Called by normalizeLanes and addLane so
- * the pool is always available even after all lanes of a type are removed.
- */
-export function cachePoolsByType(lanes, song) {
-  const cache = song._poolsByType || {};
-  for (const type of LANE_ORDER) {
-    if (!cache[type]) {
-      const lane = lanes.find(l => l.type === type && l.pool !== undefined);
-      if (lane) cache[type] = lane.pool;
-    }
-  }
-  song._poolsByType = cache;
-}
-
-// ─── Stage 2: lane mutation helpers (Tone-free, unit-tested) ─────────────────
 
 /**
  * uniqueLaneId(lanes, type) → collision-free id string.
@@ -144,17 +98,6 @@ export function laneByType(lanes, type) {
 }
 
 // ─── List-based lane mutations (operate by id) ────────────────────────────────
-
-export function setLane(lanes, id, selection) {
-  const lane = lanes.find(l => l.id === id);
-  if (lane) lane.selection = selection;
-}
-
-export function captureScene(lanes) {
-  const sel = {};
-  for (const lane of lanes) sel[lane.id] = lane.selection;
-  return { bars: 4, lanes: sel, fill: null };
-}
 
 export function toggleMute(lanes, id) {
   const lane = lanes.find(l => l.id === id);

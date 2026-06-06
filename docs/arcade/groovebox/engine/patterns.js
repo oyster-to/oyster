@@ -8,6 +8,8 @@ export function totalChainBars(song) {
   return song.chain.reduce((n, pi) => n + song.patterns[pi].bars, 0) || 1;
 }
 
+// Precondition: chain entries must index existing patterns; the engine mutation
+// APIs maintain this. (Throws if a chain entry references a missing pattern.)
 export function chainBarAt(song, songBar) {
   const total = totalChainBars(song);
   let b = ((songBar % total) + total) % total;
