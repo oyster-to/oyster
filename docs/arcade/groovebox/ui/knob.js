@@ -5,6 +5,23 @@
  * Double-click (or double-tap) resets to initial value.
  * While dragging, a floating bubble shows the value (0–100).
  */
+
+// One shared bubble on <body> — inside a knob strip it would be clipped by the
+// strip's overflow scroll + edge-fade mask (mask-image masks fixed descendants
+// too). Only one pointer drags a knob at a time, so a singleton is enough.
+let _bubble = null;
+function getBubble() {
+  if (!_bubble) {
+    _bubble = document.createElement('div');
+    _bubble.className = 'knob-bubble';
+    document.body.appendChild(_bubble);
+  }
+  return _bubble;
+}
+let _bubbleHideTimer = null;
+
+const fmt = v => Math.round(v * 100);
+
 export function makeKnob({ label, value = 0, onChange, tip, k }) {
   const initial = value;
   let current = value;
@@ -28,17 +45,10 @@ export function makeKnob({ label, value = 0, onChange, tip, k }) {
   const val = document.createElement('span');
   val.className = 'knob-val';
 
-  // Floating value bubble while dragging (position:fixed → escapes overflow clips)
-  const bubble = document.createElement('div');
-  bubble.className = 'knob-bubble';
-
   dial.appendChild(ind);
   wrapper.appendChild(dial);
   wrapper.appendChild(lbl);
   wrapper.appendChild(val);
-  wrapper.appendChild(bubble);
-
-  const fmt = v => Math.round(v * 100);
 
   function setRotation(v) {
     const deg = -135 + v * 270;
@@ -49,15 +59,14 @@ export function makeKnob({ label, value = 0, onChange, tip, k }) {
     current = Math.max(0, Math.min(1, v));
     setRotation(current);
     val.textContent = fmt(current);
-    bubble.textContent = fmt(current);
     onChange(current);
   }
 
   setRotation(current);
   val.textContent = fmt(current);
 
-  let bubbleHideTimer = null;
   function showBubble() {
+    const bubble = getBubble();
     const r = dial.getBoundingClientRect();
     bubble.style.left = (r.left + r.width / 2) + 'px';
     // Flip below the dial when there's no headroom (knob near viewport top)
@@ -65,12 +74,12 @@ export function makeKnob({ label, value = 0, onChange, tip, k }) {
     bubble.classList.toggle('below', below);
     bubble.style.top = below ? (r.bottom + 6) + 'px' : (r.top - 6) + 'px';
     bubble.textContent = fmt(current);
-    clearTimeout(bubbleHideTimer);
+    clearTimeout(_bubbleHideTimer);
     bubble.classList.add('show');
   }
   function hideBubble() {
-    clearTimeout(bubbleHideTimer);
-    bubbleHideTimer = setTimeout(() => bubble.classList.remove('show'), 350);
+    clearTimeout(_bubbleHideTimer);
+    _bubbleHideTimer = setTimeout(() => getBubble().classList.remove('show'), 350);
   }
 
   // Vertical drag
@@ -93,6 +102,7 @@ export function makeKnob({ label, value = 0, onChange, tip, k }) {
     const dy = e.clientY - dragStartY;
     movedPx = Math.max(movedPx, Math.abs(dy));
     setValue(dragStartValue - dy / 150);
+    getBubble().textContent = fmt(current);
   });
 
   // End the drag on up OR on cancel/lost-capture (OS gesture, blur, modal),
