@@ -495,48 +495,53 @@ function renderFills() {
   host.appendChild(row);
 }
 
-// ─── Punch-in FX pads (momentary; spec in project-notes/oyster/po20) ─────────
-const PUNCH_PADS = [
-  ['stutter', 'STUT',  '1'],
-  ['crush',   'CRUSH', '2'],
-  ['dive',    'DIVE',  '3'],
-  ['throw',   'THROW', '4'],
-  ['stop',    'STOP',  '5'],
-];
-const PUNCH_BY_KEY = Object.fromEntries(PUNCH_PADS.map(([name, , key]) => [key, name]));
+// ─── Punch-in FX pads (data-driven; spec in project-notes/oyster/po20) ───────
+// Pads render from preset data — names/keys live in the presets, not here.
+// localStorage 'gb-punch-presets' overrides the repo defaults when valid
+// (no editor UI yet — v3.5; hand-edited or future-UI overrides both load here).
+function loadPunchPresets() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('gb-punch-presets') || 'null');
+    if (saved) return eng.setPunchPresets(saved);   // engine validates; invalid → defaults kept
+  } catch (_) { /* corrupt JSON → defaults */ }
+  return eng.getPunchPresets();
+}
+let PUNCH_BY_KEY = {};   // key → slot index, rebuilt by renderPunch()
 
-function setPunch(name, on) {
-  eng.punch(name, on);
-  document.querySelector(`#punch .punchpad[data-punch="${name}"]`)?.classList.toggle('held', on);
+function setPunch(slot, on) {
+  eng.punch(slot, on);
+  document.querySelector(`#punch .punchpad[data-slot="${slot}"]`)?.classList.toggle('held', on);
 }
 
 function renderPunch() {
   const host = document.getElementById('punch');
   if (!host) return;
   host.innerHTML = '';
+  const presets = loadPunchPresets();
+  PUNCH_BY_KEY = Object.fromEntries(presets.map((p, i) => [p.key, i]));
   const row = document.createElement('div');
   row.className = 'punchrow';
   const lbl = document.createElement('span');
   lbl.className = 'flbl';
   lbl.textContent = 'PUNCH';
   row.appendChild(lbl);
-  for (const [name, label, key] of PUNCH_PADS) {
+  presets.forEach((p, slot) => {
     const pad = document.createElement('button');
     pad.className = 'punchpad';
-    pad.dataset.punch = name;
-    pad.append(label);
+    pad.dataset.slot = slot;
+    pad.append(p.name);
     const hint = document.createElement('span');
     hint.className = 'punchkey';
-    hint.textContent = key;
+    hint.textContent = p.key;
     pad.appendChild(hint);
-    pad.addEventListener('pointerdown', e => { e.preventDefault(); pad.setPointerCapture(e.pointerId); setPunch(name, true); });
-    const off = () => setPunch(name, false);
+    pad.addEventListener('pointerdown', e => { e.preventDefault(); pad.setPointerCapture(e.pointerId); setPunch(slot, true); });
+    const off = () => setPunch(slot, false);
     pad.addEventListener('pointerup', off);
     pad.addEventListener('pointercancel', off);
     row.appendChild(pad);
-  }
+  });
   // AMOUNT — the one performer-facing setting (DJM level/depth): scales how
-  // hard every pad hits. Effect internals stay fixed.
+  // hard every pad hits. Effect internals stay fixed preset data.
   row.appendChild(makeKnob({
     label: 'AMT',
     value: eng.getPunchAmount(),
@@ -546,23 +551,23 @@ function renderPunch() {
   host.appendChild(row);
 }
 
-// Keys 1–5 mirror the pads. Guards: key auto-repeat, and typing into inputs /
+// Preset keys mirror the pads. Guards: key auto-repeat, and typing into inputs /
 // selects / contenteditable (no keyboard hijack while renaming lanes etc.).
 function isTypingTarget(el) {
   return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
 }
 document.addEventListener('keydown', e => {
-  const name = PUNCH_BY_KEY[e.key];
-  if (!name || e.repeat || isTypingTarget(document.activeElement)) return;
+  const slot = PUNCH_BY_KEY[e.key];
+  if (slot === undefined || e.repeat || isTypingTarget(document.activeElement)) return;
   e.preventDefault();
-  setPunch(name, true);
+  setPunch(slot, true);
 });
 document.addEventListener('keyup', e => {
-  const name = PUNCH_BY_KEY[e.key];
-  if (name) setPunch(name, false);
+  const slot = PUNCH_BY_KEY[e.key];
+  if (slot !== undefined) setPunch(slot, false);
 });
 // Stuck-key guard: losing window focus releases every pad.
-window.addEventListener('blur', () => { for (const [name] of PUNCH_PADS) setPunch(name, false); });
+window.addEventListener('blur', () => { for (let s = 0; s < 5; s++) setPunch(s, false); });
 
 // ─── Master FX ───────────────────────────────────────────────────────────────
 function renderMaster() {

@@ -14,44 +14,66 @@ export const PUNCH_NEUTRAL = {
   tapeDelay: 0,
 };
 
-// Engaged (held) targets for each punch effect — internal tuning surface,
-// fixed defaults (crush 0.9: dogfood verdict — drums-only takes near-full).
-export const PUNCH_PARAMS = {
-  crush: { bits: 6, wet: 0.9 },
-  dive:  { freq: 150, q: 8, ramp: 0.15 },
-  throw: { wet: 0.6, feedback: 0.55, release: 1.5 },
-  stop:  { depth: 0.6, time: 0.8 },
-};
-
 // Punch bus channel-assign: lanes are armed by default; only an explicit
 // punchArm === false opts a lane out (serializes with the lane object).
 export function isPunchArmed(lane) {
   return lane.punchArm !== false;
 }
 
-// AMOUNT-scaled dive target. Log-space interpolation so half-amount sounds
-// like half a sweep, not a barely-audible top-end shelf.
-export function diveFreqForAmount(amount, neutral = PUNCH_NEUTRAL.filterFreq, target = PUNCH_PARAMS.dive.freq) {
-  return neutral * Math.pow(target / neutral, amount);
-}
-
-// STOP owns the gate (spec safeguard 1): stutter must not schedule gate
-// events while stop is held.
-export function stutterAllowed(held) {
-  return !held.stop;
-}
-
-// Gate envelope breakpoints for one 16th step: open first half, `closed`-level
-// second half (0 = full chop; AMOUNT scales it via closed = 1 - amount), with
-// `ramp`-second edges so the chops don't click. Consumed via
-// linearRampToValueAtTime; the final [stepEnd, closed] means the next step's
-// opening edge ramps cleanly from the closed level.
-export function stutterEvents(t, sixteenth, ramp = 0.003, closed = 0) {
+// GATE module math: tempo-synced chopper. division picks the chop cycle;
+// depth 1 = chop to silence, depth d = chop to (1 - d). `ramp`-second edges
+// so the chops don't click. stepIdx matters for divisions longer than one
+// step ('1/8' alternates whole steps). Consumed via linearRampToValueAtTime;
+// each step's final breakpoint is the level the next step ramps from.
+export function gateEventsForStep(t, sixteenth, stepIdx, division, depth, ramp = 0.003) {
+  const closed = 1 - depth;
+  if (division === '1/8') {
+    const lvl = stepIdx % 2 === 0 ? 1 : closed;
+    return [[t + ramp, lvl], [t + sixteenth, lvl]];
+  }
+  if (division === '1/32') {
+    const q = sixteenth / 4;
+    return [
+      [t + ramp, 1], [t + q, 1], [t + q + ramp, closed], [t + 2 * q, closed],
+      [t + 2 * q + ramp, 1], [t + 3 * q, 1], [t + 3 * q + ramp, closed], [t + 4 * q, closed],
+    ];
+  }
+  // default '1/16': open first half, closed second half of each step
   const half = sixteenth / 2;
-  return [
-    [t + ramp, 1],
-    [t + half, 1],
-    [t + half + ramp, closed],
-    [t + sixteenth, closed],
-  ];
+  return [[t + ramp, 1], [t + half, 1], [t + half + ramp, closed], [t + sixteenth, closed]];
+}
+
+// Back-compat wrapper (v2 signature took the closed level, not depth).
+export function stutterEvents(t, sixteenth, ramp = 0.003, closed = 0) {
+  return gateEventsForStep(t, sixteenth, 0, '1/16', 1 - closed, ramp);
+}
+
+// ── v3: module-param registry + interpolation/timing math ────────────────────
+
+// Registry: neutral value + AMT interpolation space for every automatable
+// param. Presets may override scale per-automation; absent = this default.
+export const MODULE_PARAMS = {
+  'crusher.wet':        { neutral: 0,     scale: 'linear' },
+  'filter.freq':        { neutral: 20000, scale: 'log'    },
+  'filter.Q':           { neutral: 0.7,   scale: 'linear' },
+  'delay.wet':          { neutral: 0,     scale: 'linear' },
+  'delay.feedback':     { neutral: 0.55,  scale: 'linear' },
+  'gate.depth':         { neutral: 0,     scale: 'linear' },
+  'transport.tapeStop': { neutral: 0,     scale: 'linear' },
+};
+
+// AMT interpolation from→to in the param's space (amount 0 = from, 1 = to).
+export function scaleValue(from, to, amount, scale) {
+  if (scale === 'log') return from * Math.pow(to / from, amount);
+  return from + (to - from) * amount;
+}
+
+// Musical duration → seconds against the live tempo. Extensible by design:
+// 'seconds' is reserved for a future schema rev and rejected in v3.
+export function durationToSeconds(dur, t) {
+  if (!dur) return 0;
+  if (dur.unit === 'steps') return dur.value * t.sixteenth;
+  if (dur.unit === 'beats') return dur.value * t.beatSeconds;
+  if (dur.unit === 'bars')  return dur.value * t.barSeconds;
+  throw new Error(`punch: unsupported duration unit "${dur.unit}"`);
 }
