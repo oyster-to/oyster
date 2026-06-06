@@ -794,6 +794,7 @@ body.gbm-knobval .knob-val { display: block; }
   box-shadow: 0 2px 10px rgba(0,0,0,0.55), 0 0 8px color-mix(in srgb, var(--acc) 30%, transparent);
 }
 .knob-bubble.show { opacity: 1; }
+.knob-bubble.below { transform: translate(-50%, 0); }   /* flipped under the dial */
 
 /* bigger touch targets on touch devices */
 @media (pointer: coarse) {
@@ -2141,15 +2142,18 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
    body.gbm-knobval   — persistent numeric readout under every knob (any width)
 */
 @media (max-width: 760px) {
-  /* ── reclaim chrome: page → cabinet → inner → panels ── */
-  body { padding: 6px 4px 28px; }
-  .cabinet { padding: 8px 6px 10px; border-radius: 12px; }
+  /* ── reclaim chrome: edge-to-edge — cabinet flattens into the page ── */
+  body { padding: 0 0 28px; }
+  .cabinet { padding: 0 0 6px; border-radius: 0; box-shadow: none; }
   .screw { display: none; }
-  .cabinet-inner { padding: 8px 8px 10px; border-radius: 8px; }
-  #strips { padding: 8px 6px; }
-  #fills, #punch, #master { padding: 8px 10px; }
+  .crt-vignette { display: none; }
+  .cabinet-inner { padding: 6px 4px 8px; border-radius: 0; box-shadow: none; }
+  #strips { padding: 6px 4px; }
+  #fills, #punch, #master { padding: 6px 8px; }
   #viz, #strips, #fills, #punch, #master, #arrange { margin-bottom: 8px; }
   .sec-drag { display: none; }   /* mouse-only affordance */
+  .titlebar { margin-bottom: 8px; }
+  h1 { font-size: 13px; letter-spacing: 0.1em; white-space: nowrap; }
 
   /* ── transport wraps; tempo + song get full rows ── */
   .transport { flex-wrap: wrap; row-gap: 8px; }

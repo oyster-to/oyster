@@ -60,7 +60,10 @@ export function makeKnob({ label, value = 0, onChange, tip, k }) {
   function showBubble() {
     const r = dial.getBoundingClientRect();
     bubble.style.left = (r.left + r.width / 2) + 'px';
-    bubble.style.top = (r.top - 6) + 'px';
+    // Flip below the dial when there's no headroom (knob near viewport top)
+    const below = r.top < 40;
+    bubble.classList.toggle('below', below);
+    bubble.style.top = below ? (r.bottom + 6) + 'px' : (r.top - 6) + 'px';
     bubble.textContent = fmt(current);
     clearTimeout(bubbleHideTimer);
     bubble.classList.add('show');
