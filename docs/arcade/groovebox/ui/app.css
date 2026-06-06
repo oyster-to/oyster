@@ -768,14 +768,14 @@ input[type=range] {
   text-transform: uppercase;
 }
 
-/* persistent numeric readout under the label — opt-in via body.gbm-knobval */
+/* persistent numeric readout under the label — opt-in via body.gb-knobval */
 .knob-val {
   display: none;
   font: 500 9px ui-monospace, Menlo, monospace;
   color: var(--dim);
   line-height: 1;
 }
-body.gbm-knobval .knob-val { display: block; }
+body.gb-knobval .knob-val { display: block; }
 
 /* floating value bubble while dragging a knob (fixed → escapes overflow clips) */
 .knob-bubble {
@@ -2139,7 +2139,7 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
    body.gbm-strip     — knobs in one horizontally swipeable row (default)
    body.gbm-wrap      — knobs wrap onto extra rows
    body.gbm-accordion — knobs hidden; tap a lane header to expand one at a time
-   body.gbm-knobval   — persistent numeric readout under every knob (any width)
+   body.gb-knobval    — persistent numeric readout (global Display setting, default off)
 */
 @media (max-width: 760px) {
   /* ── reclaim chrome: edge-to-edge — cabinet flattens into the page ── */
@@ -2219,13 +2219,52 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   /* ── variant: WRAP — knobs wrap onto extra rows ────────────────────────── */
   body.gbm-wrap .knobrow { flex-wrap: wrap; row-gap: 10px; }
 
-  /* ── variant: ACCORDION — tap lane header to expand ────────────────────── */
+  /* ── variant: ACCORDION — tap lane header (or chevron) to expand ───────── */
+  body.gbm-accordion .lane {
+    grid-template-columns: 16px 1fr auto auto auto;
+    grid-template-areas:
+      "drag  name  ms    actions chev"
+      "mctl  mctl  mctl  mctl    lvl"
+      "knobs knobs knobs knobs   knobs";
+    cursor: pointer;
+  }
   body.gbm-accordion .lane .knobrow { display: none; }
-  body.gbm-accordion .lane.open .knobrow { display: flex; }
-  body.gbm-accordion .lane .name { cursor: pointer; }
-  body.gbm-accordion .lane .name::after { content: " ▾"; color: var(--faint); }
-  body.gbm-accordion .lane.open .name::after { content: " ▴"; }
+  body.gbm-accordion .lane.open .knobrow {
+    display: flex;
+    animation: gbm-expand 0.16s ease;
+  }
+  /* disclosure chevron — the accordion affordance */
+  body.gbm-accordion .lane-expand {
+    display: inline-flex;
+    grid-area: chev;
+  }
+  body.gbm-accordion .lane.open {
+    border-color: var(--acc-dim);
+  }
+  body.gbm-accordion .lane.open .lane-expand {
+    transform: rotate(180deg);
+    color: var(--acc);
+    border-color: var(--acc-dim);
+  }
   /* master knobs always visible — accordion only applies to lanes */
+}
+
+@keyframes gbm-expand {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+
+/* chevron button: hidden everywhere except mobile accordion mode */
+.lane-expand {
+  display: none;
+  width: 26px; height: 26px; padding: 0;
+  align-items: center; justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--dim);
+  font-size: 12px;
+  line-height: 1;
+  transition: transform 0.18s ease, color 0.12s, border-color 0.12s;
 }
 
 /* ─── PROTO variant switcher (prototype-only chrome) ───────────────────────── */

@@ -41,7 +41,7 @@ export function makeKnob({ label, value = 0, onChange, tip, k }) {
   lbl.className = 'knob-lbl';
   lbl.textContent = label;
 
-  // Persistent numeric readout (hidden unless body.gbm-knobval)
+  // Persistent numeric readout (hidden unless body.gb-knobval)
   const val = document.createElement('span');
   val.className = 'knob-val';
 
