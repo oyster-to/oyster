@@ -25,10 +25,7 @@ bucket_name = "oyster-session-bytes"
 pattern = "cloud.oyster.to/api/*"
 zone_name = "oyster.to"
 
-# Remote view (spec 2026-06-05-cloud-remote-view): the app shell + its
-# same-origin /app/api/* rewrite live on the apex so the host-only
-# oyster_session cookie (#397) applies. Path-specific routes win over
-# whatever else serves oyster.to/*.
+# Legacy /app* URLs — kept indefinitely, serve only 308s to app.oyster.to.
 [[routes]]
 pattern = "oyster.to/app*"
 zone_name = "oyster.to"
@@ -37,11 +34,24 @@ zone_name = "oyster.to"
 pattern = "www.oyster.to/app*"
 zone_name = "oyster.to"
 
-# Cloud remote view SPA (web/ built with VITE_OYSTER_MODE=cloud, base /app/).
+# app.oyster.to — the remote view's own hostname (spec
+# 2026-06-05-app-oyster-to-migration). custom_domain auto-provisions
+# DNS + cert on deploy; the worker owns the entire hostname.
+[[routes]]
+pattern = "app.oyster.to"
+custom_domain = true
+
+# Forward /api/publish/* + /api/spaces/* on app.oyster.to to
+# oyster-publish without a public hop. Cookie and Origin pass through.
+[[services]]
+binding = "PUBLISH"
+service = "oyster-publish"
+
+# Cloud remote view SPA (web/ built with VITE_OYSTER_MODE=cloud, base /).
 # Run `npm run build:cloud` at the repo root before deploying.
 [assets]
 directory = "../../web/dist-cloud"
 binding = "ASSETS"
-# The worker gates /app itself; unknown paths under /app are SPA routes.
+# The worker gates the hostname root; unknown paths are SPA routes.
 not_found_handling = "single-page-application"
 run_worker_first = true

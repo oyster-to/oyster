@@ -13,6 +13,10 @@ export interface Env {
   // Cloud remote view SPA assets (web/dist-cloud). Served under /app via the
   // worker; hashed assets are public, navigations are auth-gated.
   ASSETS: Fetcher;
+  // Service binding to oyster-publish: /api/publish/* and /api/spaces/*
+  // on app.oyster.to forward over this (no public hop, cookie + Origin
+  // pass through untouched). Spec 2026-06-05-app-oyster-to-migration.
+  PUBLISH: Fetcher;
 }
 
 interface SessionUser {
