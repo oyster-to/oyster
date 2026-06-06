@@ -12,6 +12,11 @@ compatibility_date = "2026-04-01"
 directory = "../../docs/arcade"
 binding = "ASSETS"
 not_found_handling = "404-page"
+# Route every request through the worker (assets would otherwise be served
+# directly when the path matches a file, so groovebox.oyster.to/ was getting
+# the arcade index.html before the host rewrite in worker.ts could run).
+# The worker proxies to ASSETS, so arcade.oyster.to behavior is unchanged.
+run_worker_first = true
 
 # Custom Domain (NOT a plain Workers Route): Cloudflare provisions the DNS
 # record AND the TLS cert automatically on first deploy. A plain route
