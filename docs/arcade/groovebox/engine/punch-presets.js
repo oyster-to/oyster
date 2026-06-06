@@ -30,11 +30,10 @@ export function validatePreset(p) {
     const scale = a.scale || reg.scale;
     const from = (a.from === 'neutral' || a.from == null) ? reg.neutral : a.from;
     if (scale === 'log' && (from <= 0 || a.to <= 0)) return false;
-    // Gate-specific: depth is 0..1; division must be a supported chop cycle.
-    if (id === 'gate.depth') {
-      if (a.to < 0 || a.to > 1) return false;
-      if (a.division != null && !GATE_DIVISIONS.includes(a.division)) return false;
-    }
+    // Registry ranges are the safety boundary (e.g. delay feedback runaway).
+    if (reg.min != null && a.to < reg.min) return false;
+    if (reg.max != null && a.to > reg.max) return false;
+    if (id === 'gate.depth' && a.division != null && !GATE_DIVISIONS.includes(a.division)) return false;
     if (!validDuration(a.engage?.ramp) || !validDuration(a.release?.ramp)) return false;
   }
   return true;

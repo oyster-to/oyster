@@ -61,3 +61,15 @@ describe('validatePreset hardening (user-supplied localStorage overrides)', () =
     expect(validatePreset({ ...base, automations: [{ module: 'gate', param: 'depth', from: 'neutral', to: 0.8, division: '1/32' }] })).toBe(true);
   });
 });
+
+describe('registry ranges (v3.5 — single source of truth)', () => {
+  const base = { name: 'X', key: '1', engageQuantize: 'immediate', releaseQuantize: 'immediate' };
+  it('rejects delay.feedback above 0.95 (the v3 runaway hole)', () => {
+    expect(validatePreset({ ...base, automations: [{ module: 'delay', param: 'feedback', from: 'neutral', to: 5 }] })).toBe(false);
+    expect(validatePreset({ ...base, automations: [{ module: 'delay', param: 'feedback', from: 'neutral', to: 0.9 }] })).toBe(true);
+  });
+  it('rejects out-of-range to on any ranged param', () => {
+    expect(validatePreset({ ...base, automations: [{ module: 'crusher', param: 'wet', from: 'neutral', to: 1.5 }] })).toBe(false);
+    expect(validatePreset({ ...base, automations: [{ module: 'filter', param: 'freq', from: 'neutral', to: 50000 }] })).toBe(false);
+  });
+});

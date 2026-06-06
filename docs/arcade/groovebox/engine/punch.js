@@ -52,14 +52,16 @@ export function stutterEvents(t, sixteenth, ramp = 0.003, closed = 0) {
 
 // Registry: neutral value + AMT interpolation space for every automatable
 // param. Presets may override scale per-automation; absent = this default.
+// min/max are the single source of truth for valid automation targets:
+// validatePreset enforces them; the editor's sliders read them (v3.5).
 export const MODULE_PARAMS = {
-  'crusher.wet':        { neutral: 0,     scale: 'linear' },
-  'filter.freq':        { neutral: 20000, scale: 'log'    },
-  'filter.Q':           { neutral: 0.7,   scale: 'linear' },
-  'delay.wet':          { neutral: 0,     scale: 'linear' },
-  'delay.feedback':     { neutral: 0.55,  scale: 'linear' },
-  'gate.depth':         { neutral: 0,     scale: 'linear' },
-  'transport.tapeStop': { neutral: 0,     scale: 'linear' },
+  'crusher.wet':        { neutral: 0,     scale: 'linear', min: 0,   max: 1 },
+  'filter.freq':        { neutral: 20000, scale: 'log',    min: 100, max: 20000 },
+  'filter.Q':           { neutral: 0.7,   scale: 'linear', min: 0.5, max: 12 },
+  'delay.wet':          { neutral: 0,     scale: 'linear', min: 0,   max: 1 },
+  'delay.feedback':     { neutral: 0.55,  scale: 'linear', min: 0,   max: 0.95 },
+  'gate.depth':         { neutral: 0,     scale: 'linear', min: 0,   max: 1 },
+  'transport.tapeStop': { neutral: 0,     scale: 'linear', min: 0,   max: 1 },
 };
 
 // AMT interpolation from→to in the param's space (amount 0 = from, 1 = to).

@@ -55,13 +55,13 @@ describe('stutterEvents closed level', () => {
 
 describe('MODULE_PARAMS registry', () => {
   it('declares neutral + scale for every automatable param', () => {
-    expect(MODULE_PARAMS['filter.freq']).toEqual({ neutral: 20000, scale: 'log' });
-    expect(MODULE_PARAMS['filter.Q']).toEqual({ neutral: 0.7, scale: 'linear' });
-    expect(MODULE_PARAMS['crusher.wet']).toEqual({ neutral: 0, scale: 'linear' });
-    expect(MODULE_PARAMS['delay.wet']).toEqual({ neutral: 0, scale: 'linear' });
-    expect(MODULE_PARAMS['delay.feedback']).toEqual({ neutral: 0.55, scale: 'linear' });
-    expect(MODULE_PARAMS['gate.depth']).toEqual({ neutral: 0, scale: 'linear' });
-    expect(MODULE_PARAMS['transport.tapeStop']).toEqual({ neutral: 0, scale: 'linear' });
+    expect(MODULE_PARAMS['filter.freq']).toEqual({ neutral: 20000, scale: 'log', min: 100, max: 20000 });
+    expect(MODULE_PARAMS['filter.Q']).toEqual({ neutral: 0.7, scale: 'linear', min: 0.5, max: 12 });
+    expect(MODULE_PARAMS['crusher.wet']).toEqual({ neutral: 0, scale: 'linear', min: 0, max: 1 });
+    expect(MODULE_PARAMS['delay.wet']).toEqual({ neutral: 0, scale: 'linear', min: 0, max: 1 });
+    expect(MODULE_PARAMS['delay.feedback']).toEqual({ neutral: 0.55, scale: 'linear', min: 0, max: 0.95 });
+    expect(MODULE_PARAMS['gate.depth']).toEqual({ neutral: 0, scale: 'linear', min: 0, max: 1 });
+    expect(MODULE_PARAMS['transport.tapeStop']).toEqual({ neutral: 0, scale: 'linear', min: 0, max: 1 });
   });
 });
 
