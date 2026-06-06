@@ -87,7 +87,7 @@ export function createEngine() {
     punchTape   = new Tone.Delay({ delayTime: PUNCH_NEUTRAL.tapeDelay, maxDelay: 1 }).connect(masterPan);
     punchThrow  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.55, wet: PUNCH_NEUTRAL.throwWet }).connect(punchTape);
     punchFilter = new Tone.Filter({ type: 'lowpass', frequency: PUNCH_NEUTRAL.filterFreq, Q: PUNCH_NEUTRAL.filterQ }).connect(punchThrow);
-    punchCrush  = new Tone.BitCrusher(4); punchCrush.wet.value = PUNCH_NEUTRAL.crushWet; punchCrush.connect(punchFilter);
+    punchCrush  = new Tone.BitCrusher(6); punchCrush.wet.value = PUNCH_NEUTRAL.crushWet; punchCrush.connect(punchFilter);
     punchGate   = new Tone.Gain(PUNCH_NEUTRAL.gateGain).connect(punchCrush);
     masterComp = new Tone.Compressor({ threshold: 0, ratio: 1, attack: 0.01, release: 0.2 }).connect(punchGate);
     masterRev  = new Tone.Reverb({ decay: 2.2, wet: 0 }).connect(masterComp);
@@ -290,7 +290,7 @@ export function createEngine() {
       on = !!on;
       if (_punchHeld[name] === on) return;          // ignore repeat echoes
       _punchHeld[name] = on;
-      if (name === 'crush') punchCrush.wet.rampTo(on ? 1 : PUNCH_NEUTRAL.crushWet, 0.05);
+      if (name === 'crush') punchCrush.wet.rampTo(on ? 0.5 : PUNCH_NEUTRAL.crushWet, 0.05);   // 6-bit @ 50% = lo-fi grit, not broken speaker
       else if (name === 'dive') {
         punchFilter.frequency.rampTo(on ? 150 : PUNCH_NEUTRAL.filterFreq, 0.15);
         punchFilter.Q.rampTo(on ? 8 : PUNCH_NEUTRAL.filterQ, 0.15);
