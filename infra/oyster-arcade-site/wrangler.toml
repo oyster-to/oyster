@@ -35,3 +35,22 @@ custom_domain = true
 # Observability: lets `wrangler tail` work for debugging.
 [observability]
 enabled = true
+
+# ─── Share registry ───────────────────────────────────────────────────────────
+# One-time provisioning (see migrations/0001_registry.sql):
+#   npx wrangler d1 create gb-registry          → paste database_id below
+#   npx wrangler d1 migrations apply gb-registry --remote
+#   npx wrangler secret put EDIT_KEY_SECRET     → long random value (HMAC key)
+[[d1_databases]]
+binding = "DB"
+database_name = "gb-registry"
+database_id = "e7426a6d-91b2-497c-965a-4df469bb0727"
+migrations_dir = "migrations"
+
+# Write rate limit: 5 writes / 60s / IP. (Binding periods only support 10|60s,
+# so the spec's ~20/hr intent is enforced as a per-minute burst cap.)
+[[unsafe.bindings]]
+name = "WRITE_LIMIT"
+type = "ratelimit"
+namespace_id = "4401"
+simple = { limit = 5, period = 60 }

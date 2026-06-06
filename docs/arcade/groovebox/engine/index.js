@@ -10,7 +10,7 @@ import {
   appendToChain as _appendToChain,
   removeChainAt as _removeChainAt, moveChain as _moveChain,
   setDrumStep as _setDrumStep, toggleNote as _toggleNote,
-  setLaneGroove as _setLaneGroove, grooveFor,
+  setLaneGroove as _setLaneGroove, addGroove as _addGroove, grooveFor,
   setGrooveBars as _setGrooveBars,
 } from './patterns.js';
 import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, laneInPunchBus } from './punch.js';
@@ -494,6 +494,7 @@ export function createEngine() {
     addPattern()            { return song ? _addPattern(song, editIdx) : null; },
     duplicatePattern(i)     { return song ? _duplicatePattern(song, i) : null; },
     setLaneGroove(laneId, grooveName) { return song ? _setLaneGroove(song, editIdx, laneId, grooveName) : false; },
+    addGroove(laneId, name, value) { return song ? _addGroove(song, laneId, name, value) : false; },
     setGrooveBars(laneId, n) {
       if (!song) return null;
       const g = grooveFor(song, editIdx, laneId);

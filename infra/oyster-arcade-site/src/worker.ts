@@ -5,13 +5,79 @@
 // truth. Cloudflare's edge caches the responses by the origin's
 // Cache-Control headers (GitHub Pages sets long max-age on static files).
 
+// The share-registry handler is plain JS shared with the groovebox app and its
+// vitest suite (single source of truth) — wrangler bundles it here, hence the
+// allowJs tsconfig flag.
+import { handleRegistry } from '../../../docs/arcade/groovebox/registry/handler.js';
+
 export interface Env {
   ASSETS: Fetcher;
+  DB: D1Database;
+  EDIT_KEY_SECRET: string;
+  WRITE_LIMIT?: { limit(opts: { key: string }): Promise<{ success: boolean }> };
+}
+
+// D1 adapter for the handler's injected db interface. UNIQUE violations are
+// surfaced as { code: 'conflict' } so the handler can retry id generation.
+function d1Db(d1: D1Database) {
+  const T = 'gb_registry_items';
+  return {
+    async get(id: string) {
+      return await d1.prepare(`SELECT * FROM ${T} WHERE id = ?`).bind(id).first();
+    },
+    async insert(r: Record<string, unknown>) {
+      try {
+        await d1.prepare(
+          `INSERT INTO ${T} (id,kind,schema_version,name,author,payload,remix_of,revision,edit_key_hash,created_at,updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+          .bind(r.id, r.kind, r.schema_version, r.name, r.author, r.payload, r.remix_of,
+                r.revision, r.edit_key_hash, r.created_at, r.updated_at).run();
+      } catch (e) {
+        const msg = `${(e as Error).message ?? e} ${((e as Error & { cause?: Error }).cause?.message) ?? ''}`;
+        if (msg.includes('UNIQUE')) {
+          const err = new Error('conflict') as Error & { code: string };
+          err.code = 'conflict';
+          throw err;
+        }
+        throw e;
+      }
+    },
+    async update(id: string, f: { name: string; author: string; payload: string; revision: number; updated_at: string }) {
+      await d1.prepare(`UPDATE ${T} SET name=?, author=?, payload=?, revision=?, updated_at=? WHERE id=?`)
+        .bind(f.name, f.author, f.payload, f.revision, f.updated_at, id).run();
+    },
+  };
 }
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
+
+    // ─── Share registry API (all hosts; same-origin from both prod domains) ──
+    if (url.pathname === '/api/registry' || url.pathname.startsWith('/api/registry/')) {
+      if (req.method === 'POST' || req.method === 'PUT') {
+        const ip = req.headers.get('cf-connecting-ip') ?? 'unknown';
+        const rl = await env.WRITE_LIMIT?.limit({ key: ip });   // binding absent in local dev → skip
+        if (rl && !rl.success) {
+          return new Response(JSON.stringify({ error: 'rate limited — try again in a minute' }),
+            { status: 429, headers: { 'content-type': 'application/json' } });
+        }
+      }
+      return handleRegistry(req, d1Db(env.DB), env.EDIT_KEY_SECRET);
+    }
+
+    // ─── Pretty share links: /s/<id>[@rev] → groovebox app with ?s=<id> ───────
+    // Redirect (not rewrite): index.html uses all-relative asset refs, so
+    // serving the app AT /s/<id> would break them. On groovebox.oyster.to the
+    // app lives at /; on arcade.oyster.to and wrangler dev (localhost) it lives
+    // at /groovebox/. @rev is reserved syntax, ignored in v1 (never 404s).
+    {
+      const m = url.pathname.match(/^\/s\/([a-z0-9]{8})(?:@\d+)?\/?$/i);
+      if (m) {
+        const base = url.hostname === 'groovebox.oyster.to' ? '/' : '/groovebox/';
+        return Response.redirect(new URL(`${base}?s=${m[1].toLowerCase()}`, req.url).toString(), 302);
+      }
+    }
 
     // groovebox.oyster.to serves the groovebox at its root — rewrite every
     // path onto the /groovebox/ subtree of the same ASSETS directory. The

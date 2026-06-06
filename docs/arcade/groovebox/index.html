@@ -61,6 +61,39 @@
               <div id="credit"></div>
             </div>
           </div>
+          <button id="share-btn" title="Publish this song or a groove">PUBLISH</button>
+        </div>
+      </div>
+
+      <!-- Share modal -->
+      <div id="share-modal" hidden>
+        <div id="share-modal-backdrop"></div>
+        <div id="share-modal-box" role="dialog" aria-modal="true" aria-label="Publish">
+          <button id="share-modal-close" aria-label="Close publish">✕</button>
+          <h2>Publish</h2>
+          <div id="share-tabs">
+            <button id="share-tab-song" class="share-tab active">Song</button>
+            <button id="share-tab-groove" class="share-tab">Groove</button>
+          </div>
+          <div id="share-groove-pickers" hidden>
+            <select id="share-lane"></select>
+            <select id="share-groove"></select>
+          </div>
+          <label class="share-field">Name <input id="share-name" maxlength="80"></label>
+          <label class="share-field">By <input id="share-author" maxlength="40" placeholder="optional"></label>
+          <div id="share-actions">
+            <button id="share-update" hidden>Update</button>
+            <button id="share-submit">Publish</button>
+          </div>
+          <div id="share-result" hidden>
+            <input id="share-link" readonly>
+            <button id="share-copy">Copy</button>
+          </div>
+          <div id="share-error" hidden></div>
+          <div id="share-mine" hidden>
+            <h3>Your published</h3>
+            <ul id="share-mine-list"></ul>
+          </div>
         </div>
         <div id="arrange"></div>
       </div>
