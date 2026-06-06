@@ -7,7 +7,7 @@
 -- sessions / magic_link_tokens / device_codes.
 CREATE TABLE IF NOT EXISTS app_handoff_codes (
   code_hash   TEXT PRIMARY KEY,   -- sha256 hex of the raw token; raw never stored
-  session_id  TEXT NOT NULL,
+  session_id  TEXT NOT NULL,     -- no REFERENCES sessions(id): codes are 60s-lived and GC'd by expires_at; the callback re-validates the session row anyway
   created_at  INTEGER NOT NULL,
   expires_at  INTEGER NOT NULL,   -- created_at + 60_000
   consumed_at INTEGER
