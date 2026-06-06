@@ -969,6 +969,15 @@ body.gb-knob-values .knob-val { display: block; }
   box-shadow: 0 0 12px var(--hot);   /* the existing "driving sound" glow language */
 }
 
+/* ─── brand icon (topbar, beside the theme selector) ─────────────────────── */
+.brand-icon {
+  display: inline-flex; align-items: center;
+  color: var(--acc);
+  margin-right: 6px;
+  vertical-align: middle;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--acc) 40%, transparent));
+}
+
 /* ─── punch preset editor (v3.5 modal) ──────────────────────────────────── */
 .punchpad .punchedit { margin-left: 8px; opacity: 0.5; font-size: 11px; cursor: pointer; }
 .punchpad .punchedit:hover { opacity: 1; color: var(--acc); }
