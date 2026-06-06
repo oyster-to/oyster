@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PUNCH_NEUTRAL, PUNCH_PARAMS, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, stutterAllowed, stutterEvents, isPunchArmed, diveFreqForAmount } from '../engine/punch.js';
+import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, stutterEvents, isPunchArmed } from '../engine/punch.js';
 
 describe('PUNCH_NEUTRAL', () => {
   it('pins the idle chain to audibly-transparent values (spec safeguard 3)', () => {
@@ -9,14 +9,6 @@ describe('PUNCH_NEUTRAL', () => {
   });
 });
 
-describe('stutterAllowed', () => {
-  it('blocks stutter while STOP holds the gate (spec safeguard 1)', () => {
-    expect(stutterAllowed({ stutter: true, stop: true })).toBe(false);
-  });
-  it('allows stutter otherwise', () => {
-    expect(stutterAllowed({ stutter: true, stop: false })).toBe(true);
-  });
-});
 
 describe('stutterEvents', () => {
   const SIX = 0.125; // one 16th at 120bpm
@@ -34,14 +26,6 @@ describe('stutterEvents', () => {
   });
 });
 
-describe('PUNCH_PARAMS', () => {
-  it('pins engaged-target defaults (crush 0.9 per dogfood verdict)', () => {
-    expect(PUNCH_PARAMS.crush).toEqual({ bits: 6, wet: 0.9 });
-    expect(PUNCH_PARAMS.dive.freq).toBe(150);
-    expect(PUNCH_PARAMS.throw.wet).toBeGreaterThan(0);
-    expect(PUNCH_PARAMS.stop.depth).toBeGreaterThan(0);
-  });
-});
 
 describe('isPunchArmed', () => {
   it('defaults to armed when the lane has no punchArm flag', () => {
@@ -55,17 +39,6 @@ describe('isPunchArmed', () => {
   });
 });
 
-describe('diveFreqForAmount', () => {
-  it('hits the full dive target at amount 1', () => {
-    expect(diveFreqForAmount(1)).toBeCloseTo(150, 5);
-  });
-  it('stays at neutral for amount 0', () => {
-    expect(diveFreqForAmount(0)).toBeCloseTo(20000, 5);
-  });
-  it('interpolates in log space (perceptually even sweep)', () => {
-    expect(diveFreqForAmount(0.5)).toBeCloseTo(Math.sqrt(20000 * 150), 3);
-  });
-});
 
 describe('stutterEvents closed level', () => {
   it('chops to a partial level when closed > 0 (amount-scaled stutter)', () => {

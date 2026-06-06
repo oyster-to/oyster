@@ -14,31 +14,10 @@ export const PUNCH_NEUTRAL = {
   tapeDelay: 0,
 };
 
-// Engaged (held) targets for each punch effect — internal tuning surface,
-// fixed defaults (crush 0.9: dogfood verdict — drums-only takes near-full).
-export const PUNCH_PARAMS = {
-  crush: { bits: 6, wet: 0.9 },
-  dive:  { freq: 150, q: 8, ramp: 0.15 },
-  throw: { wet: 0.6, feedback: 0.55, release: 1.5 },
-  stop:  { depth: 0.6, time: 0.8 },
-};
-
 // Punch bus channel-assign: lanes are armed by default; only an explicit
 // punchArm === false opts a lane out (serializes with the lane object).
 export function isPunchArmed(lane) {
   return lane.punchArm !== false;
-}
-
-// AMOUNT-scaled dive target. Log-space interpolation so half-amount sounds
-// like half a sweep, not a barely-audible top-end shelf.
-export function diveFreqForAmount(amount, neutral = PUNCH_NEUTRAL.filterFreq, target = PUNCH_PARAMS.dive.freq) {
-  return neutral * Math.pow(target / neutral, amount);
-}
-
-// STOP owns the gate (spec safeguard 1): stutter must not schedule gate
-// events while stop is held.
-export function stutterAllowed(held) {
-  return !held.stop;
 }
 
 // GATE module math: tempo-synced chopper. division picks the chop cycle;
