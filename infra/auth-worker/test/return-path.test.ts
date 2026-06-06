@@ -93,3 +93,17 @@ describe("validateReturnPath — accepts access-redirect path", () => {
     expect(validateReturnPath("/api/publish/access-redirect/abc?x=1")).toBeNull();
   });
 });
+
+describe("validateReturnPath — accepts app-handoff path", () => {
+  it("accepts the app-handoff path exactly", () => {
+    expect(validateReturnPath("/auth/app-handoff")).toBe("/auth/app-handoff");
+  });
+
+  it("rejects app-handoff with a query string", () => {
+    expect(validateReturnPath("/auth/app-handoff?return=%2F")).toBeNull();
+  });
+
+  it("rejects app-handoff with a suffix", () => {
+    expect(validateReturnPath("/auth/app-handoff/extra")).toBeNull();
+  });
+});
