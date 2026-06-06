@@ -18,7 +18,7 @@ jobs:
     # branch does not land in our CI automatically. Manual bumps for now; revisit
     # once Dependabot/Renovate is configured for this repo.
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6.0.3
 
       - uses: actions/setup-node@v6.4.0
         with:
