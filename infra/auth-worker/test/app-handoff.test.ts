@@ -74,7 +74,7 @@ describe("GET /auth/app-handoff", () => {
     expect(row!.consumed_at).toBeNull();
     // 60s TTL in milliseconds.
     expect(row!.expires_at).toBeGreaterThanOrEqual(before + 59_000);
-    expect(row!.expires_at).toBeLessThanOrEqual(Date.now() + 61_000);
+    expect(row!.expires_at).toBeLessThanOrEqual(before + 61_000);
   });
 
   it("passes a valid return path through to the callback", async () => {
