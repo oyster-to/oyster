@@ -30,7 +30,9 @@ export default defineConfig(({ mode }) => ({
   // Read from process.env rather than vite's `mode` — the cloud script sets
   // VITE_OYSTER_MODE=cloud in the env before vite runs; `mode` is always
   // "production" for `vite build` regardless of this flag.
-  base: process.env.VITE_OYSTER_MODE === "cloud" ? "/app/" : "/",
+  // Cloud serves from the app.oyster.to root since spec
+  // 2026-06-05-app-oyster-to-migration — both builds use base "/".
+  base: "/",
   build: {
     outDir: process.env.VITE_OYSTER_MODE === "cloud" ? "dist-cloud" : "dist",
   },

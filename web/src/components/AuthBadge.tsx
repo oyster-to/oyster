@@ -203,10 +203,10 @@ export function AuthBadge() {
     setMenuOpen(false);
     setSignOutError(null);
     if (caps.cloud) {
-      // Cloud signs out against the apex auth worker (same origin as the
-      // SPA). The host-only oyster_session cookie rides along automatically;
-      // the worker revokes the session row and clears the cookie. Then we
-      // reload /app, which the worker will 401 → sign-in page.
+      // Cloud signs out against the oyster-cloud worker (same origin —
+      // app.oyster.to). It revokes the shared session row (apex included)
+      // and clears the host-only cookie. Then we reload "/", which the
+      // worker redirects into the apex handoff → sign-in.
       try {
         const res = await fetch("/auth/sign-out", { method: "POST" });
         if (!res.ok) {
@@ -219,7 +219,7 @@ export function AuthBadge() {
         console.error("[auth] sign-out failed:", err);
         return;
       }
-      window.location.href = "/app";
+      window.location.href = "/";
       return;
     }
     try {

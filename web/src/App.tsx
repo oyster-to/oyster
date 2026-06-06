@@ -32,15 +32,15 @@ import { apiPath } from "./data/http";
 import { caps } from "./caps";
 import "./App.css";
 
-// Client routes live under /app in the cloud build (oyster.to/app). Strip the
-// base before parsing a pathname, and re-add it on every history write so the
-// route logic below can stay base-agnostic. Both are no-ops locally
-// (routeBase === "").
+// Strip/re-add the route base prefix around history writes so route logic
+// stays base-agnostic. Both are no-ops now that both builds use routeBase "".
+// The indirection stays in place per spec 2026-06-05-app-oyster-to-migration.
+const base: string = caps.routeBase;
 const stripBase = (pathname: string) =>
-  caps.routeBase && (pathname === caps.routeBase || pathname.startsWith(caps.routeBase + "/"))
-    ? pathname.slice(caps.routeBase.length) || "/"
+  base && (pathname === base || pathname.startsWith(base + "/"))
+    ? pathname.slice(base.length) || "/"
     : pathname;
-const withBase = (path: string) => `${caps.routeBase}${path}`;
+const withBase = (path: string) => `${base}${path}`;
 
 // `?onboarding=force` wipes the dock's persisted state and pretends this
 // is a fresh install — lets us iterate on 0/3 hero copy without touching

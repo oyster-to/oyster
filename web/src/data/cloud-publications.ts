@@ -1,7 +1,8 @@
 // cloud-publications.ts — the cloud Artefacts tab shows what you've
-// PUBLISHED (oyster-publish worker, apex /api/publish/* — same origin as
-// /app, Origin header allowlisted for mutations). Publications are mapped
-// into Artifact-shaped objects so the existing tab renders them unchanged.
+// PUBLISHED (oyster-publish worker, served via service-binding proxy on
+// app.oyster.to — Origin header allowlisted for mutations). Publications
+// are mapped into Artifact-shaped objects so the existing tab renders them
+// unchanged.
 import type { Artifact, ArtifactKind } from "../../../shared/types";
 import { getJson, del, patchJson } from "./http";
 
