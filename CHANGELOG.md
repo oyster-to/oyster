@@ -12,6 +12,7 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 ### Fixed
 
 - **Untitled sessions get a name** — sessions without a title now show their folder name instead of a raw ID.
+- **Cloud remote view shows transcripts** — opening a session at app.oyster.to now displays the conversation (with live tail for active sessions) instead of a "transcript isn't on this device" notice.
 
 ## [0.11.0] - 2026-06-05
 
