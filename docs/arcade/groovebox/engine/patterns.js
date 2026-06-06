@@ -1,4 +1,10 @@
 // engine/patterns.js — pure v2 pattern/chain logic (Tone-free, unit-tested).
+//
+// Grooves model: patterns are combos of named groove references, not inline data.
+//   song.grooves  = { [laneId]: { [grooveName]: perBarData[] } }   // named, shared
+//   song.patterns = [ { bars: 1|2|4, lanes: { [laneId]: grooveName } } ]
+// A groove owns its length (its array); at pattern bar b it plays
+// groove[b % groove.length]. pattern.bars is the loop length.
 import { laneAudible, drumVoiceAudible, transposeNote, DRUM_KEYS } from './song.js';
 
 export const MAX_PATTERNS = 16;
@@ -35,6 +41,25 @@ export function advanceTarget(target, song) {
   return { kind: 'chain', pos: (target.pos + 1) % song.chain.length, barInPattern: 0 };
 }
 
+// ── groove resolution ───────────────────────────────────────────────────────
+// Resolve the groove data array for a lane at a pattern. Returns the array or
+// null (missing groove / empty → silent lane).
+function grooveData(song, pat, laneId) {
+  const name = pat.lanes[laneId];
+  const g = song.grooves[laneId]?.[name];
+  return (Array.isArray(g) && g.length) ? g : null;
+}
+
+// grooveFor(song, patternIdx, laneId) → { name, bars } | null
+// `bars` is the groove's own data array (named `bars` per the rework contract).
+export function grooveFor(song, patternIdx, laneId) {
+  const pat = song.patterns[patternIdx];
+  if (!pat) return null;
+  const name = pat.lanes[laneId];
+  const data = song.grooves[laneId]?.[name];
+  return data ? { name, bars: data } : null;
+}
+
 // ── event resolution ──────────────────────────────────────────────────────────
 export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = null, transpose = 0) {
   const pat = song.patterns[patternIdx];
@@ -43,9 +68,9 @@ export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = 
   const T = n => (tr ? transposeNote(n, tr) : n);
   for (const lane of song.lanes) {
     if (!laneAudible(song.lanes, lane)) continue;
-    const data = pat.lanes[lane.id];
+    const g = grooveData(song, pat, lane.id);
     if (lane.type === 'drums') {
-      const bar = fillPat || (data && data[barInPattern]) || {};
+      const bar = fillPat || (g ? g[barInPattern % g.length] : null) || {};
       for (const k of DRUM_KEYS) {
         if (bar[k] && bar[k].includes(step) && drumVoiceAudible(lane, k))
           ev.push({ laneId: lane.id, type: 'drums', voice: k });
@@ -57,7 +82,7 @@ export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = 
         }
       }
     } else {
-      const notes = (data && data[barInPattern]) || [];
+      const notes = (g ? g[barInPattern % g.length] : null) || [];
       for (const [s, n, dur] of notes) {
         if (s !== step) continue;
         if (lane.type === 'chords') {
@@ -75,21 +100,18 @@ export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = 
 // ── pattern mutations ─────────────────────────────────────────────────────────
 export function emptyBarFor(lane) { return lane.type === 'drums' ? {} : []; }
 
-export function addPattern(song) {
+// addPattern(song, fromIdx) — clone the picks of patterns[fromIdx] (groove refs
+// shared). An empty combo would be silence, so we always clone an existing one.
+export function addPattern(song, fromIdx = 0) {
   if (song.patterns.length >= MAX_PATTERNS) return null;
-  const lanes = {};
-  for (const lane of song.lanes) lanes[lane.id] = [emptyBarFor(lane)];
-  song.patterns.push({ bars: 1, lanes });
+  const src = song.patterns[fromIdx] || song.patterns[0];
+  if (!src) return null;
+  song.patterns.push({ bars: src.bars, lanes: { ...src.lanes } });
   return song.patterns.length - 1;
 }
 
-export function duplicatePattern(song, idx) {
-  if (song.patterns.length >= MAX_PATTERNS) return null;
-  const src = song.patterns[idx];
-  if (!src) return null;
-  song.patterns.push(JSON.parse(JSON.stringify(src)));
-  return song.patterns.length - 1;
-}
+// duplicatePattern is the same affordance as addPattern (clone the picks).
+export const duplicatePattern = addPattern;
 
 export function removePattern(song, idx) {
   if (song.patterns.length <= 1 || !song.patterns[idx]) return false;
@@ -99,15 +121,23 @@ export function removePattern(song, idx) {
   return true;
 }
 
+// Pure setter — validates 1|2|4 and sets pat.bars. Grooves keep their own length
+// (groove cycling handles short grooves under longer patterns); no padding.
 export function setPatternBars(song, idx, bars) {
   const pat = song.patterns[idx];
   if (!pat || ![1, 2, 4].includes(bars)) return;
   pat.bars = bars;
-  // Grow: pad with empty bars up to `bars`. Shrink: retain inactive bars (spec).
-  for (const lane of song.lanes) {
-    const data = pat.lanes[lane.id] || (pat.lanes[lane.id] = []);
-    while (data.length < bars) data.push(emptyBarFor(lane));
-  }
+}
+
+// ── groove pick / lookup ──────────────────────────────────────────────────────
+// setLaneGroove(song, patternIdx, laneId, grooveName) — set the edit pattern's
+// pick for a lane. Validates the groove exists.
+export function setLaneGroove(song, patternIdx, laneId, grooveName) {
+  const pat = song.patterns[patternIdx];
+  if (!pat) return false;
+  if (!song.grooves[laneId]?.[grooveName]) return false;
+  pat.lanes[laneId] = grooveName;
+  return true;
 }
 
 // ── chain mutations ───────────────────────────────────────────────────────────
@@ -129,26 +159,12 @@ export function moveChain(song, from, to) {
   song.chain.splice(Math.max(0, Math.min(to, song.chain.length)), 0, x);
 }
 
-// ── step edits (used by the editors) ─────────────────────────────────────────
-export function toggleDrumStep(song, patternIdx, laneId, voice, barIdx, step) {
-  const bar = song.patterns[patternIdx].lanes[laneId][barIdx]
-    || (song.patterns[patternIdx].lanes[laneId][barIdx] = {});
-  if (voice === 'tom') {
-    bar.tom = bar.tom || [];
-    const i = bar.tom.findIndex(x => x[0] === step);
-    if (i >= 0) bar.tom.splice(i, 1); else bar.tom.push([step, 3]);
-  } else {
-    bar[voice] = bar[voice] || [];
-    const i = bar[voice].indexOf(step);
-    if (i >= 0) bar[voice].splice(i, 1); else bar[voice].push(step);
-  }
-}
-
-// Explicit setter — the multi-bar editor computes the desired state from the
-// shown bar, then SETs it (not toggles) across every selected bar.
-export function setDrumStep(song, patternIdx, laneId, voice, barIdx, step, on) {
-  const bar = song.patterns[patternIdx].lanes[laneId][barIdx]
-    || (song.patterns[patternIdx].lanes[laneId][barIdx] = {});
+// ── step edits (used by the editors) — write into GROOVES ─────────────────────
+// barIdx is within the referenced groove's own length; the caller guarantees range.
+export function setDrumStep(song, laneId, grooveName, barIdx, voice, step, on) {
+  const groove = song.grooves[laneId]?.[grooveName];
+  if (!groove) return;
+  const bar = groove[barIdx] || (groove[barIdx] = {});
   if (voice === 'tom') {
     bar.tom = bar.tom || [];
     const i = bar.tom.findIndex(x => x[0] === step);
@@ -162,9 +178,10 @@ export function setDrumStep(song, patternIdx, laneId, voice, barIdx, step, on) {
   }
 }
 
-export function toggleNote(song, patternIdx, laneId, barIdx, step, note, dur = 2) {
-  const arr = song.patterns[patternIdx].lanes[laneId][barIdx]
-    || (song.patterns[patternIdx].lanes[laneId][barIdx] = []);
+export function toggleNote(song, laneId, grooveName, barIdx, step, note, dur = 2) {
+  const groove = song.grooves[laneId]?.[grooveName];
+  if (!groove) return;
+  const arr = groove[barIdx] || (groove[barIdx] = []);
   const i = arr.findIndex(x => x[0] === step);
   // Deep compare — chords lanes store array notes (['A3','C4']); reference
   // equality would silently fail to toggle them.

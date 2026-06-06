@@ -103,6 +103,7 @@ export function flattenSong(rich) {
   //    including the wrap onto bar 0).
   const lastSection = arrangement[arrangement.length - 1];
   const baked = [];                                                 // [bar] = { [laneId]: barData }
+  const bakedMeta = [];                                             // [bar] = { [laneId]: { selection, fill } }
   let activeFill = null;
   for (let bar = 0; bar < total; bar++) {
     const prevFill = bar === 0 ? (lastSection.fill || null) : activeFill;   // wrap-aware
@@ -115,17 +116,62 @@ export function flattenSong(rich) {
     const fillPat = activeFill ? (rich.fills?.[activeFill] ?? null) : null;
     const crashFlourish = !!(prevFill && !activeFill);
     const barData = {};
-    for (const lane of working) barData[lane.id] = bakeBar(rich, lane, bar, spb, lane.type === 'drums' ? fillPat : null, crashFlourish);
+    const barMeta = {};
+    for (const lane of working) {
+      const laneFill = lane.type === 'drums' ? fillPat : null;
+      barData[lane.id] = bakeBar(rich, lane, bar, spb, laneFill, crashFlourish);
+      // Record the source selection and any fill that landed in this lane's bar
+      // (drums lanes are the only ones the fill rewrites — name those variants).
+      barMeta[lane.id] = { selection: lane.selection, fill: laneFill ? activeFill : null };
+    }
     baked.push(barData);
+    bakedMeta.push(barMeta);
   }
 
   // 2. Section → pattern(s): detect a 1/2/4-bar period, else chunk into ≤4-bar runs.
+  //    Per pattern × lane, the lane's baked bars are interned as a named GROOVE,
+  //    deduped by content across the whole song; patterns store groove names.
   const patterns = [];
   const chain = [];
-  const seen = new Map();                                           // JSON(pattern) → index
+  const seen = new Map();                                           // JSON(pattern combo) → index
+
+  // Per-lane groove intern table: JSON(barData[]) → { name, data }.
+  const grooveByLane = {};   // laneId → Map(jsonContent → grooveName)
+  const grooves = {};        // laneId → { grooveName → barData[] }
+  const usedNames = {};      // laneId → Set(name)  (collision tracking)
+  for (const lane of working) { grooveByLane[lane.id] = new Map(); grooves[lane.id] = {}; usedNames[lane.id] = new Set(); }
+
+  // Base groove name from the recorded source selection (+fill where one landed).
+  function baseName(laneId, barRange) {
+    const sel = bakedMeta[barRange[0]][laneId]?.selection;
+    const base = sel != null ? String(sel) : 'groove';
+    // A fill rewrites the last bar of a section; name the variant when present.
+    const fill = barRange.map(b => bakedMeta[b][laneId]?.fill).find(Boolean);
+    return fill ? `${base} +${fill}` : base;
+  }
+
+  // Intern a lane's bars as a groove; return its (deduped) name.
+  function internGroove(laneId, barRange) {
+    const data = barRange.map(b => baked[b][laneId]);
+    const key = JSON.stringify(data);
+    const table = grooveByLane[laneId];
+    if (table.has(key)) return table.get(key);
+    // New content → assign a name, disambiguating collisions with ·2, ·3…
+    let name = baseName(laneId, barRange);
+    if (usedNames[laneId].has(name)) {
+      let n = 2;
+      while (usedNames[laneId].has(`${name} ·${n}`)) n++;
+      name = `${name} ·${n}`;
+    }
+    usedNames[laneId].add(name);
+    table.set(key, name);
+    grooves[laneId][name] = data;
+    return name;
+  }
+
   function pushPattern(bars, barRange) {
     const lanes = {};
-    for (const lane of working) lanes[lane.id] = barRange.map(b => baked[b][lane.id]);
+    for (const lane of working) lanes[lane.id] = internGroove(lane.id, barRange);
     const pat = { bars, lanes };
     const key = JSON.stringify(pat);
     if (seen.has(key)) return seen.get(key);
@@ -162,6 +208,6 @@ export function flattenSong(rich) {
 
   return {
     title: rich.title, artist: rich.artist, meter: rich.meter, bpm: rich.bpm,
-    lanes, patterns, chain, fills: rich.fills || {},
+    lanes, grooves, patterns, chain, fills: rich.fills || {},
   };
 }

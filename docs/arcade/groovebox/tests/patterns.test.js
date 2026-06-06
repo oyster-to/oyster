@@ -3,7 +3,7 @@ import {
   totalChainBars, chainBarAt, eventsForStepV2, advanceTarget,
   addPattern, duplicatePattern, removePattern, setPatternBars,
   appendToChain, removeChainAt, moveChain,
-  toggleDrumStep, setDrumStep, toggleNote, emptyBarFor,
+  setDrumStep, toggleNote, setLaneGroove, grooveFor, emptyBarFor,
 } from '../engine/patterns.js';
 
 const meter44 = { beatsPerBar: 4, beatUnit: 4, stepsPerBeat: 4 };
@@ -15,9 +15,19 @@ function makeSong() {
       { id: 'drums', type: 'drums', name: 'drums', muted: false, soloed: false },
       { id: 'melody', type: 'melody', name: 'melody', muted: false, soloed: false },
     ],
+    grooves: {
+      drums: {
+        groove2: [{ kick: [0, 8] }, { kick: [0], snare: [12] }],   // 2-bar
+        hats:   [{ hat: [0, 4, 8, 12] }],                          // 1-bar
+      },
+      melody: {
+        riff:  [[[0, 'C4', 2]], []],                               // 2-bar
+        chord: [[[4, ['E4', 'G4'], 'bar']]],                       // 1-bar
+      },
+    },
     patterns: [
-      { bars: 2, lanes: { drums: [{ kick: [0, 8] }, { kick: [0], snare: [12] }], melody: [[[0, 'C4', 2]], []] } },
-      { bars: 1, lanes: { drums: [{ hat: [0, 4, 8, 12] }], melody: [[[4, ['E4', 'G4'], 'bar']]] } },
+      { bars: 2, lanes: { drums: 'groove2', melody: 'riff' } },
+      { bars: 1, lanes: { drums: 'hats',    melody: 'chord' } },
     ],
     chain: [0, 0, 1],
     fills: {},
@@ -25,7 +35,7 @@ function makeSong() {
 }
 
 // ── chain math ──
-test('totalChainBars sums active bars over the chain', () => {
+test('totalChainBars sums pattern bars over the chain', () => {
   expect(totalChainBars(makeSong())).toBe(5);     // 2 + 2 + 1
 });
 
@@ -38,7 +48,7 @@ test('chainBarAt maps song bars to (chainPos, patternIdx, barInPattern) and wrap
 });
 
 // ── event resolution ──
-test('eventsForStepV2 emits drum + melody events from explicit data', () => {
+test('eventsForStepV2 emits drum + melody events resolved through grooves', () => {
   const s = makeSong();
   expect(eventsForStepV2(s, 0, 0, 0, null, 0)).toEqual([
     { laneId: 'drums', type: 'drums', voice: 'kick' },
@@ -52,7 +62,8 @@ test('eventsForStepV2 emits drum + melody events from explicit data', () => {
 test('eventsForStepV2: array note → poly chords event, single note on chords lane → arp event', () => {
   const s = makeSong();
   s.lanes.push({ id: 'chords', type: 'chords', name: 'chords', muted: false, soloed: false });
-  s.patterns[0].lanes.chords = [[[0, ['A3', 'C4'], 'bar'], [2, 'A3', 1]], []];
+  s.grooves.chords = { prog: [[[0, ['A3', 'C4'], 'bar'], [2, 'A3', 1]], []] };
+  s.patterns[0].lanes.chords = 'prog';
   const ev = eventsForStepV2(s, 0, 0, 0, null, 0);
   expect(ev).toContainEqual({ laneId: 'chords', type: 'chords', mode: 'pad', notes: ['A3', 'C4'], dur: 'bar' });
   const ev2 = eventsForStepV2(s, 0, 0, 2, null, 0);
@@ -69,10 +80,31 @@ test('eventsForStepV2 honours transpose, fill override, and mute', () => {
   expect(eventsForStepV2(s, 0, 0, 0, null, 0).some(e => e.type === 'drums')).toBe(false);
 });
 
-test('eventsForStepV2 ignores inactive bars implicitly (caller passes barInPattern < bars)', () => {
+test('eventsForStepV2: a 1-bar groove under a longer pattern cycles (b % length)', () => {
   const s = makeSong();
-  s.patterns[1].lanes.drums.push({ kick: [0] });   // stored beyond bars:1 — inactive
-  expect(totalChainBars(s)).toBe(5);                // unchanged: bars still 1
+  // pattern 1 is 1 bar; force it to 4 and confirm the 1-bar 'hats' groove repeats.
+  setPatternBars(s, 1, 4);
+  for (const barInPattern of [0, 1, 2, 3]) {
+    const ev = eventsForStepV2(s, 1, barInPattern, 4, null, 0);
+    expect(ev).toContainEqual({ laneId: 'drums', type: 'drums', voice: 'hat' });
+  }
+});
+
+test('eventsForStepV2: a 2-bar groove under a 4-bar pattern alternates its two bars', () => {
+  const s = makeSong();
+  setPatternBars(s, 0, 4);
+  // bar 0 ≡ bar 2 (groove bar 0: kick at 0); bar 1 ≡ bar 3 (groove bar 1: snare at 12)
+  expect(eventsForStepV2(s, 0, 2, 0, null, 0)).toContainEqual({ laneId: 'drums', type: 'drums', voice: 'kick' });
+  expect(eventsForStepV2(s, 0, 3, 12, null, 0)).toContainEqual({ laneId: 'drums', type: 'drums', voice: 'snare' });
+});
+
+test('eventsForStepV2: missing or empty groove → silent lane', () => {
+  const s = makeSong();
+  s.patterns[0].lanes.drums = 'nope';                 // dangling ref
+  expect(eventsForStepV2(s, 0, 0, 0, null, 0).some(e => e.type === 'drums')).toBe(false);
+  s.grooves.drums.blank = [];                         // empty groove
+  s.patterns[0].lanes.drums = 'blank';
+  expect(eventsForStepV2(s, 0, 0, 0, null, 0).some(e => e.type === 'drums')).toBe(false);
 });
 
 // ── playback target ──
@@ -86,23 +118,23 @@ test('advanceTarget walks chain positions and wraps; pattern loop stays put', ()
 });
 
 // ── pattern mutations ──
-test('addPattern appends an empty 1-bar pattern with data slots for every lane; cap 16', () => {
+test('addPattern clones the picks of patterns[fromIdx] (groove refs shared); cap 16', () => {
   const s = makeSong();
-  const idx = addPattern(s);
+  const idx = addPattern(s, 1);
   expect(idx).toBe(2);
-  expect(s.patterns[2].bars).toBe(1);
-  expect(s.patterns[2].lanes.drums).toEqual([{}]);
-  expect(s.patterns[2].lanes.melody).toEqual([[]]);
-  while (s.patterns.length < 16) addPattern(s);
-  expect(addPattern(s)).toBeNull();
+  expect(s.patterns[2]).toEqual({ bars: 1, lanes: { drums: 'hats', melody: 'chord' } });
+  // picks are a shallow copy — editing the new pattern's pick doesn't touch the source
+  s.patterns[2].lanes.drums = 'groove2';
+  expect(s.patterns[1].lanes.drums).toBe('hats');
+  while (s.patterns.length < 16) addPattern(s, 0);
+  expect(addPattern(s, 0)).toBeNull();
 });
 
-test('duplicatePattern deep-clones', () => {
+test('duplicatePattern is the same affordance as addPattern (clones picks)', () => {
   const s = makeSong();
+  expect(duplicatePattern).toBe(addPattern);
   const idx = duplicatePattern(s, 0);
-  expect(idx).toBe(2);
-  s.patterns[2].lanes.drums[0].kick.push(15);
-  expect(s.patterns[0].lanes.drums[0].kick).toEqual([0, 8]);
+  expect(s.patterns[idx]).toEqual({ bars: 2, lanes: { drums: 'groove2', melody: 'riff' } });
 });
 
 test('removePattern: blocked on last; reindexes chain; falls back to [0] if chain empties', () => {
@@ -117,17 +149,37 @@ test('removePattern: blocked on last; reindexes chain; falls back to [0] if chai
   expect(s2.chain).toEqual([0]);                    // fallback: first remaining pattern
 });
 
-test('setPatternBars: grow pads with empty bars, shrink retains inactive bars', () => {
+test('setPatternBars accepts 1/2/4, rejects 3, and never touches grooves', () => {
   const s = makeSong();
+  const before = JSON.parse(JSON.stringify(s.grooves));
   setPatternBars(s, 0, 4);
   expect(s.patterns[0].bars).toBe(4);
-  expect(s.patterns[0].lanes.drums.length).toBe(4);
-  expect(s.patterns[0].lanes.drums[2]).toEqual({});
   setPatternBars(s, 0, 1);
   expect(s.patterns[0].bars).toBe(1);
-  expect(s.patterns[0].lanes.drums.length).toBe(4); // inactive bars retained
+  setPatternBars(s, 0, 3);                          // invalid → no change
+  expect(s.patterns[0].bars).toBe(1);
   setPatternBars(s, 0, 2);
-  expect(s.patterns[0].lanes.drums[1]).toEqual({ kick: [0], snare: [12] }); // round-trip
+  expect(s.patterns[0].bars).toBe(2);
+  expect(s.grooves).toEqual(before);               // grooves untouched throughout
+});
+
+// ── groove pick / lookup ──
+test('setLaneGroove sets the edit pattern pick; rejects unknown grooves', () => {
+  const s = makeSong();
+  expect(setLaneGroove(s, 0, 'drums', 'hats')).toBe(true);
+  expect(s.patterns[0].lanes.drums).toBe('hats');
+  expect(setLaneGroove(s, 0, 'drums', 'nope')).toBe(false);
+  expect(s.patterns[0].lanes.drums).toBe('hats');   // unchanged
+  expect(setLaneGroove(s, 99, 'drums', 'hats')).toBe(false); // bad pattern idx
+});
+
+test('grooveFor returns {name, bars} or null', () => {
+  const s = makeSong();
+  const g = grooveFor(s, 0, 'drums');
+  expect(g.name).toBe('groove2');
+  expect(g.bars).toBe(s.grooves.drums.groove2);
+  s.patterns[0].lanes.drums = 'nope';
+  expect(grooveFor(s, 0, 'drums')).toBeNull();
 });
 
 // ── chain mutations ──
@@ -144,55 +196,56 @@ test('appendToChain / removeChainAt (last-chip blocked) / moveChain', () => {
   expect(s.chain).toEqual([0]);
 });
 
-// ── step edits ──
-test('toggleDrumStep toggles hits; tom gets default semi 3', () => {
+// ── step edits (write into grooves) ──
+test('setDrumStep writes into the named groove; on idempotent, off removes', () => {
   const s = makeSong();
-  toggleDrumStep(s, 0, 'drums', 'kick', 0, 0);
-  expect(s.patterns[0].lanes.drums[0].kick).toEqual([8]);
-  toggleDrumStep(s, 0, 'drums', 'tom', 0, 5);
-  expect(s.patterns[0].lanes.drums[0].tom).toEqual([[5, 3]]);
-  toggleDrumStep(s, 0, 'drums', 'tom', 0, 5);
-  expect(s.patterns[0].lanes.drums[0].tom).toEqual([]);
-});
-
-test('setDrumStep sets state (not toggle); on is idempotent, off removes', () => {
-  const s = makeSong();
-  setDrumStep(s, 0, 'drums', 'kick', 0, 0, true);     // already present
-  expect(s.patterns[0].lanes.drums[0].kick).toEqual([0, 8]); // idempotent on
-  setDrumStep(s, 0, 'drums', 'kick', 0, 4, true);     // add new
-  expect(s.patterns[0].lanes.drums[0].kick).toEqual([0, 8, 4]);
-  setDrumStep(s, 0, 'drums', 'kick', 0, 8, false);    // remove
-  expect(s.patterns[0].lanes.drums[0].kick).toEqual([0, 4]);
-  setDrumStep(s, 0, 'drums', 'kick', 0, 13, false);   // off when absent: no-op
-  expect(s.patterns[0].lanes.drums[0].kick).toEqual([0, 4]);
+  setDrumStep(s, 'drums', 'groove2', 0, 'kick', 0, true);     // already present
+  expect(s.grooves.drums.groove2[0].kick).toEqual([0, 8]);    // idempotent on
+  setDrumStep(s, 'drums', 'groove2', 0, 'kick', 4, true);     // add new
+  expect(s.grooves.drums.groove2[0].kick).toEqual([0, 8, 4]);
+  setDrumStep(s, 'drums', 'groove2', 0, 'kick', 8, false);    // remove
+  expect(s.grooves.drums.groove2[0].kick).toEqual([0, 4]);
+  setDrumStep(s, 'drums', 'groove2', 0, 'kick', 13, false);   // off when absent: no-op
+  expect(s.grooves.drums.groove2[0].kick).toEqual([0, 4]);
 });
 
 test('setDrumStep tom: on preserves existing semi, adds [step,3] if absent, off removes', () => {
   const s = makeSong();
-  s.patterns[0].lanes.drums[0].tom = [[5, 1]];
-  setDrumStep(s, 0, 'drums', 'tom', 0, 5, true);      // already present — keep semi 1
-  expect(s.patterns[0].lanes.drums[0].tom).toEqual([[5, 1]]);
-  setDrumStep(s, 0, 'drums', 'tom', 0, 9, true);      // absent — default semi 3
-  expect(s.patterns[0].lanes.drums[0].tom).toEqual([[5, 1], [9, 3]]);
-  setDrumStep(s, 0, 'drums', 'tom', 0, 5, false);     // off — remove
-  expect(s.patterns[0].lanes.drums[0].tom).toEqual([[9, 3]]);
+  s.grooves.drums.groove2[0].tom = [[5, 1]];
+  setDrumStep(s, 'drums', 'groove2', 0, 'tom', 5, true);      // already present — keep semi 1
+  expect(s.grooves.drums.groove2[0].tom).toEqual([[5, 1]]);
+  setDrumStep(s, 'drums', 'groove2', 0, 'tom', 9, true);      // absent — default semi 3
+  expect(s.grooves.drums.groove2[0].tom).toEqual([[5, 1], [9, 3]]);
+  setDrumStep(s, 'drums', 'groove2', 0, 'tom', 5, false);     // off — remove
+  expect(s.grooves.drums.groove2[0].tom).toEqual([[9, 3]]);
+});
+
+test('setDrumStep on a missing groove is a no-op', () => {
+  const s = makeSong();
+  expect(() => setDrumStep(s, 'drums', 'nope', 0, 'kick', 0, true)).not.toThrow();
 });
 
 test('toggleNote: same note removes, different note replaces (monophonic per step)', () => {
   const s = makeSong();
-  toggleNote(s, 0, 'melody', 0, 0, 'C4', 2);
-  expect(s.patterns[0].lanes.melody[0]).toEqual([]);
-  toggleNote(s, 0, 'melody', 0, 4, 'E4', 2);
-  toggleNote(s, 0, 'melody', 0, 4, 'G4', 2);
-  expect(s.patterns[0].lanes.melody[0]).toEqual([[4, 'G4', 2]]);
+  toggleNote(s, 'melody', 'riff', 0, 0, 'C4', 2);
+  expect(s.grooves.melody.riff[0]).toEqual([]);
+  toggleNote(s, 'melody', 'riff', 0, 4, 'E4', 2);
+  toggleNote(s, 'melody', 'riff', 0, 4, 'G4', 2);
+  expect(s.grooves.melody.riff[0]).toEqual([[4, 'G4', 2]]);
 });
 
 test('toggleNote deep-compares array notes (chords)', () => {
   const s = makeSong();
-  s.lanes.push({ id: 'chords', type: 'chords', name: 'chords', muted: false, soloed: false });
-  s.patterns[0].lanes.chords = [[[0, ['A3', 'C4'], 'bar']], []];
-  toggleNote(s, 0, 'chords', 0, 0, ['A3', 'C4'], 'bar');
-  expect(s.patterns[0].lanes.chords[0]).toEqual([]);   // removed, not duplicated
+  s.grooves.chords = { prog: [[[0, ['A3', 'C4'], 'bar']], []] };
+  toggleNote(s, 'chords', 'prog', 0, 0, ['A3', 'C4'], 'bar');
+  expect(s.grooves.chords.prog[0]).toEqual([]);   // removed, not duplicated
+});
+
+test('editing a groove changes every pattern that references it', () => {
+  const s = makeSong();
+  // both pattern 0 (chain pos 0,1) reference drums groove 'groove2'
+  setDrumStep(s, 'drums', 'groove2', 0, 'snare', 4, true);
+  expect(eventsForStepV2(s, 0, 0, 4, null, 0)).toContainEqual({ laneId: 'drums', type: 'drums', voice: 'snare' });
 });
 
 test('emptyBarFor returns {} for drums lanes and [] for others', () => {

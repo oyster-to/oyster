@@ -24,13 +24,21 @@ for (const [name, song] of Object.entries(SONGS)) {
     expect(v2.patterns.length).toBeGreaterThanOrEqual(1);
     for (const p of v2.patterns) {
       expect([1, 2, 4]).toContain(p.bars);
-      for (const lane of v2.lanes) expect(p.lanes[lane.id].length).toBe(p.bars);
+      // Every pick references an existing groove.
+      for (const lane of v2.lanes) {
+        const name = p.lanes[lane.id];
+        expect(typeof name).toBe('string');
+        expect(v2.grooves[lane.id]?.[name]).toBeDefined();
+      }
     }
+    // Every chain entry indexes an existing pattern.
+    for (const pi of v2.chain) expect(v2.patterns[pi]).toBeDefined();
     for (const lane of v2.lanes) {
       expect(lane.pool).toBeUndefined();
       expect(lane.selection).toBeUndefined();
     }
-    expect(JSON.parse(JSON.stringify(v2))).toBeTruthy();   // fully JSON-serializable
+    expect(JSON.parse(JSON.stringify(v2.grooves))).toBeTruthy();   // grooves JSON-serializable
+    expect(JSON.parse(JSON.stringify(v2))).toBeTruthy();           // fully JSON-serializable
   });
 }
 

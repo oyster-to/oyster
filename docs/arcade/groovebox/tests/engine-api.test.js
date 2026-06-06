@@ -78,3 +78,31 @@ test('pattern/chain mutation APIs are wired through', () => {
   eng.setPatternBars(idx, 4);
   expect(eng.getSong().patterns[idx].bars).toBe(4);
 });
+
+test('getGrooves lists named grooves; flattened kids has a drums groove named from "four"', () => {
+  const eng = loaded();
+  const grooves = eng.getGrooves();
+  expect(grooves.drums).toBeDefined();
+  const drumNames = Object.keys(grooves.drums);
+  // kids' first/last sections select the 'four' kit (with fills baked in).
+  expect(drumNames.some(n => n.startsWith('four'))).toBe(true);
+});
+
+test('setLaneGroove changes the edit pattern pick and is validated', () => {
+  const eng = loaded();
+  eng.selectPattern(1);
+  const drumGrooves = Object.keys(eng.getGrooves().drums);
+  const target = drumGrooves[0];
+  expect(eng.setLaneGroove('drums', target)).toBe(true);
+  expect(eng.getSong().patterns[1].lanes.drums).toBe(target);
+  expect(eng.setLaneGroove('drums', 'definitely-not-a-groove')).toBe(false);
+  expect(eng.getSong().patterns[1].lanes.drums).toBe(target);   // unchanged
+});
+
+test('addPattern clones the edit pattern picks', () => {
+  const eng = loaded();
+  eng.selectPattern(2);
+  const picks = { ...eng.getSong().patterns[2].lanes };
+  const idx = eng.addPattern();
+  expect(eng.getSong().patterns[idx].lanes).toEqual(picks);
+});

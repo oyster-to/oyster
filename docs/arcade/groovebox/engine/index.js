@@ -9,6 +9,7 @@ import {
   setPatternBars as _setPatternBars, appendToChain as _appendToChain,
   removeChainAt as _removeChainAt, moveChain as _moveChain,
   setDrumStep as _setDrumStep, toggleNote as _toggleNote,
+  setLaneGroove as _setLaneGroove, grooveFor,
 } from './patterns.js';
 
 export function createEngine() {
@@ -261,6 +262,7 @@ export function createEngine() {
     // ── patterns + chain ──────────────────────────────────────────────────────
     getPatterns()        { return song ? song.patterns : []; },
     getChain()           { return song ? song.chain : []; },
+    getGrooves()         { return song ? song.grooves : {}; },
     getEditPatternIndex(){ return editIdx; },
     selectPattern(i) {
       if (!song || !song.patterns[i]) return;
@@ -279,8 +281,9 @@ export function createEngine() {
                patternIdx: song ? targetPattern(target, song) : 0, barInPattern: target.barInPattern,
                pending: !!pendingTarget };
     },
-    addPattern()            { return song ? _addPattern(song) : null; },
+    addPattern()            { return song ? _addPattern(song, editIdx) : null; },
     duplicatePattern(i)     { return song ? _duplicatePattern(song, i) : null; },
+    setLaneGroove(laneId, grooveName) { return song ? _setLaneGroove(song, editIdx, laneId, grooveName) : false; },
     removePattern(i) {
       if (!song) return false;
       const chainLenBefore = song.chain.length;
@@ -311,8 +314,16 @@ export function createEngine() {
       return true;
     },
     moveChain(from, to)     { if (song) _moveChain(song, from, to); },
-    setDrumStep(laneId, voice, barIdx, stepIdx, on) { if (song) _setDrumStep(song, editIdx, laneId, voice, barIdx, stepIdx, on); },
-    toggleNote(laneId, barIdx, stepIdx, note, dur) { if (song) _toggleNote(song, editIdx, laneId, barIdx, stepIdx, note, dur); },
+    setDrumStep(laneId, voice, barIdx, stepIdx, on) {
+      if (!song) return;
+      const g = grooveFor(song, editIdx, laneId);
+      if (g) _setDrumStep(song, laneId, g.name, barIdx, voice, stepIdx, on);
+    },
+    toggleNote(laneId, barIdx, stepIdx, note, dur) {
+      if (!song) return;
+      const g = grooveFor(song, editIdx, laneId);
+      if (g) _toggleNote(song, laneId, g.name, barIdx, stepIdx, note, dur);
+    },
     // setTone by lane id (melody lanes)
     setTone(id, type) {
       // Back-compat: if called with one arg (old API), treat it as the melody lane

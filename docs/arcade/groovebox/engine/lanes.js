@@ -41,9 +41,9 @@ export function addLane(song, type) {
     ...(type === 'melody' ? { tone: 'pulse' } : {}),
   };
   lanes.push(lane);
-  for (const pat of song.patterns) {
-    pat.lanes[lane.id] = Array.from({ length: pat.bars }, () => emptyBarFor(lane));
-  }
+  // New lane gets one 'empty' groove; every pattern picks it.
+  song.grooves[lane.id] = { empty: [emptyBarFor(lane)] };
+  for (const pat of song.patterns) pat.lanes[lane.id] = 'empty';
   return lane;
 }
 
@@ -59,9 +59,9 @@ export function duplicateLane(song, id) {
   const src = lanes[srcIdx];
   const lane = { ...src, id: uniqueLaneId(lanes, src.type), name: uniqueLaneName(lanes, src.name), muted: false, soloed: false };
   lanes.splice(srcIdx + 1, 0, lane);
-  for (const pat of song.patterns) {
-    pat.lanes[lane.id] = JSON.parse(JSON.stringify(pat.lanes[src.id] ?? []));
-  }
+  // Deep-copy the source lane's groove map under the new id; copy picks everywhere.
+  song.grooves[lane.id] = JSON.parse(JSON.stringify(song.grooves[src.id] ?? {}));
+  for (const pat of song.patterns) pat.lanes[lane.id] = pat.lanes[src.id];
   return lane;
 }
 
@@ -75,6 +75,7 @@ export function removeLane(song, id) {
   const idx = lanes.findIndex(l => l.id === id);
   if (idx < 0) return null;
   lanes.splice(idx, 1);
+  delete song.grooves[id];
   for (const pat of song.patterns) delete pat.lanes[id];
   return id;
 }
