@@ -2203,6 +2203,7 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   .lane .lane-expand {
     display: inline-flex;
     grid-area: pull;
+    justify-self: end;          /* flush with the card's right edge, under ✕ */
     align-items: center;
     justify-content: center;
     width: 30px;
