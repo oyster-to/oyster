@@ -4,7 +4,7 @@ import { eventsForStep } from './scheduler.js';
 import { createVoiceForType, trigger } from './voices.js';
 import { normalizeLanes, cachePoolsByType, laneByType, setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloExclusive, captureScene as _captureScene, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane, moveLane as _moveLane } from './lanes.js';
 import { sectionAt } from './arrangement.js';
-import { PUNCH_NEUTRAL, stutterAllowed, stutterEvents } from './punch.js';
+import { PUNCH_NEUTRAL, PUNCH_PARAMS, stutterAllowed, stutterEvents } from './punch.js';
 
 export function createEngine() {
   let song = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, pendingFill = null, activeFill = null, fillQueue = [];
@@ -290,14 +290,23 @@ export function createEngine() {
       on = !!on;
       if (_punchHeld[name] === on) return;          // ignore repeat echoes
       _punchHeld[name] = on;
-      if (name === 'crush') punchCrush.wet.rampTo(on ? 0.5 : PUNCH_NEUTRAL.crushWet, 0.05);   // 6-bit @ 50% = lo-fi grit, not broken speaker
+      if (name === 'crush') {
+        if (on) punchCrush.bits.value = PUNCH_PARAMS.crush.bits;   // params read at press time (live-tunable)
+        punchCrush.wet.rampTo(on ? PUNCH_PARAMS.crush.wet : PUNCH_NEUTRAL.crushWet, 0.05);
+      }
       else if (name === 'dive') {
-        punchFilter.frequency.rampTo(on ? 150 : PUNCH_NEUTRAL.filterFreq, 0.15);
-        punchFilter.Q.rampTo(on ? 8 : PUNCH_NEUTRAL.filterQ, 0.15);
+        const P = PUNCH_PARAMS.dive;
+        punchFilter.frequency.rampTo(on ? P.freq : PUNCH_NEUTRAL.filterFreq, P.ramp);
+        punchFilter.Q.rampTo(on ? P.q : PUNCH_NEUTRAL.filterQ, P.ramp);
       }
       else if (name === 'throw') {
-        if (on) punchThrow.wet.rampTo(0.6, 0.05);
-        else    punchThrow.wet.rampTo(PUNCH_NEUTRAL.throwWet, 1.5);   // tail rings out
+        const P = PUNCH_PARAMS.throw;
+        if (on) {
+          punchThrow.feedback.rampTo(P.feedback, 0.05);
+          punchThrow.wet.rampTo(P.wet, 0.05);
+        } else {
+          punchThrow.wet.rampTo(PUNCH_NEUTRAL.throwWet, P.release);   // tail rings out
+        }
       }
       else if (name === 'stop') {
         if (on) {
@@ -306,8 +315,8 @@ export function createEngine() {
           // rampTo pins the current value (setRampPoint → cancelAndHoldAtTime),
           // so it's safe mid-stutter / mid-anything — no explicit cancels.
           _gateReturnPending = false;
-          punchGate.gain.rampTo(0, 0.8);
-          punchTape.delayTime.rampTo(0.6, 0.8);
+          punchGate.gain.rampTo(0, PUNCH_PARAMS.stop.time);
+          punchTape.delayTime.rampTo(PUNCH_PARAMS.stop.depth, PUNCH_PARAMS.stop.time);
         } else {
           // Strict release order (spec safeguard 2), click-free on quick taps:
           // close the gate from wherever the slump got to (3ms), freeze the

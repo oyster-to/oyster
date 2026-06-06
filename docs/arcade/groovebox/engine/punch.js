@@ -13,6 +13,17 @@ export const PUNCH_NEUTRAL = {
   tapeDelay: 0,
 };
 
+// Engaged (held) targets for each punch effect — the single tuning surface.
+// Read at PRESS TIME by engine.punch(), so live edits apply on the next hold.
+// Exposed as window.gbpunch for console tinkering:
+//   gbpunch.crush.bits = 5; gbpunch.crush.wet = 0.8;   // then hold pad 2
+export const PUNCH_PARAMS = {
+  crush: { bits: 6, wet: 0.5 },                 // bit depth 1-16, wet 0-1
+  dive:  { freq: 150, q: 8, ramp: 0.15 },       // sweep target Hz, resonance, ramp s
+  throw: { wet: 0.6, feedback: 0.55, release: 1.5 },  // delay send + tail length s
+  stop:  { depth: 0.6, time: 0.8 },             // slump delay s, slump duration s
+};
+
 // STOP owns the gate (spec safeguard 1): stutter must not schedule gate
 // events while stop is held.
 export function stutterAllowed(held) {

@@ -9,6 +9,7 @@ import { digitalLove } from '../songs/digital-love.js';
 import { memoryReboot } from '../songs/memory-reboot.js';
 import { takeOnMe } from '../songs/take-on-me.js';
 import { makeViz } from './viz.js';
+import { PUNCH_PARAMS } from '../engine/punch.js';
 import { makeKnob } from './knob.js';
 
 const eng = createEngine();
@@ -533,6 +534,10 @@ document.addEventListener('keyup', e => {
   const name = PUNCH_BY_KEY[e.key];
   if (name) setPunch(name, false);
 });
+// Live tuning surface: edit punch params from the console, applied on the
+// next pad press — e.g. gbpunch.crush.bits = 5; gbpunch.dive.freq = 300;
+window.gbpunch = PUNCH_PARAMS;
+
 // Stuck-key guard: losing window focus releases every pad.
 window.addEventListener('blur', () => { for (const [name] of PUNCH_PADS) setPunch(name, false); });
 
