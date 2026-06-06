@@ -258,13 +258,16 @@ export function createEngine() {
       Tone.Transport.stop();
       if (repeatId !== null) { Tone.Transport.clear(repeatId); repeatId = null; }
       step = 0; playing = false; pendingFill = null; activeFill = null; fillQueue = []; pendingTranspose = null;
-      // Punch pads release with the transport.
+      // Punch pads release with the transport. rampTo pins current values
+      // (no cancel-then-revert clicks); delayTime snaps back after the brief
+      // gate settle so any reverb tail doesn't doppler.
       for (const k in _punchHeld) _punchHeld[k] = false;
       _gateReturnPending = false;
       if (started) {
         const now = Tone.now();
-        punchGate.gain.cancelScheduledValues(now);      punchGate.gain.value = PUNCH_NEUTRAL.gateGain;
-        punchTape.delayTime.cancelScheduledValues(now); punchTape.delayTime.value = PUNCH_NEUTRAL.tapeDelay;
+        punchGate.gain.rampTo(PUNCH_NEUTRAL.gateGain, 0.01);
+        punchTape.delayTime.cancelAndHoldAtTime(now);
+        punchTape.delayTime.setValueAtTime(PUNCH_NEUTRAL.tapeDelay, now + 0.015);
         punchCrush.wet.rampTo(PUNCH_NEUTRAL.crushWet, 0.05);
         punchFilter.frequency.rampTo(PUNCH_NEUTRAL.filterFreq, 0.05);
         punchFilter.Q.rampTo(PUNCH_NEUTRAL.filterQ, 0.05);
@@ -297,31 +300,31 @@ export function createEngine() {
         else    punchThrow.wet.rampTo(PUNCH_NEUTRAL.throwWet, 1.5);   // tail rings out
       }
       else if (name === 'stop') {
-        const now = Tone.now();
         if (on) {
           // Slump: delayTime + gate fade over the same window — the gate sits
           // before the tape delay, so the line keeps emitting the slowing audio.
+          // rampTo pins the current value (setRampPoint → cancelAndHoldAtTime),
+          // so it's safe mid-stutter / mid-anything — no explicit cancels.
           _gateReturnPending = false;
-          punchGate.gain.cancelScheduledValues(now);
           punchGate.gain.rampTo(0, 0.8);
-          punchTape.delayTime.cancelScheduledValues(now);
           punchTape.delayTime.rampTo(0.6, 0.8);
         } else {
-          // Strict release order (spec safeguard 2): gate down → reset delayTime
-          // (silent while the gate is at 0) → gate back up on-grid (the step
-          // callback consumes the flag).
-          punchGate.gain.cancelScheduledValues(now);
-          punchGate.gain.value = 0;
-          punchTape.delayTime.cancelScheduledValues(now);
-          punchTape.delayTime.value = PUNCH_NEUTRAL.tapeDelay;
+          // Strict release order (spec safeguard 2), click-free on quick taps:
+          // close the gate from wherever the slump got to (3ms), freeze the
+          // slump where it is, snap delayTime back only AFTER the gate is
+          // closed (silent), then gate back up on-grid (step callback flag).
+          const now = Tone.now();
+          punchGate.gain.rampTo(0, 0.003);
+          punchTape.delayTime.cancelAndHoldAtTime(now);
+          punchTape.delayTime.setValueAtTime(PUNCH_NEUTRAL.tapeDelay, now + 0.005);
           _gateReturnPending = true;
         }
       }
       else if (name === 'stutter') {
         // Engagement is scheduled by the step callback (stutterAllowed gates it).
         if (!on && !_punchHeld.stop) {
-          // STOP owns the gate (safeguard 1) — only restore when STOP isn't active.
-          punchGate.gain.cancelScheduledValues(Tone.now());
+          // STOP owns the gate (safeguard 1) — only restore when STOP isn't
+          // active. rampTo cancels the pending chop events itself.
           punchGate.gain.rampTo(PUNCH_NEUTRAL.gateGain, 0.01);
         }
       }
