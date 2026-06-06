@@ -4,6 +4,7 @@ import { eventsForStep } from './scheduler.js';
 import { createVoiceForType, trigger } from './voices.js';
 import { normalizeLanes, cachePoolsByType, laneByType, setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloExclusive, captureScene as _captureScene, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane, moveLane as _moveLane } from './lanes.js';
 import { sectionAt } from './arrangement.js';
+import { PUNCH_NEUTRAL, stutterAllowed, stutterEvents } from './punch.js';
 
 export function createEngine() {
   let song = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, pendingFill = null, activeFill = null, fillQueue = [];
@@ -11,6 +12,10 @@ export function createEngine() {
   let keyQuantize = false, pendingTranspose = null;
   let masterComp = null, masterRev = null, masterVol = null, masterPan = null, masterWidth = null, masterEQ = null;
   let _widthOn = false;   // is the StereoWidener spliced into the master chain?
+  // Punch-in FX: pre-wired neutral insert chain (comp → punch → pan); momentary.
+  let punchGate = null, punchCrush = null, punchFilter = null, punchThrow = null, punchTape = null;
+  const _punchHeld = { stutter: false, crush: false, dive: false, throw: false, stop: false };
+  let _gateReturnPending = false;   // STOP released → gate returns on the next step boundary
   let meterL = null, meterR = null;
   let scopeMaster = null, scopeLane = {};
   // Per-lane keyed maps (by lane.id)
@@ -75,7 +80,16 @@ export function createEngine() {
     const masterTrim = new Tone.Gain(0.5).connect(out);
     masterVol  = new Tone.Gain(1).connect(masterTrim);
     masterPan  = new Tone.Panner(0).connect(masterVol);
-    masterComp = new Tone.Compressor({ threshold: 0, ratio: 1, attack: 0.01, release: 0.2 }).connect(masterPan);
+    // Punch-in FX insert (pre-wired, neutral — engaging a pad is param ramps only;
+    // spec: project-notes/oyster/po20/2026-06-08-punch-in-fx-spec.md). Between
+    // comp and pan: outside the EQ↔width↔reverb splice zone, after the reverb so
+    // punches chop/slur the full mix including tails.
+    punchTape   = new Tone.Delay({ delayTime: PUNCH_NEUTRAL.tapeDelay, maxDelay: 1 }).connect(masterPan);
+    punchThrow  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.55, wet: PUNCH_NEUTRAL.throwWet }).connect(punchTape);
+    punchFilter = new Tone.Filter({ type: 'lowpass', frequency: PUNCH_NEUTRAL.filterFreq, Q: PUNCH_NEUTRAL.filterQ }).connect(punchThrow);
+    punchCrush  = new Tone.BitCrusher(4); punchCrush.wet.value = PUNCH_NEUTRAL.crushWet; punchCrush.connect(punchFilter);
+    punchGate   = new Tone.Gain(PUNCH_NEUTRAL.gateGain).connect(punchCrush);
+    masterComp = new Tone.Compressor({ threshold: 0, ratio: 1, attack: 0.01, release: 0.2 }).connect(punchGate);
     masterRev  = new Tone.Reverb({ decay: 2.2, wet: 0 }).connect(masterComp);
     // StereoWidener bypassed by default — its mid/side processing weakens per-lane
     // pan and drops level on a mono-ish mix. Spliced in only when WID leaves centre.
@@ -118,7 +132,8 @@ export function createEngine() {
     _masterIn = masterIn;
     // Waveform analyser for master (sink — doesn't alter audio chain).
     scopeMaster = new Tone.Waveform(1024);
-    masterComp.connect(scopeMaster);
+    // Tapped post-punch so the scope shows chops/slumps (analyser sink only).
+    punchTape.connect(scopeMaster);
     // Build per-lane graph
     buildLaneGraph(song.lanes);
     started = true;
@@ -189,6 +204,15 @@ export function createEngine() {
           const v = voices[ev.laneId];
           if (v) trigger(v, ev, t, sixteenth, barSeconds);
         }
+        // Punch-in: on-grid gate return after STOP release, then stutter chops.
+        if (_gateReturnPending) {
+          punchGate.gain.setValueAtTime(0, t);
+          punchGate.gain.linearRampToValueAtTime(PUNCH_NEUTRAL.gateGain, t + 0.003);
+          _gateReturnPending = false;
+        }
+        if (_punchHeld.stutter && stutterAllowed(_punchHeld)) {
+          for (const [at, v] of stutterEvents(t, sixteenth)) punchGate.gain.linearRampToValueAtTime(v, at);
+        }
         if (onStepCb) {
           const s = step; const sb = songBar; const qSnap = fillQueue.slice();
           Tone.Draw.schedule(() => {
@@ -234,6 +258,21 @@ export function createEngine() {
       Tone.Transport.stop();
       if (repeatId !== null) { Tone.Transport.clear(repeatId); repeatId = null; }
       step = 0; playing = false; pendingFill = null; activeFill = null; fillQueue = []; pendingTranspose = null;
+      // Punch pads release with the transport. rampTo pins current values
+      // (no cancel-then-revert clicks); delayTime snaps back after the brief
+      // gate settle so any reverb tail doesn't doppler.
+      for (const k in _punchHeld) _punchHeld[k] = false;
+      _gateReturnPending = false;
+      if (started) {
+        const now = Tone.now();
+        punchGate.gain.rampTo(PUNCH_NEUTRAL.gateGain, 0.01);
+        punchTape.delayTime.cancelAndHoldAtTime(now);
+        punchTape.delayTime.setValueAtTime(PUNCH_NEUTRAL.tapeDelay, now + 0.015);
+        punchCrush.wet.rampTo(PUNCH_NEUTRAL.crushWet, 0.05);
+        punchFilter.frequency.rampTo(PUNCH_NEUTRAL.filterFreq, 0.05);
+        punchFilter.Q.rampTo(PUNCH_NEUTRAL.filterQ, 0.05);
+        punchThrow.wet.rampTo(PUNCH_NEUTRAL.throwWet, 0.05);
+      }
     },
     setTempo(bpm) { if (typeof bpm === 'number' && isFinite(bpm)) { tempo = bpm; Tone.Transport.bpm.value = bpm; } },
     onStep(cb) { onStepCb = cb; },
@@ -244,6 +283,52 @@ export function createEngine() {
     toggleMute(id)          { return song ? _toggleMute(song.lanes, id) : false; },
     toggleSolo(id)          { return song ? _soloExclusive(song.lanes, id) : false; },
     triggerFill(name)       { pendingFill = name; },
+    // Punch-in FX: momentary performance effects — punch(name, true) on press,
+    // punch(name, false) on release. Names: stutter|crush|dive|throw|stop.
+    punch(name, on) {
+      if (!started || _punchHeld[name] === undefined) return;
+      on = !!on;
+      if (_punchHeld[name] === on) return;          // ignore repeat echoes
+      _punchHeld[name] = on;
+      if (name === 'crush') punchCrush.wet.rampTo(on ? 1 : PUNCH_NEUTRAL.crushWet, 0.05);
+      else if (name === 'dive') {
+        punchFilter.frequency.rampTo(on ? 150 : PUNCH_NEUTRAL.filterFreq, 0.15);
+        punchFilter.Q.rampTo(on ? 8 : PUNCH_NEUTRAL.filterQ, 0.15);
+      }
+      else if (name === 'throw') {
+        if (on) punchThrow.wet.rampTo(0.6, 0.05);
+        else    punchThrow.wet.rampTo(PUNCH_NEUTRAL.throwWet, 1.5);   // tail rings out
+      }
+      else if (name === 'stop') {
+        if (on) {
+          // Slump: delayTime + gate fade over the same window — the gate sits
+          // before the tape delay, so the line keeps emitting the slowing audio.
+          // rampTo pins the current value (setRampPoint → cancelAndHoldAtTime),
+          // so it's safe mid-stutter / mid-anything — no explicit cancels.
+          _gateReturnPending = false;
+          punchGate.gain.rampTo(0, 0.8);
+          punchTape.delayTime.rampTo(0.6, 0.8);
+        } else {
+          // Strict release order (spec safeguard 2), click-free on quick taps:
+          // close the gate from wherever the slump got to (3ms), freeze the
+          // slump where it is, snap delayTime back only AFTER the gate is
+          // closed (silent), then gate back up on-grid (step callback flag).
+          const now = Tone.now();
+          punchGate.gain.rampTo(0, 0.003);
+          punchTape.delayTime.cancelAndHoldAtTime(now);
+          punchTape.delayTime.setValueAtTime(PUNCH_NEUTRAL.tapeDelay, now + 0.005);
+          _gateReturnPending = true;
+        }
+      }
+      else if (name === 'stutter') {
+        // Engagement is scheduled by the step callback (stutterAllowed gates it).
+        if (!on && !_punchHeld.stop) {
+          // STOP owns the gate (safeguard 1) — only restore when STOP isn't
+          // active. rampTo cancels the pending chop events itself.
+          punchGate.gain.rampTo(PUNCH_NEUTRAL.gateGain, 0.01);
+        }
+      }
+    },
     queueFill(name)         { fillQueue.push(name); return fillQueue.length; },
     unqueueAt(i)            { if (i >= 0 && i < fillQueue.length) fillQueue.splice(i, 1); return fillQueue.slice(); },
     clearQueue()            { fillQueue = []; },
