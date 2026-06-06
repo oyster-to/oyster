@@ -42,8 +42,8 @@ Two rows:
 
 ### Editors
 
-- **Drum grid:** all bars of the selected pattern stacked vertically (bar 1..N), every bar directly editable. A "fill" is just what bar 4 says. Playhead highlights the sounding step in the sounding bar.
-- **Piano roll / blocks:** show the pattern's true length (the roll already renders multiple bars side-by-side).
+- **Drum grid:** one bar tall (5 voice rows). A **bar stepper** above it shows exactly `pattern.bars` buttons — the honest count (no phantom bars, no cycle buttons; pattern length lives in the PATTERNS module). One bar means no stepper. Stepper buttons **multi-select** the bars an edit applies to (minimum one): the grid shows the primary (lowest-index) selected bar, and a cell click computes on/off from that bar then *sets* it across every selected bar. The button for the currently sounding bar carries a ▸ indicator (only when the sounding pattern is the one being edited); the playhead column appears only when the sounding bar is the shown bar. *(Amended 2026-06-06 after hands-on review: stacked bars replaced by the bar stepper — the stacked grid was overwhelming.)*
+- **Piano roll / blocks:** show the pattern's true length (the roll already renders multiple bars side-by-side). Unchanged by the amendment.
 - **Removed:** `cycle 2/4` buttons, `edit/▸play` bar multi-select, the always-4-bars hidden storage, `ensureCustom`/`fork4`/`pool._base` forking machinery.
 
 ### Lane strips

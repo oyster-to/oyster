@@ -3,7 +3,7 @@ import {
   totalChainBars, chainBarAt, eventsForStepV2, advanceTarget,
   addPattern, duplicatePattern, removePattern, setPatternBars,
   appendToChain, removeChainAt, moveChain,
-  toggleDrumStep, toggleNote, emptyBarFor,
+  toggleDrumStep, setDrumStep, toggleNote, emptyBarFor,
 } from '../engine/patterns.js';
 
 const meter44 = { beatsPerBar: 4, beatUnit: 4, stepsPerBeat: 4 };
@@ -153,6 +153,29 @@ test('toggleDrumStep toggles hits; tom gets default semi 3', () => {
   expect(s.patterns[0].lanes.drums[0].tom).toEqual([[5, 3]]);
   toggleDrumStep(s, 0, 'drums', 'tom', 0, 5);
   expect(s.patterns[0].lanes.drums[0].tom).toEqual([]);
+});
+
+test('setDrumStep sets state (not toggle); on is idempotent, off removes', () => {
+  const s = makeSong();
+  setDrumStep(s, 0, 'drums', 'kick', 0, 0, true);     // already present
+  expect(s.patterns[0].lanes.drums[0].kick).toEqual([0, 8]); // idempotent on
+  setDrumStep(s, 0, 'drums', 'kick', 0, 4, true);     // add new
+  expect(s.patterns[0].lanes.drums[0].kick).toEqual([0, 8, 4]);
+  setDrumStep(s, 0, 'drums', 'kick', 0, 8, false);    // remove
+  expect(s.patterns[0].lanes.drums[0].kick).toEqual([0, 4]);
+  setDrumStep(s, 0, 'drums', 'kick', 0, 13, false);   // off when absent: no-op
+  expect(s.patterns[0].lanes.drums[0].kick).toEqual([0, 4]);
+});
+
+test('setDrumStep tom: on preserves existing semi, adds [step,3] if absent, off removes', () => {
+  const s = makeSong();
+  s.patterns[0].lanes.drums[0].tom = [[5, 1]];
+  setDrumStep(s, 0, 'drums', 'tom', 0, 5, true);      // already present — keep semi 1
+  expect(s.patterns[0].lanes.drums[0].tom).toEqual([[5, 1]]);
+  setDrumStep(s, 0, 'drums', 'tom', 0, 9, true);      // absent — default semi 3
+  expect(s.patterns[0].lanes.drums[0].tom).toEqual([[5, 1], [9, 3]]);
+  setDrumStep(s, 0, 'drums', 'tom', 0, 5, false);     // off — remove
+  expect(s.patterns[0].lanes.drums[0].tom).toEqual([[9, 3]]);
 });
 
 test('toggleNote: same note removes, different note replaces (monophonic per step)', () => {

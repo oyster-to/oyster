@@ -144,6 +144,24 @@ export function toggleDrumStep(song, patternIdx, laneId, voice, barIdx, step) {
   }
 }
 
+// Explicit setter — the multi-bar editor computes the desired state from the
+// shown bar, then SETs it (not toggles) across every selected bar.
+export function setDrumStep(song, patternIdx, laneId, voice, barIdx, step, on) {
+  const bar = song.patterns[patternIdx].lanes[laneId][barIdx]
+    || (song.patterns[patternIdx].lanes[laneId][barIdx] = {});
+  if (voice === 'tom') {
+    bar.tom = bar.tom || [];
+    const i = bar.tom.findIndex(x => x[0] === step);
+    if (on) { if (i < 0) bar.tom.push([step, 3]); }
+    else if (i >= 0) bar.tom.splice(i, 1);
+  } else {
+    bar[voice] = bar[voice] || [];
+    const i = bar[voice].indexOf(step);
+    if (on) { if (i < 0) bar[voice].push(step); }
+    else if (i >= 0) bar[voice].splice(i, 1);
+  }
+}
+
 export function toggleNote(song, patternIdx, laneId, barIdx, step, note, dur = 2) {
   const arr = song.patterns[patternIdx].lanes[laneId][barIdx]
     || (song.patterns[patternIdx].lanes[laneId][barIdx] = []);

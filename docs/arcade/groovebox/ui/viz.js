@@ -52,15 +52,20 @@ export function makeViz(host, song, eng) {
   let view = 'drums';
   let lastStepInBar = 0;
   let lastTarget = null;            // last onStep target payload (playback position)
+  // Drum editor: which bars of the pattern the next cell-edit applies to.
+  // The grid SHOWS the primary (lowest-index) selected bar; a cell click computes
+  // on/off from that bar then SETs it across every selected bar.
+  let editBars = new Set([0]);
+  function primaryBar() { return Math.min(...editBars); }
   // Scope state
   let scopeSource = 'master';
   let scopeRafId = null;
   // Per-step playhead cache — populated by build(); cleared on rebuild.
-  // drums: { [bar]: { [voiceKey]: HTMLElement[] } }  (cell index = step within bar)
+  // drums: { [voiceKey]: HTMLElement[] }  (one shown bar; cell index = step within bar)
   // blocks: HTMLElement[][] indexed by absStep across all rendered bars
-  let _drumVcCache = {};       // { 0: { kick: [c0, c1, ...], ... }, 1: {...} }
+  let _drumVcCache = {};       // { kick: [c0, c1, ...], snare: [...], ... }
   let _blocksColCache = [];    // [absStep] → [cell0 (midi=hi), cell1, ... ]
-  let _lastDrumNowStep = null; // last 'bar:step' string with .now for drum grid, or null
+  let _lastDrumNowStep = null; // last step index with .now for drum grid, or null
   let _lastBlocksAbsStep = -1; // last absStep with .now for blocks grid
 
   function editPattern() { return eng.getPatterns()[eng.getEditPatternIndex()]; }
@@ -505,10 +510,27 @@ export function makeViz(host, song, eng) {
     paintBlocksGrid('melody');
   }
 
+  // Update the bar-stepper button classes: `on` for selected (edit) bars,
+  // `playing` for the sounding bar — only when the sounding pattern is the
+  // edited one. Cheap (≤4 buttons); reused by build/paint/setStep.
+  function paintBarsel() {
+    const editIdx = eng.getEditPatternIndex();
+    const sounding = (lastTarget && lastTarget.patternIdx === editIdx) ? lastTarget.barInPattern : -1;
+    host.querySelectorAll('.bsel').forEach(btn => {
+      const b = +btn.dataset.b;
+      btn.classList.toggle('on', editBars.has(b));
+      btn.classList.toggle('playing', b === sounding);
+    });
+  }
+
   function build() {
     // Clear per-step playhead caches — DOM is about to be rebuilt.
     _drumVcCache = {}; _lastDrumNowStep = null;
     _blocksColCache = []; _lastBlocksAbsStep = -1;
+    // Drop edit selections beyond the pattern's current length; never empty.
+    const _bars = editPattern().bars;
+    for (const b of [...editBars]) if (b >= _bars) editBars.delete(b);
+    if (editBars.size === 0) editBars.add(0);
     const spb = stepsPerBar(song.meter);
     const beats = new Set(beatStarts(song.meter));
     // Compute beat index for each step (which beat group it belongs to).
@@ -532,26 +554,43 @@ export function makeViz(host, song, eng) {
     if (view === 'drums') {
       const L = getTargetLane();
       const P = editPattern();
-      let html = buildBeatHeader(spb);
-      for (let b = 0; b < P.bars; b++) {
-        if (P.bars > 1) html += `<div class="vbar-lbl">bar ${b + 1}</div>`;
-        html += `<div class="vbar" data-bar="${b}">` + DROWS.map(([k, l]) =>
-          `<div class="vrow" data-k="${k}"><span class="vl"><span class="vl-lbl">${l}</span></span>${cells(spb)}` +
-          (b === 0
-            ? `<span class="vr"><button class="dvm" data-voice="${k}" title="mute ${l}">M</button><button class="dvs" data-voice="${k}" title="solo ${l}">S</button></span>`
-            : `<span class="vr"></span>`)
-          + `</div>`).join('') + `</div>`;
+      let html = '';
+      // Bar stepper — only when the pattern is longer than one bar.
+      if (P.bars > 1) {
+        html += `<div class="barsel"><span class="barsel-lbl">bar</span>`;
+        for (let b = 0; b < P.bars; b++) html += `<button class="bsel" data-b="${b}">${b + 1}</button>`;
+        html += `</div>`;
       }
+      html += buildBeatHeader(spb);
+      // ONE bar tall: 5 voice rows for the shown (primary) bar.
+      html += DROWS.map(([k, l]) =>
+        `<div class="vrow" data-k="${k}"><span class="vl"><span class="vl-lbl">${l}</span></span>${cells(spb)}` +
+        `<span class="vr"><button class="dvm" data-voice="${k}" title="mute ${l}">M</button><button class="dvs" data-voice="${k}" title="solo ${l}">S</button></span>`
+        + `</div>`).join('');
       host.innerHTML = html;
 
-      host.querySelectorAll('.vbar').forEach(barEl => {
-        const b = +barEl.dataset.bar;
-        barEl.querySelectorAll('.vrow').forEach(row => {
-          const k = row.dataset.k;
-          [...row.querySelectorAll('.vc')].forEach((c, i) => c.onclick = () => {
-            eng.toggleDrumStep(L.id, k, b, i);
-            paint(lastStepInBar);
-          });
+      // Stepper: toggle membership (never deselect the last one), then repaint.
+      host.querySelectorAll('.bsel').forEach(btn => {
+        btn.onclick = () => {
+          const b = +btn.dataset.b;
+          if (editBars.has(b)) { if (editBars.size > 1) editBars.delete(b); }
+          else editBars.add(b);
+          paintBarsel();
+          paint(lastStepInBar);   // primary bar may have changed → re-render hits
+        };
+      });
+
+      // Cell click: compute desired on/off from the SHOWN (primary) bar, then
+      // SET that state across every selected bar.
+      host.querySelectorAll('.vrow').forEach(row => {
+        const k = row.dataset.k;
+        [...row.querySelectorAll('.vc')].forEach((c, i) => c.onclick = () => {
+          const shown = laneBars(L)[primaryBar()] || {};
+          const on = k === 'tom'
+            ? !(shown.tom && shown.tom.some(x => x[0] === i))
+            : !(shown[k] && shown[k].includes(i));
+          for (const b of editBars) eng.setDrumStep(L.id, k, b, i, on);
+          paint(lastStepInBar);
         });
       });
 
@@ -562,16 +601,13 @@ export function makeViz(host, song, eng) {
         btn.onclick = e => { e.stopPropagation(); eng.toggleDrumSolo(btn.dataset.voice); paint(lastStepInBar); };
       });
 
-      // Cache: _drumVcCache[bar][voice] = [cells] for the fast playhead path.
+      // Cache: _drumVcCache[voice] = [cells] for the fast playhead path.
       _drumVcCache = {};
       _lastDrumNowStep = null;
-      host.querySelectorAll('.vbar').forEach(barEl => {
-        const b = +barEl.dataset.bar;
-        _drumVcCache[b] = {};
-        barEl.querySelectorAll('.vrow').forEach(row => {
-          _drumVcCache[b][row.dataset.k] = [...row.querySelectorAll('.vc')];
-        });
+      host.querySelectorAll('.vrow').forEach(row => {
+        _drumVcCache[row.dataset.k] = [...row.querySelectorAll('.vc')];
       });
+      paintBarsel();
       paint(lastStepInBar);   // canvas/blocks views draw inside build; drums needs its hits painted too
     } else if (view === 'melody') {
       if (rollMode === 'blocks') {
@@ -621,28 +657,28 @@ export function makeViz(host, song, eng) {
       const L = getTargetLane();
       const bars = laneBars(L);
       const editIdx = eng.getEditPatternIndex();
-      const sounding = lastTarget && lastTarget.patternIdx === editIdx ? lastTarget.barInPattern : -1;
+      const pBar = primaryBar();
+      const pat = bars[pBar] || {};
+      // .now visible only when the sounding bar === the shown (primary) bar.
+      const nowHere = lastTarget && lastTarget.patternIdx === editIdx && lastTarget.barInPattern === pBar;
       const laneOK = laneAudible(eng.getLanes(), L);
-      host.querySelectorAll('.vbar').forEach(barEl => {
-        const b = +barEl.dataset.bar;
-        const pat = bars[b] || {};
-        barEl.querySelectorAll('.vrow').forEach(row => {
-          const k = row.dataset.k;
-          const audible = laneOK && drumVoiceAudible(L, k);
-          row.classList.toggle('silenced', !audible);
-          const mBtn = row.querySelector('.dvm');
-          const sBtn = row.querySelector('.dvs');
-          if (mBtn) mBtn.classList.toggle('muted', !!(L.voiceMute || {})[k]);
-          if (sBtn) sBtn.classList.toggle('soloed', !!(L.voiceSolo || {})[k]);
-          row.querySelectorAll('.vc').forEach((c, i) => {
-            const on = k === 'tom'
-              ? !!(pat.tom && pat.tom.some(x => x[0] === i))
-              : !!(pat[k] && pat[k].includes(i));
-            c.classList.toggle('hit', on);
-            c.classList.toggle('now', b === sounding && i === stepInBar);
-          });
+      host.querySelectorAll('.vrow').forEach(row => {
+        const k = row.dataset.k;
+        const audible = laneOK && drumVoiceAudible(L, k);
+        row.classList.toggle('silenced', !audible);
+        const mBtn = row.querySelector('.dvm');
+        const sBtn = row.querySelector('.dvs');
+        if (mBtn) mBtn.classList.toggle('muted', !!(L.voiceMute || {})[k]);
+        if (sBtn) sBtn.classList.toggle('soloed', !!(L.voiceSolo || {})[k]);
+        row.querySelectorAll('.vc').forEach((c, i) => {
+          const on = k === 'tom'
+            ? !!(pat.tom && pat.tom.some(x => x[0] === i))
+            : !!(pat[k] && pat[k].includes(i));
+          c.classList.toggle('hit', on);
+          c.classList.toggle('now', nowHere && i === stepInBar);
         });
       });
+      paintBarsel();
     } else if (view === 'melody') {
       if (rollMode === 'blocks') {
         paintBlocksGrid('melody');
@@ -674,6 +710,7 @@ export function makeViz(host, song, eng) {
       const lane = lanes.find(l => l.id === id);
       if (!lane) return;
       _targetLane = lane;
+      editBars = new Set([0]);     // fresh lane/pattern → edit bar 1
       const typeToView = { drums: 'drums', melody: 'melody', bass: 'bass' };
       const nextView = typeToView[lane.type] || 'drums';
       stopScopeLoop();
@@ -684,21 +721,21 @@ export function makeViz(host, song, eng) {
       lastTarget = target;
       lastStepInBar = stepInBar;
       if (view === 'drums') {
-        // Fast path: only move the .now highlight across the drum grid.
-        // Show it only when the SOUNDING pattern is the edited one.
+        // Fast path: only move the .now highlight across the single shown bar.
+        // Visible only when the SOUNDING bar === the shown (primary) bar.
         const editIdx = eng.getEditPatternIndex();
-        const visible = target && target.patternIdx === editIdx;
-        const key = visible ? `${target.barInPattern}:${stepInBar}` : null;
-        if (key !== _lastDrumNowStep) {
+        const visible = target && target.patternIdx === editIdx && target.barInPattern === primaryBar();
+        const next = visible ? stepInBar : null;
+        if (next !== _lastDrumNowStep) {
           if (_lastDrumNowStep !== null) {
-            const [ob, os] = _lastDrumNowStep.split(':').map(Number);
-            for (const cells of Object.values(_drumVcCache[ob] || {})) cells[os]?.classList.remove('now');
+            for (const cells of Object.values(_drumVcCache)) cells[_lastDrumNowStep]?.classList.remove('now');
           }
-          if (key) {
-            for (const cells of Object.values(_drumVcCache[target.barInPattern] || {})) cells[stepInBar]?.classList.add('now');
+          if (next !== null) {
+            for (const cells of Object.values(_drumVcCache)) cells[next]?.classList.add('now');
           }
-          _lastDrumNowStep = key;
+          _lastDrumNowStep = next;
         }
+        paintBarsel();   // cheap (≤4 buttons): refresh the ▸ sounding-bar indicator
       } else if (view === 'melody' || view === 'bass') {
         if (rollMode === 'blocks') {
           // Fast path: only flip the .now column in the blocks grid.

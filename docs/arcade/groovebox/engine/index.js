@@ -8,7 +8,7 @@ import {
   addPattern as _addPattern, duplicatePattern as _duplicatePattern, removePattern as _removePattern,
   setPatternBars as _setPatternBars, appendToChain as _appendToChain,
   removeChainAt as _removeChainAt, moveChain as _moveChain,
-  toggleDrumStep as _toggleDrumStep, toggleNote as _toggleNote,
+  setDrumStep as _setDrumStep, toggleNote as _toggleNote,
 } from './patterns.js';
 
 export function createEngine() {
@@ -311,7 +311,7 @@ export function createEngine() {
       return true;
     },
     moveChain(from, to)     { if (song) _moveChain(song, from, to); },
-    toggleDrumStep(laneId, voice, barIdx, stepIdx) { if (song) _toggleDrumStep(song, editIdx, laneId, voice, barIdx, stepIdx); },
+    setDrumStep(laneId, voice, barIdx, stepIdx, on) { if (song) _setDrumStep(song, editIdx, laneId, voice, barIdx, stepIdx, on); },
     toggleNote(laneId, barIdx, stepIdx, note, dur) { if (song) _toggleNote(song, editIdx, laneId, barIdx, stepIdx, note, dur); },
     // setTone by lane id (melody lanes)
     setTone(id, type) {
