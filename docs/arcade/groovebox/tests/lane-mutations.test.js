@@ -29,6 +29,7 @@ test('addLane on a duplicate type gets a fresh id', () => {
   const s = makeSong();
   const lane = addLane(s, 'drums');
   expect(lane.id).toBe('drums-2');
+  expect(lane.name).toBe('drums 2');
   expect(s.patterns[0].lanes['drums-2']).toEqual([{}, {}]);
 });
 
@@ -57,6 +58,17 @@ test('renameLane trims and ignores empty; moveLane clamps', () => {
   expect(s.lanes[0].name).toBe('kit');
   moveLane(s, 'drums', 99);
   expect(s.lanes[1].id).toBe('drums');
+  // unknown id is a no-op — lane names unchanged
+  renameLane(s, 'nope', 'x');
+  expect(s.lanes.map(l => l.name)).toEqual(['melody', 'kit']);
+});
+
+test('moveLane reorders earlier; unknown id is a null no-op', () => {
+  const s = makeSong();
+  moveLane(s, 'melody', 0);
+  expect(s.lanes.map(l => l.id)).toEqual(['melody', 'drums']);
+  expect(moveLane(s, 'nope', 0)).toBeNull();
+  expect(s.lanes.map(l => l.id)).toEqual(['melody', 'drums']);
 });
 
 test('uniqueLaneId skips taken ids', () => {
