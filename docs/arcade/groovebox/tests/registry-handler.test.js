@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { handleRegistry, makeId, makeEditKey } from '../registry/handler.js';
-import { GROOVE_PAYLOAD, SONG_PAYLOAD } from './registry-validate.test.js';
+import { GROOVE_PAYLOAD, SONG_PAYLOAD } from './helpers/registry-fixtures.js';
 
 const SECRET = 'test-secret';
 
