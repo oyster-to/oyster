@@ -204,6 +204,15 @@ export function createEngine() {
           const v = voices[ev.laneId];
           if (v) trigger(v, ev, t, sixteenth, barSeconds);
         }
+        // Punch-in: on-grid gate return after STOP release, then stutter chops.
+        if (_gateReturnPending) {
+          punchGate.gain.setValueAtTime(0, t);
+          punchGate.gain.linearRampToValueAtTime(PUNCH_NEUTRAL.gateGain, t + 0.003);
+          _gateReturnPending = false;
+        }
+        if (_punchHeld.stutter && stutterAllowed(_punchHeld)) {
+          for (const [at, v] of stutterEvents(t, sixteenth)) punchGate.gain.linearRampToValueAtTime(v, at);
+        }
         if (onStepCb) {
           const s = step; const sb = songBar; const qSnap = fillQueue.slice();
           Tone.Draw.schedule(() => {
