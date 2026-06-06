@@ -1461,7 +1461,9 @@ initSectionWrappers();
 // Chrome long-press → "more actions / translate"). Scoped to controls so
 // right-click elsewhere stays normal on desktop.
 document.addEventListener('contextmenu', e => {
-  if (e.target.closest('.knob, .punchpad, .lane-expand, .knob-scroll-hint, .lane-drag, .sec-drag, #viz')) {
+  // Target can be a Text node on some WebKit paths — normalize to an Element.
+  const el = e.target instanceof Element ? e.target : e.target.parentElement;
+  if (el && el.closest('.knob, .punchpad, .lane-expand, .knob-scroll-hint, .lane-drag, .sec-drag, #viz')) {
     e.preventDefault();
   }
 });
