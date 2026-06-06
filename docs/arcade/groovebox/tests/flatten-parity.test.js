@@ -24,7 +24,7 @@ for (const [name, song] of Object.entries(SONGS)) {
     expect(v2.patterns.length).toBeGreaterThanOrEqual(1);
     for (const p of v2.patterns) {
       expect([1, 2, 4]).toContain(p.bars);
-      for (const lane of v2.lanes) expect(p.lanes[lane.id].length).toBeGreaterThanOrEqual(p.bars);
+      for (const lane of v2.lanes) expect(p.lanes[lane.id].length).toBe(p.bars);
     }
     for (const lane of v2.lanes) {
       expect(lane.pool).toBeUndefined();
@@ -33,3 +33,59 @@ for (const [name, song] of Object.entries(SONGS)) {
     expect(JSON.parse(JSON.stringify(v2))).toBeTruthy();   // fully JSON-serializable
   });
 }
+
+// No-arrangement fallback: rich song with no `arrangement` key → synthetic 4-bar section.
+test('flattenSong: no-arrangement fallback yields valid chain and non-empty stream', () => {
+  const minimal = {
+    title: 'Minimal',
+    artist: 'Test',
+    meter: { beatsPerBar: 4, beatUnit: 4, stepsPerBeat: 4 },
+    bpm: 120,
+    // No `arrangement` key — exercises the fallback branch in flatten.js.
+    harmony: {
+      progression: [
+        { name: 'Am', root: 'A2', voicing: ['A3', 'C4', 'E4'] },
+        { name: 'G',  root: 'G2', voicing: ['G3', 'B3', 'D4'] },
+      ],
+    },
+    lanes: {
+      drums:  {
+        selection: 'four',
+        pool: {
+          four: { kick: [0, 8], snare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14] },
+        },
+      },
+      bass:   {
+        selection: 'root',
+        pool: {
+          root: (bar, chord) => [[0, chord.root, 16]],
+        },
+      },
+      chords: { selection: 'pad' },
+      melody: {
+        selection: 'phrase',
+        pool: {
+          phrase: [[[0, 'A4', 2], [4, 'C5', 2]]],
+        },
+      },
+    },
+  };
+
+  const v2 = flattenSong(minimal);
+
+  // Chain and patterns are non-empty.
+  expect(v2.chain.length).toBeGreaterThanOrEqual(1);
+  expect(v2.patterns.length).toBeGreaterThanOrEqual(1);
+
+  // All pattern bar counts are valid.
+  for (const p of v2.patterns) {
+    expect([1, 2, 4]).toContain(p.bars);
+  }
+
+  // Stream is non-empty.
+  const stream1 = renderChainStream(v2);
+  expect(stream1.length).toBeGreaterThan(0);
+
+  // Stream is deterministic (second call produces identical output).
+  expect(renderChainStream(v2)).toEqual(stream1);
+});
