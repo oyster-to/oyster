@@ -19,7 +19,7 @@ export const PARAM_UI = {
 const UNITS = ['steps', 'beats', 'bars'];
 const UNIT_MAX = { steps: 8, beats: 8, bars: 4 };
 const QUANTIZE = [['immediate', 'instant'], ['bar', 'next bar'], ['pattern', 'pattern start']];
-const GATE_DIVISIONS = ['1/8', '1/16', '1/32'];
+const GATE_DIVISIONS = ['1/4', '1/8', '1/16', '1/32'];
 
 // ── pure helpers (unit-tested) ────────────────────────────────────────────────
 export function draftFromPreset(preset) {

@@ -12,7 +12,7 @@ function validDuration(d) {
   return d == null || (UNITS.includes(d.unit) && typeof d.value === 'number' && isFinite(d.value) && d.value >= 0);
 }
 
-const GATE_DIVISIONS = ['1/8', '1/16', '1/32'];
+const GATE_DIVISIONS = ['1/4', '1/8', '1/16', '1/32'];
 
 export function validatePreset(p) {
   if (!p || typeof p.name !== 'string' || typeof p.key !== 'string') return false;

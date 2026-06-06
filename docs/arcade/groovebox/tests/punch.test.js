@@ -111,6 +111,12 @@ describe('gateEventsForStep', () => {
       [2 * q + 0.003, 1], [3 * q, 1], [3 * q + 0.003, 0], [4 * q, 0],
     ]);
   });
+  it("division '1/4' chops in half-beat halves: 2 steps open, 2 closed", () => {
+    expect(gateEventsForStep(0, SIX, 0, '1/4', 1)).toEqual([[0.003, 1], [SIX, 1]]);
+    expect(gateEventsForStep(0, SIX, 1, '1/4', 1)).toEqual([[0.003, 1], [SIX, 1]]);
+    expect(gateEventsForStep(0, SIX, 2, '1/4', 1)).toEqual([[0.003, 0], [SIX, 0]]);
+    expect(gateEventsForStep(0, SIX, 3, '1/4', 1)).toEqual([[0.003, 0], [SIX, 0]]);
+  });
   it('depth scales the closed level (depth 0.6 → closed 0.4)', () => {
     const ev = gateEventsForStep(0, SIX, 0, '1/16', 0.6);
     expect(ev[2][1]).toBeCloseTo(0.4);

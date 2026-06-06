@@ -37,6 +37,10 @@ export function laneInPunchBus(lane, activeMasks) {
 // each step's final breakpoint is the level the next step ramps from.
 export function gateEventsForStep(t, sixteenth, stepIdx, division, depth, ramp = 0.003) {
   const closed = 1 - depth;
+  if (division === '1/4') {
+    const lvl = (stepIdx % 4) < 2 ? 1 : closed;
+    return [[t + ramp, lvl], [t + sixteenth, lvl]];
+  }
   if (division === '1/8') {
     const lvl = stepIdx % 2 === 0 ? 1 : closed;
     return [[t + ramp, lvl], [t + sixteenth, lvl]];
