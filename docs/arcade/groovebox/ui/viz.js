@@ -301,11 +301,8 @@ export function makeViz(host, song, eng) {
     const data = eng.getScope(scopeSource);
     // Bright glowing trace — resolved via themeColors() (not CSS vars, which canvas can't read).
     const GAIN = 1.6;                              // amplify so quiet signals still read
-    ctx.lineWidth = 2.5;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    ctx.shadowColor = tc.scope;
-    ctx.shadowBlur = 10;
     ctx.strokeStyle = tc.scope;
     ctx.beginPath();
     if (!data || data.length === 0) {
@@ -319,8 +316,16 @@ export function makeViz(host, song, eng) {
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
     }
+    // Two-pass glow instead of ctx.shadowBlur: a 60fps per-pixel gaussian on a
+    // 1024-point stroke was saturating the main thread and starving Tone's
+    // scheduler (events fired >1s late). A wide translucent pass under a bright
+    // core reads as a glow at a tiny fraction of the cost. Path reused — no rebuild.
+    ctx.globalAlpha = 0.22;
+    ctx.lineWidth = 7;
     ctx.stroke();
-    ctx.shadowBlur = 0;                            // reset so other draws don't glow
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
   }
 
   function startScopeLoop() {
