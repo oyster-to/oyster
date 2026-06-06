@@ -1983,3 +1983,5 @@ body.hide-k-bal  .knob[data-k="bal"]  { display: none; }
 body.hide-k-wid  .knob[data-k="wid"]  { display: none; }
 body.hide-k-lo   .knob[data-k="lo"]   { display: none; }
 body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
+
+.vbar-lbl { font-size: 10px; color: var(--dim); letter-spacing: .1em; text-transform: uppercase; margin: 8px 0 2px; }
