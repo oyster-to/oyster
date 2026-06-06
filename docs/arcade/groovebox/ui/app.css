@@ -399,6 +399,7 @@ input[type=range] {
 #viz,
 #strips,
 #fills,
+#punch,
 #master,
 #arrange {
   /* soft top-light → bottom-shade sheen (derived from --panel) so panels read
@@ -893,6 +894,30 @@ input[type=range] {
   flex-direction: row;
   gap: 3px;
   align-items: center;
+}
+
+/* ─── punch row (momentary performance pads; panel chrome via #punch) ────── */
+.punchrow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; row-gap: 6px; }
+.punchpad {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;          /* hold-gesture pads — no scroll/zoom stealing */
+}
+.punchpad .punchkey { margin-left: 7px; opacity: 0.45; font-size: 9px; }
+.punchpad.held {
+  background: var(--hot);
+  color: var(--ink);
+  border-color: var(--hot);
+  box-shadow: 0 0 12px var(--hot);   /* the existing "driving sound" glow language */
 }
 
 /* ─── fills row (panel chrome via #fills) ───────────────────────────────── */
