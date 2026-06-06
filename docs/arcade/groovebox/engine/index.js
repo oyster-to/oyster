@@ -38,6 +38,7 @@ export function createEngine() {
   let _tapeActive = false;                       // transport.tapeStop engaged (owns the gate)
   let _gateReturnPending = false;                // tapeStop released → gate returns on-grid
   const _pendingQuantized = [];                  // [{ when: 'bar'|'pattern', fn }]
+  let _previewMask;                              // editor TEST: draft's lane mask while held (undefined = no preview)
   let punchAmount = 1;                           // AMOUNT knob: scales engaged intensity
   let meterL = null, meterR = null;
   let scopeMaster = null, scopeLane = {};
@@ -59,6 +60,7 @@ export function createEngine() {
     for (let s = 0; s < _slotHeld.length; s++) {
       if (_slotHeld[s]) masks.push(punchPresets[s]?.lanes ?? null);
     }
+    if (_previewMask !== undefined) masks.push(_previewMask);   // editor TEST counts as a held pad
     for (const lane of song.lanes) {
       const f = fx[lane.id];
       if (!f || !f.toPunch) continue;
@@ -385,6 +387,7 @@ export function createEngine() {
       // gate settle so any reverb tail doesn't doppler.
       _slotHeld.fill(false);
       _gate = null; _tapeActive = false; _gateReturnPending = false; _pendingQuantized.length = 0;
+      _previewMask = undefined;
       _recomputePunchRouting();
       if (started) {
         const now = Tone.now();
@@ -438,6 +441,10 @@ export function createEngine() {
     // Same runner path as punch(); no slot state. UI gates on isPlaying().
     punchPreview(preset, on) {
       if (!started || !validatePreset(preset)) return;
+      // The draft's lane mask must route like a held pad, or TEST plays
+      // through the idle all-lanes bus regardless of "active on".
+      _previewMask = on ? (preset.lanes ?? null) : undefined;
+      _recomputePunchRouting();
       const beatSeconds = 60 / Tone.Transport.bpm.value;
       const timing = {
         sixteenth: beatSeconds / 4,
