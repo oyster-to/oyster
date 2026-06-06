@@ -5,7 +5,12 @@
 export const API_BASE = '/api/registry';
 export const CANONICAL_ORIGIN = 'https://groovebox.oyster.to';
 
-export function shareUrl(id) { return `${CANONICAL_ORIGIN}/s/${id}`; }
+// Canonical host for links — except in local dev (wrangler dev / vite), where a
+// canonical link would 404 until deployed; there the local origin is the truth.
+export function shareUrl(id) {
+  const local = typeof location !== 'undefined' && /^(localhost|127\.)/.test(location.hostname);
+  return `${local ? location.origin : CANONICAL_ORIGIN}/s/${id}`;
+}
 
 // /s/<id> redirects here as /?s=<id>; @revision is reserved syntax, ignored in v1.
 export function parseShareParam(search) {
