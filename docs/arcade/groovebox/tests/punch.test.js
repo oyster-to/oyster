@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, stutterEvents, isPunchArmed } from '../engine/punch.js';
+import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, stutterEvents, laneInPunchBus } from '../engine/punch.js';
 
 describe('PUNCH_NEUTRAL', () => {
   it('pins the idle chain to audibly-transparent values (spec safeguard 3)', () => {
@@ -27,17 +27,6 @@ describe('stutterEvents', () => {
 });
 
 
-describe('isPunchArmed', () => {
-  it('defaults to armed when the lane has no punchArm flag', () => {
-    expect(isPunchArmed({})).toBe(true);
-  });
-  it('respects an explicit false', () => {
-    expect(isPunchArmed({ punchArm: false })).toBe(false);
-  });
-  it('respects an explicit true', () => {
-    expect(isPunchArmed({ punchArm: true })).toBe(true);
-  });
-});
 
 
 describe('stutterEvents closed level', () => {
@@ -55,13 +44,13 @@ describe('stutterEvents closed level', () => {
 
 describe('MODULE_PARAMS registry', () => {
   it('declares neutral + scale for every automatable param', () => {
-    expect(MODULE_PARAMS['filter.freq']).toEqual({ neutral: 20000, scale: 'log' });
-    expect(MODULE_PARAMS['filter.Q']).toEqual({ neutral: 0.7, scale: 'linear' });
-    expect(MODULE_PARAMS['crusher.wet']).toEqual({ neutral: 0, scale: 'linear' });
-    expect(MODULE_PARAMS['delay.wet']).toEqual({ neutral: 0, scale: 'linear' });
-    expect(MODULE_PARAMS['delay.feedback']).toEqual({ neutral: 0.55, scale: 'linear' });
-    expect(MODULE_PARAMS['gate.depth']).toEqual({ neutral: 0, scale: 'linear' });
-    expect(MODULE_PARAMS['transport.tapeStop']).toEqual({ neutral: 0, scale: 'linear' });
+    expect(MODULE_PARAMS['filter.freq']).toEqual({ neutral: 20000, scale: 'log', min: 100, max: 20000 });
+    expect(MODULE_PARAMS['filter.Q']).toEqual({ neutral: 0.7, scale: 'linear', min: 0.5, max: 12 });
+    expect(MODULE_PARAMS['crusher.wet']).toEqual({ neutral: 0, scale: 'linear', min: 0, max: 1 });
+    expect(MODULE_PARAMS['delay.wet']).toEqual({ neutral: 0, scale: 'linear', min: 0, max: 1 });
+    expect(MODULE_PARAMS['delay.feedback']).toEqual({ neutral: 0.55, scale: 'linear', min: 0, max: 0.95 });
+    expect(MODULE_PARAMS['gate.depth']).toEqual({ neutral: 0, scale: 'linear', min: 0, max: 1 });
+    expect(MODULE_PARAMS['transport.tapeStop']).toEqual({ neutral: 0, scale: 'linear', min: 0, max: 1 });
   });
 });
 
@@ -111,6 +100,12 @@ describe('gateEventsForStep', () => {
       [2 * q + 0.003, 1], [3 * q, 1], [3 * q + 0.003, 0], [4 * q, 0],
     ]);
   });
+  it("division '1/4' chops in half-beat halves: 2 steps open, 2 closed", () => {
+    expect(gateEventsForStep(0, SIX, 0, '1/4', 1)).toEqual([[0.003, 1], [SIX, 1]]);
+    expect(gateEventsForStep(0, SIX, 1, '1/4', 1)).toEqual([[0.003, 1], [SIX, 1]]);
+    expect(gateEventsForStep(0, SIX, 2, '1/4', 1)).toEqual([[0.003, 0], [SIX, 0]]);
+    expect(gateEventsForStep(0, SIX, 3, '1/4', 1)).toEqual([[0.003, 0], [SIX, 0]]);
+  });
   it('depth scales the closed level (depth 0.6 → closed 0.4)', () => {
     const ev = gateEventsForStep(0, SIX, 0, '1/16', 0.6);
     expect(ev[2][1]).toBeCloseTo(0.4);
@@ -118,5 +113,19 @@ describe('gateEventsForStep', () => {
   });
   it('stutterEvents stays as the 1/16 wrapper (v2 back-compat)', () => {
     expect(stutterEvents(5, SIX, 0.003, 0.25)).toEqual(gateEventsForStep(5, SIX, 0, '1/16', 0.75));
+  });
+});
+
+describe('laneInPunchBus (active masks, union across held pads)', () => {
+  const lane = { type: 'bass' };
+  it('no active masks → armed lanes route (idle/transparent state)', () => {
+    expect(laneInPunchBus(lane, [])).toBe(true);
+  });
+  it('routes when any active mask includes the lane type (union)', () => {
+    expect(laneInPunchBus(lane, [['drums'], ['bass', 'chords']])).toBe(true);
+    expect(laneInPunchBus(lane, [['drums'], ['chords']])).toBe(false);
+  });
+  it('null mask in the set means all lanes', () => {
+    expect(laneInPunchBus(lane, [null, ['drums']])).toBe(true);
   });
 });

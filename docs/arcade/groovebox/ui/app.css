@@ -865,19 +865,14 @@ body.gb-knob-values .knob-val { display: block; }
 }
 
 /* ─── mute / solo buttons ────────────────────────────────────────────────── */
-.mute, .solo, .arm {
+.mute, .solo {
   width: 26px; height: 26px; flex: 0 0 26px; padding: 0; border-radius: 6px;
   font: 700 11px ui-monospace,Menlo,monospace; color: var(--dim);
   border: 1px solid var(--line); cursor: pointer; transition: .12s;
   background: var(--panel-2);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.04), inset 0 -1px 2px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.3);
 }
-.mute:hover, .solo:hover, .arm:hover { border-color: var(--acc-dim); background: var(--panel-3); }
-.arm.armed {
-  color: var(--ink); border-color: var(--hot);
-  background: var(--hot);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 0 10px var(--hot), 0 1px 2px rgba(0,0,0,.4);
-}
+.mute:hover, .solo:hover { border-color: var(--acc-dim); background: var(--panel-3); }
 .mute.muted {
   color: #fff1e8; border-color: #a8391c;
   background: linear-gradient(180deg, #ff7a3d, #d6481e);
@@ -961,13 +956,67 @@ body.gb-knob-values .knob-val { display: block; }
   background: var(--panel-3);
 }
 .punchpad .punchkey { margin-left: 7px; opacity: 0.45; font-size: 9px; }
-.punchrow .knob { margin-left: 10px; }
 .punchpad.held {
   background: var(--hot);
   color: var(--ink);
   border-color: var(--hot);
   box-shadow: 0 0 12px var(--hot);   /* the existing "driving sound" glow language */
 }
+
+/* ─── punch preset editor (v3.5 modal) ──────────────────────────────────── */
+.punchpad .punchedit { margin-left: 8px; opacity: 0.5; font-size: 11px; cursor: pointer; }
+.punchpad .punchedit:hover { opacity: 1; color: var(--acc); }
+#punch-editor-backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+}
+#punch-editor {
+  width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 64px); overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--acc); border-radius: 12px;
+  box-shadow: 0 0 30px color-mix(in srgb, var(--acc) 18%, transparent), 0 12px 40px rgba(0,0,0,0.6);
+  padding: 16px; font-size: 12px; color: var(--text, #c9d4e3);
+}
+.pe-hd { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.pe-name {
+  background: var(--panel-2); border: 1px dashed var(--line); border-radius: 6px;
+  padding: 5px 10px; color: var(--ink); font: 700 13px ui-monospace, Menlo, monospace;
+  letter-spacing: 0.06em; width: 130px; text-transform: uppercase;
+}
+.pe-badge { font-size: 10px; color: var(--faint); }
+.pe-test {
+  margin-left: auto; border: 0; border-radius: 8px; padding: 6px 16px; cursor: pointer;
+  background: linear-gradient(180deg, #63f8d4, #3dd6b0); color: #04201a; font-weight: 700;
+  box-shadow: 0 0 14px rgba(84, 240, 200, 0.4); user-select: none; touch-action: none;
+}
+.pe-test small { display: block; font-weight: 400; font-size: 9px; opacity: 0.7; }
+.pe-test.idle { filter: grayscale(1); opacity: 0.5; box-shadow: none; }
+.pe-fx { border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); padding: 10px; margin: 8px 0; }
+.pe-fxhd { display: flex; align-items: center; margin-bottom: 6px; }
+.pe-fxname { color: var(--ink); font-weight: 700; }
+.pe-rm { margin-left: auto; background: none; border: 0; color: var(--faint); cursor: pointer; font-size: 11px; }
+.pe-rm:hover { color: var(--hot); }
+.pe-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.pe-rl { width: 84px; flex: 0 0 84px; color: var(--faint); font-size: 11px; }
+.pe-q .pe-rl { width: auto; flex: 0 0 auto; }
+.pe-slider { flex: 1; accent-color: var(--acc); }
+.pe-val { width: 56px; flex: 0 0 56px; text-align: right; color: var(--ink); }
+.pe-sel { background: var(--panel-3); border: 1px solid var(--line); border-radius: 5px; padding: 2px 8px; color: var(--dim); font: inherit; }
+.pe-add { margin: 8px 0; }
+.pe-lane {
+  height: 24px; padding: 0 10px; border-radius: 12px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel-3); color: var(--faint);
+  font: 600 10px ui-monospace, Menlo, monospace; letter-spacing: 0.06em;
+}
+.pe-lane.on { background: var(--acc); border-color: var(--acc); color: #04201a; }
+.pe-ft { display: flex; align-items: center; gap: 14px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.pe-reset { background: none; border: 0; color: var(--hot); cursor: pointer; font: inherit; }
+.pe-cancel { background: none; border: 0; color: var(--faint); cursor: pointer; font: inherit; }
+.pe-save {
+  margin-left: auto; border: 0; border-radius: 6px; padding: 6px 18px; cursor: pointer;
+  background: var(--acc); color: #04201a; font-weight: 700;
+}
+.pe-save:disabled { filter: grayscale(1); opacity: 0.5; cursor: default; }
 
 /* ─── fills row (panel chrome via #fills) ───────────────────────────────── */
 .fillsrow {

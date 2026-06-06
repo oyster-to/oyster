@@ -14,10 +14,14 @@ export const PUNCH_NEUTRAL = {
   tapeDelay: 0,
 };
 
-// Punch bus channel-assign: lanes are armed by default; only an explicit
-// punchArm === false opts a lane out (serializes with the lane object).
-export function isPunchArmed(lane) {
-  return lane.punchArm !== false;
+// Per-preset lane targeting: while any pads are held, a lane feeds the punch
+// bus when at least one held preset's mask includes its type (null mask =
+// all lanes). Idle (no masks) = everything routed, which is sonically
+// transparent anyway. (The per-lane ⚡ arm chips were removed in v3.5 — one
+// targeting system, on the preset, as data.)
+export function laneInPunchBus(lane, activeMasks) {
+  if (!activeMasks.length) return true;
+  return activeMasks.some(m => m == null || m.includes(lane.type));
 }
 
 // GATE module math: tempo-synced chopper. division picks the chop cycle;
@@ -27,6 +31,10 @@ export function isPunchArmed(lane) {
 // each step's final breakpoint is the level the next step ramps from.
 export function gateEventsForStep(t, sixteenth, stepIdx, division, depth, ramp = 0.003) {
   const closed = 1 - depth;
+  if (division === '1/4') {
+    const lvl = (stepIdx % 4) < 2 ? 1 : closed;
+    return [[t + ramp, lvl], [t + sixteenth, lvl]];
+  }
   if (division === '1/8') {
     const lvl = stepIdx % 2 === 0 ? 1 : closed;
     return [[t + ramp, lvl], [t + sixteenth, lvl]];
@@ -52,14 +60,16 @@ export function stutterEvents(t, sixteenth, ramp = 0.003, closed = 0) {
 
 // Registry: neutral value + AMT interpolation space for every automatable
 // param. Presets may override scale per-automation; absent = this default.
+// min/max are the single source of truth for valid automation targets:
+// validatePreset enforces them; the editor's sliders read them (v3.5).
 export const MODULE_PARAMS = {
-  'crusher.wet':        { neutral: 0,     scale: 'linear' },
-  'filter.freq':        { neutral: 20000, scale: 'log'    },
-  'filter.Q':           { neutral: 0.7,   scale: 'linear' },
-  'delay.wet':          { neutral: 0,     scale: 'linear' },
-  'delay.feedback':     { neutral: 0.55,  scale: 'linear' },
-  'gate.depth':         { neutral: 0,     scale: 'linear' },
-  'transport.tapeStop': { neutral: 0,     scale: 'linear' },
+  'crusher.wet':        { neutral: 0,     scale: 'linear', min: 0,   max: 1 },
+  'filter.freq':        { neutral: 20000, scale: 'log',    min: 100, max: 20000 },
+  'filter.Q':           { neutral: 0.7,   scale: 'linear', min: 0.5, max: 12 },
+  'delay.wet':          { neutral: 0,     scale: 'linear', min: 0,   max: 1 },
+  'delay.feedback':     { neutral: 0.55,  scale: 'linear', min: 0,   max: 0.95 },
+  'gate.depth':         { neutral: 0,     scale: 'linear', min: 0,   max: 1 },
+  'transport.tapeStop': { neutral: 0,     scale: 'linear', min: 0,   max: 1 },
 };
 
 // AMT interpolation from→to in the param's space (amount 0 = from, 1 = to).

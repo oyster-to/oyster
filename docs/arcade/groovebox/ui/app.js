@@ -10,6 +10,7 @@ import { memoryReboot } from '../songs/memory-reboot.js';
 import { takeOnMe } from '../songs/take-on-me.js';
 import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
+import { openPunchEditor, isPunchEditorOpen } from './punch-editor.js';
 
 const eng = createEngine();
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
@@ -295,7 +296,6 @@ function renderStrips() {
       <div class="msgroup">
         <button class="mute" data-lane="${lane.id}" aria-label="mute ${esc(lane.name)}" title="Mute">M</button>
         <button class="solo" data-lane="${lane.id}" aria-label="solo ${esc(lane.name)}" title="Solo">S</button>
-        <button class="arm${eng.getPunchArm(lane.id) ? ' armed' : ''}" data-lane="${lane.id}" aria-label="punch target ${esc(lane.name)}" title="Punch target — pads affect this lane">⚡</button>
       </div>
       <div class="lane-actions">
         ${editBtn}
@@ -354,12 +354,6 @@ function renderStrips() {
   host.querySelectorAll('.mute').forEach(b => b.onclick = () => {
     eng.toggleMute(b.dataset.lane);
     refreshStates();
-  });
-  host.querySelectorAll('.arm').forEach(b => b.onclick = () => {
-    const id = b.dataset.lane;
-    const on = !eng.getPunchArm(id);
-    eng.setPunchArm(id, on);
-    b.classList.toggle('armed', on);
   });
   host.querySelectorAll('.solo').forEach(b => b.onclick = () => {
     eng.toggleSolo(b.dataset.lane);
@@ -617,20 +611,25 @@ function renderPunch() {
     hint.className = 'punchkey';
     hint.textContent = p.key;
     pad.appendChild(hint);
+    // ✎ opens the preset editor for this slot (v3.5). pointerdown is stopped
+    // so the pad doesn't punch underneath; all pads are force-released on
+    // open (preview and pads share the punch bus).
+    const edit = document.createElement('span');
+    edit.className = 'punchedit';
+    edit.title = 'Edit preset';
+    edit.textContent = '✎';
+    edit.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation();
+      for (let s = 0; s < 5; s++) setPunch(s, false);
+      openPunchEditor({ slot, eng, onSaved: renderPunch });
+    });
+    pad.appendChild(edit);
     pad.addEventListener('pointerdown', e => { e.preventDefault(); pad.setPointerCapture(e.pointerId); setPunch(slot, true); });
     const off = () => setPunch(slot, false);
     pad.addEventListener('pointerup', off);
     pad.addEventListener('pointercancel', off);
     row.appendChild(pad);
   });
-  // AMOUNT — the one performer-facing setting (DJM level/depth): scales how
-  // hard every pad hits. Effect internals stay fixed preset data.
-  row.appendChild(makeKnob({
-    label: 'AMT',
-    value: eng.getPunchAmount(),
-    onChange: v => eng.setPunchAmount(v),
-    tip: 'Punch amount — how hard the pads hit',
-  }));
   host.appendChild(row);
 }
 
@@ -641,7 +640,7 @@ function isTypingTarget(el) {
 }
 document.addEventListener('keydown', e => {
   const slot = PUNCH_BY_KEY[e.key];
-  if (slot === undefined || e.repeat || isTypingTarget(document.activeElement)) return;
+  if (slot === undefined || e.repeat || isTypingTarget(document.activeElement) || isPunchEditorOpen()) return;
   e.preventDefault();
   setPunch(slot, true);
 });
