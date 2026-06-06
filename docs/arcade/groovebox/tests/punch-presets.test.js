@@ -109,7 +109,10 @@ describe('per-preset amount (v3.5 — replaces the global AMT knob)', () => {
     expect(validatePreset({ ...base, amount: 1.5 })).toBe(false);
     expect(validatePreset({ ...base, amount: -0.1 })).toBe(false);
   });
-  it('defaults carry no amount (= full strength)', () => {
-    for (const p of DEFAULT_PRESETS) expect(p.amount).toBeUndefined();
+  it('amount defaults: CRUSH ear-tuned to 0.6, everything else full', () => {
+    for (const p of DEFAULT_PRESETS) {
+      if (p.name === 'CRUSH') expect(p.amount).toBe(0.6);
+      else expect(p.amount).toBeUndefined();
+    }
   });
 });

@@ -62,6 +62,7 @@ export const DEFAULT_PRESETS = [
     ] },
   { name: 'CRUSH', key: '3', engageQuantize: 'immediate', releaseQuantize: 'immediate',
     lanes: ['drums', 'bass'],   // crushed pads/melody read as noise — keep the grit on the rhythm section
+    amount: 0.6,                // ear-tuned: full-strength crush is too much even on the rhythm section
     automations: [
       { module: 'crusher', param: 'wet', from: 'neutral', to: 0.9,
         engage: { ramp: { unit: 'steps', value: 0.5 } }, release: { ramp: { unit: 'steps', value: 0.5 } } },
