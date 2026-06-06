@@ -136,3 +136,5 @@ song = {
 - **Engine API:** `setLaneGroove(laneId, grooveName)` (writes the EDIT pattern's pick), `getGrooves()`; step-edit setters now write into the groove referenced by the edit pattern's pick for that lane. Everything else (target playback, chain ops, length, fills queue) unchanged.
 
 **Out of scope for this amendment:** creating/renaming/deleting grooves from the UI (the dropdown lists what migration produced; editing mutates in place), per-pattern fills, recipe labels on pattern slots. All natural follow-ups.
+
+*Amended again same day: `pattern.bars` removed entirely — a pattern's duration is derived (longest picked groove; shorter grooves cycle). The length buttons are gone; chain repetition covers longer stays.*

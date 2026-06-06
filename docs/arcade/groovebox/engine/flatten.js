@@ -169,10 +169,10 @@ export function flattenSong(rich) {
     return name;
   }
 
-  function pushPattern(bars, barRange) {
+  function pushPattern(barRange) {
     const lanes = {};
     for (const lane of working) lanes[lane.id] = internGroove(lane.id, barRange);
-    const pat = { bars, lanes };
+    const pat = { lanes };
     const key = JSON.stringify(pat);
     if (seen.has(key)) return seen.get(key);
     patterns.push(pat);
@@ -187,12 +187,12 @@ export function flattenSong(rich) {
       P <= n && n % P === 0 &&
       range.every(b => JSON.stringify(baked[b]) === JSON.stringify(baked[offset + ((b - offset) % P)])));
     if (period) {
-      const idx = pushPattern(period, range.slice(0, period));
+      const idx = pushPattern(range.slice(0, period));
       for (let r = 0; r < n / period; r++) chain.push(idx);
     } else {
       let at = 0;
       for (const size of chunkSizes(n)) {
-        chain.push(pushPattern(size, range.slice(at, at + size)));
+        chain.push(pushPattern(range.slice(at, at + size)));
         at += size;
       }
     }

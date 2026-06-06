@@ -2,16 +2,30 @@
 //
 // Grooves model: patterns are combos of named groove references, not inline data.
 //   song.grooves  = { [laneId]: { [grooveName]: perBarData[] } }   // named, shared
-//   song.patterns = [ { bars: 1|2|4, lanes: { [laneId]: grooveName } } ]
+//   song.patterns = [ { lanes: { [laneId]: grooveName } } ]
 // A groove owns its length (its array); at pattern bar b it plays
-// groove[b % groove.length]. pattern.bars is the loop length.
+// groove[b % groove.length]. A pattern's loop length is DERIVED — the longest
+// picked groove (see patternBars); shorter grooves cycle underneath.
 import { laneAudible, drumVoiceAudible, transposeNote, DRUM_KEYS } from './song.js';
 
 export const MAX_PATTERNS = 16;
 
+// patternBars(song, idx) → the pattern's derived duration: the longest groove
+// among its picks (grooves are 1/2/4 bars; shorter ones cycle). Minimum 1.
+export function patternBars(song, patternIdx) {
+  const pat = song.patterns[patternIdx];
+  if (!pat) return 1;
+  let max = 1;
+  for (const laneId of Object.keys(pat.lanes)) {
+    const g = song.grooves[laneId]?.[pat.lanes[laneId]];
+    if (Array.isArray(g) && g.length > max) max = g.length;
+  }
+  return max;
+}
+
 // ── chain math ────────────────────────────────────────────────────────────────
 export function totalChainBars(song) {
-  return song.chain.reduce((n, pi) => n + song.patterns[pi].bars, 0) || 1;
+  return song.chain.reduce((n, pi) => n + patternBars(song, pi), 0) || 1;
 }
 
 // Precondition: chain entries must index existing patterns; the engine mutation
@@ -20,7 +34,7 @@ export function chainBarAt(song, songBar) {
   const total = totalChainBars(song);
   let b = ((songBar % total) + total) % total;
   for (let pos = 0; pos < song.chain.length; pos++) {
-    const bars = song.patterns[song.chain[pos]].bars;
+    const bars = patternBars(song, song.chain[pos]);
     if (b < bars) return { chainPos: pos, patternIdx: song.chain[pos], barInPattern: b };
     b -= bars;
   }
@@ -34,7 +48,7 @@ export function targetPattern(target, song) {
 }
 
 export function advanceTarget(target, song) {
-  const bars = song.patterns[targetPattern(target, song)].bars;
+  const bars = patternBars(song, targetPattern(target, song));
   const nextBar = target.barInPattern + 1;
   if (nextBar < bars) return { ...target, barInPattern: nextBar };
   if (target.kind === 'pattern') return { ...target, barInPattern: 0 };
@@ -106,7 +120,7 @@ export function addPattern(song, fromIdx = 0) {
   if (song.patterns.length >= MAX_PATTERNS) return null;
   const src = song.patterns[fromIdx] || song.patterns[0];
   if (!src) return null;
-  song.patterns.push({ bars: src.bars, lanes: { ...src.lanes } });
+  song.patterns.push({ lanes: { ...src.lanes } });
   return song.patterns.length - 1;
 }
 
@@ -119,14 +133,6 @@ export function removePattern(song, idx) {
   song.chain = song.chain.filter(pi => pi !== idx).map(pi => (pi > idx ? pi - 1 : pi));
   if (!song.chain.length) song.chain = [0];        // invariant: never empty
   return true;
-}
-
-// Pure setter — validates 1|2|4 and sets pat.bars. Grooves keep their own length
-// (groove cycling handles short grooves under longer patterns); no padding.
-export function setPatternBars(song, idx, bars) {
-  const pat = song.patterns[idx];
-  if (!pat || ![1, 2, 4].includes(bars)) return;
-  pat.bars = bars;
 }
 
 // ── groove pick / lookup ──────────────────────────────────────────────────────

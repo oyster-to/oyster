@@ -13,8 +13,8 @@ function makeSong() {
       melody: { riff: [[[0, 'C4', 2]], []], rest: [[]] },
     },
     patterns: [
-      { bars: 2, lanes: { drums: 'beat', melody: 'riff' } },
-      { bars: 1, lanes: { drums: 'hats', melody: 'rest' } },
+      { lanes: { drums: 'beat', melody: 'riff' } },
+      { lanes: { drums: 'hats', melody: 'rest' } },
     ],
     chain: [0, 1],
     fills: {},

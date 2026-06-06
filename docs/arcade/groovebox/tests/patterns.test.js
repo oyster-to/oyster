@@ -1,7 +1,7 @@
 import { test, expect } from 'vitest';
 import {
-  totalChainBars, chainBarAt, eventsForStepV2, advanceTarget,
-  addPattern, duplicatePattern, removePattern, setPatternBars,
+  totalChainBars, chainBarAt, eventsForStepV2, advanceTarget, patternBars,
+  addPattern, duplicatePattern, removePattern,
   appendToChain, removeChainAt, moveChain,
   setDrumStep, toggleNote, setLaneGroove, grooveFor, emptyBarFor,
 } from '../engine/patterns.js';
@@ -26,8 +26,8 @@ function makeSong() {
       },
     },
     patterns: [
-      { bars: 2, lanes: { drums: 'groove2', melody: 'riff' } },
-      { bars: 1, lanes: { drums: 'hats',    melody: 'chord' } },
+      { lanes: { drums: 'groove2', melody: 'riff' } },   // both 2-bar → derived 2
+      { lanes: { drums: 'hats',    melody: 'chord' } },   // both 1-bar → derived 1
     ],
     chain: [0, 0, 1],
     fills: {},
@@ -80,19 +80,26 @@ test('eventsForStepV2 honours transpose, fill override, and mute', () => {
   expect(eventsForStepV2(s, 0, 0, 0, null, 0).some(e => e.type === 'drums')).toBe(false);
 });
 
-test('eventsForStepV2: a 1-bar groove under a longer pattern cycles (b % length)', () => {
+test('eventsForStepV2: a 1-bar groove under a longer (derived) pattern cycles (b % length)', () => {
   const s = makeSong();
-  // pattern 1 is 1 bar; force it to 4 and confirm the 1-bar 'hats' groove repeats.
-  setPatternBars(s, 1, 4);
+  // Pattern 1 mixes the 1-bar 'hats' drums groove with a 4-bar melody groove →
+  // derived length 4; the 1-bar 'hats' must repeat on every bar.
+  s.grooves.melody.long = [[], [], [], []];          // 4-bar
+  s.patterns[1].lanes.melody = 'long';
+  expect(patternBars(s, 1)).toBe(4);
   for (const barInPattern of [0, 1, 2, 3]) {
     const ev = eventsForStepV2(s, 1, barInPattern, 4, null, 0);
     expect(ev).toContainEqual({ laneId: 'drums', type: 'drums', voice: 'hat' });
   }
 });
 
-test('eventsForStepV2: a 2-bar groove under a 4-bar pattern alternates its two bars', () => {
+test('eventsForStepV2: a 2-bar groove under a 4-bar (derived) pattern alternates its two bars', () => {
   const s = makeSong();
-  setPatternBars(s, 0, 4);
+  // Pattern 0 has the 2-bar 'groove2' drums; give it a 4-bar melody so the
+  // pattern derives to 4 and the 2-bar drums groove cycles underneath.
+  s.grooves.melody.long = [[], [], [], []];          // 4-bar
+  s.patterns[0].lanes.melody = 'long';
+  expect(patternBars(s, 0)).toBe(4);
   // bar 0 ≡ bar 2 (groove bar 0: kick at 0); bar 1 ≡ bar 3 (groove bar 1: snare at 12)
   expect(eventsForStepV2(s, 0, 2, 0, null, 0)).toContainEqual({ laneId: 'drums', type: 'drums', voice: 'kick' });
   expect(eventsForStepV2(s, 0, 3, 12, null, 0)).toContainEqual({ laneId: 'drums', type: 'drums', voice: 'snare' });
@@ -122,7 +129,7 @@ test('addPattern clones the picks of patterns[fromIdx] (groove refs shared); cap
   const s = makeSong();
   const idx = addPattern(s, 1);
   expect(idx).toBe(2);
-  expect(s.patterns[2]).toEqual({ bars: 1, lanes: { drums: 'hats', melody: 'chord' } });
+  expect(s.patterns[2]).toEqual({ lanes: { drums: 'hats', melody: 'chord' } });
   // picks are a shallow copy — editing the new pattern's pick doesn't touch the source
   s.patterns[2].lanes.drums = 'groove2';
   expect(s.patterns[1].lanes.drums).toBe('hats');
@@ -134,7 +141,7 @@ test('duplicatePattern is the same affordance as addPattern (clones picks)', () 
   const s = makeSong();
   expect(duplicatePattern).toBe(addPattern);
   const idx = duplicatePattern(s, 0);
-  expect(s.patterns[idx]).toEqual({ bars: 2, lanes: { drums: 'groove2', melody: 'riff' } });
+  expect(s.patterns[idx]).toEqual({ lanes: { drums: 'groove2', melody: 'riff' } });
 });
 
 test('removePattern: blocked on last; reindexes chain; falls back to [0] if chain empties', () => {
@@ -149,18 +156,23 @@ test('removePattern: blocked on last; reindexes chain; falls back to [0] if chai
   expect(s2.chain).toEqual([0]);                    // fallback: first remaining pattern
 });
 
-test('setPatternBars accepts 1/2/4, rejects 3, and never touches grooves', () => {
+test('patternBars derives from the longest picked groove (equal grooves → that length)', () => {
   const s = makeSong();
-  const before = JSON.parse(JSON.stringify(s.grooves));
-  setPatternBars(s, 0, 4);
-  expect(s.patterns[0].bars).toBe(4);
-  setPatternBars(s, 0, 1);
-  expect(s.patterns[0].bars).toBe(1);
-  setPatternBars(s, 0, 3);                          // invalid → no change
-  expect(s.patterns[0].bars).toBe(1);
-  setPatternBars(s, 0, 2);
-  expect(s.patterns[0].bars).toBe(2);
-  expect(s.grooves).toEqual(before);               // grooves untouched throughout
+  expect(patternBars(s, 0)).toBe(2);               // groove2 (2) + riff (2)
+  expect(patternBars(s, 1)).toBe(1);               // hats (1) + chord (1)
+});
+
+test('patternBars: mixed-length picks → max; missing/empty grooves floor at 1', () => {
+  const s = makeSong();
+  s.grooves.melody.long = [[], [], [], []];        // 4-bar
+  s.patterns[1].lanes.melody = 'long';
+  expect(patternBars(s, 1)).toBe(4);               // 1-bar drums, 4-bar melody → 4
+  s.patterns[1].lanes.drums = 'nope';              // dangling ref ignored
+  expect(patternBars(s, 1)).toBe(4);
+  s.grooves.melody.long = [];                       // both empty/missing
+  s.patterns[1].lanes.melody = 'long';
+  expect(patternBars(s, 1)).toBe(1);               // minimum 1
+  expect(patternBars(s, 99)).toBe(1);              // bad index
 });
 
 // ── groove pick / lookup ──

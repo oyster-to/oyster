@@ -970,9 +970,6 @@ input[type=range] {
 .pat-slot.sel { background: var(--acc); color: var(--bg); border-color: var(--acc); font-weight: 700; }
 .pat-slot.playing { box-shadow: 0 0 8px var(--hot); border-color: var(--hot); }
 .pat-add { opacity: .6; }
-.pat-len { display: flex; align-items: center; gap: 4px; margin-left: 12px; }
-.pat-len-btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 5px; padding: 3px 9px; cursor: pointer; }
-.pat-len-btn.on { border-color: var(--acc); color: var(--acc); }
 .pat-act { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 5px; padding: 3px 8px; cursor: pointer; margin-left: 4px; }
 .chain-chip { display: inline-flex; align-items: center; gap: 5px; min-width: 30px; height: 27px; border-radius: 5px; padding: 0 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
 .chain-chip.playing { border-color: var(--hot); color: var(--hot); box-shadow: 0 0 6px var(--hot); }

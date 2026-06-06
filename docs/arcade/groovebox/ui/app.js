@@ -543,7 +543,6 @@ function renderPatterns() {
   const patterns = eng.getPatterns();
   const chain = eng.getChain();
   const editIdx = eng.getEditPatternIndex();
-  const editPat = patterns[editIdx];
 
   const head = document.createElement('div');
   head.className = 'arrange-head';
@@ -572,16 +571,6 @@ function renderPatterns() {
     if (idx !== null) { eng.selectPattern(idx); renderPatterns(); refreshVizPattern(); }
   };
   prow.appendChild(add);
-
-  const len = document.createElement('span');
-  len.className = 'pat-len';
-  len.innerHTML = `<span class="pat-lbl">length</span>` +
-    [1, 2, 4].map(n => `<button class="pat-len-btn${editPat?.bars === n ? ' on' : ''}" data-n="${n}">${n}</button>`).join('');
-  len.querySelectorAll('.pat-len-btn').forEach(b => b.onclick = () => {
-    eng.setPatternBars(editIdx, +b.dataset.n);
-    renderPatterns(); refreshVizPattern();
-  });
-  prow.appendChild(len);
 
   const dup = document.createElement('button');
   dup.className = 'pat-act'; dup.textContent = '⧉'; dup.title = 'duplicate pattern';

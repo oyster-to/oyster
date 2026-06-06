@@ -26,7 +26,7 @@ test('load() passes an already-explicit song through untouched', () => {
 
 test('removed APIs are gone', () => {
   const eng = loaded();
-  for (const fn of ['setMode', 'getMode', 'captureScene', 'clearArrangement', 'setLane']) {
+  for (const fn of ['setMode', 'getMode', 'captureScene', 'clearArrangement', 'setLane', 'setPatternBars']) {
     expect(eng[fn]).toBeUndefined();
   }
 });
@@ -75,8 +75,6 @@ test('pattern/chain mutation APIs are wired through', () => {
   const len = eng.getSong().chain.length;
   eng.removeChainAt(len - 1);
   expect(eng.getSong().chain.length).toBe(len - 1);
-  eng.setPatternBars(idx, 4);
-  expect(eng.getSong().patterns[idx].bars).toBe(4);
 });
 
 test('getGrooves lists named grooves; flattened kids has a drums groove named from "four"', () => {

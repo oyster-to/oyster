@@ -6,7 +6,7 @@ import { flattenSong } from './flatten.js';
 import {
   eventsForStepV2, advanceTarget, targetPattern,
   addPattern as _addPattern, duplicatePattern as _duplicatePattern, removePattern as _removePattern,
-  setPatternBars as _setPatternBars, appendToChain as _appendToChain,
+  appendToChain as _appendToChain,
   removeChainAt as _removeChainAt, moveChain as _moveChain,
   setDrumStep as _setDrumStep, toggleNote as _toggleNote,
   setLaneGroove as _setLaneGroove, grooveFor,
@@ -304,7 +304,6 @@ export function createEngine() {
       pendingTarget = null;
       return true;
     },
-    setPatternBars(i, n)    { if (song) _setPatternBars(song, i, n); },
     appendToChain(i)        { if (song) _appendToChain(song, i); },
     removeChainAt(pos) {
       if (!song || !_removeChainAt(song, pos)) return false;

@@ -1,5 +1,6 @@
 import { test, expect } from 'vitest';
 import { flattenSong } from '../engine/flatten.js';
+import { patternBars } from '../engine/patterns.js';
 import { renderLegacyStream } from './legacy/legacy-engine.js';
 import { renderChainStream } from './helpers/stream.js';
 import { kids } from '../songs/kids.js';
@@ -22,14 +23,21 @@ for (const [name, song] of Object.entries(SONGS)) {
     const v2 = flattenSong(song);
     expect(v2.chain.length).toBeGreaterThanOrEqual(1);
     expect(v2.patterns.length).toBeGreaterThanOrEqual(1);
-    for (const p of v2.patterns) {
-      expect([1, 2, 4]).toContain(p.bars);
+    for (let pi = 0; pi < v2.patterns.length; pi++) {
+      const p = v2.patterns[pi];
+      // pattern.bars is gone — duration is derived from the longest picked groove.
+      expect(p.bars).toBeUndefined();
       // Every pick references an existing groove.
       for (const lane of v2.lanes) {
         const name = p.lanes[lane.id];
         expect(typeof name).toBe('string');
         expect(v2.grooves[lane.id]?.[name]).toBeDefined();
       }
+      // Flattener chunks lanes together → all picked grooves share one length,
+      // so the derived bar count is that shared 1/2/4 length.
+      const lengths = v2.lanes.map(l => v2.grooves[l.id][p.lanes[l.id]].length);
+      expect(new Set(lengths).size).toBe(1);
+      expect([1, 2, 4]).toContain(patternBars(v2, pi));
     }
     // Every chain entry indexes an existing pattern.
     for (const pi of v2.chain) expect(v2.patterns[pi]).toBeDefined();
@@ -85,9 +93,10 @@ test('flattenSong: no-arrangement fallback yields valid chain and non-empty stre
   expect(v2.chain.length).toBeGreaterThanOrEqual(1);
   expect(v2.patterns.length).toBeGreaterThanOrEqual(1);
 
-  // All pattern bar counts are valid.
-  for (const p of v2.patterns) {
-    expect([1, 2, 4]).toContain(p.bars);
+  // All derived pattern bar counts are valid.
+  for (let pi = 0; pi < v2.patterns.length; pi++) {
+    expect(v2.patterns[pi].bars).toBeUndefined();
+    expect([1, 2, 4]).toContain(patternBars(v2, pi));
   }
 
   // Stream is non-empty.
