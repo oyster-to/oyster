@@ -645,6 +645,61 @@ async function handleDevicePoll(env: Env, deviceCode: string): Promise<Response>
   );
 }
 
+// ── app.oyster.to handshake (spec 2026-06-05-app-oyster-to-migration) ──
+// The apex cookie is host-only (#397) and cannot follow to the subdomain.
+// This endpoint mints a hashed, 60-second, single-use code in D1 and
+// redirects to app.oyster.to/auth/callback, which burns it and sets its
+// own host-only cookie carrying the same session id.
+const APP_ORIGIN = "https://app.oyster.to";
+const APP_HANDOFF_TTL_MS = 60 * 1000;
+
+// Deep-link pass-through: a path(+search) on app.oyster.to. Must be a
+// rooted path, not protocol-relative, no control chars, bounded length.
+// Invalid values are dropped (callback defaults to "/"), never rejected.
+function validateAppReturn(raw: string | null): string | null {
+  if (!raw) return null;
+  if (raw.length > 256) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  if (/[\x00-\x1f\x7f]/.test(raw)) return null;
+  return raw;
+}
+
+async function handleAppHandoff(req: Request, env: Env, url: URL): Promise<Response> {
+  const cookies = parseCookies(req);
+  const sid = cookies[COOKIE_NAME];
+  const now = Date.now();
+  const lookup = sid ? await getSession(env.DB, sid, now) : null;
+  if (!lookup) {
+    // Sign in first, then return here — /auth/app-handoff is in the
+    // validateReturnPath allowlist (exact match, no query).
+    return new Response(null, {
+      status: 302,
+      headers: { location: "/auth/sign-in?return=%2Fauth%2Fapp-handoff", ...NO_STORE },
+    });
+  }
+
+  // Opportunistic GC, mirroring device_codes. Bounded LIMIT keeps any
+  // single request cheap; over many requests the table stays trimmed.
+  await env.DB
+    .prepare("DELETE FROM app_handoff_codes WHERE expires_at < ? LIMIT 100")
+    .bind(now)
+    .run()
+    .catch((err) => console.error("app_handoff_gc_failed", err));
+
+  const rawCode = randomToken(32);
+  const codeHash = await sha256Hex(rawCode);
+  await env.DB
+    .prepare("INSERT INTO app_handoff_codes (code_hash, session_id, created_at, expires_at) VALUES (?, ?, ?, ?)")
+    .bind(codeHash, lookup.session.id, now, now + APP_HANDOFF_TTL_MS)
+    .run();
+
+  const dest = new URL("/auth/callback", APP_ORIGIN);
+  dest.searchParams.set("code", rawCode);
+  const ret = validateAppReturn(url.searchParams.get("return"));
+  if (ret) dest.searchParams.set("return", ret);
+  return new Response(null, { status: 302, headers: { location: dest.toString(), ...NO_STORE } });
+}
+
 async function handleSignOut(req: Request, env: Env, host: string): Promise<Response> {
   // Accept the session token from either the cookie (browser) or a
   // Bearer header (local server / CLI). Either revokes the same row.
@@ -1095,6 +1150,9 @@ export default {
       }
       if (url.pathname === "/auth/sign-out" && req.method === "POST") {
         return await handleSignOut(req, env, url.host);
+      }
+      if (url.pathname === "/auth/app-handoff" && req.method === "GET") {
+        return await handleAppHandoff(req, env, url);
       }
       return new Response("Not found", { status: 404 });
     } catch (err) {

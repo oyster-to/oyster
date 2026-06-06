@@ -1,5 +1,5 @@
 // cloud-spaces.ts — maps the oyster-publish worker's synced_spaces rows
-// (GET /api/spaces/mine on the APEX, NOT under the /app/api rewrite) into
+// (GET /api/spaces/mine via the oyster-cloud service-binding proxy on app.oyster.to) into
 // the local Space shape so the space switcher works in the cloud build.
 import type { Space } from "../../../shared/types";
 
@@ -38,8 +38,7 @@ function toSpace(r: SyncedSpaceRow): Space {
 export async function fetchCloudSpaces(): Promise<Space[]> {
   // Returns [] on failure rather than throwing — mirrors the local
   // fetchSpaces contract (App bootstrap expects a list).
-  // /api/spaces/mine lives on the APEX worker, same origin as /app but
-  // NOT behind the /app/api rewrite — call it directly (no apiPath).
+  // Served by oyster-publish via the worker's service-binding proxy on app.oyster.to — call it directly (no apiPath).
   try {
     const res = await fetch("/api/spaces/mine");
     if (!res.ok) return [];

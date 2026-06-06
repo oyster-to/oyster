@@ -60,4 +60,15 @@ describe("origin guard on mutating routes", () => {
     }));
     expect(res.status).not.toBe(403);
   });
+
+  it("allows the app.oyster.to browser origin", async () => {
+    const u = await seedUser({ tier: "free" });
+    const tok = await seedActivePublication({ ownerUserId: u.id, artifactId: "art_app_origin" });
+    const res = await call(patchRequest(tok, {
+      sessionToken: u.sessionToken,
+      origin: "https://app.oyster.to",
+      body: { mode: "open" },
+    }));
+    expect(res.status).toBe(200);
+  });
 });

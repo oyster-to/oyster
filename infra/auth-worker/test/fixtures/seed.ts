@@ -10,6 +10,7 @@ import { env } from "cloudflare:test";
 //   infra/auth-worker/migrations/0002_oauth.sql (user_identities, oauth_states)
 //   infra/auth-worker/migrations/0003_publish.sql (users.tier, published_artifacts)
 //   infra/auth-worker/migrations/0004_return_path.sql (return_path columns)
+//   infra/auth-worker/migrations/0013_app_handoff_codes.sql (app_handoff_codes)
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
@@ -82,6 +83,15 @@ CREATE TABLE IF NOT EXISTS published_artifacts (
   )
 );
 CREATE INDEX IF NOT EXISTS idx_pubart_owner ON published_artifacts(owner_user_id);
+CREATE TABLE IF NOT EXISTS app_handoff_codes (
+  code_hash   TEXT PRIMARY KEY,
+  session_id  TEXT NOT NULL,
+  created_at  INTEGER NOT NULL,
+  expires_at  INTEGER NOT NULL,
+  consumed_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_app_handoff_codes_expires_at
+  ON app_handoff_codes (expires_at);
 `;
 
 export async function applySchema(): Promise<void> {

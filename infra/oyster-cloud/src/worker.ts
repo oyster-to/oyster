@@ -4,6 +4,7 @@ import { resolveSession } from "./session.js";
 import { encryptChunk, decryptChunk, sha256Hex, type ChunkAad } from "./encryption.js";
 import { handleSessionEventsGet } from "./transcript-events.js";
 import { handleAppShell } from "./app-shell.js";
+import { handleAppCallback, handleAppSignOut } from "./app-auth.js";
 
 // Safe decode helper used by all bytes routes. decodeURIComponent throws
 // URIError on malformed percent-encoding (e.g. "%G"); we'd rather a 400 than
@@ -17,26 +18,52 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
 
-    // oyster.to/app — remote-view SPA (spec 2026-06-05-cloud-remote-view).
-    // Lives on the apex so the host-only oyster_session cookie (#397)
-    // authenticates it with no auth-worker changes. Dispatch order is
-    // load-bearing: the /app/api/* rewrite MUST run before the /app* SPA
-    // catch-all, which would otherwise swallow same-origin API calls.
+    // Legacy oyster.to/app* → app.oyster.to 308s (spec
+    // 2026-06-05-app-oyster-to-migration, invariant 7). Path-boundary
+    // guarded: /application must NOT match — never a bare startsWith("/app").
+    if (
+      (url.hostname === "oyster.to" || url.hostname === "www.oyster.to") &&
+      (url.pathname === "/app" || url.pathname.startsWith("/app/"))
+    ) {
+      const rest = url.pathname.slice("/app".length) || "/";
+      return new Response(null, {
+        status: 308,
+        headers: {
+          location: `https://app.oyster.to${rest}${url.search}`,
+          "cache-control": "public, max-age=3600",
+        },
+      });
+    }
 
-    // 1) www → apex.
-    if (url.hostname === "www.oyster.to" && url.pathname.startsWith("/app")) {
-      return Response.redirect(`https://oyster.to${url.pathname}${url.search}`, 308);
-    }
-    // 2) /app/api/* → /api/* rewrite. A rewritten path no longer starts with
-    //    /app/, so the SPA catch-all below never sees it (URL.pathname is mutable).
-    if (url.pathname.startsWith("/app/api/")) {
-      url.pathname = url.pathname.slice("/app".length);
-    }
-    // 3) Everything else under /app is the SPA: hashed assets are public,
-    //    navigations are auth-gated (signed-out → sign-in page).
-    if (url.pathname === "/app" || url.pathname.startsWith("/app/")) {
-      if (req.method !== "GET") return jsonError(405, "method_not_allowed");
-      return handleAppShell(req, env, url);
+    // app.oyster.to — handshake endpoints, publish/spaces proxy, SPA shell.
+    // /api/* (non-publish/spaces) falls THROUGH to the shared API dispatch
+    // below — the same handlers serve cloud.oyster.to (Bearer sync clients)
+    // and app.oyster.to (cookie'd SPA).
+    if (url.hostname === "app.oyster.to") {
+      if (url.pathname === "/auth/callback" && req.method === "GET") {
+        return handleAppCallback(req, env, url);
+      }
+      if (url.pathname === "/auth/sign-out" && req.method === "POST") {
+        return handleAppSignOut(req, env);
+      }
+      if (url.pathname.startsWith("/api/publish/") || url.pathname === "/api/publish" ||
+          url.pathname.startsWith("/api/spaces/")  || url.pathname === "/api/spaces") {
+        // Service binding to oyster-publish — request forwarded untouched
+        // (cookie + Origin ride along; URL keeps this hostname, which
+        // oyster-publish's host checks fall through cleanly — see its
+        // app-host tests).
+        try {
+          return await env.PUBLISH.fetch(req);
+        } catch (err) {
+          console.warn("[proxy] publish binding failed:", err);
+          return jsonError(502, "proxy_failed");
+        }
+      }
+      if (!url.pathname.startsWith("/api/")) {
+        if (req.method !== "GET") return jsonError(405, "method_not_allowed");
+        return handleAppShell(req, env, url);
+      }
+      // fall through: /api/* → shared dispatch below
     }
 
     if (url.pathname === "/health" && req.method === "GET") {
