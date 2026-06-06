@@ -53,7 +53,7 @@ export function createEngine() {
   // release) against the live graph. gate.* and transport.tapeStop are
   // semantic modules (spec decision 6) — the runner owns their behaviour;
   // everything else maps through _punchBindings + the MODULE_PARAMS registry.
-  function _runAutomation(a, on, timing) {
+  function _runAutomation(a, on, timing, atTime) {
     const id = `${a.module}.${a.param}`;
     const reg = MODULE_PARAMS[id];
     if (!reg) return;
@@ -76,8 +76,8 @@ export function createEngine() {
         _tapeActive = true; _gateReturnPending = false;
         // `to` is the tapeStop depth fraction (1 = full 0.6s slump — v2 parity).
         const tapeDepth = 0.6 * Math.min(Math.max(a.to, 0), 1) * punchAmount;
-        punchGate.gain.rampTo(0, ramp);
-        punchTape.delayTime.rampTo(tapeDepth, ramp);
+        punchGate.gain.rampTo(0, ramp, atTime);
+        punchTape.delayTime.rampTo(tapeDepth, ramp, atTime);
       } else {
         // Strict release order (v2 safeguard 2), click-free on quick taps:
         // close fast, freeze the slump, snap delayTime back once silent,
@@ -95,7 +95,10 @@ export function createEngine() {
     if (!bound) return;
     const from = (a.from === 'neutral' || a.from == null) ? reg.neutral : a.from;
     const scale = a.scale || reg.scale;
-    bound.rampTo(on ? scaleValue(from, a.to, punchAmount, scale) : from, ramp);
+    // atTime (quantized actions): schedule the ramp AT the boundary's audio
+    // time — the callback fires ~lookahead early, so ramping "now" would land
+    // a third of a second before the downbeat.
+    bound.rampTo(on ? scaleValue(from, a.to, punchAmount, scale) : from, ramp, atTime);
   }
 
   function buildLane(lane) {
@@ -317,7 +320,7 @@ export function createEngine() {
               due.push(p.fn); _pendingQuantized.splice(i, 1);
             } else i++;
           }
-          for (const fn of due) fn();
+          for (const fn of due) fn(t);
         }
         if (_gateReturnPending) {
           punchGate.gain.setValueAtTime(0, t);
@@ -427,7 +430,7 @@ export function createEngine() {
         barSeconds: stepsPerBar(song.meter) * (beatSeconds / 4),
       };
       const q = on ? preset.engageQuantize : preset.releaseQuantize;
-      const run = () => { for (const a of preset.automations) _runAutomation(a, on, timing); };
+      const run = (atTime) => { for (const a of preset.automations) _runAutomation(a, on, timing, atTime); };
       if (q === 'immediate' || !playing) run();
       else _pendingQuantized.push({ when: q, fn: run });
     },
