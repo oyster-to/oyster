@@ -2155,11 +2155,23 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   .titlebar { margin-bottom: 8px; }
   h1 { font-size: 13px; letter-spacing: 0.1em; white-space: nowrap; }
 
-  /* ── transport wraps; tempo + song get full rows ── */
-  .transport { flex-wrap: wrap; row-gap: 8px; }
-  .transport-tempo { flex: 1 1 auto; min-width: 0; }
+  /* ── transport: explicit grid — play+key / tempo / song, no orphan rows ── */
+  .transport {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "play  key"
+      "tempo tempo"
+      "song  song";
+    row-gap: 10px;
+    column-gap: 10px;
+  }
+  .transport-divider { display: none; }
+  #play { grid-area: play; height: 38px; font-size: 14px; }
+  .transport-key { grid-area: key; display: flex; align-items: center; gap: 8px; }
+  .transport-tempo { grid-area: tempo; min-width: 0; }
   #bpm { flex: 1; min-width: 50px; }
-  .transport-song { margin-left: 0; flex: 1 1 100%; }
+  .transport-song { grid-area: song; margin-left: 0; min-width: 0; }
   .transport-song .song-wrap { flex: 1; min-width: 0; }
   .transport-song select { width: 100%; }
 
