@@ -16,6 +16,7 @@
 - All timestamps are **milliseconds** since epoch (`Date.now()`), matching every existing auth table.
 - `infra/oyster-cloud/test/fixtures/seed.ts` and `infra/auth-worker/test/fixtures/seed.ts` are **hand-maintained schema mirrors** — any migration change updates both in the same commit.
 - web/ has **no test runner**: verification is `tsc -b` + lint (pre-existing error count must not grow) + both builds.
+- **`web/dist-cloud/` must exist before ANY oyster-cloud vitest run.** The pool resolves wrangler.toml's `[assets].directory` at config-parse time and hard-fails if it's missing — even though vitest.config overrides the assets binding with a fixture. In a fresh worktree run `npm run build:cloud` once (repo root) before touching the oyster-cloud suite.
 - Do NOT deploy anything from a subagent. Deploys happen in the main session (Task 11).
 
 ---
@@ -106,6 +107,9 @@ In `infra/oyster-cloud/test/fixtures/seed.ts`, append the same two statements (i
 - [ ] **Step 4: Run both worker test suites to prove the fixtures still parse**
 
 ```bash
+# Prerequisite for the oyster-cloud suite (see conventions): the assets dir
+# must exist or the pool fails at startup.
+[ -d web/dist-cloud ] || npm run build:cloud
 cd infra/auth-worker && npx vitest run
 cd ../oyster-cloud && npx vitest run
 ```
@@ -1162,16 +1166,16 @@ In `infra/oyster-publish/test/origin-guard.test.ts`, add alongside the existing 
 ```ts
   it("allows the app.oyster.to browser origin", async () => {
     const u = await seedUser();
-    const pub = await seedActivePublication({ ownerId: u.id });
-    const res = await call(patchRequest(pub.shareToken, {
+    // seedActivePublication takes { ownerUserId, artifactId } (both required)
+    // and returns the share token as a string.
+    const token = await seedActivePublication({ ownerUserId: u.id, artifactId: "art_app_origin" });
+    const res = await call(patchRequest(token, {
       sessionToken: u.sessionToken,
       origin: "https://app.oyster.to",
     }));
     expect(res.status).toBe(200);
   });
 ```
-
-(Adapt seeding-helper signatures to what `fixtures/seed.ts` actually exports — read the existing allowed-origin test in that file and clone its shape with the new origin.)
 
 - [ ] **Step 2: Run to verify both fail with 403**
 
@@ -1271,7 +1275,9 @@ describe("app.oyster.to host behaviour", () => {
 
   it("GET /api/publish/mine works identically on the app host", async () => {
     const u = await seedUser();
-    await seedActivePublication({ ownerId: u.id });
+    // seedActivePublication takes { ownerUserId, artifactId } (both required)
+    // and returns the share token as a string.
+    await seedActivePublication({ ownerUserId: u.id, artifactId: "art_mine" });
     const res = await call(new Request("https://app.oyster.to/api/publish/mine", {
       headers: { Cookie: authHeader(u.sessionToken).Cookie },
     }));
@@ -1282,8 +1288,8 @@ describe("app.oyster.to host behaviour", () => {
 
   it("PATCH /api/publish/:token works with the app origin on the app host", async () => {
     const u = await seedUser();
-    const pub = await seedActivePublication({ ownerId: u.id });
-    const res = await call(new Request(`https://app.oyster.to/api/publish/${pub.shareToken}`, {
+    const token = await seedActivePublication({ ownerUserId: u.id, artifactId: "art_patch" });
+    const res = await call(new Request(`https://app.oyster.to/api/publish/${token}`, {
       method: "PATCH",
       headers: {
         Cookie: authHeader(u.sessionToken).Cookie,
@@ -1297,8 +1303,8 @@ describe("app.oyster.to host behaviour", () => {
 
   it("DELETE /api/publish/:token works on the app host", async () => {
     const u = await seedUser();
-    const pub = await seedActivePublication({ ownerId: u.id });
-    const res = await call(new Request(`https://app.oyster.to/api/publish/${pub.shareToken}`, {
+    const token = await seedActivePublication({ ownerUserId: u.id, artifactId: "art_delete" });
+    const res = await call(new Request(`https://app.oyster.to/api/publish/${token}`, {
       method: "DELETE",
       headers: {
         Cookie: authHeader(u.sessionToken).Cookie,
@@ -1318,7 +1324,7 @@ describe("app.oyster.to host behaviour", () => {
 });
 ```
 
-(Adjust seeding-helper names/shapes after Step 1 if they differ — e.g. `seedActivePublication` return shape. Assert shapes the existing tests already assert; do not invent new response fields.)
+(Helper shapes verified against `fixtures/seed.ts`: `seedUser()` → `{id, email, sessionToken}`; `authHeader(sessionToken)` → `{Cookie}`; `seedSyncedSpace({ownerId, spaceId, updatedAt})`; `seedActivePublication({ownerUserId, artifactId})` → share-token string. Assert only shapes the existing tests already assert.)
 
 - [ ] **Step 3: Run**
 
@@ -1533,13 +1539,12 @@ First deploy with `custom_domain = true` provisions DNS + cert for app.oyster.to
 curl -sI https://app.oyster.to/ | head -3            # expect 302 → oyster.to/auth/app-handoff
 curl -sI https://oyster.to/app | head -3              # expect 308 → https://app.oyster.to/
 curl -sI https://oyster.to/application | head -3      # expect NOT 308
-# Authenticated pass — read the token from ~/Oyster/config/auth.json (NEVER print it):
-TOKEN=$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.env.HOME+'/Oyster/config/auth.json','utf8')).token)")
+# Authenticated pass — read the token from ~/Oyster/config/auth.json (NEVER print it).
+# The key is session_token (auth.json keys: session_token, user_id, email, tier, signed_in_at).
+TOKEN=$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.env.HOME+'/Oyster/config/auth.json','utf8')).session_token)")
 curl -s -b "oyster_session=$TOKEN" https://app.oyster.to/api/me | head -c 200          # expect {"email":…}
 curl -s -b "oyster_session=$TOKEN" https://app.oyster.to/api/publish/mine | head -c 200 # expect {"publications":…} via the service binding
 ```
-
-(If `auth.json`'s shape differs, inspect its keys with `node -e "console.log(Object.keys(...))"` first — never echo the value.)
 
 - [ ] **Step 7: Browser dogfood**
 
