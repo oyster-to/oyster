@@ -282,10 +282,21 @@ export function createEngine() {
     addPattern()            { return song ? _addPattern(song) : null; },
     duplicatePattern(i)     { return song ? _duplicatePattern(song, i) : null; },
     removePattern(i) {
-      if (!song || !_removePattern(song, i)) return false;
+      if (!song) return false;
+      const chainLenBefore = song.chain.length;
+      if (!_removePattern(song, i)) return false;
+      if (i < editIdx) editIdx--;
       if (editIdx >= song.patterns.length) editIdx = song.patterns.length - 1;
+      // intentional coarse sanitization: any pattern loop resets to chain start on delete (deletes are rare; avoids reindex bookkeeping)
       if (target.kind === 'pattern') target = { kind: 'chain', pos: 0, barInPattern: 0 };
-      if (target.kind === 'chain' && target.pos >= song.chain.length) target = { kind: 'chain', pos: 0, barInPattern: 0 };
+      if (target.kind === 'chain') {
+        if (song.chain.length !== chainLenBefore) {
+          // Chain changed (chips for pattern i were removed); precise repositioning is ambiguous — reset to start
+          target = { kind: 'chain', pos: 0, barInPattern: 0 };
+        } else if (target.pos >= song.chain.length) {
+          target = { kind: 'chain', pos: 0, barInPattern: 0 };
+        }
+      }
       pendingTarget = null;
       return true;
     },
@@ -293,7 +304,10 @@ export function createEngine() {
     appendToChain(i)        { if (song) _appendToChain(song, i); },
     removeChainAt(pos) {
       if (!song || !_removeChainAt(song, pos)) return false;
-      if (target.kind === 'chain' && target.pos >= song.chain.length) target = { kind: 'chain', pos: 0, barInPattern: 0 };
+      if (target.kind === 'chain') {
+        if (pos < target.pos) target = { ...target, pos: target.pos - 1 };
+        else if (pos === target.pos) target = { kind: 'chain', pos: Math.min(target.pos, song.chain.length - 1), barInPattern: 0 };
+      }
       return true;
     },
     moveChain(from, to)     { if (song) _moveChain(song, from, to); },

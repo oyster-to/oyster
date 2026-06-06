@@ -49,6 +49,22 @@ test('playback target follows the last click even while stopped', () => {
   expect(eng.getPlaybackTarget().kind).toBe('chain');
 });
 
+test('removePattern shifts editIdx when deleting an earlier pattern', () => {
+  const eng = loaded();
+  const p2content = JSON.stringify(eng.getSong().patterns[2]);
+  eng.selectPattern(2);
+  eng.removePattern(0);
+  expect(eng.getEditPatternIndex()).toBe(1);
+  expect(JSON.stringify(eng.getSong().patterns[eng.getEditPatternIndex()])).toBe(p2content);
+});
+
+test('removeChainAt below the current chain target shifts pos precisely', () => {
+  const eng = loaded();
+  eng.playChain(2);                       // stopped → sets target directly
+  eng.removeChainAt(0);
+  expect(eng.getPlaybackTarget().chainPos).toBe(1);
+});
+
 test('pattern/chain mutation APIs are wired through', () => {
   const eng = loaded();
   const before = eng.getSong().patterns.length;
