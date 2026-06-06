@@ -374,14 +374,33 @@ export function makeViz(host, song, eng) {
 
   // ─── Roll-mode toggle bar (melody + bass only) ───────────────────────────
   // Returns an HTML string for the segmented Piano/Blocks toggle.
-  function rollModeToggleHTML() {
+  // `barCtrlLane` (optional): when given an editable lane, append ＋/− bar-count
+  // controls into the toggle bar (melody only; bass is read-only).
+  function rollModeToggleHTML(barCtrlLane = null) {
     const pa = rollMode === 'piano'  ? ' rm-on' : '';
     const ba = rollMode === 'blocks' ? ' rm-on' : '';
     return `<div class="roll-mode-bar">`
       + `<span class="roll-mode-lbl">VIEW</span>`
       + `<button class="roll-mode-btn${pa}" data-rm="piano">Piano</button>`
       + `<button class="roll-mode-btn${ba}" data-rm="blocks">Blocks</button>`
+      + (barCtrlLane ? `<span class="barsel-lbl" style="margin-left:auto">bar</span>` + barCountControlsHTML(barCtrlLane) : '')
       + `</div>`;
+  }
+
+  // Bar-count controls (＋ adds a bar, − removes the last) for the lane's groove.
+  // − only shows once the groove has >1 bar. Reuses the .bsel look.
+  function barCountControlsHTML(L) {
+    const more = grooveLen(L) > 1;
+    return `<button class="bsel bsel-add" title="add bar (copies the last)">＋</button>`
+      + (more ? `<button class="bsel bsel-rm" title="remove last bar">−</button>` : '');
+  }
+  // Wire ＋/− inside host after build() injects them. Full rebuild on change so
+  // the stepper count + clamped editBars repaint correctly.
+  function wireBarCountControls(L) {
+    const add = host.querySelector('.bsel-add');
+    const rm = host.querySelector('.bsel-rm');
+    if (add) add.onclick = () => { eng.addGrooveBar(L.id); build(); paint(lastStepInBar); };
+    if (rm)  rm.onclick  = () => { eng.removeGrooveBar(L.id); build(); paint(lastStepInBar); };
   }
 
   // Wire the toggle buttons inside host after build() injects them.
@@ -444,7 +463,7 @@ export function makeViz(host, song, eng) {
     }
     headerRow += '</div>';
 
-    let html = rollModeToggleHTML();
+    let html = rollModeToggleHTML(laneView === 'melody' ? L : null);
     html += edLabelHTML(L);
     html += `<div class="bg-scroll"><div class="bg-grid" data-lv="${laneView}">`;
     html += headerRow;
@@ -469,6 +488,7 @@ export function makeViz(host, song, eng) {
     html += '</div></div>';
     host.innerHTML = html;
     wireRollModeToggle();
+    if (laneView === 'melody') wireBarCountControls(L);
     // Cache .vc cells per absStep column for surgical per-step playhead toggle.
     _blocksColCache = [];
     host.querySelectorAll('.bg-grid .vc').forEach(cell => {
@@ -544,7 +564,7 @@ export function makeViz(host, song, eng) {
   // edited one. Cheap (≤4 buttons); reused by build/paint/setStep.
   function paintBarsel() {
     const sounding = soundingGrooveBar(getTargetLane());   // groove-relative, or -1
-    host.querySelectorAll('.bsel').forEach(btn => {
+    host.querySelectorAll('.bsel[data-b]').forEach(btn => {
       const b = +btn.dataset.b;
       btn.classList.toggle('on', editBars.has(b));
       btn.classList.toggle('playing', b === sounding);
@@ -583,10 +603,12 @@ export function makeViz(host, song, eng) {
       const L = getTargetLane();
       const BARS = grooveLen(L);
       let html = edLabelHTML(L);
-      // Bar stepper — only when the groove is longer than one bar.
-      if (BARS > 1) {
+      // Bar stepper — render whenever the lane has a groove (even 1 bar), since
+      // it now also hosts the ＋/− bar-count controls.
+      if (editGroove(L)) {
         html += `<div class="barsel"><span class="barsel-lbl">bar</span>`;
         for (let b = 0; b < BARS; b++) html += `<button class="bsel" data-b="${b}">${b + 1}</button>`;
+        html += barCountControlsHTML(L);
         html += `</div>`;
       }
       html += buildBeatHeader(spb);
@@ -598,7 +620,7 @@ export function makeViz(host, song, eng) {
       host.innerHTML = html;
 
       // Stepper: toggle membership (never deselect the last one), then repaint.
-      host.querySelectorAll('.bsel').forEach(btn => {
+      host.querySelectorAll('.bsel[data-b]').forEach(btn => {
         btn.onclick = () => {
           const b = +btn.dataset.b;
           if (editBars.has(b)) { if (editBars.size > 1) editBars.delete(b); }
@@ -607,6 +629,7 @@ export function makeViz(host, song, eng) {
           paint(lastStepInBar);   // primary bar may have changed → re-render hits
         };
       });
+      wireBarCountControls(L);
 
       // Cell click: compute desired on/off from the SHOWN (primary) bar, then
       // SET that state across every selected bar.
@@ -642,8 +665,10 @@ export function makeViz(host, song, eng) {
         buildBlocksGrid('melody');
       } else {
         // Melody view: canvas piano-roll.
-        host.innerHTML = rollModeToggleHTML() + edLabelHTML(getTargetLane()) + '<canvas id="mroll"></canvas>';
+        const mL = getTargetLane();
+        host.innerHTML = rollModeToggleHTML(mL) + edLabelHTML(mL) + '<canvas id="mroll"></canvas>';
         wireRollModeToggle();
+        wireBarCountControls(mL);
         const cv = host.querySelector('#mroll');
         cv.width = host.clientWidth || 680;
         cv.height = 170;

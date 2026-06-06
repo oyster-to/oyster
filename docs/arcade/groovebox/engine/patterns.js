@@ -146,6 +146,29 @@ export function setLaneGroove(song, patternIdx, laneId, grooveName) {
   return true;
 }
 
+// ── groove bar count ──────────────────────────────────────────────────────────
+const MAX_GROOVE_BARS = 4;
+
+// addGrooveBar(song, laneId, grooveName) — grow the groove by one bar (a DEEP
+// copy of its current last bar). Returns the new length, or null at cap 4 / when
+// the groove is missing.
+export function addGrooveBar(song, laneId, grooveName) {
+  const groove = song.grooves[laneId]?.[grooveName];
+  if (!Array.isArray(groove) || groove.length >= MAX_GROOVE_BARS) return null;
+  const last = groove[groove.length - 1];
+  groove.push(JSON.parse(JSON.stringify(last)));
+  return groove.length;
+}
+
+// removeGrooveBar(song, laneId, grooveName) — drop the groove's last bar.
+// Returns the new length, or null at min 1 / when the groove is missing.
+export function removeGrooveBar(song, laneId, grooveName) {
+  const groove = song.grooves[laneId]?.[grooveName];
+  if (!Array.isArray(groove) || groove.length <= 1) return null;
+  groove.pop();
+  return groove.length;
+}
+
 // ── chain mutations ───────────────────────────────────────────────────────────
 export function appendToChain(song, patternIdx) {
   if (!song.patterns[patternIdx]) return;

@@ -2015,3 +2015,4 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   outline-offset: 2px;
   box-shadow: 0 0 8px rgba(255,91,158,0.3);
 }
+.bsel-add, .bsel-rm { opacity: .7; }

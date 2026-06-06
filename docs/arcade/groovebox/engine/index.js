@@ -10,6 +10,7 @@ import {
   removeChainAt as _removeChainAt, moveChain as _moveChain,
   setDrumStep as _setDrumStep, toggleNote as _toggleNote,
   setLaneGroove as _setLaneGroove, grooveFor,
+  addGrooveBar as _addGrooveBar, removeGrooveBar as _removeGrooveBar,
 } from './patterns.js';
 
 export function createEngine() {
@@ -285,6 +286,16 @@ export function createEngine() {
     addPattern()            { return song ? _addPattern(song, editIdx) : null; },
     duplicatePattern(i)     { return song ? _duplicatePattern(song, i) : null; },
     setLaneGroove(laneId, grooveName) { return song ? _setLaneGroove(song, editIdx, laneId, grooveName) : false; },
+    addGrooveBar(laneId) {
+      if (!song) return null;
+      const g = grooveFor(song, editIdx, laneId);
+      return g ? _addGrooveBar(song, laneId, g.name) : null;
+    },
+    removeGrooveBar(laneId) {
+      if (!song) return null;
+      const g = grooveFor(song, editIdx, laneId);
+      return g ? _removeGrooveBar(song, laneId, g.name) : null;
+    },
     removePattern(i) {
       if (!song) return false;
       const chainLenBefore = song.chain.length;

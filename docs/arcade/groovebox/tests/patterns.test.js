@@ -4,6 +4,7 @@ import {
   addPattern, duplicatePattern, removePattern,
   appendToChain, removeChainAt, moveChain,
   setDrumStep, toggleNote, setLaneGroove, grooveFor, emptyBarFor,
+  addGrooveBar, removeGrooveBar,
 } from '../engine/patterns.js';
 
 const meter44 = { beatsPerBar: 4, beatUnit: 4, stepsPerBeat: 4 };
@@ -263,4 +264,50 @@ test('editing a groove changes every pattern that references it', () => {
 test('emptyBarFor returns {} for drums lanes and [] for others', () => {
   expect(emptyBarFor({ type: 'drums' })).toEqual({});
   expect(emptyBarFor({ type: 'melody' })).toEqual([]);
+});
+
+// ── groove bar count ──
+test('addGrooveBar grows by a deep copy of the last bar; mutating it leaves the old intact', () => {
+  const s = makeSong();
+  expect(addGrooveBar(s, 'drums', 'groove2')).toBe(3);   // 2 → 3
+  const g = s.grooves.drums.groove2;
+  expect(g.length).toBe(3);
+  expect(g[2]).toEqual(g[1]);                             // copy of last bar
+  // deep copy: mutating the drums object on the new bar doesn't touch the old
+  g[2].kick.push(7);
+  expect(g[1].kick).toEqual([0]);                          // original snare-bar kick unchanged
+  // melodic arrays deep-copied too
+  expect(addGrooveBar(s, 'melody', 'riff')).toBe(3);
+  const m = s.grooves.melody.riff;
+  m[2].push([0, 'Z9', 1]);
+  expect(m[1]).toEqual([]);                                // original last bar (empty) unchanged
+});
+
+test('addGrooveBar caps at 4 and returns null past it / missing groove', () => {
+  const s = makeSong();
+  s.grooves.melody.long = [[], [], [], []];               // 4-bar
+  expect(addGrooveBar(s, 'melody', 'long')).toBeNull();   // already at cap
+  expect(s.grooves.melody.long.length).toBe(4);
+  expect(addGrooveBar(s, 'drums', 'nope')).toBeNull();    // missing groove
+  expect(addGrooveBar(s, 'nolane', 'x')).toBeNull();      // missing lane
+});
+
+test('removeGrooveBar drops the last bar; min 1 returns null; missing groove null', () => {
+  const s = makeSong();
+  expect(removeGrooveBar(s, 'drums', 'groove2')).toBe(1); // 2 → 1
+  expect(s.grooves.drums.groove2.length).toBe(1);
+  expect(removeGrooveBar(s, 'drums', 'groove2')).toBeNull(); // already at min
+  expect(s.grooves.drums.groove2.length).toBe(1);
+  expect(removeGrooveBar(s, 'drums', 'nope')).toBeNull(); // missing groove
+});
+
+test('patternBars follows groove length changes (pattern duration tracks the groove)', () => {
+  const s = makeSong();
+  expect(patternBars(s, 0)).toBe(2);                      // groove2 (2) + riff (2)
+  addGrooveBar(s, 'drums', 'groove2');                    // 2 → 3
+  expect(patternBars(s, 0)).toBe(3);                      // pattern grows with the groove
+  removeGrooveBar(s, 'drums', 'groove2');                 // 3 → 2
+  removeGrooveBar(s, 'drums', 'groove2');                 // 2 → 1
+  removeGrooveBar(s, 'melody', 'riff');                   // 2 → 1 (both now 1)
+  expect(patternBars(s, 0)).toBe(1);
 });
