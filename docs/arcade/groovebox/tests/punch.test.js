@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, stutterEvents, isPunchArmed, laneInPunchBus } from '../engine/punch.js';
+import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, stutterEvents, laneInPunchBus } from '../engine/punch.js';
 
 describe('PUNCH_NEUTRAL', () => {
   it('pins the idle chain to audibly-transparent values (spec safeguard 3)', () => {
@@ -27,17 +27,6 @@ describe('stutterEvents', () => {
 });
 
 
-describe('isPunchArmed', () => {
-  it('defaults to armed when the lane has no punchArm flag', () => {
-    expect(isPunchArmed({})).toBe(true);
-  });
-  it('respects an explicit false', () => {
-    expect(isPunchArmed({ punchArm: false })).toBe(false);
-  });
-  it('respects an explicit true', () => {
-    expect(isPunchArmed({ punchArm: true })).toBe(true);
-  });
-});
 
 
 describe('stutterEvents closed level', () => {
@@ -127,11 +116,8 @@ describe('gateEventsForStep', () => {
   });
 });
 
-describe('laneInPunchBus (chips ∩ active masks, union across held pads)', () => {
+describe('laneInPunchBus (active masks, union across held pads)', () => {
   const lane = { type: 'bass' };
-  it('unarmed lane never routes', () => {
-    expect(laneInPunchBus({ ...lane, punchArm: false }, [['drums', 'bass']])).toBe(false);
-  });
   it('no active masks → armed lanes route (idle/transparent state)', () => {
     expect(laneInPunchBus(lane, [])).toBe(true);
   });

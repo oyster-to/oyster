@@ -14,18 +14,12 @@ export const PUNCH_NEUTRAL = {
   tapeDelay: 0,
 };
 
-// Punch bus channel-assign: lanes are armed by default; only an explicit
-// punchArm === false opts a lane out (serializes with the lane object).
-export function isPunchArmed(lane) {
-  return lane.punchArm !== false;
-}
-
-// Per-preset lane targeting: a lane feeds the punch bus when it's armed
-// (chip) AND, while any pads are held, at least one held preset's mask
-// includes its type (null mask = all lanes). Idle (no masks) = armed routing,
-// which is sonically transparent anyway.
+// Per-preset lane targeting: while any pads are held, a lane feeds the punch
+// bus when at least one held preset's mask includes its type (null mask =
+// all lanes). Idle (no masks) = everything routed, which is sonically
+// transparent anyway. (The per-lane ⚡ arm chips were removed in v3.5 — one
+// targeting system, on the preset, as data.)
 export function laneInPunchBus(lane, activeMasks) {
-  if (!isPunchArmed(lane)) return false;
   if (!activeMasks.length) return true;
   return activeMasks.some(m => m == null || m.includes(lane.type));
 }

@@ -852,19 +852,14 @@ body.gb-knob-values .knob-val { display: block; }
 }
 
 /* ─── mute / solo buttons ────────────────────────────────────────────────── */
-.mute, .solo, .arm {
+.mute, .solo {
   width: 26px; height: 26px; flex: 0 0 26px; padding: 0; border-radius: 6px;
   font: 700 11px ui-monospace,Menlo,monospace; color: var(--dim);
   border: 1px solid var(--line); cursor: pointer; transition: .12s;
   background: var(--panel-2);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.04), inset 0 -1px 2px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.3);
 }
-.mute:hover, .solo:hover, .arm:hover { border-color: var(--acc-dim); background: var(--panel-3); }
-.arm.armed {
-  color: var(--ink); border-color: var(--hot);
-  background: var(--hot);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 0 10px var(--hot), 0 1px 2px rgba(0,0,0,.4);
-}
+.mute:hover, .solo:hover { border-color: var(--acc-dim); background: var(--panel-3); }
 .mute.muted {
   color: #fff1e8; border-color: #a8391c;
   background: linear-gradient(180deg, #ff7a3d, #d6481e);

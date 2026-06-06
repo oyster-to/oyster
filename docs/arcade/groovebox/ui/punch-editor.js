@@ -224,7 +224,7 @@ export function openPunchEditor({ slot, eng, onSaved }) {
     const laneRow = document.createElement('div');
     laneRow.className = 'pe-row';
     const ll = label('active on');
-    ll.title = 'Which lanes this pad affects — intersects with the ⚡ arm chips; multiple held pads union';
+    ll.title = 'Which lanes this pad affects; holding multiple pads unions their lanes';
     laneRow.appendChild(ll);
     const sel = new Set(draft.lanes ?? LANE_TYPES);
     for (const lt of LANE_TYPES) {

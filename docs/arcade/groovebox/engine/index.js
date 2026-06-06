@@ -13,7 +13,7 @@ import {
   setLaneGroove as _setLaneGroove, grooveFor,
   setGrooveBars as _setGrooveBars,
 } from './patterns.js';
-import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, isPunchArmed, laneInPunchBus } from './punch.js';
+import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, laneInPunchBus } from './punch.js';
 import { DEFAULT_PRESETS, validatePreset } from './punch-presets.js';
 
 export function createEngine() {
@@ -122,7 +122,6 @@ export function createEngine() {
 
   function buildLane(lane) {
     fx[lane.id]     = _makeFX(_masterIn);
-    if (!isPunchArmed(lane)) { fx[lane.id].toPunch.gain.value = 0; fx[lane.id].toClean.gain.value = 1; }
     voices[lane.id] = createVoiceForType(lane.type, fx[lane.id].input);
     // Apply saved tone to melody lanes
     if (lane.type === 'melody' && lane.tone) {
@@ -407,19 +406,6 @@ export function createEngine() {
     toggleMute(id)          { return song ? _toggleMute(song.lanes, id) : false; },
     toggleSolo(id)          { return song ? _soloExclusive(song.lanes, id) : false; },
     triggerFill(name)       { pendingFill = name; },
-    // Punch bus channel-assign (v2): 10ms complementary crossfade, no surgery.
-    setPunchArm(id, on) {
-      if (!song) return;
-      const lane = song.lanes.find(l => l.id === id);
-      // Armed is the default — only an explicit false is stored, so toggling
-      // a lane off and back on leaves no punchArm key to serialize.
-      if (lane) { if (on) delete lane.punchArm; else lane.punchArm = false; }
-      _recomputePunchRouting();
-    },
-    getPunchArm(id) {
-      const lane = song?.lanes.find(l => l.id === id);
-      return lane ? isPunchArmed(lane) : true;
-    },
     setPunchAmount(v01) { if (typeof v01 === 'number' && isFinite(v01)) punchAmount = Math.max(0, Math.min(1, v01)); },
     getPunchAmount()    { return punchAmount; },
     // Punch v3: slot-based momentary trigger — punch(slot, true) on press,
