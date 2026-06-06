@@ -939,7 +939,13 @@ function setHiddenSet(hiddenArr) {
 
 // Build checkbox rows from KNOB_INFO
 const _vsForm = document.getElementById('viewsettings-checks');
-const _vsKnobs = ['vol','pan','cut','res','drv','dly','fdbk','cho','wob','cru','vrb','cmp','bal','wid','lo','hi'];
+// Grouped to mirror the knob strips (MIX/TONE/FX kgroups) + the master-only knobs.
+const _vsGroups = [
+  ['MIX',    ['vol', 'pan']],
+  ['TONE',   ['cut', 'res', 'drv']],
+  ['FX',     ['dly', 'fdbk', 'cho', 'wob', 'cru', 'vrb', 'cmp']],
+  ['MASTER', ['bal', 'wid', 'lo', 'hi']],
+];
 
 // ── Preset row (inserted before the checkboxes) ──
 const _vsPresetRow = document.createElement('div');
@@ -982,30 +988,36 @@ for (const p of PRESETS) {
 _vsPresetRow.appendChild(_vsPresetBtns);
 _vsForm.before(_vsPresetRow);
 
-for (const k of _vsKnobs) {
-  const info = KNOB_INFO[k];
-  const row = document.createElement('label');
-  row.className = 'vs-row';
-  const cb = document.createElement('input');
-  cb.type = 'checkbox';
-  cb.dataset.vsK = k;
-  const hidden = JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]');
-  cb.checked = !hidden.includes(k);
-  cb.addEventListener('change', () => {
-    const nowHidden = JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]');
-    if (cb.checked) {
-      const idx = nowHidden.indexOf(k);
-      if (idx !== -1) nowHidden.splice(idx, 1);
-    } else {
-      if (!nowHidden.includes(k)) nowHidden.push(k);
-    }
-    setHiddenSet(nowHidden);
-  });
-  const lbl = document.createElement('span');
-  lbl.textContent = info ? info[0] : k;
-  row.appendChild(cb);
-  row.appendChild(lbl);
-  _vsForm.appendChild(row);
+for (const [groupName, groupKeys] of _vsGroups) {
+  const head = document.createElement('div');
+  head.className = 'vs-group-lbl';
+  head.textContent = groupName;
+  _vsForm.appendChild(head);
+  for (const k of groupKeys) {
+    const info = KNOB_INFO[k];
+    const row = document.createElement('label');
+    row.className = 'vs-row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.dataset.vsK = k;
+    const hidden = JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]');
+    cb.checked = !hidden.includes(k);
+    cb.addEventListener('change', () => {
+      const nowHidden = JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]');
+      if (cb.checked) {
+        const idx = nowHidden.indexOf(k);
+        if (idx !== -1) nowHidden.splice(idx, 1);
+      } else {
+        if (!nowHidden.includes(k)) nowHidden.push(k);
+      }
+      setHiddenSet(nowHidden);
+    });
+    const lbl = document.createElement('span');
+    lbl.textContent = info ? info[0] : k;
+    row.appendChild(cb);
+    row.appendChild(lbl);
+    _vsForm.appendChild(row);
+  }
 }
 
 // Highlight the matching preset on load (based on already-restored hidden set).

@@ -2003,6 +2003,16 @@ input[type=range] {
     inset 0 -2px 0 var(--acc),
     inset 0 1px 0 rgba(84,240,200,0.08);
 }
+.vs-group-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+  text-transform: uppercase;
+  margin: 10px 0 4px;
+}
+.vs-group-lbl:first-child { margin-top: 2px; }
+
 .vs-row {
   display: flex;
   align-items: center;
