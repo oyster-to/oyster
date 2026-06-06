@@ -4,6 +4,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { env, SELF } from "cloudflare:test";
 import { applySchema } from "./fixtures/seed.js";
+import { handleAppShell } from "../src/app-shell.js";
 
 async function makeProSession(suffix = crypto.randomUUID()): Promise<{ token: string; userId: string }> {
   const userId = `u-pro-${suffix}`;
@@ -27,6 +28,13 @@ describe("app.oyster.to shell", () => {
     const res = await SELF.fetch("https://app.oyster.to/dashboard", { redirect: "manual" });
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("https://oyster.to/auth/app-handoff?return=%2Fdashboard");
+  });
+
+  it("redirects unsigned root / (direct handler call — miniflare serves / from ASSETS before the worker)", async () => {
+    const req = new Request("https://app.oyster.to/");
+    const res = await handleAppShell(req, env, new URL(req.url));
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://oyster.to/auth/app-handoff");
   });
 
   it("carries the deep link as a return param", async () => {
