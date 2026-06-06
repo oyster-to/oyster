@@ -33,7 +33,7 @@ export function createEngine() {
   let punchGate = null, punchCrush = null, punchFilter = null, punchThrow = null, punchTape = null;
   const _punchCaptures = new Map();              // 'laneId|paramId' → { value: knob value at first engage, count }
   let punchPresets = DEFAULT_PRESETS;            // replaced via setPunchPresets (validated)
-  const _slotHeld = [false, false, false, false, false];
+  const _slotHeld = new Array(DEFAULT_PRESETS.length).fill(false);
   let _gate = null;                              // active gate: { depth, division, laneIds } | null
   let _tapeActive = false;                       // transport.tapeStop engaged (owns the gate)
   let _gateReturnPending = false;                // tapeStop released → gate returns on-grid
@@ -510,7 +510,7 @@ export function createEngine() {
       else _pendingQuantized.push({ when: q, fn: run, slot, on });
     },
     setPunchPresets(presets) {
-      if (Array.isArray(presets) && presets.length === 5 && presets.every(validatePreset)) {
+      if (Array.isArray(presets) && presets.length === DEFAULT_PRESETS.length && presets.every(validatePreset)) {
         punchPresets = presets;
         _prebuildPunchNodes(punchPresets);
       }

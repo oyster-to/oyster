@@ -54,11 +54,10 @@ export const DEFAULT_PRESETS = [
       { module: 'gate', param: 'depth', from: 'neutral', to: 1, division: '1/8',
         engage: { ramp: { unit: 'steps', value: 0 } }, release: { ramp: { unit: 'steps', value: 0.1 } } },
     ] },
-  { name: 'STUTTER BASS', key: '2', engageQuantize: 'immediate', releaseQuantize: 'immediate',
-    lanes: ['drums', 'bass'],   // chop the rhythm section; pads/melody ride on top
+  { name: 'CRUSH', key: '2', engageQuantize: 'immediate', releaseQuantize: 'immediate',
     automations: [
-      { module: 'gate', param: 'depth', from: 'neutral', to: 1, division: '1/8',
-        engage: { ramp: { unit: 'steps', value: 0 } }, release: { ramp: { unit: 'steps', value: 0.1 } } },
+      { module: 'crusher', param: 'wet', from: 'neutral', to: 0.9,
+        engage: { ramp: { unit: 'steps', value: 0.5 } }, release: { ramp: { unit: 'steps', value: 0.5 } } },
     ] },
   { name: 'DIVE', key: '3', engageQuantize: 'immediate', releaseQuantize: 'immediate',
     automations: [
@@ -79,5 +78,11 @@ export const DEFAULT_PRESETS = [
       // slump duration; release handling is internal to the module.
       { module: 'transport', param: 'tapeStop', from: 'neutral', to: 1,
         engage: { ramp: { unit: 'beats', value: 1.5 } }, release: { ramp: { unit: 'steps', value: 0 } } },
+    ] },
+  { name: 'STUTTER BASS', key: '6', engageQuantize: 'immediate', releaseQuantize: 'immediate',
+    lanes: ['drums', 'bass'],   // chop the rhythm section; pads/melody ride on top
+    automations: [
+      { module: 'gate', param: 'depth', from: 'neutral', to: 1, division: '1/8',
+        engage: { ramp: { unit: 'steps', value: 0 } }, release: { ramp: { unit: 'steps', value: 0.1 } } },
     ] },
 ];

@@ -16,6 +16,7 @@ import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
 import { initShare, maybeLoadShared, clearLoadedFrom } from './share.js';
 import { openPunchEditor, isPunchEditorOpen } from './punch-editor.js';
+import { DEFAULT_PRESETS } from '../engine/punch-presets.js';
 
 const eng = createEngine();
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
@@ -584,6 +585,10 @@ function renderFills() {
 function loadPunchPresets() {
   try {
     const saved = JSON.parse(localStorage.getItem('gb-punch-presets') || 'null');
+    // Migration: sets saved before the slot count grew gain the new defaults.
+    if (Array.isArray(saved)) {
+      while (saved.length < DEFAULT_PRESETS.length) saved.push(DEFAULT_PRESETS[saved.length]);
+    }
     if (saved) return eng.setPunchPresets(saved);   // engine validates; invalid → defaults kept
   } catch (_) { /* corrupt JSON → defaults */ }
   return eng.getPunchPresets();
@@ -654,7 +659,7 @@ document.addEventListener('keyup', e => {
   if (slot !== undefined) setPunch(slot, false);
 });
 // Stuck-key guard: losing window focus releases every pad.
-window.addEventListener('blur', () => { for (let s = 0; s < 5; s++) setPunch(s, false); });
+window.addEventListener('blur', () => { for (let s = 0; s < eng.getPunchPresets().length; s++) setPunch(s, false); });
 
 // ─── Master FX ───────────────────────────────────────────────────────────────
 function renderMaster() {
