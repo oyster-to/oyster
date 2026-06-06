@@ -61,4 +61,18 @@ describe("origin guard on mutating routes", () => {
     }, token);
     expect(res.status).not.toBe(403);
   });
+
+  it("allows the app.oyster.to browser origin", async () => {
+    const { token } = await makeProSession();
+    const res = await SELF.fetch("https://example.com/api/memories/events", {
+      method: "POST",
+      headers: {
+        Cookie: `oyster_session=${token}`,
+        Origin: "https://app.oyster.to",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ events: [] }),
+    });
+    expect(res.status).toBe(200);
+  });
 });

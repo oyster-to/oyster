@@ -681,9 +681,12 @@ export async function resolveSession(req: Request, env: Env): Promise<SessionUse
 // SameSite=Lax alone doesn't stop credentialed cross-origin fetches from
 // it. Non-browser clients (the local Oyster server) send no Origin
 // header — absence passes.
-// NOTE: when the remote view migrates to app.oyster.to (spec: productization
-// step), add it here — otherwise its mutations silently 403.
-const ALLOWED_BROWSER_ORIGINS = new Set(["https://oyster.to", "https://www.oyster.to"]);
+const ALLOWED_BROWSER_ORIGINS = new Set([
+  "https://oyster.to",
+  "https://www.oyster.to",
+  // app.oyster.to — the remote view (spec 2026-06-05-app-oyster-to-migration).
+  "https://app.oyster.to",
+]);
 
 function rejectBadOrigin(req: Request): Response | null {
   const origin = req.headers.get("origin");
