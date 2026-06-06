@@ -54,7 +54,7 @@ let _editingLaneId = null;
 let _draggedLaneId = null;
 
 // ─── Section drag-reorder state ───────────────────────────────────────────────
-const SECTION_IDS = ['viz', 'strips', 'fills', 'master', 'arrange'];
+const SECTION_IDS = ['viz', 'master', 'punch', 'strips', 'fills', 'arrange'];
 let _draggedSecId = null;
 
 function options(lane) {
@@ -1065,10 +1065,17 @@ function initSectionWrappers() {
     wrap.appendChild(sec);
   }
 
-  // 2. Restore saved order (move wrappers within .cabinet-inner)
+  // 2. Restore saved order (move wrappers within .cabinet-inner).
+  // Tolerant of orders saved before newer sections existed (e.g. punch):
+  // keep the user's sequence, splice missing sections in at their default
+  // position, drop ids that no longer exist.
   const saved = JSON.parse(localStorage.getItem('gb-section-order') || 'null');
-  if (saved && Array.isArray(saved) && saved.length === SECTION_IDS.length) {
-    for (const id of saved) {
+  if (saved && Array.isArray(saved) && saved.length) {
+    const order = saved.filter(id => SECTION_IDS.includes(id));
+    for (const id of SECTION_IDS) {
+      if (!order.includes(id)) order.splice(SECTION_IDS.indexOf(id), 0, id);
+    }
+    for (const id of order) {
       const wrap = inner.querySelector(`.sec[data-sec="${id}"]`);
       if (wrap) inner.appendChild(wrap);
     }
