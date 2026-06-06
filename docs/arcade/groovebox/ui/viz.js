@@ -1,5 +1,5 @@
 import { stepsPerBar, beatStarts } from '../engine/meter.js';
-import { drumVoiceAudible, laneAudible, snapMidi, inScale, scalePitchClasses, chordAt } from '../engine/song.js';
+import { drumVoiceAudible, laneAudible, snapMidi, inScale, scalePitchClasses } from '../engine/song.js';
 import { laneByType } from '../engine/lanes.js';
 
 // ─── Canvas theme colour cache ────────────────────────────────────────────────
@@ -153,7 +153,8 @@ export function makeViz(host, song, eng) {
     // No key → no tint (the keyboard reads neutral, like before).
     const key = eng.getKey();
     const scalePcs = key ? scalePitchClasses(key) : null;
-    const progression = eng.getHarmony()?.progression ?? [];
+    // Chord tones come from the EDIT pattern's own chords (cycling per bar).
+    const chords = eng.getPatternChords(eng.getEditPatternIndex()) ?? [];
 
     // Draw pitch rows (keyboard column + grid background).
     for (let mm = ROLL_LO; mm <= ROLL_HI; mm++) {
@@ -179,11 +180,11 @@ export function makeViz(host, song, eng) {
 
     // Chord-tone glow: for each editor bar, brighten rows whose pitch-class is in
     // that bar's chord, within the bar's x-range. The chord for editor bar b is
-    // approximated by chordAt(progression, b) — well-defined only when the groove
-    // length matches the progression; for other lengths it's a best-effort hint.
-    if (progression.length) {
+    // the pattern's chords[b % len] — well-defined now that chords live on the
+    // pattern alongside the groove.
+    if (chords.length) {
       for (let b = 0; b < BARS; b++) {
-        const chord = chordAt(progression, b);
+        const chord = chords[b % chords.length];
         if (!chord) continue;
         const toneNotes = (chord.voicing || []).concat(chord.root ? [chord.root] : []);
         const tonePcs = new Set(toneNotes.map(n => ((noteToMidi(n) % 12) + 12) % 12));
@@ -391,9 +392,9 @@ export function makeViz(host, song, eng) {
     const showBar = editing ? soundingBar : 0;
     const notes = bars[showBar] || [];
 
-    // Chord-tone glow for the shown bar (best-effort: chordAt(progression, showBar)).
-    const progression = eng.getHarmony()?.progression ?? [];
-    const chord = progression.length ? chordAt(progression, showBar) : null;
+    // Chord-tone glow for the shown bar — the edit pattern's chords[bar % len].
+    const chords = eng.getPatternChords(eng.getEditPatternIndex()) ?? [];
+    const chord = chords.length ? chords[showBar % chords.length] : null;
     if (chord) {
       const toneNotes = (chord.voicing || []).concat(chord.root ? [chord.root] : []);
       const tonePcs = new Set(toneNotes.map(n => ((noteToMidi(n) % 12) + 12) % 12));
@@ -549,14 +550,14 @@ export function makeViz(host, song, eng) {
     html += headerRow;
 
     // Key-aware tinting data: out-of-scale rows (.oos) + per-bar chord tones
-    // (.ctone). No key → no tint. Chord per editor bar = chordAt(progression, b),
-    // a best-effort hint when groove length ≠ progression length.
+    // (.ctone). No key → no tint. Chord per editor bar = the edit pattern's
+    // chords[b % len].
     const key = eng.getKey();
     const scalePcs = key ? scalePitchClasses(key) : null;
-    const progression = eng.getHarmony()?.progression ?? [];
+    const chords = eng.getPatternChords(eng.getEditPatternIndex()) ?? [];
     const barTonePcs = [];   // [barIdx] → Set(pitchClass) | null
     for (let b = 0; b < BARS; b++) {
-      const chord = progression.length ? chordAt(progression, b) : null;
+      const chord = chords.length ? chords[b % chords.length] : null;
       if (!chord) { barTonePcs[b] = null; continue; }
       const toneNotes = (chord.voicing || []).concat(chord.root ? [chord.root] : []);
       barTonePcs[b] = new Set(toneNotes.map(n => ((noteToMidi(n) % 12) + 12) % 12));

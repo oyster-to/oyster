@@ -405,7 +405,6 @@ input[type=range] {
 #fills,
 #punch,
 #master,
-#harmony,
 #arrange {
   /* soft top-light → bottom-shade sheen (derived from --panel) so panels read
      as smooth surfaces in every theme, not flat matte cards on dark */
@@ -463,11 +462,6 @@ input[type=range] {
 
 /* ─── master panel ───────────────────────────────────────────────────────── */
 #master {
-  padding: 12px 16px;
-}
-
-/* ─── harmony panel ──────────────────────────────────────────────────────── */
-#harmony {
   padding: 12px 16px;
 }
 
@@ -884,8 +878,7 @@ input[type=range] {
 }
 /* § 2 — section header */
 .fillsrow .flbl,
-.punchrow .flbl,
-.harmonyrow .flbl {
+.punchrow .flbl {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -982,13 +975,14 @@ input[type=range] {
   background: transparent;
 }
 
-/* ─── harmony row (panel chrome via #harmony) ───────────────────────────── */
-.harmonyrow {
+/* ─── chord line (inside the PATTERNS module, between patterns + chain) ───── */
+.chord-row {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   flex-wrap: wrap;
   row-gap: 6px;
+  margin: 6px 0;
 }
 .h-chips {
   display: flex;

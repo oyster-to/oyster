@@ -53,7 +53,7 @@ let _editingLaneId = null;
 let _draggedLaneId = null;
 
 // ─── Section drag-reorder state ───────────────────────────────────────────────
-const SECTION_IDS = ['viz', 'master', 'harmony', 'punch', 'strips', 'fills', 'arrange'];
+const SECTION_IDS = ['viz', 'master', 'punch', 'strips', 'fills', 'arrange'];
 let _draggedSecId = null;
 
 function refreshStates() {
@@ -610,99 +610,11 @@ function renderMaster() {
   updateEmptyGroups(); // hide master kgroups where all knobs are hidden
 }
 
-// ─── HARMONY row (chord chips + click-to-edit text) ──────────────────────────
+// ─── PATTERNS module (patterns row + chain row + chord line + playback label) ─
 function fmtKeyName(key) {
   return key ? `${key.root} ${key.mode}` : '';
 }
 
-function renderHarmony() {
-  const host = document.getElementById('harmony');
-  if (!host) return;
-  const harmony = eng.getHarmony();
-  host.innerHTML = '';
-  const row = document.createElement('div');
-  row.className = 'harmonyrow';
-  const lbl = document.createElement('span');
-  lbl.className = 'flbl';
-  lbl.textContent = 'HARMONY';
-  row.appendChild(lbl);
-
-  const chips = document.createElement('div');
-  chips.className = 'h-chips';
-  const prog = harmony?.progression || [];
-  if (prog.length) {
-    prog.forEach((c, i) => {
-      const chip = document.createElement('span');
-      chip.className = 'h-chip';
-      chip.dataset.idx = i;
-      chip.textContent = c.name;
-      chips.appendChild(chip);
-    });
-  } else {
-    const dash = document.createElement('span');
-    dash.className = 'h-chip h-empty';
-    dash.textContent = '—';
-    chips.appendChild(dash);
-  }
-  row.appendChild(chips);
-
-  const key = eng.getKey();
-  if (key) {
-    const badge = document.createElement('span');
-    badge.className = 'pat-lbl h-key';
-    badge.textContent = fmtKeyName(key);
-    row.appendChild(badge);
-  }
-  host.appendChild(row);
-
-  // Click anywhere on the chip area → swap to a text input (mirrors lane rename).
-  chips.onclick = () => beginHarmonyEdit();
-}
-
-// Swap the chip area for a text input prefilled from the current progression.
-// Enter / blur commit (parse → setProgression → re-render); Escape cancels.
-function beginHarmonyEdit() {
-  const host = document.getElementById('harmony');
-  if (!host) return;
-  const chips = host.querySelector('.h-chips');
-  if (!chips) return;
-  const prog = eng.getHarmony()?.progression || [];
-  const input = document.createElement('input');
-  input.className = 'h-edit';
-  input.value = formatProgression(prog);
-  input.placeholder = 'e.g. F#m D A E/G#';
-  chips.replaceWith(input);
-  input.focus();
-  input.select();
-  let done = false;
-  const cancel = () => { if (done) return; done = true; renderHarmony(); };
-  const commit = () => {
-    if (done) return;
-    const { chords, errors } = parseProgression(input.value);
-    if (errors.length || !chords.length) { input.classList.add('invalid'); return; }
-    done = true;
-    eng.setProgression(chords);
-    renderHarmony();
-    refreshVizPattern();   // melody/bass tinting reads the new chords/key
-  };
-  input.oninput = () => input.classList.remove('invalid');
-  input.onkeydown = e => {
-    if (e.key === 'Enter') { e.preventDefault(); commit(); }
-    else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
-  };
-  input.onblur = commit;
-}
-
-// Highlight the sounding chord chip. chordIdx -1 → no harmony, clear all.
-function updateHarmonyPlayback(chordIdx) {
-  const host = document.getElementById('harmony');
-  if (!host) return;
-  host.querySelectorAll('.h-chip').forEach(chip => {
-    chip.classList.toggle('sounding', +chip.dataset.idx === chordIdx);
-  });
-}
-
-// ─── PATTERNS module (patterns row + chain row + playback label) ─────────────
 let _chainDragFrom = null;
 
 function renderPatterns() {
@@ -757,6 +669,11 @@ function renderPatterns() {
   prow.appendChild(del);
   host.appendChild(prow);
 
+  // Chord line for the SELECTED pattern: "chords" label + chord-name chips +
+  // key badge. Chords belong to the pattern (one per bar, cycling). Click
+  // anywhere → text input to edit (parser-backed); empty → a "＋ chords" affordance.
+  host.appendChild(buildChordLine(editIdx));
+
   // Chain row: chips (click = play chain from there; hover-✕ removes; drag reorders) + append.
   const crow = document.createElement('div');
   crow.className = 'chain-row';
@@ -799,6 +716,91 @@ function renderPatterns() {
   syncStripGrooves();   // edit pattern may have changed → resync strip dropdowns
 }
 
+// Build the chord line for pattern `idx`: "chords" label + chord chips (or a
+// "＋ chords" affordance when empty) + the key badge. The chip area is clickable
+// (cursor:text) → beginChordEdit swaps in the text input.
+function buildChordLine(idx) {
+  const row = document.createElement('div');
+  row.className = 'chord-row';
+  const lbl = document.createElement('span');
+  lbl.className = 'pat-lbl';
+  lbl.textContent = 'chords';
+  row.appendChild(lbl);
+
+  const chips = document.createElement('div');
+  chips.className = 'h-chips';
+  const chords = eng.getPatternChords(idx) || [];
+  if (chords.length) {
+    chords.forEach((c, i) => {
+      const chip = document.createElement('span');
+      chip.className = 'h-chip';
+      chip.dataset.idx = i;
+      chip.textContent = c.name;
+      chips.appendChild(chip);
+    });
+  } else {
+    const add = document.createElement('span');
+    add.className = 'h-chip h-empty';
+    add.textContent = '＋ chords';
+    chips.appendChild(add);
+  }
+  chips.onclick = () => beginChordEdit(idx);
+  row.appendChild(chips);
+
+  const key = eng.getKey();
+  if (key) {
+    const badge = document.createElement('span');
+    badge.className = 'pat-lbl h-key';
+    badge.textContent = fmtKeyName(key);
+    row.appendChild(badge);
+  }
+  return row;
+}
+
+// Swap the chip area for a text input prefilled from the pattern's chords.
+// Enter / blur commit (parse → setPatternChords); Escape cancels; invalid input
+// keeps a red border and stays editing.
+function beginChordEdit(idx) {
+  const host = document.getElementById('arrange');
+  const chips = host?.querySelector('.chord-row .h-chips');
+  if (!chips) return;
+  const chords = eng.getPatternChords(idx) || [];
+  const input = document.createElement('input');
+  input.className = 'h-edit';
+  input.value = formatProgression(chords);
+  input.placeholder = 'e.g. F#m D A E/G#';
+  chips.replaceWith(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const cancel = () => { if (done) return; done = true; renderPatterns(); refreshVizPattern(); };
+  const commit = () => {
+    if (done) return;
+    const text = input.value.trim();
+    if (text === '') {                         // empty → clear the pattern's chords
+      done = true;
+      eng.selectPattern(idx);
+      eng.setPatternChords([]);
+      renderPatterns();
+      refreshVizPattern();
+      return;
+    }
+    const { chords: parsed, errors } = parseProgression(text);
+    if (errors.length || !parsed.length) { input.classList.add('invalid'); return; }
+    done = true;
+    eng.selectPattern(idx);                    // setPatternChords targets the edit pattern
+    eng.setPatternChords(parsed);
+    renderPatterns();
+    refreshVizPattern();   // melody/bass tinting reads the new chords/key
+  };
+  input.oninput = () => input.classList.remove('invalid');
+  input.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+  };
+  input.onblur = commit;
+}
+
 // Glow + label + row dimming — called from renderPatterns and every step.
 function updatePatternsPlayback(target) {
   const host = document.getElementById('arrange');
@@ -814,6 +816,16 @@ function updatePatternsPlayback(target) {
   host.querySelectorAll('.chain-chip').forEach(c => {
     c.classList.toggle('playing', !isPattern && +c.dataset.pos === target.chainPos);
   });
+  // Sounding-chord glow on the chord line — only when the SOUNDING pattern is the
+  // one displayed (the chord chips show the edit pattern's chords).
+  const chordChips = host.querySelectorAll('.chord-row .h-chip');
+  if (chordChips.length) {
+    const editIdx = eng.getEditPatternIndex();
+    const sounding = target.patternIdx === editIdx
+      ? target.barInPattern % chordChips.length
+      : -1;
+    chordChips.forEach(chip => chip.classList.toggle('sounding', +chip.dataset.idx === sounding));
+  }
   const lbl = host.querySelector('#pat-playing');
   if (lbl) {
     const chain = eng.getChain();
@@ -862,7 +874,6 @@ function mount() {
   renderFills();
   renderPunch();
   renderMaster();
-  renderHarmony();
   renderPatterns();
   viz?.dispose?.();   // stop the outgoing viz's rAF loops before replacing it
   viz = makeViz(document.getElementById('viz'), song, eng);
@@ -949,7 +960,7 @@ document.getElementById('themesel').onchange = e => {
 // (Scope + quick-edit lane tabs are built and wired in renderViewTabs().)
 
 // ─── Step callback (registered once; closes over module-level song/viz) ──────
-eng.onStep(({ absStep, bar, stepInBar, fill, queue, target, chordIdx }) => {
+eng.onStep(({ absStep, bar, stepInBar, fill, queue, target }) => {
   viz.setStep({ absStep, bar, stepInBar, target });
   const fillsHost = document.getElementById('fills');
   if (fillsHost) {
@@ -959,7 +970,6 @@ eng.onStep(({ absStep, bar, stepInBar, fill, queue, target, chordIdx }) => {
     renderChain(queue);
   }
   updatePatternsPlayback(target);
-  updateHarmonyPlayback(chordIdx);
 });
 
 // ─── Restore saved theme ──────────────────────────────────────────────────────

@@ -18,13 +18,10 @@ song = {
       tone?: string }                                // melody lanes: oscillator type
   ],
 
-  // HARMONY — one chord per bar, cycling on the ABSOLUTE bar counter. Lets
-  // grooves be chord-relative (see below). Optional: a song with no harmony has
-  // only literal grooves.
-  harmony?: {
-    key?: { root: 'A'|'C#'|…, mode: 'major'|'minor' },  // tonic for snap-to-scale + editor tinting (inert at playback)
-    progression: [ { name, root, voicing: [note, …] }, … ],
-  },
+  // KEY — the song's tonic, for melody snap-to-scale + editor tinting (inert at
+  // playback). Optional. The chord PROGRESSION is not global — it lives on each
+  // pattern (pattern.chords, below).
+  key?: { root: 'A'|'C#'|…, mode: 'major'|'minor' },
 
   // GROOVES — named musical content, per lane. Pure data, shareable.
   grooves: {
@@ -37,22 +34,30 @@ song = {
       // other lanes:  [ [step, note|notes[], durSteps|'bar'], … ]
       //               note = 'C4' style; notes[] = simultaneous (chords)
       // RELATIVE relBars[] — each bar: [ [step, REF, durSteps|'bar'], … ]
-      //   REFs resolve against the chord on the absolute bar (harmony.progression):
+      //   REFs resolve against the PATTERN's chord for that bar
+      //   (pattern.chords[barInPattern % chords.length]):
       //     'R'        → chord.root
       //     'R±N'      → root ±N semitones      (e.g. 'R+12')
       //     'V<i>'     → chord.voicing[i % len] (degree; index clamped)
       //     'V<i>±N'   → that degree ±N semitones (e.g. 'V2-24')
       //     'V*'       → the whole voicing (a chords-style pad event)
       //     'V*±N'     → the whole voicing, each note shifted
-      //   No harmony / empty progression → a relative groove is silent.
+      //   Pattern has no chords → a relative groove is silent.
       //   Relative grooves are read-only today (no editor yet); drums never relative.
     }
   },
 
-  // PATTERNS — a combo: one groove pick per lane. NO length of its own:
-  // a pattern lasts as long as its longest picked groove; shorter grooves
-  // cycle underneath (bar % groove.length).
-  patterns: [ { lanes: { [laneId]: grooveName } } ],  // max 16
+  // PATTERNS — a combo: one groove pick per lane, plus an optional chord loop
+  // that BELONGS to the pattern (one chord per bar, cycling on barInPattern).
+  // Chord-relative grooves resolve against these chords — deterministic and
+  // loop-stable (no global "fourth clock"). NO length of its own: a pattern lasts
+  // as long as its longest picked groove AND its chord count; shorter grooves
+  // (and the chord loop) cycle underneath (bar % length). A 1-bar bass figure
+  // over 4 chords is a 4-bar pattern.
+  patterns: [ {
+    lanes: { [laneId]: grooveName },
+    chords?: [ { name, root, voicing: [note, …] }, … ],   // optional, one per bar
+  } ],  // max 16
 
   // CHAIN — the song order. INVARIANT: length >= 1, every entry a valid pattern index.
   chain: [patternIndex, …],
@@ -68,7 +73,7 @@ song = {
 
 1. `chain.length >= 1`; every chain entry indexes an existing pattern.
 2. **Valid-song invariant:** every pattern pick resolves to an existing groove for that lane. **Engine robustness (separate guarantee):** if a pick ever dangles anyway, the engine plays silence for that lane — never a crash.
-3. Pattern duration is **derived**: `max(groove.length over picks)`, floor 1. Patterns store no length.
+3. Pattern duration is **derived**: `max(groove.length over picks, chords?.length ?? 0)`, floor 1. Patterns store no length.
 4. Groove lengths are 1–8 bars. **The schema permits any length 1–8** (`bar % groove.length` cycling is length-agnostic; non-dividing lengths truncate their cycle at each pattern repeat) — but **the UI stays opinionated at 1/2/4/8**: powers of two always nest evenly, so nothing drifts. Arbitrary 3/5/7-bar grooves are musically surprising and stay a deliberate future decision, not a default.
 5. The whole song is **pure JSON** — no functions, no hidden state. This is the property that makes grooves/patterns/songs shareable and LLM-authorable. Never add a non-serializable field.
 6. Playback state (the chain-position/pattern-loop target, edit selection, fill queue) is **engine runtime, never part of the song**.
@@ -81,12 +86,12 @@ The 7 preset songs in `songs/*.js` are authored in the OLD rich format (per-lane
 
 Other threads should leave room for these, not invent competing shapes:
 
-- **`harmony` + chord-relative grooves** — *LIVE (engine-only, read-only).* The schema and the relative-groove syntax are documented above. The flattener translates known bass figures (`octave`, `eighths`, `16ths`, `arp`, …) and the chord modes (`pad`/`stab`/`arp`) into single chord-relative grooves; array/MIDI bass, melody, and drums stay baked literal. Parity with the legacy note stream is proven for all 7 presets. **Still future:** a harmony editor and editable chord-relative grooves (writes are no-ops today).
+- **`pattern.chords` + chord-relative grooves** — *LIVE.* Chords live on each pattern (one per bar, cycling), and the relative-groove syntax resolves against them (documented above). The chord line in the PATTERNS module edits the selected pattern's chords (parser-backed); melody snap/tint read `song.key`. The flattener translates known bass figures (`octave`, `eighths`, `16ths`, `arp`, …) and the chord modes (`pad`/`stab`/`arp`) into single chord-relative grooves and attaches each pattern's chords from the source progression's bar offsets; array/MIDI bass, melody, and drums stay baked literal. Parity with the legacy note stream is proven for all 7 presets. **Still future:** editable chord-relative grooves (groove writes are no-ops today).
 - **`instruments`** *(direction only — design after #630 lands)*: a definitions layer (`instruments: { [id]: synth params | sample ref }`) that lanes reference, replacing the hardcoded `type → voices.js` synthesis. A drum kit becomes an *ensemble* of instrument refs; samples (wav/mp3) enter here. This is the unlock for the social/composable vision. **Until then: `lane.type` stays a broad routing identity — do not extend its semantics or let it become an instrument-definition dumping ground.**
 - **Sharing**: grooves, patterns, and songs are already self-contained named JSON. Sample assets are the one future exception (need hosting/IDs, can't ride in JSON).
 
 ## API surface (engine — `engine/index.js`)
 
-Read: `getSong getLanes getGrooves getPatterns getChain getEditPatternIndex getEditGroove(laneId) getPlaybackTarget`.
-Mutate: `selectPattern playChain addPattern duplicatePattern removePattern appendToChain removeChainAt moveChain setLaneGroove(laneId, name) setGrooveBars(laneId, n) setDrumStep toggleNote` + lanes (`addLane duplicateLane removeLane renameLane moveLane`), mixer/FX, fills queue, transport.
-Gone (do not reintroduce): `setMode getMode captureScene clearArrangement setLane` per-lane selection, `cycleLen`, pattern `bars`/`setPatternBars`.
+Read: `getSong getLanes getGrooves getPatterns getChain getEditPatternIndex getEditGroove(laneId) getPlaybackTarget getKey getPatternChords(i)`.
+Mutate: `selectPattern playChain addPattern duplicatePattern removePattern appendToChain removeChainAt moveChain setLaneGroove(laneId, name) setGrooveBars(laneId, n) setDrumStep toggleNote setPatternChords(chords)` + lanes (`addLane duplicateLane removeLane renameLane moveLane`), mixer/FX, fills queue, transport.
+Gone (do not reintroduce): `setMode getMode captureScene clearArrangement setLane` per-lane selection, `cycleLen`, pattern `bars`/`setPatternBars`, `getHarmony`/`setProgression` (chords are pattern-owned now).

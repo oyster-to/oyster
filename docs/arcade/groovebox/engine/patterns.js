@@ -6,7 +6,7 @@
 // A groove owns its length (its array); at pattern bar b it plays
 // groove[b % groove.length]. A pattern's loop length is DERIVED — the longest
 // picked groove (see patternBars); shorter grooves cycle underneath.
-import { laneAudible, drumVoiceAudible, transposeNote, chordAt, DRUM_KEYS } from './song.js';
+import { laneAudible, drumVoiceAudible, transposeNote, DRUM_KEYS } from './song.js';
 
 export const MAX_PATTERNS = 16;
 
@@ -46,11 +46,13 @@ export function resolveRef(ref, chord) {
 }
 
 // patternBars(song, idx) → the pattern's derived duration: the longest groove
-// among its picks (grooves are 1/2/4 bars; shorter ones cycle). Minimum 1.
+// among its picks AND the pattern's own chord count (chords are content — one per
+// bar, cycling — so a 1-bar bass figure over 4 chords is a 4-bar pattern).
+// Minimum 1.
 export function patternBars(song, patternIdx) {
   const pat = song.patterns[patternIdx];
   if (!pat) return 1;
-  let max = 1;
+  let max = Math.max(1, pat.chords?.length ?? 0);
   for (const laneId of Object.keys(pat.lanes)) {
     const bars = grooveBars(song.grooves[laneId]?.[pat.lanes[laneId]]);
     if (Array.isArray(bars) && bars.length > max) max = bars.length;
@@ -111,13 +113,19 @@ export function grooveFor(song, patternIdx, laneId) {
 }
 
 // ── event resolution ──────────────────────────────────────────────────────────
-// absoluteBar — the song-absolute bar, used to resolve the harmony clock for
-// chord-relative grooves. Literal grooves ignore it.
-export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = null, transpose = 0, absoluteBar = 0) {
+// Chord-relative grooves resolve against the pattern's OWN chords: chord =
+// pattern.chords[barInPattern % chords.length]. Chords belong to the pattern
+// (not a global song clock), so playback is deterministic and loop-stable. A
+// pattern with no chords leaves relative-groove lanes silent.
+export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = null, transpose = 0) {
   const pat = song.patterns[patternIdx];
   const ev = [];
   const tr = transpose | 0;
   const T = n => (tr ? transposeNote(n, tr) : n);
+  const chords = pat.chords;
+  const chord = (Array.isArray(chords) && chords.length)
+    ? chords[((barInPattern % chords.length) + chords.length) % chords.length]
+    : null;
   for (const lane of song.lanes) {
     if (!laneAudible(song.lanes, lane)) continue;
     const g = grooveData(song, pat, lane.id);
@@ -139,9 +147,8 @@ export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = 
     const bars = grooveBars(g);
     const notes = (bars ? bars[barInPattern % bars.length] : null) || [];
     if (g && g.relative) {
-      // Chord-relative: resolve each REF against the chord on the absolute bar.
-      // No harmony / empty progression → the lane is silent (resolveRef → null).
-      const chord = chordAt(song.harmony?.progression ?? [], absoluteBar);
+      // Chord-relative: resolve each REF against the pattern's chord for this bar.
+      // No chords on the pattern → the lane is silent (resolveRef → null).
       for (const [s, ref, dur] of notes) {
         if (s !== step) continue;
         const resolved = resolveRef(ref, chord);

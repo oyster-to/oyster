@@ -67,23 +67,23 @@ test('grooveBars: literal array passes through, relative wrapper unwraps', () =>
   expect(grooveBars({ relative: true, bars: [figure] })).toEqual([figure]);
 });
 
-// ── harmony clock through eventsForStepV2 ──────────────────────────────────
-// A 2-chord progression with a one-bar relative bass groove: the resolved note
-// must track the absolute bar.
+// ── pattern-local chords through eventsForStepV2 ────────────────────────────
+// A pattern with 2 chords + a one-bar relative bass groove: the resolved note
+// cycles on barInPattern (pattern.chords), not on a global/absolute clock.
+const C = { name: 'C', root: 'C2', voicing: ['C3', 'E3', 'G3'] };
 function harmonySong() {
   return {
     meter: meter44,
-    harmony: { progression: [Am, { name: 'C', root: 'C2', voicing: ['C3', 'E3', 'G3'] }] },
     lanes: [{ id: 'bass', type: 'bass', name: 'bass', muted: false, soloed: false }],
     grooves: { bass: { rel: { relative: true, bars: [[[0, 'R', 16]]] } } },
-    patterns: [{ lanes: { bass: 'rel' } }],
+    patterns: [{ lanes: { bass: 'rel' }, chords: [Am, C] }],
     chain: [0],
   };
 }
 
-test('relative groove resolves against chordAt(absoluteBar)', () => {
+test('relative groove resolves against pattern.chords[barInPattern], cycling', () => {
   const song = harmonySong();
-  const at = b => eventsForStepV2(song, 0, 0, 0, null, 0, b);
+  const at = b => eventsForStepV2(song, 0, b, 0, null, 0);
   expect(at(0)).toEqual([{ laneId: 'bass', type: 'bass', note: 'A2', dur: 16 }]); // Am
   expect(at(1)).toEqual([{ laneId: 'bass', type: 'bass', note: 'C2', dur: 16 }]); // C
   expect(at(2)).toEqual([{ laneId: 'bass', type: 'bass', note: 'A2', dur: 16 }]); // wraps → Am
@@ -92,31 +92,30 @@ test('relative groove resolves against chordAt(absoluteBar)', () => {
 test('relative groove: transpose applies AFTER resolution', () => {
   const song = harmonySong();
   // +2 semitones on the Am root A2 → B2.
-  expect(eventsForStepV2(song, 0, 0, 0, null, 2, 0))
+  expect(eventsForStepV2(song, 0, 0, 0, null, 2))
     .toEqual([{ laneId: 'bass', type: 'bass', note: 'B2', dur: 16 }]);
 });
 
 test('relative chords lane: V* → pad event, single ref → arp event', () => {
   const song = {
     meter: meter44,
-    harmony: { progression: [Am] },
     lanes: [{ id: 'chords', type: 'chords', name: 'chords', muted: false, soloed: false }],
     grooves: { chords: { pad: { relative: true, bars: [[[0, 'V*', 'bar'], [8, 'V0', 1]]] } } },
-    patterns: [{ lanes: { chords: 'pad' } }],
+    patterns: [{ lanes: { chords: 'pad' }, chords: [Am] }],
     chain: [0],
   };
-  expect(eventsForStepV2(song, 0, 0, 0, null, 0, 0))
+  expect(eventsForStepV2(song, 0, 0, 0, null, 0))
     .toEqual([{ laneId: 'chords', type: 'chords', mode: 'pad', notes: ['A3', 'C4', 'E4'], dur: 'bar' }]);
-  expect(eventsForStepV2(song, 0, 0, 8, null, 0, 0))
+  expect(eventsForStepV2(song, 0, 0, 8, null, 0))
     .toEqual([{ laneId: 'chords', type: 'chords', mode: 'arp', note: 'A3', dur: 1 }]);
 });
 
-test('no harmony / empty progression → relative groove is silent', () => {
+test('no chords on the pattern → relative groove is silent', () => {
   const base = harmonySong();
-  const noHarmony = { ...base, harmony: undefined };
-  expect(eventsForStepV2(noHarmony, 0, 0, 0, null, 0, 0)).toEqual([]);
-  const empty = { ...base, harmony: { progression: [] } };
-  expect(eventsForStepV2(empty, 0, 0, 0, null, 0, 0)).toEqual([]);
+  const noChords = { ...base, patterns: [{ lanes: { bass: 'rel' } }] };
+  expect(eventsForStepV2(noChords, 0, 0, 0, null, 0)).toEqual([]);
+  const empty = { ...base, patterns: [{ lanes: { bass: 'rel' }, chords: [] }] };
+  expect(eventsForStepV2(empty, 0, 0, 0, null, 0)).toEqual([]);
 });
 
 // ── write-path no-ops on relative grooves ──────────────────────────────────
