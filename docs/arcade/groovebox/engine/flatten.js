@@ -207,6 +207,7 @@ export function flattenSong(rich) {
   }));
 
   return {
+    version: 2,                                   // schema version — see DATA-MODEL.md
     title: rich.title, artist: rich.artist, meter: rich.meter, bpm: rich.bpm,
     lanes, grooves, patterns, chain, fills: rich.fills || {},
   };

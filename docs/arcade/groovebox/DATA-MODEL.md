@@ -6,6 +6,7 @@
 
 ```js
 song = {
+  version: 2,                                        // schema version — bump only with this doc
   title: string, artist: string,
   meter: { beatsPerBar, beatUnit, stepsPerBeat },   // 4/4 → 16 steps/bar; 6/8 → 12
   bpm: number,
@@ -46,9 +47,9 @@ song = {
 ## Invariants (the engine enforces these; everyone may rely on them)
 
 1. `chain.length >= 1`; every chain entry indexes an existing pattern.
-2. Every pattern pick resolves to an existing groove for that lane (dangling picks are silent, never a crash).
+2. **Valid-song invariant:** every pattern pick resolves to an existing groove for that lane. **Engine robustness (separate guarantee):** if a pick ever dangles anyway, the engine plays silence for that lane — never a crash.
 3. Pattern duration is **derived**: `max(groove.length over picks)`, floor 1. Patterns store no length.
-4. Groove lengths are 1–8 bars. The UI currently offers 1/2/4/8 (powers of two always nest evenly — no drift). **The model itself permits any length 1–8**: `bar % groove.length` cycling is length-agnostic; non-dividing lengths simply truncate their cycle at each pattern repeat. Arbitrary lengths are a UI/alignment policy decision, not a schema change.
+4. Groove lengths are 1–8 bars. **The schema permits any length 1–8** (`bar % groove.length` cycling is length-agnostic; non-dividing lengths truncate their cycle at each pattern repeat) — but **the UI stays opinionated at 1/2/4/8**: powers of two always nest evenly, so nothing drifts. Arbitrary 3/5/7-bar grooves are musically surprising and stay a deliberate future decision, not a default.
 5. The whole song is **pure JSON** — no functions, no hidden state. This is the property that makes grooves/patterns/songs shareable and LLM-authorable. Never add a non-serializable field.
 6. Playback state (the chain-position/pattern-loop target, edit selection, fill queue) is **engine runtime, never part of the song**.
 
@@ -60,8 +61,8 @@ The 7 preset songs in `songs/*.js` are authored in the OLD rich format (per-lane
 
 Other threads should leave room for these, not invent competing shapes:
 
-- **`harmony`** *(next slice, plan approved)*: `{ progression: [{name, root, voicing}, …] }` — one chord per bar, cycling on the absolute bar counter. With it, grooves may be **chord-relative**: `{ relative: true, bars: [[[step, REF, dur], …]] }`, REF ∈ `'R' | 'R±12' | 'V<i>' | 'V<i>±12|24' | 'V*'` (root / voicing-degree / whole voicing). Bass/chords become reusable figures over any progression; drums + melody stay literal.
-- **`instruments`** *(direction only — design after #630 lands)*: a definitions layer (`instruments: { [id]: synth params | sample ref }`) that lanes reference, replacing the hardcoded `type → voices.js` synthesis. A drum kit becomes an *ensemble* of instrument refs; samples (wav/mp3) enter here. This is the unlock for the social/composable vision — do **not** extend `lane.type` semantics in the meantime.
+- **`harmony`** *(next slice, plan approved — **engine-only and read-only first**)*: `{ progression: [{name, root, voicing}, …] }` — one chord per bar, cycling on the absolute bar counter. With it, grooves may be **chord-relative**: `{ relative: true, bars: [[[step, REF, dur], …]] }`, REF ∈ `'R' | 'R±12' | 'V<i>' | 'V<i>±12|24' | 'V*'` (root / voicing-degree / whole voicing). The slice: copy `harmony.progression` through flatten, support chord-relative bass/chord grooves, prove parity still passes. **No harmony editor yet.** Drums + melody stay literal.
+- **`instruments`** *(direction only — design after #630 lands)*: a definitions layer (`instruments: { [id]: synth params | sample ref }`) that lanes reference, replacing the hardcoded `type → voices.js` synthesis. A drum kit becomes an *ensemble* of instrument refs; samples (wav/mp3) enter here. This is the unlock for the social/composable vision. **Until then: `lane.type` stays a broad routing identity — do not extend its semantics or let it become an instrument-definition dumping ground.**
 - **Sharing**: grooves, patterns, and songs are already self-contained named JSON. Sample assets are the one future exception (need hosting/IDs, can't ride in JSON).
 
 ## API surface (engine — `engine/index.js`)
