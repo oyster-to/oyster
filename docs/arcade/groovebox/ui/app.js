@@ -10,6 +10,7 @@ import { memoryReboot } from '../songs/memory-reboot.js';
 import { takeOnMe } from '../songs/take-on-me.js';
 import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
+import { openPunchEditor, isPunchEditorOpen } from './punch-editor.js';
 
 const eng = createEngine();
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
@@ -617,6 +618,19 @@ function renderPunch() {
     hint.className = 'punchkey';
     hint.textContent = p.key;
     pad.appendChild(hint);
+    // ✎ opens the preset editor for this slot (v3.5). pointerdown is stopped
+    // so the pad doesn't punch underneath; all pads are force-released on
+    // open (preview and pads share the punch bus).
+    const edit = document.createElement('span');
+    edit.className = 'punchedit';
+    edit.title = 'Edit preset';
+    edit.textContent = '✎';
+    edit.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation();
+      for (let s = 0; s < 5; s++) setPunch(s, false);
+      openPunchEditor({ slot, eng, onSaved: renderPunch });
+    });
+    pad.appendChild(edit);
     pad.addEventListener('pointerdown', e => { e.preventDefault(); pad.setPointerCapture(e.pointerId); setPunch(slot, true); });
     const off = () => setPunch(slot, false);
     pad.addEventListener('pointerup', off);
@@ -641,7 +655,7 @@ function isTypingTarget(el) {
 }
 document.addEventListener('keydown', e => {
   const slot = PUNCH_BY_KEY[e.key];
-  if (slot === undefined || e.repeat || isTypingTarget(document.activeElement)) return;
+  if (slot === undefined || e.repeat || isTypingTarget(document.activeElement) || isPunchEditorOpen()) return;
   e.preventDefault();
   setPunch(slot, true);
 });
