@@ -12,12 +12,12 @@ export function createVoiceForType(type, bus) {
   if (type === 'drums') {
     const kick  = new Tone.MembraneSynth({ volume: -5 }).connect(bus);
     const snare = new Tone.NoiseSynth({ volume: -11, envelope: { attack: 0.001, decay: 0.16, sustain: 0 } }).connect(bus);
-    const hat   = new Tone.NoiseSynth({ volume: -20, envelope: { attack: 0.001, decay: 0.03, sustain: 0 } })
-                    .connect(new Tone.Filter(7000, 'highpass').connect(bus));
+    const hatFilter = new Tone.Filter(7000, 'highpass').connect(bus);
+    const hat   = new Tone.NoiseSynth({ volume: -20, envelope: { attack: 0.001, decay: 0.03, sustain: 0 } }).connect(hatFilter);
     const tom   = new Tone.MembraneSynth({ volume: -6, pitchDecay: 0.06, octaves: 2 }).connect(bus);
-    const crash = new Tone.NoiseSynth({ volume: -12, envelope: { attack: 0.001, decay: 1.1, sustain: 0, release: 0.3 } })
-                    .connect(new Tone.Filter(3500, 'highpass').connect(bus));
-    return { kick, snare, hat, tom, crash };
+    const crashFilter = new Tone.Filter(3500, 'highpass').connect(bus);
+    const crash = new Tone.NoiseSynth({ volume: -12, envelope: { attack: 0.001, decay: 1.1, sustain: 0, release: 0.3 } }).connect(crashFilter);
+    return { kick, snare, hat, tom, crash, hatFilter, crashFilter };
   }
   if (type === 'bass') {
     const bass = new Tone.MonoSynth({
@@ -29,10 +29,11 @@ export function createVoiceForType(type, bus) {
     return { bass };
   }
   if (type === 'chords') {
-    const chordSyn = new Tone.PolySynth(Tone.Synth).connect(new Tone.Filter(4200, 'lowpass').connect(bus));
+    const chordFilter = new Tone.Filter(4200, 'lowpass').connect(bus);
+    const chordSyn = new Tone.PolySynth(Tone.Synth).connect(chordFilter);
     chordSyn.set({ oscillator: { type: 'triangle' }, envelope: { attack: 0.05, decay: 0.3, sustain: 0.6, release: 0.5 } });
     chordSyn.volume.value = -17;
-    return { chordSyn };
+    return { chordSyn, chordFilter };
   }
   if (type === 'melody') {
     const lead = new Tone.PolySynth(Tone.Synth).connect(bus);

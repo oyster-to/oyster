@@ -129,6 +129,14 @@ export function createEngine() {
       s.lanes = normalizeLanes(s.lanes, s);
       song = s;
       tempo = (typeof s.bpm === 'number' && isFinite(s.bpm)) ? s.bpm : tempo;
+      if (started) {
+        for (const id of Object.keys(voices)) {
+          if (!s.lanes.some(l => l.id === id)) disposeLane(id);
+        }
+        for (const lane of s.lanes) {
+          if (!voices[lane.id]) buildLane(lane);
+        }
+      }
     },
     async play() {
       if (!song) throw new Error('no song loaded');
@@ -321,7 +329,7 @@ export function createEngine() {
       else if (param === 'vol')    c.vol.gain.rampTo(v01, 0.08);
       else if (param === 'pan')    c.panner.pan.rampTo((v01 - 0.5) * 2, 0.08);
       else if (param === 'reverb') c.reverbSend.gain.rampTo(v01 * 0.6, 0.05);
-      else if (param === 'comp')   { c.comp.threshold.value = -30 * v01; c.comp.ratio.value = 1 + 7 * v01; }
+      else if (param === 'comp')   { c.comp.threshold.rampTo(-30 * v01, 0.05); c.comp.ratio.rampTo(1 + 7 * v01, 0.05); }
       else if (param === 'res')    c.filter.Q.rampTo(0.7 + v01 * 14, 0.05);
       else if (param === 'fdbk')   c.delay.feedback.rampTo(v01 * 0.9, 0.05);
       else if (param === 'cho') {
@@ -359,7 +367,7 @@ export function createEngine() {
     },
     setMasterFX(param, v01) {
       if      (param === 'reverb' && masterRev)   masterRev.wet.rampTo(v01 * 0.6, 0.05);
-      else if (param === 'comp'   && masterComp)  { masterComp.threshold.value = -30 * v01; masterComp.ratio.value = 1 + 7 * v01; }
+      else if (param === 'comp'   && masterComp)  { masterComp.threshold.rampTo(-30 * v01, 0.05); masterComp.ratio.rampTo(1 + 7 * v01, 0.05); }
       else if (param === 'vol'    && masterVol)   masterVol.gain.rampTo(v01, 0.05);
       else if (param === 'bal'    && masterPan)   masterPan.pan.rampTo((v01 - 0.5) * 2, 0.05);
       else if (param === 'width'  && masterWidth && masterEQ && masterRev) {
@@ -375,8 +383,8 @@ export function createEngine() {
         }
         if (_widthOn) masterWidth.width.rampTo(v01, 0.05);
       }
-      else if (param === 'lo'     && masterEQ)    masterEQ.low.value  = (v01 - 0.5) * 24;
-      else if (param === 'hi'     && masterEQ)    masterEQ.high.value = (v01 - 0.5) * 24;
+      else if (param === 'lo'     && masterEQ)    masterEQ.low.rampTo((v01 - 0.5) * 24, 0.05);
+      else if (param === 'hi'     && masterEQ)    masterEQ.high.rampTo((v01 - 0.5) * 24, 0.05);
     },
     getMasterLevel() {
       if (!started || !meterL || !meterR) return [0, 0];

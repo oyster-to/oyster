@@ -42,6 +42,8 @@ function knobTip(k) {
 
 const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, heartbeats, 'digital-love': digitalLove, 'memory-reboot': memoryReboot, 'take-on-me': takeOnMe };
 
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
 // Module-level refs — reassigned by mount() on every song switch.
 let song;
 let viz;
@@ -212,24 +214,24 @@ function renderStrips() {
   const isLast = lanes.length === 1;
 
   host.innerHTML = lanes.map(lane => {
-    const opts = options(lane).map(n => `<option${n===lane.selection?' selected':''}>${n}</option>`).join('');
+    const opts = options(lane).map(n => `<option${n===lane.selection?' selected':''}>${esc(n)}</option>`).join('');
     const tone = lane.type === 'melody'
       ? `<select data-tone data-lane="${lane.id}">${TONES.map(t=>`<option value="${t}"${t===(lane.tone||'pulse')?' selected':''}>${t==='fatsawtooth'?'fat saw':t}</option>`).join('')}</select>`
       : '';
     // Edit button — present for types with an editor (drums, melody, bass); skip chords.
     const hasEditor = lane.type !== 'chords';
     const editBtn = hasEditor
-      ? `<button class="lane-edit" data-lane="${lane.id}" title="View/edit ${lane.name} in the screen">VIEW</button>`
-      : `<button class="lane-edit" data-lane="${lane.id}" title="No editor for ${lane.name}" disabled>VIEW</button>`;
+      ? `<button class="lane-edit" data-lane="${lane.id}" title="View/edit ${esc(lane.name)} in the screen">VIEW</button>`
+      : `<button class="lane-edit" data-lane="${lane.id}" title="No editor for ${esc(lane.name)}" disabled>VIEW</button>`;
     // Grid columns: drag | name | pattern-select | meter | MIX | TONE | FX | M/S | actions
     return `<div class="lane" data-lane="${lane.id}" data-type="${lane.type}">
       <span class="lane-drag" title="Drag to reorder">⠿</span>
-      <span class="name" title="double-click to rename">${lane.name}</span>
+      <span class="name" title="double-click to rename">${esc(lane.name)}</span>
       <div class="mctl"><select data-lane="${lane.id}">${opts}</select>${tone}</div>
       <div class="lvl"><div class="lvl-fill"></div></div>
       <div class="msgroup">
-        <button class="mute" data-lane="${lane.id}" aria-label="mute ${lane.name}" title="Mute">M</button>
-        <button class="solo" data-lane="${lane.id}" aria-label="solo ${lane.name}" title="Solo">S</button>
+        <button class="mute" data-lane="${lane.id}" aria-label="mute ${esc(lane.name)}" title="Mute">M</button>
+        <button class="solo" data-lane="${lane.id}" aria-label="solo ${esc(lane.name)}" title="Solo">S</button>
       </div>
       <div class="lane-actions">
         ${editBtn}
@@ -254,17 +256,30 @@ function renderStrips() {
   // Wire add-lane toggle
   const addLaneBtn = addBtn.querySelector('.addlane-btn');
   const addMenu    = addBtn.querySelector('.addlane-menu');
+
+  function closeAddMenu() {
+    addMenu.hidden = true;
+    document.removeEventListener('click', outsideClickClose);
+  }
+  function outsideClickClose(e) {
+    if (!addMenu.contains(e.target) && e.target !== addLaneBtn) closeAddMenu();
+  }
+
   addLaneBtn.onclick = e => {
     e.stopPropagation();
+    const opening = addMenu.hidden;
     addMenu.hidden = !addMenu.hidden;
+    if (opening) {
+      document.addEventListener('click', outsideClickClose);
+    } else {
+      document.removeEventListener('click', outsideClickClose);
+    }
   };
   addMenu.querySelectorAll('[data-addtype]').forEach(b => b.onclick = () => {
     eng.addLane(b.dataset.addtype);
-    addMenu.hidden = true;
+    closeAddMenu();
     renderStrips();
   });
-  // Close menu on outside click
-  document.addEventListener('click', () => { addMenu.hidden = true; }, { once: true });
 
   host.querySelectorAll('select[data-lane]').forEach(s => {
     // skip tone selects (they also have data-tone)
