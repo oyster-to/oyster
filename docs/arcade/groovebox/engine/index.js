@@ -263,6 +263,7 @@ export function createEngine() {
     getPatterns()        { return song ? song.patterns : []; },
     getChain()           { return song ? song.chain : []; },
     getGrooves()         { return song ? song.grooves : {}; },
+    getEditGroove(laneId){ return song ? grooveFor(song, editIdx, laneId) : null; },
     getEditPatternIndex(){ return editIdx; },
     selectPattern(i) {
       if (!song || !song.patterns[i]) return;

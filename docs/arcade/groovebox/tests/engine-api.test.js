@@ -106,3 +106,14 @@ test('addPattern clones the edit pattern picks', () => {
   const idx = eng.addPattern();
   expect(eng.getSong().patterns[idx].lanes).toEqual(picks);
 });
+
+test('getEditGroove returns the edit pattern groove for a lane (name + data) and tracks selectPattern', () => {
+  const eng = loaded();
+  const g0 = eng.getEditGroove('drums');
+  expect(g0).toMatchObject({ name: eng.getSong().patterns[0].lanes.drums });
+  expect(Array.isArray(g0.bars)).toBe(true);
+  expect(g0.bars).toBe(eng.getGrooves().drums[g0.name]);   // returns the live data array
+  eng.selectPattern(1);
+  expect(eng.getEditGroove('drums').name).toBe(eng.getSong().patterns[1].lanes.drums);
+  expect(eng.getEditGroove('no-such-lane')).toBe(null);
+});

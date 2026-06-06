@@ -27,6 +27,8 @@ function themeColors() {
 }
 export function invalidateThemeColors() { _tc = null; }
 
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
 const DROWS = [['kick','Kick'],['snare','Snare'],['hat','HH'],['tom','Tom'],['crash','Crash']];
 
 // Piano-roll helpers (ported from prototype).
@@ -68,16 +70,33 @@ export function makeViz(host, song, eng) {
   let _lastDrumNowStep = null; // last step index with .now for drum grid, or null
   let _lastBlocksAbsStep = -1; // last absStep with .now for blocks grid
 
-  function editPattern() { return eng.getPatterns()[eng.getEditPatternIndex()]; }
-  function laneBars(L) {            // active bars of the edited pattern for lane L
-    const P = editPattern();
-    return Array.from({ length: P.bars }, (_, b) => (P.lanes[L.id] && P.lanes[L.id][b]) || (L.type === 'drums' ? {} : []));
+  // The groove the EDIT pattern picks for lane L → { name, bars }. May be null
+  // (lane with no groove); callers fall back to a single empty bar.
+  function editGroove(L) { return eng.getEditGroove(L.id); }
+  // Editable bar count for lane L = the groove's own length (≥1).
+  function grooveLen(L) {
+    const G = editGroove(L);
+    return G && G.bars.length ? G.bars.length : 1;
   }
-  // Playhead abs-step inside the editor, or -1 when another pattern is sounding.
-  function editPlayheadAbsStep(spb) {
-    return (lastTarget && lastTarget.patternIdx === eng.getEditPatternIndex())
-      ? lastTarget.barInPattern * spb + lastStepInBar
-      : -1;
+  // Per-bar data array for lane L (the groove's bars), padded to a single empty
+  // bar when the groove is missing so the editor renders gracefully.
+  function laneBars(L) {
+    const G = editGroove(L);
+    if (G && G.bars.length) return G.bars;
+    return [L.type === 'drums' ? {} : []];
+  }
+  // The sounding bar mapped into the editor's groove (which cycles), or -1 when
+  // another pattern is sounding. The editor shows the groove, so the pattern-
+  // relative sounding bar wraps by the groove's length.
+  function soundingGrooveBar(L) {
+    if (!lastTarget || lastTarget.patternIdx !== eng.getEditPatternIndex()) return -1;
+    return lastTarget.barInPattern % grooveLen(L);
+  }
+  // Playhead abs-step inside the editor (groove-relative), or -1 when another
+  // pattern is sounding.
+  function editPlayheadAbsStep(spb, L) {
+    const sb = soundingGrooveBar(L);
+    return sb < 0 ? -1 : sb * spb + lastStepInBar;
   }
 
   // Piano ⇄ Blocks toggle state (persisted across reloads).
@@ -115,8 +134,9 @@ export function makeViz(host, song, eng) {
     ctx.clearRect(0, 0, W, H);
 
     const spb = stepsPerBar(song.meter);
-    const P = editPattern();
-    const totalSteps = P.bars * spb;
+    const L = getTargetLane();
+    const BARS = grooveLen(L);
+    const totalSteps = BARS * spb;
     const kbW = ROLL_KB, gW = W - kbW;
     const rh = H / ROLL_ROWS;
 
@@ -142,7 +162,7 @@ export function makeViz(host, song, eng) {
     }
 
     // Bar gridlines.
-    for (let bar = 0; bar <= P.bars; bar++) {
+    for (let bar = 0; bar <= BARS; bar++) {
       const x = kbW + (bar * spb) / totalSteps * gW;
       ctx.strokeStyle = tc.grid;
       ctx.lineWidth = 1;
@@ -153,7 +173,6 @@ export function makeViz(host, song, eng) {
     }
 
     // Note blocks.
-    const L = getTargetLane();
     const bars = laneBars(L);
     for (let bi = 0; bi < bars.length; bi++) {
       const barNotes = bars[bi] || [];
@@ -191,8 +210,8 @@ export function makeViz(host, song, eng) {
     if (cx < ROLL_KB) return;
 
     const spb = stepsPerBar(song.meter);
-    const P = editPattern();
-    const totalSteps = P.bars * spb;
+    const L = getTargetLane();
+    const totalSteps = grooveLen(L) * spb;
     const gW = cv.width - ROLL_KB;
 
     const absStep = Math.floor((cx - ROLL_KB) / gW * totalSteps);
@@ -203,12 +222,11 @@ export function makeViz(host, song, eng) {
 
     const noteName = NMG[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
 
-    const L = getTargetLane();
-    const bar = Math.floor(absStep / spb);
+    const bar = Math.floor(absStep / spb);   // groove-relative
     const st = absStep % spb;
     eng.toggleNote(L.id, bar, st, noteName, 2);
 
-    drawRoll(editPlayheadAbsStep(spb));
+    drawRoll(editPlayheadAbsStep(spb, L));
   }
 
   // ---- scope oscilloscope ----
@@ -320,8 +338,9 @@ export function makeViz(host, song, eng) {
     // Bass notes for the shown bar (explicit data; read-only).
     const L = getTargetLane();
     const bars = laneBars(L);
-    const editing = lastTarget && lastTarget.patternIdx === eng.getEditPatternIndex();
-    const showBar = editing ? lastTarget.barInPattern : 0;
+    const soundingBar = soundingGrooveBar(L);   // groove-relative, or -1
+    const editing = soundingBar >= 0;
+    const showBar = editing ? soundingBar : 0;
     const notes = bars[showBar] || [];
 
     // Draw note blocks.
@@ -343,6 +362,14 @@ export function makeViz(host, song, eng) {
       ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
     }
+  }
+
+  // "editing: <groove name>" label — names the groove the editor mutates and
+  // warns that shared grooves change everywhere. Empty when the lane has none.
+  function edLabelHTML(L) {
+    const G = editGroove(L);
+    if (!G) return '';
+    return `<div class="ed-lbl">editing: ${esc(G.name)}</div>`;
   }
 
   // ─── Roll-mode toggle bar (melody + bass only) ───────────────────────────
@@ -391,7 +418,8 @@ export function makeViz(host, song, eng) {
   function buildBlocksGrid(laneView) {
     const { lo, hi } = blocksRange(laneView);
     const spb = stepsPerBar(song.meter);
-    const BARS = editPattern().bars;
+    const L = getTargetLane();
+    const BARS = grooveLen(L);
     const totalSteps = BARS * spb;
     const beats = beatStarts(song.meter);
     const beatSet = new Set(beats);
@@ -417,6 +445,7 @@ export function makeViz(host, song, eng) {
     headerRow += '</div>';
 
     let html = rollModeToggleHTML();
+    html += edLabelHTML(L);
     html += `<div class="bg-scroll"><div class="bg-grid" data-lv="${laneView}">`;
     html += headerRow;
 
@@ -467,13 +496,13 @@ export function makeViz(host, song, eng) {
     const grid = host.querySelector('.bg-grid');
     if (!grid) return;
     const spb = stepsPerBar(song.meter);
-    const BARS = editPattern().bars;
+    const L = getTargetLane();
+    const BARS = grooveLen(L);
     // Playhead abs-step, hidden (-1) when another pattern is sounding.
-    const playheadAbsStep = editPlayheadAbsStep(spb);
+    const playheadAbsStep = editPlayheadAbsStep(spb, L);
 
     // Build a Set of "midi:absStep" strings for O(1) lookup, from explicit data.
     const hitSet = new Set();
-    const L = getTargetLane();
     const bars = laneBars(L);
     for (let bi = 0; bi < BARS; bi++) {
       const barNotes = bars[bi] || [];
@@ -514,8 +543,7 @@ export function makeViz(host, song, eng) {
   // `playing` for the sounding bar — only when the sounding pattern is the
   // edited one. Cheap (≤4 buttons); reused by build/paint/setStep.
   function paintBarsel() {
-    const editIdx = eng.getEditPatternIndex();
-    const sounding = (lastTarget && lastTarget.patternIdx === editIdx) ? lastTarget.barInPattern : -1;
+    const sounding = soundingGrooveBar(getTargetLane());   // groove-relative, or -1
     host.querySelectorAll('.bsel').forEach(btn => {
       const b = +btn.dataset.b;
       btn.classList.toggle('on', editBars.has(b));
@@ -527,8 +555,8 @@ export function makeViz(host, song, eng) {
     // Clear per-step playhead caches — DOM is about to be rebuilt.
     _drumVcCache = {}; _lastDrumNowStep = null;
     _blocksColCache = []; _lastBlocksAbsStep = -1;
-    // Drop edit selections beyond the pattern's current length; never empty.
-    const _bars = editPattern().bars;
+    // Drop edit selections beyond the groove's current length; never empty.
+    const _bars = grooveLen(getTargetLane());
     for (const b of [...editBars]) if (b >= _bars) editBars.delete(b);
     if (editBars.size === 0) editBars.add(0);
     const spb = stepsPerBar(song.meter);
@@ -553,12 +581,12 @@ export function makeViz(host, song, eng) {
     }).join('');
     if (view === 'drums') {
       const L = getTargetLane();
-      const P = editPattern();
-      let html = '';
-      // Bar stepper — only when the pattern is longer than one bar.
-      if (P.bars > 1) {
+      const BARS = grooveLen(L);
+      let html = edLabelHTML(L);
+      // Bar stepper — only when the groove is longer than one bar.
+      if (BARS > 1) {
         html += `<div class="barsel"><span class="barsel-lbl">bar</span>`;
-        for (let b = 0; b < P.bars; b++) html += `<button class="bsel" data-b="${b}">${b + 1}</button>`;
+        for (let b = 0; b < BARS; b++) html += `<button class="bsel" data-b="${b}">${b + 1}</button>`;
         html += `</div>`;
       }
       html += buildBeatHeader(spb);
@@ -614,7 +642,7 @@ export function makeViz(host, song, eng) {
         buildBlocksGrid('melody');
       } else {
         // Melody view: canvas piano-roll.
-        host.innerHTML = rollModeToggleHTML() + '<canvas id="mroll"></canvas>';
+        host.innerHTML = rollModeToggleHTML() + edLabelHTML(getTargetLane()) + '<canvas id="mroll"></canvas>';
         wireRollModeToggle();
         const cv = host.querySelector('#mroll');
         cv.width = host.clientWidth || 680;
@@ -640,7 +668,7 @@ export function makeViz(host, song, eng) {
       if (rollMode === 'blocks') {
         buildBlocksGrid('bass');
       } else {
-        host.innerHTML = rollModeToggleHTML() + '<canvas id="broll"></canvas>';
+        host.innerHTML = rollModeToggleHTML() + edLabelHTML(getTargetLane()) + '<canvas id="broll"></canvas>';
         wireRollModeToggle();
         const cv = host.querySelector('#broll');
         cv.width = host.clientWidth || 680;
@@ -656,11 +684,11 @@ export function makeViz(host, song, eng) {
     if (view === 'drums') {
       const L = getTargetLane();
       const bars = laneBars(L);
-      const editIdx = eng.getEditPatternIndex();
       const pBar = primaryBar();
       const pat = bars[pBar] || {};
-      // .now visible only when the sounding bar === the shown (primary) bar.
-      const nowHere = lastTarget && lastTarget.patternIdx === editIdx && lastTarget.barInPattern === pBar;
+      // .now visible only when the sounding (groove-relative) bar === the shown
+      // (primary) bar.
+      const nowHere = soundingGrooveBar(L) === pBar;
       const laneOK = laneAudible(eng.getLanes(), L);
       host.querySelectorAll('.vrow').forEach(row => {
         const k = row.dataset.k;
@@ -685,7 +713,7 @@ export function makeViz(host, song, eng) {
       } else {
         // Melody view: redraw the piano-roll canvas with current playhead.
         const spb = stepsPerBar(song.meter);
-        drawRoll(editPlayheadAbsStep(spb));
+        drawRoll(editPlayheadAbsStep(spb, getTargetLane()));
       }
     } else if (view === 'bass') {
       if (rollMode === 'blocks') {
@@ -722,9 +750,9 @@ export function makeViz(host, song, eng) {
       lastStepInBar = stepInBar;
       if (view === 'drums') {
         // Fast path: only move the .now highlight across the single shown bar.
-        // Visible only when the SOUNDING bar === the shown (primary) bar.
-        const editIdx = eng.getEditPatternIndex();
-        const visible = target && target.patternIdx === editIdx && target.barInPattern === primaryBar();
+        // Visible only when the SOUNDING (groove-relative) bar === the shown
+        // (primary) bar.
+        const visible = soundingGrooveBar(getTargetLane()) === primaryBar();
         const next = visible ? stepInBar : null;
         if (next !== _lastDrumNowStep) {
           if (_lastDrumNowStep !== null) {
@@ -741,9 +769,7 @@ export function makeViz(host, song, eng) {
           // Fast path: only flip the .now column in the blocks grid.
           // Hide the playhead when another pattern is sounding.
           const spb = stepsPerBar(song.meter);
-          const newAbs = (target && target.patternIdx === eng.getEditPatternIndex())
-            ? target.barInPattern * spb + stepInBar
-            : -1;
+          const newAbs = editPlayheadAbsStep(spb, getTargetLane());
           if (newAbs !== _lastBlocksAbsStep) {
             if (_lastBlocksAbsStep >= 0 && _blocksColCache[_lastBlocksAbsStep]) {
               for (const c of _blocksColCache[_lastBlocksAbsStep]) c.classList.remove('now');

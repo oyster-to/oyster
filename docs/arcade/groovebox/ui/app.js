@@ -207,10 +207,17 @@ function renderStrips() {
   const lanes = eng.getLanes();
   const isLast = lanes.length === 1;
 
+  const grooves = eng.getGrooves();
+  const patterns = eng.getPatterns();
+  const editPat = patterns[eng.getEditPatternIndex()];
   host.innerHTML = lanes.map(lane => {
     const tone = lane.type === 'melody'
       ? `<select data-tone data-lane="${lane.id}">${TONES.map(t=>`<option value="${t}"${t===(lane.tone||'pulse')?' selected':''}>${t==='fatsawtooth'?'fat saw':t}</option>`).join('')}</select>`
       : '';
+    // Groove dropdown — picks the groove the EDIT pattern plays for this lane.
+    const laneGrooves = grooves[lane.id] || {};
+    const picked = editPat?.lanes?.[lane.id];
+    const grooveSel = `<select data-groove data-lane="${lane.id}">${Object.keys(laneGrooves).map(n=>`<option value="${esc(n)}"${n===picked?' selected':''}>${esc(n)}</option>`).join('')}</select>`;
     // Edit button — present for types with an editor (drums, melody, bass); skip chords.
     const hasEditor = lane.type !== 'chords';
     const editBtn = hasEditor
@@ -220,7 +227,7 @@ function renderStrips() {
     return `<div class="lane" data-lane="${lane.id}" data-type="${lane.type}">
       <span class="lane-drag" title="Drag to reorder">⠿</span>
       <span class="name" title="double-click to rename">${esc(lane.name)}</span>
-      <div class="mctl">${tone}</div>
+      <div class="mctl">${grooveSel}${tone}</div>
       <div class="lvl"><div class="lvl-fill"></div></div>
       <div class="msgroup">
         <button class="mute" data-lane="${lane.id}" aria-label="mute ${esc(lane.name)}" title="Mute">M</button>
@@ -275,6 +282,10 @@ function renderStrips() {
   });
 
   host.querySelectorAll('select[data-tone]').forEach(s => s.onchange = e => eng.setTone(s.dataset.lane, e.target.value));
+  host.querySelectorAll('select[data-groove]').forEach(s => s.onchange = () => {
+    eng.setLaneGroove(s.dataset.lane, s.value);
+    refreshVizPattern();   // editor must re-target the new groove
+  });
   host.querySelectorAll('.mute').forEach(b => b.onclick = () => {
     eng.toggleMute(b.dataset.lane);
     refreshStates();
@@ -410,6 +421,20 @@ function renderStrips() {
   updateEmptyGroups(); // hide kgroups where all knobs are hidden
 }
 
+// Sync every strip groove dropdown to the EDIT pattern's picks. Called whenever
+// the edit pattern changes (from renderPatterns). Reflects the edit pattern only
+// — never chain playback.
+function syncStripGrooves() {
+  const host = document.getElementById('strips');
+  if (!host) return;
+  const editPat = eng.getPatterns()[eng.getEditPatternIndex()];
+  if (!editPat) return;
+  host.querySelectorAll('select[data-groove]').forEach(s => {
+    const picked = editPat.lanes?.[s.dataset.lane];
+    if (picked !== undefined && s.value !== picked) s.value = picked;
+  });
+}
+
 // ─── Fills row ───────────────────────────────────────────────────────────────
 let _lastChainJSON = '';
 
@@ -522,7 +547,7 @@ function renderPatterns() {
 
   const head = document.createElement('div');
   head.className = 'arrange-head';
-  head.innerHTML = `<span class="albl">PATTERNS</span><span class="pat-playing" id="pat-playing"></span>`;
+  head.innerHTML = `<span class="albl">PATTERNS</span><span class="pat-editing">Editing: Pattern ${editIdx + 1}</span><span class="pat-playing" id="pat-playing"></span>`;
   host.appendChild(head);
 
   // Patterns row: slots + length + duplicate/delete for the selected pattern.
@@ -613,6 +638,7 @@ function renderPatterns() {
   host.appendChild(crow);
 
   updatePatternsPlayback(eng.getPlaybackTarget());
+  syncStripGrooves();   // edit pattern may have changed → resync strip dropdowns
 }
 
 // Glow + label + row dimming — called from renderPatterns and every step.
