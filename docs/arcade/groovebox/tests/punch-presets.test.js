@@ -90,3 +90,15 @@ describe('lane masks (v3.5 — per-preset targeting)', () => {
     expect(DEFAULT_PRESETS.find(p => p.name === 'DIVE').lanes).toBeUndefined();
   });
 });
+
+describe('per-preset amount (v3.5 — replaces the global AMT knob)', () => {
+  const base = { name: 'X', key: '1', engageQuantize: 'immediate', releaseQuantize: 'immediate', automations: [] };
+  it('accepts amount in 0..1, rejects outside', () => {
+    expect(validatePreset({ ...base, amount: 0.5 })).toBe(true);
+    expect(validatePreset({ ...base, amount: 1.5 })).toBe(false);
+    expect(validatePreset({ ...base, amount: -0.1 })).toBe(false);
+  });
+  it('defaults carry no amount (= full strength)', () => {
+    for (const p of DEFAULT_PRESETS) expect(p.amount).toBeUndefined();
+  });
+});

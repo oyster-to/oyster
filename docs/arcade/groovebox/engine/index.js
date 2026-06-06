@@ -39,7 +39,6 @@ export function createEngine() {
   let _gateReturnPending = false;                // tapeStop released → gate returns on-grid
   const _pendingQuantized = [];                  // [{ when: 'bar'|'pattern', fn }]
   let _previewMask;                              // editor TEST: draft's lane mask while held (undefined = no preview)
-  let punchAmount = 1;                           // AMOUNT knob: scales engaged intensity
   let meterL = null, meterR = null;
   let scopeMaster = null, scopeLane = {};
   // Per-lane keyed maps (by lane.id)
@@ -74,14 +73,14 @@ export function createEngine() {
   // release) against the live graph. gate.* and transport.tapeStop are
   // semantic modules (spec decision 6) — the runner owns their behaviour;
   // everything else maps through _punchBindings + the MODULE_PARAMS registry.
-  function _runAutomation(a, on, timing, atTime) {
+  function _runAutomation(a, on, timing, atTime, amount = 1) {
     const id = `${a.module}.${a.param}`;
     const reg = MODULE_PARAMS[id];
     if (!reg) return;
     const ramp = Math.max(durationToSeconds(on ? a.engage?.ramp : a.release?.ramp, timing), 0.003);
     if (id === 'gate.depth') {
       if (on) {
-        _gate = { depth: (typeof a.to === 'number' ? a.to : 1) * punchAmount, division: a.division || '1/16' };
+        _gate = { depth: (typeof a.to === 'number' ? a.to : 1) * amount, division: a.division || '1/16' };
       } else {
         _gate = null;
         // tapeStop owns the gate (v2 safeguard 1) — only restore when idle.
@@ -96,7 +95,7 @@ export function createEngine() {
         // rampTo pins current values (no cancel-then-revert clicks).
         _tapeActive = true; _gateReturnPending = false;
         // `to` is the tapeStop depth fraction (1 = full 0.6s slump — v2 parity).
-        const tapeDepth = 0.6 * Math.min(Math.max(a.to, 0), 1) * punchAmount;
+        const tapeDepth = 0.6 * Math.min(Math.max(a.to, 0), 1) * amount;
         punchGate.gain.rampTo(0, ramp, atTime);
         punchTape.delayTime.rampTo(tapeDepth, ramp, atTime);
       } else {
@@ -119,7 +118,7 @@ export function createEngine() {
     // atTime (quantized actions): schedule the ramp AT the boundary's audio
     // time — the callback fires ~lookahead early, so ramping "now" would land
     // a third of a second before the downbeat.
-    bound.rampTo(on ? scaleValue(from, a.to, punchAmount, scale) : from, ramp, atTime);
+    bound.rampTo(on ? scaleValue(from, a.to, amount, scale) : from, ramp, atTime);
   }
 
   function buildLane(lane) {
@@ -409,8 +408,6 @@ export function createEngine() {
     toggleMute(id)          { return song ? _toggleMute(song.lanes, id) : false; },
     toggleSolo(id)          { return song ? _soloExclusive(song.lanes, id) : false; },
     triggerFill(name)       { pendingFill = name; },
-    setPunchAmount(v01) { if (typeof v01 === 'number' && isFinite(v01)) punchAmount = Math.max(0, Math.min(1, v01)); },
-    getPunchAmount()    { return punchAmount; },
     // Punch v3: slot-based momentary trigger — punch(slot, true) on press,
     // punch(slot, false) on release. Executes the slot's preset automations
     // (data, not code) with engage/release quantize.
@@ -428,7 +425,8 @@ export function createEngine() {
         barSeconds: stepsPerBar(song.meter) * (beatSeconds / 4),
       };
       const q = on ? preset.engageQuantize : preset.releaseQuantize;
-      const run = (atTime) => { for (const a of preset.automations) _runAutomation(a, on, timing, atTime); };
+      const amount = preset.amount ?? 1;
+      const run = (atTime) => { for (const a of preset.automations) _runAutomation(a, on, timing, atTime, amount); };
       if (q === 'immediate' || !playing) run();
       else _pendingQuantized.push({ when: q, fn: run });
     },
@@ -445,13 +443,14 @@ export function createEngine() {
       // through the idle all-lanes bus regardless of "active on".
       _previewMask = on ? (preset.lanes ?? null) : undefined;
       _recomputePunchRouting();
+      const amount = preset.amount ?? 1;
       const beatSeconds = 60 / Tone.Transport.bpm.value;
       const timing = {
         sixteenth: beatSeconds / 4,
         beatSeconds,
         barSeconds: stepsPerBar(song.meter) * (beatSeconds / 4),
       };
-      for (const a of preset.automations) _runAutomation(a, !!on, timing);
+      for (const a of preset.automations) _runAutomation(a, !!on, timing, undefined, amount);
     },
     isPlaying() { return playing; },
     queueFill(name)         { fillQueue.push(name); return fillQueue.length; },

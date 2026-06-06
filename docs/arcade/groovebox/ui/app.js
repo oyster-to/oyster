@@ -630,14 +630,6 @@ function renderPunch() {
     pad.addEventListener('pointercancel', off);
     row.appendChild(pad);
   });
-  // AMOUNT — the one performer-facing setting (DJM level/depth): scales how
-  // hard every pad hits. Effect internals stay fixed preset data.
-  row.appendChild(makeKnob({
-    label: 'AMT',
-    value: eng.getPunchAmount(),
-    onChange: v => eng.setPunchAmount(v),
-    tip: 'Punch amount — how hard the pads hit',
-  }));
   host.appendChild(row);
 }
 

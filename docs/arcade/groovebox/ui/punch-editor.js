@@ -149,6 +149,21 @@ export function openPunchEditor({ slot, eng, onSaved }) {
     hd.append(name, badge, test);
     modal.appendChild(hd);
 
+    // amount — how hard this pad hits (per-preset; replaced the global AMT knob)
+    const amtRow = document.createElement('div');
+    amtRow.className = 'pe-row';
+    const al = label('amount');
+    al.title = 'How hard this pad hits — scales every effect toward full strength';
+    const av = value((draft.amount ?? 1).toFixed(2));
+    const as_ = slider(draft.amount ?? 1, pos => {
+      draft.amount = Math.round(pos * 100) / 100;
+      if (draft.amount === 1) delete draft.amount;
+      av.textContent = (draft.amount ?? 1).toFixed(2);
+      refreshSave();
+    });
+    amtRow.append(al, as_, av);
+    modal.appendChild(amtRow);
+
     // Effect rows
     draft.automations.forEach((a, idx) => {
       const id = `${a.module}.${a.param}`;

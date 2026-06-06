@@ -19,6 +19,7 @@ export function validatePreset(p) {
   if (!QUANTIZE.includes(p.engageQuantize) || !QUANTIZE.includes(p.releaseQuantize)) return false;
   if (!Array.isArray(p.automations)) return false;
   if (p.lanes != null && (!Array.isArray(p.lanes) || !p.lanes.every(l => LANE_TYPES.includes(l)))) return false;
+  if (p.amount != null && !(Number.isFinite(p.amount) && p.amount >= 0 && p.amount <= 1)) return false;
   for (const a of p.automations) {
     const id = `${a.module}.${a.param}`;
     const reg = MODULE_PARAMS[id];
