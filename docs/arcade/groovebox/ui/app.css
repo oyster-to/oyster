@@ -2142,11 +2142,12 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
 */
 @media (max-width: 760px) {
   /* ── reclaim chrome: edge-to-edge — cabinet flattens into the page ── */
-  body { padding: 0 0 28px; }
-  .cabinet { padding: 0 0 6px; border-radius: 0; box-shadow: none; }
+  html, body { background: var(--bg); }   /* one flat surface, no bands at the page bottom */
+  body { padding: 0; }
+  .cabinet { padding: 0; border-radius: 0; box-shadow: none; background: var(--bg); }
   .screw { display: none; }
   .crt-vignette { display: none; }
-  .cabinet-inner { padding: 6px 4px 8px; border-radius: 0; box-shadow: none; }
+  .cabinet-inner { padding: 6px 4px 16px; border-radius: 0; box-shadow: none; }
   #strips { padding: 6px 4px; }
   #fills, #punch, #master { padding: 6px 8px; }
   #viz, #strips, #fills, #punch, #master, #arrange { margin-bottom: 8px; }
@@ -2162,13 +2163,12 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   .transport-song .song-wrap { flex: 1; min-width: 0; }
   .transport-song select { width: 100%; }
 
-  /* ── lane accordion: header / select / knobs (when open) / pull strip ── */
+  /* ── lane accordion: header / select+expand / knobs (when open) ── */
   .lane {
     grid-template-columns: 16px 1fr auto auto;
     grid-template-areas:
-      "drag  name  ms    actions"
-      "mctl  mctl  mctl  lvl"
-      "pull  pull  pull  pull";
+      "drag name ms  actions"
+      "mctl mctl lvl pull";
     column-gap: 8px;
     row-gap: 8px;
     padding: 8px;
@@ -2177,9 +2177,8 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   .lane.open {
     grid-template-areas:
       "drag  name  ms    actions"
-      "mctl  mctl  mctl  lvl"
-      "knobs knobs knobs knobs"
-      "pull  pull  pull  pull";
+      "mctl  mctl  lvl   pull"
+      "knobs knobs knobs knobs";
   }
   .lane .lane-drag     { grid-area: drag; }
   .lane .name          { grid-area: name; }
@@ -2198,34 +2197,27 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
     border-color: var(--acc-dim);
   }
 
-  /* expand button — the accordion affordance: a real full-width button with
-     the unified control chrome, so it can't be mistaken for decoration
+  /* expand button — the accordion affordance: a square control beside the
+     groove select, with the unified button chrome + lucide chevron
      (.lane prefix outranks the base display:none, which follows in source) */
   .lane .lane-expand {
-    display: flex;
+    display: inline-flex;
     grid-area: pull;
     align-items: center;
     justify-content: center;
-    gap: 7px;
-    height: 26px;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
     padding: 0;
-    color: var(--dim);
+    color: var(--acc);
   }
   .le-arrow {
-    font-size: 11px;
-    line-height: 1;
-    color: var(--acc);
+    display: block;
     transition: transform 0.18s ease;
   }
-  .le-lbl {
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
   .lane.open .lane-expand {
-    color: var(--acc);
     border-color: var(--acc-dim);
+    background: color-mix(in srgb, var(--acc) 10%, var(--panel-2));
   }
   .lane.open .le-arrow { transform: rotate(180deg); }
 

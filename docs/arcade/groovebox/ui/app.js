@@ -276,7 +276,7 @@ function renderStrips() {
         <button class="lane-dup" data-lane="${lane.id}" title="Duplicate lane">⧉</button>
         <button class="lane-rm" data-lane="${lane.id}" title="Remove lane"${isLast ? ' disabled' : ''}>✕</button>
       </div>
-      <button class="lane-expand" data-lane="${lane.id}" title="Show/hide mixer knobs" aria-expanded="false"><span class="le-arrow">▾</span><span class="le-lbl">mix · fx</span></button>
+      <button class="lane-expand" data-lane="${lane.id}" title="Show/hide mixer knobs" aria-expanded="false"><svg class="le-arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
     </div>`;
   }).join('');
 
