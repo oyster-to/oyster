@@ -727,7 +727,7 @@ function renderPatterns() {
     b.className = 'pat-slot' + (i === editIdx ? ' sel' : '');
     b.dataset.idx = i;
     b.textContent = i + 1;
-    b.title = 'edit (loops while playing)';
+    b.title = 'click: edit this pattern — play will loop it';
     b.onclick = () => { eng.selectPattern(i); renderPatterns(); refreshVizPattern(); };
     prow.appendChild(b);
   });
@@ -927,9 +927,10 @@ function updatePatternsPlayback(target) {
   const lbl = host.querySelector('#pat-playing');
   if (lbl) {
     const chain = eng.getChain();
+    const verb = eng.isPlaying() ? 'Playing' : 'Will play';
     lbl.textContent = isPattern
-      ? `Playing: Pattern ${target.patternIdx + 1} (loop)`
-      : `Playing: Chain · ${chain.map((pi, i) => (i === target.chainPos ? '▸' : '') + (pi + 1)).join(' ')}`;
+      ? `${verb}: Pattern ${target.patternIdx + 1} (loop)`
+      : `${verb}: Chain · ${chain.map((pi, i) => (i === target.chainPos ? '▸' : '') + (pi + 1)).join(' ')}`;
   }
 }
 
@@ -1008,9 +1009,11 @@ document.getElementById('play').onclick = async function() {
   if (this.classList.contains('on')) {
     eng.stop(); this.classList.remove('on'); this.textContent='▶ play';
     stopMeterLoop();
+    updatePatternsPlayback(eng.getPlaybackTarget());
   } else {
     await eng.play(); this.classList.add('on'); this.textContent='⏹ stop';
     startMeterLoop();
+    updatePatternsPlayback(eng.getPlaybackTarget());
   }
 };
 document.getElementById('bpm').oninput = e => { eng.setTempo(+e.target.value); document.getElementById('bpmv').textContent = e.target.value; };

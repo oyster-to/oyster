@@ -386,6 +386,7 @@ export function createEngine() {
     },
     setTempo(bpm) { if (typeof bpm === 'number' && isFinite(bpm)) { tempo = bpm; Tone.Transport.bpm.value = bpm; } },
     onStep(cb) { onStepCb = cb; },
+    isPlaying()  { return playing; },
     getSong() { return song; },
     getLanes() { return song ? song.lanes : []; },
     // Lane ops by id
