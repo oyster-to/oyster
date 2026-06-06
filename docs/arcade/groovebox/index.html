@@ -106,6 +106,7 @@
                 <dt>VIEW</dt><dd>Open that lane in the step editor / piano roll</dd>
                 <dt>FILLS</dt><dd>Queue fill patterns — click a chip to remove it from the queue</dd>
                 <dt>PATTERNS</dt><dd>Click a pattern to edit it (it loops while playing). Click a chain chip to play the song from there. ＋ adds, ⧉ duplicates.</dd>
+                <dt>PUNCH</dt><dd>Hold a pad (or keys 1–5) for momentary FX — release to snap back clean</dd>
                 <dt>KEY ± </dt><dd>Transpose the whole song up or down in semitones</dd>
               </dl>
             </div>
@@ -115,9 +116,10 @@
       <!-- Tier 3 — views (built by renderViewTabs) -->
       <div class="vtabs"><span class="vtabs-lbl">VIEW</span><button data-view="scope">📈 Scope</button></div>
       <div id="viz"></div>
+      <div id="master"></div>
+      <div id="punch"></div>
       <div id="strips"></div>
       <div id="fills"></div>
-      <div id="master"></div>
       <div id="arrange"></div>
     </div>
     <div class="crt-vignette"></div>

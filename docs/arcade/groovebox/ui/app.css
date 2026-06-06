@@ -399,6 +399,7 @@ input[type=range] {
 #viz,
 #strips,
 #fills,
+#punch,
 #master,
 #arrange {
   /* soft top-light → bottom-shade sheen (derived from --panel) so panels read
@@ -447,6 +448,11 @@ input[type=range] {
 
 /* ─── fills panel ────────────────────────────────────────────────────────── */
 #fills {
+  padding: 12px 16px;
+}
+
+/* ─── punch panel ────────────────────────────────────────────────────────── */
+#punch {
   padding: 12px 16px;
 }
 
@@ -754,14 +760,19 @@ input[type=range] {
 }
 
 /* ─── mute / solo buttons ────────────────────────────────────────────────── */
-.mute, .solo {
+.mute, .solo, .arm {
   width: 26px; height: 26px; flex: 0 0 26px; padding: 0; border-radius: 6px;
   font: 700 11px ui-monospace,Menlo,monospace; color: var(--dim);
   border: 1px solid var(--line); cursor: pointer; transition: .12s;
   background: var(--panel-2);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.04), inset 0 -1px 2px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.3);
 }
-.mute:hover, .solo:hover { border-color: var(--acc-dim); background: var(--panel-3); }
+.mute:hover, .solo:hover, .arm:hover { border-color: var(--acc-dim); background: var(--panel-3); }
+.arm.armed {
+  color: var(--ink); border-color: var(--hot);
+  background: var(--hot);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 0 10px var(--hot), 0 1px 2px rgba(0,0,0,.4);
+}
 .mute.muted {
   color: #fff1e8; border-color: #a8391c;
   background: linear-gradient(180deg, #ff7a3d, #d6481e);
@@ -820,6 +831,39 @@ input[type=range] {
   align-items: center;
 }
 
+/* ─── punch row (momentary performance pads; panel chrome via #punch) ────── */
+.punchrow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; row-gap: 6px; }
+.punchpad {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 -1px 0 rgba(0,0,0,0.25),
+    0 1px 2px rgba(0,0,0,0.3);
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;          /* hold-gesture pads — no scroll/zoom stealing */
+}
+.punchpad:hover {
+  background: var(--panel-3);
+}
+.punchpad .punchkey { margin-left: 7px; opacity: 0.45; font-size: 9px; }
+.punchrow .knob { margin-left: 10px; }
+.punchpad.held {
+  background: var(--hot);
+  color: var(--ink);
+  border-color: var(--hot);
+  box-shadow: 0 0 12px var(--hot);   /* the existing "driving sound" glow language */
+}
+
 /* ─── fills row (panel chrome via #fills) ───────────────────────────────── */
 .fillsrow {
   display: flex;
@@ -829,7 +873,8 @@ input[type=range] {
   row-gap: 6px;
 }
 /* § 2 — section header */
-.fillsrow .flbl {
+.fillsrow .flbl,
+.punchrow .flbl {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -1856,6 +1901,16 @@ input[type=range] {
     inset 0 -2px 0 var(--acc),
     inset 0 1px 0 rgba(84,240,200,0.08);
 }
+.vs-group-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+  text-transform: uppercase;
+  margin: 10px 0 4px;
+}
+.vs-group-lbl:first-child { margin-top: 2px; }
+
 .vs-row {
   display: flex;
   align-items: center;

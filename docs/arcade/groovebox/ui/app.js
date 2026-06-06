@@ -52,7 +52,7 @@ let _editingLaneId = null;
 let _draggedLaneId = null;
 
 // ─── Section drag-reorder state ───────────────────────────────────────────────
-const SECTION_IDS = ['viz', 'strips', 'fills', 'master', 'arrange'];
+const SECTION_IDS = ['viz', 'master', 'punch', 'strips', 'fills', 'arrange'];
 let _draggedSecId = null;
 
 function refreshStates() {
@@ -232,6 +232,7 @@ function renderStrips() {
       <div class="msgroup">
         <button class="mute" data-lane="${lane.id}" aria-label="mute ${esc(lane.name)}" title="Mute">M</button>
         <button class="solo" data-lane="${lane.id}" aria-label="solo ${esc(lane.name)}" title="Solo">S</button>
+        <button class="arm${eng.getPunchArm(lane.id) ? ' armed' : ''}" data-lane="${lane.id}" aria-label="punch target ${esc(lane.name)}" title="Punch target — pads affect this lane">⚡</button>
       </div>
       <div class="lane-actions">
         ${editBtn}
@@ -289,6 +290,12 @@ function renderStrips() {
   host.querySelectorAll('.mute').forEach(b => b.onclick = () => {
     eng.toggleMute(b.dataset.lane);
     refreshStates();
+  });
+  host.querySelectorAll('.arm').forEach(b => b.onclick = () => {
+    const id = b.dataset.lane;
+    const on = !eng.getPunchArm(id);
+    eng.setPunchArm(id, on);
+    b.classList.toggle('armed', on);
   });
   host.querySelectorAll('.solo').forEach(b => b.onclick = () => {
     eng.toggleSolo(b.dataset.lane);
@@ -487,6 +494,75 @@ function renderFills() {
   row.appendChild(clearBtn);
   host.appendChild(row);
 }
+
+// ─── Punch-in FX pads (momentary; spec in project-notes/oyster/po20) ─────────
+const PUNCH_PADS = [
+  ['stutter', 'STUT',  '1'],
+  ['crush',   'CRUSH', '2'],
+  ['dive',    'DIVE',  '3'],
+  ['throw',   'THROW', '4'],
+  ['stop',    'STOP',  '5'],
+];
+const PUNCH_BY_KEY = Object.fromEntries(PUNCH_PADS.map(([name, , key]) => [key, name]));
+
+function setPunch(name, on) {
+  eng.punch(name, on);
+  document.querySelector(`#punch .punchpad[data-punch="${name}"]`)?.classList.toggle('held', on);
+}
+
+function renderPunch() {
+  const host = document.getElementById('punch');
+  if (!host) return;
+  host.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'punchrow';
+  const lbl = document.createElement('span');
+  lbl.className = 'flbl';
+  lbl.textContent = 'PUNCH';
+  row.appendChild(lbl);
+  for (const [name, label, key] of PUNCH_PADS) {
+    const pad = document.createElement('button');
+    pad.className = 'punchpad';
+    pad.dataset.punch = name;
+    pad.append(label);
+    const hint = document.createElement('span');
+    hint.className = 'punchkey';
+    hint.textContent = key;
+    pad.appendChild(hint);
+    pad.addEventListener('pointerdown', e => { e.preventDefault(); pad.setPointerCapture(e.pointerId); setPunch(name, true); });
+    const off = () => setPunch(name, false);
+    pad.addEventListener('pointerup', off);
+    pad.addEventListener('pointercancel', off);
+    row.appendChild(pad);
+  }
+  // AMOUNT — the one performer-facing setting (DJM level/depth): scales how
+  // hard every pad hits. Effect internals stay fixed.
+  row.appendChild(makeKnob({
+    label: 'AMT',
+    value: eng.getPunchAmount(),
+    onChange: v => eng.setPunchAmount(v),
+    tip: 'Punch amount — how hard the pads hit',
+  }));
+  host.appendChild(row);
+}
+
+// Keys 1–5 mirror the pads. Guards: key auto-repeat, and typing into inputs /
+// selects / contenteditable (no keyboard hijack while renaming lanes etc.).
+function isTypingTarget(el) {
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+}
+document.addEventListener('keydown', e => {
+  const name = PUNCH_BY_KEY[e.key];
+  if (!name || e.repeat || isTypingTarget(document.activeElement)) return;
+  e.preventDefault();
+  setPunch(name, true);
+});
+document.addEventListener('keyup', e => {
+  const name = PUNCH_BY_KEY[e.key];
+  if (name) setPunch(name, false);
+});
+// Stuck-key guard: losing window focus releases every pad.
+window.addEventListener('blur', () => { for (const [name] of PUNCH_PADS) setPunch(name, false); });
 
 // ─── Master FX ───────────────────────────────────────────────────────────────
 function renderMaster() {
@@ -691,6 +767,7 @@ function mount() {
   if (creditEl) creditEl.textContent = song.artist ? `${song.title || ''} — ${song.artist}` : '';
   renderStrips();
   renderFills();
+  renderPunch();
   renderMaster();
   renderPatterns();
   viz?.dispose?.();   // stop the outgoing viz's rAF loops before replacing it
@@ -933,9 +1010,15 @@ function setHiddenSet(hiddenArr) {
   updateEmptyGroups();
 }
 
-// Build checkbox rows from KNOB_INFO
+// Build the grouped checkbox rows (labels/tips come from KNOB_INFO).
 const _vsForm = document.getElementById('viewsettings-checks');
-const _vsKnobs = ['vol','pan','cut','res','drv','dly','fdbk','cho','wob','cru','vrb','cmp','bal','wid','lo','hi'];
+// Grouped to mirror the knob strips (MIX/TONE/FX kgroups) + the master-only knobs.
+const _vsGroups = [
+  ['MIX',    ['vol', 'pan']],
+  ['TONE',   ['cut', 'res', 'drv']],
+  ['FX',     ['dly', 'fdbk', 'cho', 'wob', 'cru', 'vrb', 'cmp']],
+  ['MASTER', ['bal', 'wid', 'lo', 'hi']],
+];
 
 // ── Preset row (inserted before the checkboxes) ──
 const _vsPresetRow = document.createElement('div');
@@ -978,30 +1061,36 @@ for (const p of PRESETS) {
 _vsPresetRow.appendChild(_vsPresetBtns);
 _vsForm.before(_vsPresetRow);
 
-for (const k of _vsKnobs) {
-  const info = KNOB_INFO[k];
-  const row = document.createElement('label');
-  row.className = 'vs-row';
-  const cb = document.createElement('input');
-  cb.type = 'checkbox';
-  cb.dataset.vsK = k;
-  const hidden = JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]');
-  cb.checked = !hidden.includes(k);
-  cb.addEventListener('change', () => {
-    const nowHidden = JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]');
-    if (cb.checked) {
-      const idx = nowHidden.indexOf(k);
-      if (idx !== -1) nowHidden.splice(idx, 1);
-    } else {
-      if (!nowHidden.includes(k)) nowHidden.push(k);
-    }
-    setHiddenSet(nowHidden);
-  });
-  const lbl = document.createElement('span');
-  lbl.textContent = info ? info[0] : k;
-  row.appendChild(cb);
-  row.appendChild(lbl);
-  _vsForm.appendChild(row);
+for (const [groupName, groupKeys] of _vsGroups) {
+  const head = document.createElement('div');
+  head.className = 'vs-group-lbl';
+  head.textContent = groupName;
+  _vsForm.appendChild(head);
+  for (const k of groupKeys) {
+    const info = KNOB_INFO[k];
+    const row = document.createElement('label');
+    row.className = 'vs-row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.dataset.vsK = k;
+    const hidden = JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]');
+    cb.checked = !hidden.includes(k);
+    cb.addEventListener('change', () => {
+      const nowHidden = JSON.parse(localStorage.getItem('gb-hidden-knobs') || '[]');
+      if (cb.checked) {
+        const idx = nowHidden.indexOf(k);
+        if (idx !== -1) nowHidden.splice(idx, 1);
+      } else {
+        if (!nowHidden.includes(k)) nowHidden.push(k);
+      }
+      setHiddenSet(nowHidden);
+    });
+    const lbl = document.createElement('span');
+    lbl.textContent = info ? info[0] : k;
+    row.appendChild(cb);
+    row.appendChild(lbl);
+    _vsForm.appendChild(row);
+  }
 }
 
 // Highlight the matching preset on load (based on already-restored hidden set).
@@ -1061,10 +1150,17 @@ function initSectionWrappers() {
     wrap.appendChild(sec);
   }
 
-  // 2. Restore saved order (move wrappers within .cabinet-inner)
+  // 2. Restore saved order (move wrappers within .cabinet-inner).
+  // Tolerant of orders saved before newer sections existed (e.g. punch):
+  // keep the user's sequence, splice missing sections in at their default
+  // position, drop ids that no longer exist.
   const saved = JSON.parse(localStorage.getItem('gb-section-order') || 'null');
-  if (saved && Array.isArray(saved) && saved.length === SECTION_IDS.length) {
-    for (const id of saved) {
+  if (saved && Array.isArray(saved) && saved.length) {
+    const order = saved.filter(id => SECTION_IDS.includes(id));
+    for (const id of SECTION_IDS) {
+      if (!order.includes(id)) order.splice(SECTION_IDS.indexOf(id), 0, id);
+    }
+    for (const id of order) {
       const wrap = inner.querySelector(`.sec[data-sec="${id}"]`);
       if (wrap) inner.appendChild(wrap);
     }
