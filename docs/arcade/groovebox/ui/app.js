@@ -60,7 +60,7 @@ let _openLaneId = null;
 let _draggedLaneId = null;
 
 // ─── Section drag-reorder state ───────────────────────────────────────────────
-const SECTION_IDS = ['viz', 'master', 'punch', 'strips', 'fills', 'arrange'];
+const SECTION_IDS = ['viz', 'master', 'punch', 'strips', 'fills'];
 let _draggedSecId = null;
 
 function refreshStates() {
@@ -714,14 +714,14 @@ function renderPatterns() {
   const chain = eng.getChain();
   const editIdx = eng.getEditPatternIndex();
 
-  const head = document.createElement('div');
-  head.className = 'arrange-head';
-  head.innerHTML = `<span class="albl">PATTERNS</span><span class="pat-editing">Editing: Pattern ${editIdx + 1}</span><span class="pat-playing" id="pat-playing"></span>`;
-  host.appendChild(head);
-
-  // Patterns row: slots + length + duplicate/delete for the selected pattern.
+  // Patterns row: small "patterns" label (matching chords/chain rows) + slots +
+  // duplicate/delete for the selected pattern.
   const prow = document.createElement('div');
   prow.className = 'pat-row';
+  const plbl = document.createElement('span');
+  plbl.className = 'pat-lbl';
+  plbl.textContent = 'patterns';
+  prow.appendChild(plbl);
   patterns.forEach((p, i) => {
     const b = document.createElement('button');
     b.className = 'pat-slot' + (i === editIdx ? ' sel' : '');
@@ -924,14 +924,17 @@ function updatePatternsPlayback(target) {
     const sounding = target.barInPattern % chordChips.length;
     chordChips.forEach(chip => chip.classList.toggle('sounding', +chip.dataset.idx === sounding));
   }
-  const lbl = host.querySelector('#pat-playing');
+  // Status spans now live in the transport row (#song-status), not in #arrange.
+  const lbl = document.getElementById('pat-playing');
   if (lbl) {
     const chain = eng.getChain();
     const verb = eng.isPlaying() ? 'Playing' : 'Will play';
     lbl.textContent = isPattern
-      ? `${verb}: Pattern ${target.patternIdx + 1} (loop)`
-      : `${verb}: Chain · ${chain.map((pi, i) => (i === target.chainPos ? '▸' : '') + (pi + 1)).join(' ')}`;
+      ? `▶ ${verb}: Pattern ${target.patternIdx + 1} (loop)`
+      : `▶ ${verb}: Chain · ${chain.map((pi, i) => (i === target.chainPos ? '▸' : '') + (pi + 1)).join(' ')}`;
   }
+  const ed = document.querySelector('#song-status .pat-editing');
+  if (ed) ed.textContent = `✎ Pattern ${eng.getEditPatternIndex() + 1}`;
 }
 
 // Tell the viz the edit pattern changed (rebuilds the open editor).
@@ -1465,7 +1468,12 @@ function initSectionWrappers() {
 }
 
 // ─── Initial load ─────────────────────────────────────────────────────────────
-eng.load(pressStart);
+const BOOT_SONG = 'press-start';
+eng.load(SONGS[BOOT_SONG]);
+// Pin the dropdown to the boot song so the selector, the loaded song, and the
+// credit line (set in mount from the loaded song) always agree — don't rely on
+// the option's `selected` attribute matching the boot song by coincidence.
+document.getElementById('songsel').value = BOOT_SONG;
 const initialSong = eng.getSong();
 document.getElementById('bpm').value = initialSong.bpm;
 document.getElementById('bpmv').textContent = initialSong.bpm;
