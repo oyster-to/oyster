@@ -937,7 +937,7 @@ function setHiddenSet(hiddenArr) {
   updateEmptyGroups();
 }
 
-// Build checkbox rows from KNOB_INFO
+// Build the grouped checkbox rows (labels/tips come from KNOB_INFO).
 const _vsForm = document.getElementById('viewsettings-checks');
 // Grouped to mirror the knob strips (MIX/TONE/FX kgroups) + the master-only knobs.
 const _vsGroups = [
