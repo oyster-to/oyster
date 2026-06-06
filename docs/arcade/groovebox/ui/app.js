@@ -123,6 +123,28 @@ function stopMeterLoop() {
   if (_masterFillCache[1]) _masterFillCache[1].style.height = '0%';
 }
 
+// Wrap kgroups in a single flex container so mobile variants can scroll/wrap it.
+function makeKnobrow(groups) {
+  const row = document.createElement('div');
+  row.className = 'knobrow';
+  for (const g of groups) row.appendChild(g);
+  row.addEventListener('scroll', () => updateKnobrowFade(row), { passive: true });
+  requestAnimationFrame(() => updateKnobrowFade(row));
+  return row;
+}
+
+// Edge-fade hint classes for horizontally scrollable knob strips (strip variant).
+function updateKnobrowFade(row) {
+  const overR = row.scrollLeft + row.clientWidth < row.scrollWidth - 1;
+  const overL = row.scrollLeft > 1;
+  row.classList.toggle('fade-r', overR);
+  row.classList.toggle('fade-l', overL);
+}
+function updateAllKnobrowFades() {
+  document.querySelectorAll('.knobrow').forEach(updateKnobrowFade);
+}
+window.addEventListener('resize', updateAllKnobrowFades);
+
 function makeKgroup(label, knobDefs) {
   const grp = document.createElement('div');
   grp.className = 'kgroup';
@@ -370,7 +392,17 @@ function renderStrips() {
       { label: 'cmp',  value: 0,   onChange: v => eng.setLaneFX(id, 'comp',   v), tip: knobTip('cmp'),  k: 'cmp'  },
     ]);
 
-    msgroup.before(mixGrp, toneGrp, fxGrp);
+    const knobrow = makeKnobrow([mixGrp, toneGrp, fxGrp]);
+    msgroup.before(knobrow);
+
+    // PROTO accordion variant: tap the lane header (not its controls) to expand
+    row.addEventListener('click', e => {
+      if (!document.body.classList.contains('gbm-accordion')) return;
+      if (e.target.closest('button, select, input, .knobrow, .lane-drag')) return;
+      const wasOpen = row.classList.contains('open');
+      host.querySelectorAll('.lane.open').forEach(l => l.classList.remove('open'));
+      if (!wasOpen) { row.classList.add('open'); updateAllKnobrowFades(); }
+    });
   });
   // ─── Drag-to-reorder ────────────────────────────────────────────────────────
   host.querySelectorAll('.lane-drag').forEach(handle => {
@@ -600,9 +632,7 @@ function renderMaster() {
     { label: 'vrb', value: 0, onChange: v => eng.setMasterFX('reverb', v), tip: knobTip('vrb'), k: 'vrb' },
     { label: 'cmp', value: 0, onChange: v => eng.setMasterFX('comp',   v), tip: knobTip('cmp'), k: 'cmp' },
   ]);
-  mwrap.appendChild(mixGrp);
-  mwrap.appendChild(toneGrp);
-  mwrap.appendChild(fxGrp);
+  mwrap.appendChild(makeKnobrow([mixGrp, toneGrp, fxGrp]));
 
   masterHost.appendChild(mwrap);
   cacheMeterFills();  // re-cache master meter fill refs after DOM rebuild
@@ -1228,6 +1258,40 @@ function initSectionWrappers() {
   });
 }
 
+// ─── PROTO: mobile layout variant switcher ────────────────────────────────────
+// Temporary, prototype-only. Floating chip row to flip between mobile lane
+// layouts live: STRIP (h-scroll knobs) / WRAP / ACCORDION, + VALS readout toggle.
+const GBM_VARIANTS = ['strip', 'wrap', 'accordion'];
+
+function applyGbmVariant(v) {
+  for (const x of GBM_VARIANTS) document.body.classList.toggle('gbm-' + x, x === v);
+  localStorage.setItem('gbm-variant', v);
+  document.querySelectorAll('#gbm-proto [data-variant]').forEach(b =>
+    b.classList.toggle('on', b.dataset.variant === v));
+  requestAnimationFrame(updateAllKnobrowFades);
+}
+
+function initProtoSwitcher() {
+  const el = document.createElement('div');
+  el.id = 'gbm-proto';
+  el.innerHTML = `<span class="gbm-lbl">PROTO</span>` +
+    GBM_VARIANTS.map(v => `<button data-variant="${v}">${v}</button>`).join('') +
+    `<button data-knobval>vals</button>`;
+  document.body.appendChild(el);
+
+  el.querySelectorAll('[data-variant]').forEach(b => b.onclick = () => applyGbmVariant(b.dataset.variant));
+  const valBtn = el.querySelector('[data-knobval]');
+  const applyVal = on => {
+    document.body.classList.toggle('gbm-knobval', on);
+    valBtn.classList.toggle('on', on);
+    localStorage.setItem('gbm-knobval', on ? '1' : '0');
+  };
+  valBtn.onclick = () => applyVal(!document.body.classList.contains('gbm-knobval'));
+
+  applyGbmVariant(localStorage.getItem('gbm-variant') || 'strip');
+  applyVal(localStorage.getItem('gbm-knobval') === '1');
+}
+
 // ─── Initial load ─────────────────────────────────────────────────────────────
 eng.load(kids);
 const initialSong = eng.getSong();
@@ -1237,3 +1301,4 @@ eng.setTempo(initialSong.bpm);
 mount();
 // Wrap sections and wire section drag-reorder once, after first mount.
 initSectionWrappers();
+initProtoSwitcher();

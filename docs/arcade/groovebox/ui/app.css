@@ -657,8 +657,8 @@ input[type=range] {
 /* ─── § 5 — lane strips: aligned shared grid ────────────────────────────── */
 .lane {
   display: grid;
-  /* drag | name | pattern-select | meter | MIX | TONE | FX | M/S | actions */
-  grid-template-columns: 16px 64px minmax(150px,220px) 10px auto auto auto 56px auto;
+  /* drag | name | pattern-select | meter | knobs (MIX·TONE·FX) | M/S | actions */
+  grid-template-columns: 16px 64px minmax(150px,220px) 10px auto 56px auto;
   column-gap: 12px;
   align-items: center;
   background: var(--panel-2);
@@ -721,6 +721,14 @@ input[type=range] {
   margin-left: 2px;
 }
 
+/* all kgroups of a strip live in one .knobrow so mobile variants can scroll/wrap it */
+.knobrow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+
 /* legacy .knobs kept for master strip compatibility */
 .knobs {
   display: flex;
@@ -737,6 +745,7 @@ input[type=range] {
 }
 .knob-dial {
   width: 32px; height: 32px; border-radius: 50%; position: relative; cursor: ns-resize;
+  touch-action: none;          /* vertical drag — no scroll/zoom stealing */
   background: radial-gradient(circle at 38% 32%, #3a3e4e, #15171f 70%);
   box-shadow:
     inset 0 1px 1px rgba(255,255,255,0.15),
@@ -757,6 +766,39 @@ input[type=range] {
   color: var(--faint);
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+/* persistent numeric readout under the label — opt-in via body.gbm-knobval */
+.knob-val {
+  display: none;
+  font: 500 9px ui-monospace, Menlo, monospace;
+  color: var(--dim);
+  line-height: 1;
+}
+body.gbm-knobval .knob-val { display: block; }
+
+/* floating value bubble while dragging a knob (fixed → escapes overflow clips) */
+.knob-bubble {
+  position: fixed;
+  z-index: 200;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  background: var(--panel-3, #2a2e3a);
+  color: var(--ink);
+  border: 1px solid var(--acc);
+  border-radius: 6px;
+  font: 600 13px ui-monospace, Menlo, monospace;
+  padding: 3px 9px;
+  opacity: 0;
+  transition: opacity 0.12s;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.55), 0 0 8px color-mix(in srgb, var(--acc) 30%, transparent);
+}
+.knob-bubble.show { opacity: 1; }
+
+/* bigger touch targets on touch devices */
+@media (pointer: coarse) {
+  .knob-dial { width: 42px; height: 42px; }
+  .knob-ind  { top: 4px; height: 15px; transform-origin: 50% 17px; }
 }
 
 /* ─── mute / solo buttons ────────────────────────────────────────────────── */
@@ -2089,4 +2131,132 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   color: #04201a;
   font-weight: 700;
   box-shadow: 0 0 8px rgba(84,240,200,0.35);
+}
+
+/* ═══ MOBILE LAYOUT (≤760px) — prototype ═════════════════════════════════════
+   Three lane-layout variants, switched by body class via the PROTO chip row:
+   body.gbm-strip     — knobs in one horizontally swipeable row (default)
+   body.gbm-wrap      — knobs wrap onto extra rows
+   body.gbm-accordion — knobs hidden; tap a lane header to expand one at a time
+   body.gbm-knobval   — persistent numeric readout under every knob (any width)
+*/
+@media (max-width: 760px) {
+  /* ── reclaim chrome: page → cabinet → inner → panels ── */
+  body { padding: 6px 4px 28px; }
+  .cabinet { padding: 8px 6px 10px; border-radius: 12px; }
+  .screw { display: none; }
+  .cabinet-inner { padding: 8px 8px 10px; border-radius: 8px; }
+  #strips { padding: 8px 6px; }
+  #fills, #punch, #master { padding: 8px 10px; }
+  #viz, #strips, #fills, #punch, #master, #arrange { margin-bottom: 8px; }
+  .sec-drag { display: none; }   /* mouse-only affordance */
+
+  /* ── transport wraps; tempo + song get full rows ── */
+  .transport { flex-wrap: wrap; row-gap: 8px; }
+  .transport-tempo { flex: 1 1 auto; min-width: 0; }
+  #bpm { flex: 1; min-width: 50px; }
+  .transport-song { margin-left: 0; flex: 1 1 100%; }
+  .transport-song .song-wrap { flex: 1; min-width: 0; }
+  .transport-song select { width: 100%; }
+
+  /* ── lane: header row / select row / knob row ── */
+  .lane {
+    grid-template-columns: 16px 1fr auto auto;
+    grid-template-areas:
+      "drag  name  ms    actions"
+      "mctl  mctl  mctl  lvl"
+      "knobs knobs knobs knobs";
+    column-gap: 8px;
+    row-gap: 8px;
+    padding: 8px 8px 10px;
+  }
+  .lane .lane-drag     { grid-area: drag; }
+  .lane .name          { grid-area: name; }
+  .lane .mctl          { grid-area: mctl; }
+  .lane .lvl           { grid-area: lvl; height: 26px; }
+  .lane .knobrow       { grid-area: knobs; justify-content: flex-start; }
+  .lane .msgroup       { grid-area: ms; }
+  .lane .lane-actions  { grid-area: actions; }
+
+  /* ── master strip: label+meters row, knobs row ── */
+  .masterfx { flex-wrap: wrap; row-gap: 8px; }
+  .masterfx .knobrow { flex: 1 1 100%; }
+
+  /* ── variant: STRIP — one swipeable knob row ───────────────────────────── */
+  body.gbm-strip .knobrow,
+  body.gbm-accordion .knobrow {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  body.gbm-strip .knobrow::-webkit-scrollbar,
+  body.gbm-accordion .knobrow::-webkit-scrollbar { display: none; }
+  /* dials pass horizontal pans to the strip; vertical drags turn the knob */
+  body.gbm-strip .knobrow .knob-dial,
+  body.gbm-accordion .knobrow .knob-dial { touch-action: pan-x; }
+  /* edge fades (classes maintained by JS) hint at off-screen knobs */
+  body.gbm-strip .knobrow.fade-r,
+  body.gbm-accordion .knobrow.fade-r {
+    mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  }
+  body.gbm-strip .knobrow.fade-l,
+  body.gbm-accordion .knobrow.fade-l {
+    mask-image: linear-gradient(90deg, transparent, #000 28px);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px);
+  }
+  body.gbm-strip .knobrow.fade-l.fade-r,
+  body.gbm-accordion .knobrow.fade-l.fade-r {
+    mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  }
+
+  /* ── variant: WRAP — knobs wrap onto extra rows ────────────────────────── */
+  body.gbm-wrap .knobrow { flex-wrap: wrap; row-gap: 10px; }
+
+  /* ── variant: ACCORDION — tap lane header to expand ────────────────────── */
+  body.gbm-accordion .lane .knobrow { display: none; }
+  body.gbm-accordion .lane.open .knobrow { display: flex; }
+  body.gbm-accordion .lane .name { cursor: pointer; }
+  body.gbm-accordion .lane .name::after { content: " ▾"; color: var(--faint); }
+  body.gbm-accordion .lane.open .name::after { content: " ▴"; }
+  /* master knobs always visible — accordion only applies to lanes */
+}
+
+/* ─── PROTO variant switcher (prototype-only chrome) ───────────────────────── */
+#gbm-proto {
+  position: fixed;
+  right: 10px;
+  bottom: 10px;
+  z-index: 300;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  background: rgba(10, 12, 18, 0.88);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 6px;
+  backdrop-filter: blur(4px);
+}
+#gbm-proto .gbm-lbl {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+  margin-right: 2px;
+}
+#gbm-proto button {
+  height: 24px;
+  font-size: 10px;
+  padding: 0 8px;
+  border-radius: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--dim);
+}
+#gbm-proto button.on {
+  border-color: var(--acc);
+  color: var(--acc);
+  background: rgba(84, 240, 200, 0.08);
 }
