@@ -616,7 +616,10 @@ function isValidArtifact(a: unknown): a is IncomingArtifact {
     const v = o[key];
     if (v !== null && v !== undefined && typeof v !== "string") return false;
   }
-  if (o.pinned_at !== null && o.pinned_at !== undefined && typeof o.pinned_at !== "number") return false;
+  // Same finiteness posture as sync_version_at — NaN/Infinity would bind
+  // into D1 as junk or throw mid-batch.
+  if (o.pinned_at !== null && o.pinned_at !== undefined
+      && (typeof o.pinned_at !== "number" || !Number.isFinite(o.pinned_at) || o.pinned_at < 0)) return false;
   // Same cap as sessions' device_label: truncate to null rather than reject.
   if (typeof o.device_label === "string" && o.device_label.length > DEVICE_LABEL_MAX) {
     o.device_label = null;

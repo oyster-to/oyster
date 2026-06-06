@@ -94,8 +94,10 @@ export function ArtefactTable({ artifacts, spaces, onArtifactClick, onArtifactPu
               tabIndex={inert ? undefined : 0}
               onClick={inert ? undefined : () => onArtifactClick(art)}
               onContextMenu={(e) => {
-                e.preventDefault();
+                // No app menu for inert cloud rows — leave the browser's
+                // default context menu alone rather than eating the event.
                 if (!hasCloudMenu) return;
+                e.preventDefault();
                 setCtx({ artifact: art, x: e.clientX, y: e.clientY });
               }}
               onKeyDown={inert ? undefined : (e) => {

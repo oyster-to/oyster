@@ -135,6 +135,22 @@ describe("POST /api/artifacts/metadata", () => {
     expect(count?.n).toBe(1);
   });
 
+  it("rejects non-finite pinned_at (1e999 parses to Infinity; NaN can't arrive via JSON)", async () => {
+    const { token } = await makeProSession();
+    const aid = `a-${crypto.randomUUID()}`;
+    // Hand-crafted body: JSON.stringify would turn Infinity into null, which
+    // is legal. 1e999 is the wire-reachable way to smuggle a non-finite in.
+    const res = await signedFetch("/api/artifacts/metadata", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: `{"artifacts":[{"id":"${aid}","label":"x","artifact_kind":"notes","created_at":"2026-06-01 10:00:00","sync_version_at":1000,"pinned_at":1e999}]}`,
+    }, token);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { accepted: string[]; rejected: string[] };
+    expect(body.accepted).toEqual([]);
+    expect(body.rejected).toEqual([aid]);
+  });
+
   it("accepts tombstones (removed_at set) — deletions propagate", async () => {
     const { token, userId } = await makeProSession();
     const aid = `a-${crypto.randomUUID()}`;
