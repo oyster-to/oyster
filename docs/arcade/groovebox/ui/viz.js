@@ -1,5 +1,5 @@
 import { stepsPerBar, beatStarts } from '../engine/meter.js';
-import { resolveDrumPattern, hasDrumHit, drumVoiceAudible, laneAudible, chordAt } from '../engine/song.js';
+import { drumVoiceAudible, laneAudible } from '../engine/song.js';
 import { laneByType } from '../engine/lanes.js';
 
 // ─── Canvas theme colour cache ────────────────────────────────────────────────
@@ -27,6 +27,8 @@ function themeColors() {
 }
 export function invalidateThemeColors() { _tc = null; }
 
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
 const DROWS = [['kick','Kick'],['snare','Snare'],['hat','HH'],['tom','Tom'],['crash','Crash']];
 
 // Piano-roll helpers (ported from prototype).
@@ -43,16 +45,6 @@ const ROLL_HI = 81;           // A5
 const ROLL_ROWS = ROLL_HI - ROLL_LO + 1;
 const BLACK_DEGREES = new Set([1, 3, 6, 8, 10]);  // semitones-mod-12 that are black keys
 
-// Deep-clone a single 1-bar pattern object.
-const clonePat = p => {
-  const o = {};
-  for (const k in p) o[k] = Array.isArray(p[k]) ? p[k].map(v => Array.isArray(v) ? v.slice() : v) : p[k];
-  return o;
-};
-
-// Expand any pattern (single bar or array) to a 4-bar editable array.
-const fork4 = src => [0,1,2,3].map(b => clonePat(Array.isArray(src) ? src[b % src.length] : src));
-
 // Bass note range: two octaves roughly centred on bass register.
 const BASS_LO = 28;   // E1
 const BASS_HI = 51;   // Eb3  (covers typical bass lines well)
@@ -60,19 +52,52 @@ const BASS_ROWS = BASS_HI - BASS_LO + 1;
 
 export function makeViz(host, song, eng) {
   let view = 'drums';
+  let lastStepInBar = 0;
+  let lastTarget = null;            // last onStep target payload (playback position)
+  // Drum editor: which bars of the pattern the next cell-edit applies to.
+  // The grid SHOWS the primary (lowest-index) selected bar; a cell click computes
+  // on/off from that bar then SETs it across every selected bar.
   let editBars = new Set([0]);
-  let customLen = 4;
-  let lastBar = 0, lastStepInBar = 0;
+  function primaryBar() { return Math.min(...editBars); }
   // Scope state
   let scopeSource = 'master';
   let scopeRafId = null;
   // Per-step playhead cache — populated by build(); cleared on rebuild.
-  // drums: { [voiceKey]: HTMLElement[] }  (index = step within bar)
-  // blocks: HTMLElement[][] indexed by absStep across all 4 bars
-  let _drumVcCache = {};      // { kick: [cell0, cell1, ...], snare: [...], ... }
-  let _blocksColCache = [];   // [absStep] → [cell0 (midi=hi), cell1, ... ]
-  let _lastDrumNowStep = -1;  // last stepInBar with .now for drum grid
+  // drums: { [voiceKey]: HTMLElement[] }  (one shown bar; cell index = step within bar)
+  // blocks: HTMLElement[][] indexed by absStep across all rendered bars
+  let _drumVcCache = {};       // { kick: [c0, c1, ...], snare: [...], ... }
+  let _blocksColCache = [];    // [absStep] → [cell0 (midi=hi), cell1, ... ]
+  let _lastDrumNowStep = null; // last step index with .now for drum grid, or null
   let _lastBlocksAbsStep = -1; // last absStep with .now for blocks grid
+
+  // The groove the EDIT pattern picks for lane L → { name, bars }. May be null
+  // (lane with no groove); callers fall back to a single empty bar.
+  function editGroove(L) { return eng.getEditGroove(L.id); }
+  // Editable bar count for lane L = the groove's own length (≥1).
+  function grooveLen(L) {
+    const G = editGroove(L);
+    return G && G.bars.length ? G.bars.length : 1;
+  }
+  // Per-bar data array for lane L (the groove's bars), padded to a single empty
+  // bar when the groove is missing so the editor renders gracefully.
+  function laneBars(L) {
+    const G = editGroove(L);
+    if (G && G.bars.length) return G.bars;
+    return [L.type === 'drums' ? {} : []];
+  }
+  // The sounding bar mapped into the editor's groove (which cycles), or -1 when
+  // another pattern is sounding. The editor shows the groove, so the pattern-
+  // relative sounding bar wraps by the groove's length.
+  function soundingGrooveBar(L) {
+    if (!lastTarget || lastTarget.patternIdx !== eng.getEditPatternIndex()) return -1;
+    return lastTarget.barInPattern % grooveLen(L);
+  }
+  // Playhead abs-step inside the editor (groove-relative), or -1 when another
+  // pattern is sounding.
+  function editPlayheadAbsStep(spb, L) {
+    const sb = soundingGrooveBar(L);
+    return sb < 0 ? -1 : sb * spb + lastStepInBar;
+  }
 
   // Piano ⇄ Blocks toggle state (persisted across reloads).
   let rollMode = (() => {
@@ -86,70 +111,6 @@ export function makeViz(host, song, eng) {
     // Prefer the explicitly-set target; fall back gracefully.
     if (_targetLane) return _targetLane;
     return laneByType(song.lanes, view === 'bass' ? 'bass' : view === 'melody' ? 'melody' : 'drums');
-  }
-
-  function primaryBar() { return Math.min(...editBars); }
-
-  // Ensure pool.custom + pool._base exist (fork from current selection).
-  function ensureCustom() {
-    const L = getTargetLane();
-    if (!L.pool.custom) {
-      const src = L.pool[L.selection];
-      L.pool.custom = fork4(src);
-      L.pool._base  = fork4(src);
-      customLen = L.cycleLen || 4;
-      L.cycleLen = customLen;
-      eng.setLane(L.id, 'custom');
-    }
-  }
-
-  function drumEdit(k, step) {
-    ensureCustom();
-    const L = getTargetLane();
-    const prim = L.pool.custom[primaryBar()];
-    // Decide on/off from the primary (shown) bar.
-    const on = k === 'tom'
-      ? !(prim.tom && prim.tom.some(x => x[0] === step))
-      : !(prim[k] && prim[k].includes(step));
-    // Apply to every bar in editBars.
-    editBars.forEach(b => {
-      const p = L.pool.custom[b];
-      if (k === 'tom') {
-        p.tom = p.tom || [];
-        const i = p.tom.findIndex(x => x[0] === step);
-        if (on) { if (i < 0) p.tom.push([step, 3]); }
-        else     { if (i >= 0) p.tom.splice(i, 1); }
-      } else {
-        p[k] = p[k] || [];
-        const i = p[k].indexOf(step);
-        if (on) { if (i < 0) p[k].push(step); }
-        else     { if (i >= 0) p[k].splice(i, 1); }
-      }
-    });
-    paint(lastBar, lastStepInBar);
-  }
-
-  function buildBarSelector() {
-    const L = getTargetLane();
-    // Compute playingBar from lastBar relative to current cycle.
-    const cyc = L.selection === 'custom' ? customLen : 1;
-    const playingBar = ((lastBar % cyc) + cyc) % cyc;
-
-    let bb = '';
-    for (let b = 0; b < customLen; b++) {
-      const on = editBars.has(b) ? ' on' : '';
-      const playing = (L.selection === 'custom' && b === playingBar) ? ' playing' : '';
-      bb += `<button class="bsel${on}${playing}" data-b="${b}">${b + 1}</button>`;
-    }
-    const c2 = customLen === 2 ? ' on' : '';
-    const c4 = customLen === 4 ? ' on' : '';
-    return `<div class="barsel">`
-      + `<span style="color:var(--acc)">edit</span>/<span style="color:var(--hot)">▸play</span> ${bb}`
-      + ` <span style="margin-left:10px;opacity:.7">cycle</span>`
-      + ` <button class="cyc${c2}" data-c="2">2</button>`
-      + `<button class="cyc${c4}" data-c="4">4</button>`
-      + ` <span style="opacity:.55;margin-left:8px"><span style="color:#9fb4d8">groove</span>·<span style="color:var(--warn)">added</span></span>`
-      + `</div>`;
   }
 
   function buildBeatHeader(spb) {
@@ -173,7 +134,9 @@ export function makeViz(host, song, eng) {
     ctx.clearRect(0, 0, W, H);
 
     const spb = stepsPerBar(song.meter);
-    const totalSteps = 4 * spb;
+    const L = getTargetLane();
+    const BARS = grooveLen(L);
+    const totalSteps = BARS * spb;
     const kbW = ROLL_KB, gW = W - kbW;
     const rh = H / ROLL_ROWS;
 
@@ -199,7 +162,7 @@ export function makeViz(host, song, eng) {
     }
 
     // Bar gridlines.
-    for (let bar = 0; bar <= 4; bar++) {
+    for (let bar = 0; bar <= BARS; bar++) {
       const x = kbW + (bar * spb) / totalSteps * gW;
       ctx.strokeStyle = tc.grid;
       ctx.lineWidth = 1;
@@ -210,11 +173,11 @@ export function makeViz(host, song, eng) {
     }
 
     // Note blocks.
-    const L = getTargetLane();
-    const bars = L.pool[L.selection] || [];
-    for (let bi = 0; bi < 4; bi++) {
+    const bars = laneBars(L);
+    for (let bi = 0; bi < bars.length; bi++) {
       const barNotes = bars[bi] || [];
       for (const [st, noteName, dur] of barNotes) {
+        if (Array.isArray(noteName)) continue;   // chord lanes not shown in roll
         const midi = noteToMidi(noteName);
         if (midi < ROLL_LO || midi > ROLL_HI) continue;
         const absStep = bi * spb + st;
@@ -247,7 +210,8 @@ export function makeViz(host, song, eng) {
     if (cx < ROLL_KB) return;
 
     const spb = stepsPerBar(song.meter);
-    const totalSteps = 4 * spb;
+    const L = getTargetLane();
+    const totalSteps = grooveLen(L) * spb;
     const gW = cv.width - ROLL_KB;
 
     const absStep = Math.floor((cx - ROLL_KB) / gW * totalSteps);
@@ -258,26 +222,11 @@ export function makeViz(host, song, eng) {
 
     const noteName = NMG[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
 
-    // Fork to custom if needed.
-    const L = getTargetLane();
-    if (L.selection !== 'custom') {
-      const src = L.pool[L.selection] || [];
-      L.pool.custom = src.map(b => b.map(n => n.slice()));
-      eng.setLane(L.id, 'custom');
-    }
-
-    const bar = Math.floor(absStep / spb);
+    const bar = Math.floor(absStep / spb);   // groove-relative
     const st = absStep % spb;
-    const arr = L.pool.custom[bar] || (L.pool.custom[bar] = []);
-    const i = arr.findIndex(x => x[0] === st);
-    if (i >= 0 && arr[i][1] === noteName) {
-      arr.splice(i, 1);                        // click same note → remove
-    } else {
-      if (i >= 0) arr.splice(i, 1);           // monophonic: remove any existing note at this step
-      arr.push([st, noteName, 2]);
-    }
+    eng.toggleNote(L.id, bar, st, noteName, 2);
 
-    drawRoll(lastBar * spb + lastStepInBar);
+    drawRoll(editPlayheadAbsStep(spb, L));
   }
 
   // ---- scope oscilloscope ----
@@ -386,18 +335,18 @@ export function makeViz(host, song, eng) {
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
     }
 
-    // Resolve bass notes for current bar.
+    // Bass notes for the shown bar (explicit data; read-only).
     const L = getTargetLane();
-    const gen = L.pool[L.selection];
-    let notes = [];
-    if (typeof gen === 'function') {
-      const chord = chordAt(song.harmony.progression, lastBar);
-      try { notes = gen(lastBar, chord) || []; } catch (_) { notes = []; }
-    }
+    const bars = laneBars(L);
+    const soundingBar = soundingGrooveBar(L);   // groove-relative, or -1
+    const editing = soundingBar >= 0;
+    const showBar = editing ? soundingBar : 0;
+    const notes = bars[showBar] || [];
 
     // Draw note blocks.
     ctx.fillStyle = tc.note;
     for (const [st, noteName, dur] of notes) {
+      if (Array.isArray(noteName)) continue;
       const midi = noteToMidi(noteName);
       if (midi < BASS_LO || midi > BASS_HI) continue;
       const x = kbW + (st / spb) * gW;
@@ -406,23 +355,59 @@ export function makeViz(host, song, eng) {
       ctx.fillRect(x + 1, y + 1, w - 1, rh - 2);
     }
 
-    // Playhead.
-    const px = kbW + (stepInBar / spb) * gW;
-    ctx.strokeStyle = tc.playhead;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+    // Playhead — only when the sounding pattern is the edited one.
+    if (editing) {
+      const px = kbW + (stepInBar / spb) * gW;
+      ctx.strokeStyle = tc.playhead;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+    }
+  }
+
+  // "editing: <groove name>" label — names the groove the editor mutates and
+  // warns that shared grooves change everywhere. Empty when the lane has none.
+  function edLabelHTML(L) {
+    const G = editGroove(L);
+    if (!G) return '';
+    return `<div class="ed-lbl">editing: ${esc(G.name)}</div>`;
   }
 
   // ─── Roll-mode toggle bar (melody + bass only) ───────────────────────────
   // Returns an HTML string for the segmented Piano/Blocks toggle.
-  function rollModeToggleHTML() {
+  // `barCtrlLane` (optional): when given an editable lane, append the groove-
+  // length selector into the toggle bar (melody only; bass is read-only).
+  function rollModeToggleHTML(barCtrlLane = null) {
     const pa = rollMode === 'piano'  ? ' rm-on' : '';
     const ba = rollMode === 'blocks' ? ' rm-on' : '';
     return `<div class="roll-mode-bar">`
       + `<span class="roll-mode-lbl">VIEW</span>`
       + `<button class="roll-mode-btn${pa}" data-rm="piano">Piano</button>`
       + `<button class="roll-mode-btn${ba}" data-rm="blocks">Blocks</button>`
+      + (barCtrlLane ? barCountControlsHTML(barCtrlLane) : '')
       + `</div>`;
+  }
+
+  // Groove-length selector for the lane's groove. Groove lengths are powers of
+  // two — pick one directly (1/2/4/8 bars), like a hardware sequencer. The
+  // current length is marked `on`. Reuses the .bsel look via .glen-btn.
+  function barCountControlsHTML(L) {
+    const len = grooveLen(L);
+    const btns = [1, 2, 4, 8]
+      .map(n => `<button class="glen-btn${n === len ? ' on' : ''}" data-glen="${n}">${n}</button>`)
+      .join('');
+    return `<span class="glen"><span class="glen-lbl">bars</span>${btns}</span>`;
+  }
+  // Wire the length selector inside host after build() injects it. Full rebuild
+  // on change so the stepper count + clamped editBars repaint correctly.
+  function wireBarCountControls(L) {
+    host.querySelectorAll('.glen-btn').forEach(btn => {
+      btn.onclick = () => {
+        if (eng.setGrooveBars(L.id, +btn.dataset.glen) !== null) {
+          build();
+          paint(lastStepInBar);
+        }
+      };
+    });
   }
 
   // Wire the toggle buttons inside host after build() injects them.
@@ -432,7 +417,7 @@ export function makeViz(host, song, eng) {
         rollMode = btn.dataset.rm;
         try { localStorage.setItem('gb-rollmode', rollMode); } catch (_) {}
         build();
-        paint(lastBar, lastStepInBar);
+        paint(lastStepInBar);
       };
     });
   }
@@ -459,7 +444,8 @@ export function makeViz(host, song, eng) {
   function buildBlocksGrid(laneView) {
     const { lo, hi } = blocksRange(laneView);
     const spb = stepsPerBar(song.meter);
-    const BARS = 4;
+    const L = getTargetLane();
+    const BARS = grooveLen(L);
     const totalSteps = BARS * spb;
     const beats = beatStarts(song.meter);
     const beatSet = new Set(beats);
@@ -484,7 +470,8 @@ export function makeViz(host, song, eng) {
     }
     headerRow += '</div>';
 
-    let html = rollModeToggleHTML();
+    let html = rollModeToggleHTML(laneView === 'melody' ? L : null);
+    html += edLabelHTML(L);
     html += `<div class="bg-scroll"><div class="bg-grid" data-lv="${laneView}">`;
     html += headerRow;
 
@@ -508,6 +495,7 @@ export function makeViz(host, song, eng) {
     html += '</div></div>';
     host.innerHTML = html;
     wireRollModeToggle();
+    if (laneView === 'melody') wireBarCountControls(L);
     // Cache .vc cells per absStep column for surgical per-step playhead toggle.
     _blocksColCache = [];
     host.querySelectorAll('.bg-grid .vc').forEach(cell => {
@@ -515,7 +503,7 @@ export function makeViz(host, song, eng) {
       if (!_blocksColCache[s]) _blocksColCache[s] = [];
       _blocksColCache[s].push(cell);
     });
-    paintBlocksGrid(laneView, lastBar, lastStepInBar);
+    paintBlocksGrid(laneView);
 
     if (laneView === 'melody') {
       // Wire clicks for melody editing.
@@ -531,42 +519,24 @@ export function makeViz(host, song, eng) {
   }
 
   // Repaint the blocks grid cells to reflect current note data + playhead.
-  function paintBlocksGrid(laneView, bar, stepInBar) {
+  function paintBlocksGrid(laneView) {
     const grid = host.querySelector('.bg-grid');
     if (!grid) return;
     const spb = stepsPerBar(song.meter);
-    const BARS = 4;
-    const totalSteps = BARS * spb;
-    const { lo, hi } = blocksRange(laneView);
-    const playheadAbsStep = bar * spb + stepInBar;
+    const L = getTargetLane();
+    const BARS = grooveLen(L);
+    // Playhead abs-step, hidden (-1) when another pattern is sounding.
+    const playheadAbsStep = editPlayheadAbsStep(spb, L);
 
-    // Collect notes: melody reads pool directly; bass resolves per-bar via generator.
-    // We build a Set of "midi:absStep" strings for O(1) lookup.
+    // Build a Set of "midi:absStep" strings for O(1) lookup, from explicit data.
     const hitSet = new Set();
-    if (laneView === 'melody') {
-      const L = getTargetLane();
-      const bars = L.pool[L.selection] || [];
-      for (let bi = 0; bi < BARS; bi++) {
-        const barNotes = bars[bi] || [];
-        for (const [st, noteName] of barNotes) {
-          const midi = noteToMidi(noteName);
-          hitSet.add(midi + ':' + (bi * spb + st));
-        }
-      }
-    } else {
-      // Bass: resolve each bar separately via generator.
-      const L = getTargetLane();
-      const gen = L.pool[L.selection];
-      for (let bi = 0; bi < BARS; bi++) {
-        let notes = [];
-        if (typeof gen === 'function') {
-          const chord = chordAt(song.harmony.progression, bi);
-          try { notes = gen(bi, chord) || []; } catch (_) { notes = []; }
-        }
-        for (const [st, noteName] of notes) {
-          const midi = noteToMidi(noteName);
-          hitSet.add(midi + ':' + (bi * spb + st));
-        }
+    const bars = laneBars(L);
+    for (let bi = 0; bi < BARS; bi++) {
+      const barNotes = bars[bi] || [];
+      for (const [st, noteName] of barNotes) {
+        if (Array.isArray(noteName)) continue;
+        const midi = noteToMidi(noteName);
+        hitSet.add(midi + ':' + (bi * spb + st));
       }
     }
 
@@ -590,30 +560,32 @@ export function makeViz(host, song, eng) {
 
     const noteName = NMG[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
 
-    // Fork to custom if needed — exactly the same logic as rollClick.
     const L = getTargetLane();
-    if (L.selection !== 'custom') {
-      const src = L.pool[L.selection] || [];
-      L.pool.custom = src.map(b => b.map(n => n.slice()));
-      eng.setLane(L.id, 'custom');
-    }
+    eng.toggleNote(L.id, bar, st, noteName, 2);
 
-    const arr = L.pool.custom[bar] || (L.pool.custom[bar] = []);
-    const i = arr.findIndex(x => x[0] === st);
-    if (i >= 0 && arr[i][1] === noteName) {
-      arr.splice(i, 1);                        // click same note → remove
-    } else {
-      if (i >= 0) arr.splice(i, 1);           // monophonic: remove any existing note at this step
-      arr.push([st, noteName, 2]);
-    }
+    paintBlocksGrid('melody');
+  }
 
-    paintBlocksGrid('melody', lastBar, lastStepInBar);
+  // Update the bar-stepper button classes: `on` for selected (edit) bars,
+  // `playing` for the sounding bar — only when the sounding pattern is the
+  // edited one. Cheap (≤4 buttons); reused by build/paint/setStep.
+  function paintBarsel() {
+    const sounding = soundingGrooveBar(getTargetLane());   // groove-relative, or -1
+    host.querySelectorAll('.bsel[data-b]').forEach(btn => {
+      const b = +btn.dataset.b;
+      btn.classList.toggle('on', editBars.has(b));
+      btn.classList.toggle('playing', b === sounding);
+    });
   }
 
   function build() {
     // Clear per-step playhead caches — DOM is about to be rebuilt.
-    _drumVcCache = {}; _lastDrumNowStep = -1;
+    _drumVcCache = {}; _lastDrumNowStep = null;
     _blocksColCache = []; _lastBlocksAbsStep = -1;
+    // Drop edit selections beyond the groove's current length; never empty.
+    const _bars = grooveLen(getTargetLane());
+    for (const b of [...editBars]) if (b >= _bars) editBars.delete(b);
+    if (editBars.size === 0) editBars.add(0);
     const spb = stepsPerBar(song.meter);
     const beats = new Set(beatStarts(song.meter));
     // Compute beat index for each step (which beat group it belongs to).
@@ -635,58 +607,75 @@ export function makeViz(host, song, eng) {
       return `<div class="vc${beatClass}${downbeatClass}${altClass}"></div>`;
     }).join('');
     if (view === 'drums') {
-      const barSel = buildBarSelector();
-      host.innerHTML = barSel
-        + buildBeatHeader(spb)
-        + DROWS.map(([k,l]) => `<div class="vrow" data-k="${k}"><span class="vl"><span class="vl-lbl">${l}</span></span>${cells(spb)}<span class="vr"><button class="dvm" data-voice="${k}" title="mute ${l}">M</button><button class="dvs" data-voice="${k}" title="solo ${l}">S</button></span></div>`).join('');
+      const L = getTargetLane();
+      const BARS = grooveLen(L);
+      let html = edLabelHTML(L);
+      // Bar stepper — render whenever the lane has a groove (even 1 bar), since
+      // it now also hosts the groove-length selector.
+      if (editGroove(L)) {
+        html += `<div class="barsel"><span class="barsel-lbl">bar</span>`;
+        for (let b = 0; b < BARS; b++) html += `<button class="bsel" data-b="${b}">${b + 1}</button>`;
+        html += barCountControlsHTML(L);
+        html += `</div>`;
+      }
+      html += buildBeatHeader(spb);
+      // ONE bar tall: 5 voice rows for the shown (primary) bar.
+      html += DROWS.map(([k, l]) =>
+        `<div class="vrow" data-k="${k}"><span class="vl"><span class="vl-lbl">${l}</span></span>${cells(spb)}` +
+        `<span class="vr"><button class="dvm" data-voice="${k}" title="mute ${l}">M</button><button class="dvs" data-voice="${k}" title="solo ${l}">S</button></span>`
+        + `</div>`).join('');
+      host.innerHTML = html;
 
-      // Bar selector click handlers.
-      host.querySelectorAll('.bsel').forEach(b => b.onclick = () => {
-        const n = +b.dataset.b;
-        if (editBars.has(n)) { if (editBars.size > 1) editBars.delete(n); }
-        else editBars.add(n);
-        build();
-        paint(lastBar, lastStepInBar);
+      // Stepper: toggle membership (never deselect the last one), then repaint.
+      host.querySelectorAll('.bsel[data-b]').forEach(btn => {
+        btn.onclick = () => {
+          const b = +btn.dataset.b;
+          if (editBars.has(b)) { if (editBars.size > 1) editBars.delete(b); }
+          else editBars.add(b);
+          paintBarsel();
+          paint(lastStepInBar);   // primary bar may have changed → re-render hits
+        };
       });
+      wireBarCountControls(L);
 
-      // Cycle length click handlers.
-      host.querySelectorAll('.cyc').forEach(b => b.onclick = () => {
-        customLen = +b.dataset.c;
-        [...editBars].forEach(x => { if (x >= customLen) editBars.delete(x); });
-        if (!editBars.size) editBars.add(0);
-        // Update song lane cycleLen if we're in custom mode.
-        const _DL = getTargetLane();
-        if (_DL.selection === 'custom') _DL.cycleLen = customLen;
-        build();
-        paint(lastBar, lastStepInBar);
-      });
-
-      // Drum cell click handlers.
+      // Cell click: compute desired on/off from the SHOWN (primary) bar, then
+      // SET that state across every selected bar.
       host.querySelectorAll('.vrow').forEach(row => {
         const k = row.dataset.k;
-        [...row.querySelectorAll('.vc')].forEach((c, i) => c.onclick = () => drumEdit(k, i));
+        [...row.querySelectorAll('.vc')].forEach((c, i) => c.onclick = () => {
+          const shown = laneBars(L)[primaryBar()] || {};
+          const on = k === 'tom'
+            ? !(shown.tom && shown.tom.some(x => x[0] === i))
+            : !(shown[k] && shown[k].includes(i));
+          for (const b of editBars) eng.setDrumStep(L.id, k, b, i, on);
+          paint(lastStepInBar);
+        });
       });
 
-      // Per-voice mute/solo click handlers.
       host.querySelectorAll('.dvm').forEach(btn => {
-        btn.onclick = e => { e.stopPropagation(); eng.toggleDrumMute(btn.dataset.voice); paint(lastBar, lastStepInBar); };
+        btn.onclick = e => { e.stopPropagation(); eng.toggleDrumMute(btn.dataset.voice); paint(lastStepInBar); };
       });
       host.querySelectorAll('.dvs').forEach(btn => {
-        btn.onclick = e => { e.stopPropagation(); eng.toggleDrumSolo(btn.dataset.voice); paint(lastBar, lastStepInBar); };
+        btn.onclick = e => { e.stopPropagation(); eng.toggleDrumSolo(btn.dataset.voice); paint(lastStepInBar); };
       });
-      // Cache .vc cell refs per voice row for surgical per-step playhead updates.
+
+      // Cache: _drumVcCache[voice] = [cells] for the fast playhead path.
       _drumVcCache = {};
-      _lastDrumNowStep = -1;
+      _lastDrumNowStep = null;
       host.querySelectorAll('.vrow').forEach(row => {
         _drumVcCache[row.dataset.k] = [...row.querySelectorAll('.vc')];
       });
+      paintBarsel();
+      paint(lastStepInBar);   // canvas/blocks views draw inside build; drums needs its hits painted too
     } else if (view === 'melody') {
       if (rollMode === 'blocks') {
         buildBlocksGrid('melody');
       } else {
         // Melody view: canvas piano-roll.
-        host.innerHTML = rollModeToggleHTML() + '<canvas id="mroll"></canvas>';
+        const mL = getTargetLane();
+        host.innerHTML = rollModeToggleHTML(mL) + edLabelHTML(mL) + '<canvas id="mroll"></canvas>';
         wireRollModeToggle();
+        wireBarCountControls(mL);
         const cv = host.querySelector('#mroll');
         cv.width = host.clientWidth || 680;
         cv.height = 170;
@@ -711,7 +700,7 @@ export function makeViz(host, song, eng) {
       if (rollMode === 'blocks') {
         buildBlocksGrid('bass');
       } else {
-        host.innerHTML = rollModeToggleHTML() + '<canvas id="broll"></canvas>';
+        host.innerHTML = rollModeToggleHTML() + edLabelHTML(getTargetLane()) + '<canvas id="broll"></canvas>';
         wireRollModeToggle();
         const cv = host.querySelector('#broll');
         cv.width = host.clientWidth || 680;
@@ -721,60 +710,46 @@ export function makeViz(host, song, eng) {
     }
   }
 
-  function paint(bar, stepInBar) {
-    lastBar = bar;
+  function paint(stepInBar) {
     lastStepInBar = stepInBar;
 
     if (view === 'drums') {
       const L = getTargetLane();
-      const isCustom = L.selection === 'custom';
-      const pb = primaryBar();
-
-      // Which bar to show: the primary edit bar.
-      const pat = isCustom
-        ? resolveDrumPattern(L.pool.custom, pb, customLen)
-        : resolveDrumPattern(L.pool[L.selection], pb, L.cycleLen);
-      const base = (isCustom && L.pool._base) ? L.pool._base[pb] : null;
-
-      // The playing bar (for "now" highlight): show playhead only when it's on the shown bar.
-      const cyc = isCustom ? customLen : (Array.isArray(L.pool[L.selection]) ? L.pool[L.selection].length : 1);
-      const playingBar = ((bar % cyc) + cyc) % cyc;
-      const headVisible = (playingBar === pb);
-
-      const laneOK = laneAudible(eng.getLanes(), getTargetLane());   // whole-lane mute/solo
+      const bars = laneBars(L);
+      const pBar = primaryBar();
+      const pat = bars[pBar] || {};
+      // .now visible only when the sounding (groove-relative) bar === the shown
+      // (primary) bar.
+      const nowHere = soundingGrooveBar(L) === pBar;
+      const laneOK = laneAudible(eng.getLanes(), L);
       host.querySelectorAll('.vrow').forEach(row => {
         const k = row.dataset.k;
-        const audible = laneOK && drumVoiceAudible(getTargetLane(), k);
+        const audible = laneOK && drumVoiceAudible(L, k);
         row.classList.toggle('silenced', !audible);
         const mBtn = row.querySelector('.dvm');
         const sBtn = row.querySelector('.dvs');
         if (mBtn) mBtn.classList.toggle('muted', !!(L.voiceMute || {})[k]);
         if (sBtn) sBtn.classList.toggle('soloed', !!(L.voiceSolo || {})[k]);
         row.querySelectorAll('.vc').forEach((c, i) => {
-          const on  = hasDrumHit(pat, k, i);
-          const was = base ? hasDrumHit(base, k, i) : on;
-          c.classList.toggle('hit',     on && was);
-          c.classList.toggle('added',   on && !was);
-          c.classList.toggle('removed', !on && was);
-          c.classList.toggle('now', headVisible && i === stepInBar);
+          const on = k === 'tom'
+            ? !!(pat.tom && pat.tom.some(x => x[0] === i))
+            : !!(pat[k] && pat[k].includes(i));
+          c.classList.toggle('hit', on);
+          c.classList.toggle('now', nowHere && i === stepInBar);
         });
       });
-
-      // Update bar selector playing highlight.
-      host.querySelectorAll('.bsel').forEach(b => {
-        b.classList.toggle('playing', isCustom && +b.dataset.b === playingBar);
-      });
+      paintBarsel();
     } else if (view === 'melody') {
       if (rollMode === 'blocks') {
-        paintBlocksGrid('melody', bar, stepInBar);
+        paintBlocksGrid('melody');
       } else {
         // Melody view: redraw the piano-roll canvas with current playhead.
         const spb = stepsPerBar(song.meter);
-        drawRoll(bar * spb + stepInBar);
+        drawRoll(editPlayheadAbsStep(spb, getTargetLane()));
       }
     } else if (view === 'bass') {
       if (rollMode === 'blocks') {
-        paintBlocksGrid('bass', bar, stepInBar);
+        paintBlocksGrid('bass');
       } else {
         drawBassRoll(stepInBar);
       }
@@ -795,64 +770,50 @@ export function makeViz(host, song, eng) {
       const lane = lanes.find(l => l.id === id);
       if (!lane) return;
       _targetLane = lane;
-      // Reset bar selector state so the new lane starts clean.
-      editBars = new Set([0]);
-      customLen = lane.cycleLen || 4;
+      editBars = new Set([0]);     // fresh lane/pattern → edit bar 1
       const typeToView = { drums: 'drums', melody: 'melody', bass: 'bass' };
       const nextView = typeToView[lane.type] || 'drums';
       stopScopeLoop();
       view = nextView;
       build();
     },
-    setStep(_abs, bar, stepInBar) {
-      lastBar = bar;
+    setStep({ stepInBar, target }) {
+      lastTarget = target;
       lastStepInBar = stepInBar;
       if (view === 'drums') {
-        // Fast path: only move the .now highlight across the drum grid.
-        const L = getTargetLane();
-        const isCustom = L.selection === 'custom';
-        const pb = primaryBar();
-        const cyc = isCustom ? customLen : (Array.isArray(L.pool[L.selection]) ? L.pool[L.selection].length : 1);
-        const playingBar = ((bar % cyc) + cyc) % cyc;
-        const headVisible = (playingBar === pb);
-        const newStep = headVisible ? stepInBar : -1;
-        if (newStep !== _lastDrumNowStep) {
-          // Clear old .now column.
-          if (_lastDrumNowStep >= 0) {
-            for (const cells of Object.values(_drumVcCache)) {
-              const c = cells[_lastDrumNowStep];
-              if (c) c.classList.remove('now');
-            }
+        // Fast path: only move the .now highlight across the single shown bar.
+        // Visible only when the SOUNDING (groove-relative) bar === the shown
+        // (primary) bar.
+        const visible = soundingGrooveBar(getTargetLane()) === primaryBar();
+        const next = visible ? stepInBar : null;
+        if (next !== _lastDrumNowStep) {
+          if (_lastDrumNowStep !== null) {
+            for (const cells of Object.values(_drumVcCache)) cells[_lastDrumNowStep]?.classList.remove('now');
           }
-          // Set new .now column.
-          if (newStep >= 0) {
-            for (const cells of Object.values(_drumVcCache)) {
-              const c = cells[newStep];
-              if (c) c.classList.add('now');
-            }
+          if (next !== null) {
+            for (const cells of Object.values(_drumVcCache)) cells[next]?.classList.add('now');
           }
-          _lastDrumNowStep = newStep;
+          _lastDrumNowStep = next;
         }
-        // Update bar selector playing highlight (cheap — small node list).
-        const playingBarIdx = ((bar % cyc) + cyc) % cyc;
-        host.querySelectorAll('.bsel').forEach(b => {
-          b.classList.toggle('playing', isCustom && +b.dataset.b === playingBarIdx);
-        });
+        paintBarsel();   // cheap (≤4 buttons): refresh the ▸ sounding-bar indicator
       } else if (view === 'melody' || view === 'bass') {
         if (rollMode === 'blocks') {
           // Fast path: only flip the .now column in the blocks grid.
+          // Hide the playhead when another pattern is sounding.
           const spb = stepsPerBar(song.meter);
-          const absStep = bar * spb + stepInBar;
-          if (_lastBlocksAbsStep >= 0 && _blocksColCache[_lastBlocksAbsStep]) {
-            for (const c of _blocksColCache[_lastBlocksAbsStep]) c.classList.remove('now');
+          const newAbs = editPlayheadAbsStep(spb, getTargetLane());
+          if (newAbs !== _lastBlocksAbsStep) {
+            if (_lastBlocksAbsStep >= 0 && _blocksColCache[_lastBlocksAbsStep]) {
+              for (const c of _blocksColCache[_lastBlocksAbsStep]) c.classList.remove('now');
+            }
+            if (newAbs >= 0 && _blocksColCache[newAbs]) {
+              for (const c of _blocksColCache[newAbs]) c.classList.add('now');
+            }
+            _lastBlocksAbsStep = newAbs;
           }
-          if (_blocksColCache[absStep]) {
-            for (const c of _blocksColCache[absStep]) c.classList.add('now');
-          }
-          _lastBlocksAbsStep = absStep;
         } else {
           // Canvas views: redraw playhead line only (cheap full canvas redraw).
-          paint(bar, stepInBar);
+          paint(stepInBar);
         }
       }
       // Scope view: rAF loop handles it — nothing to do here.
@@ -862,6 +823,12 @@ export function makeViz(host, song, eng) {
       // Rebuild the current view so canvas draws pick up new colours immediately.
       if (view !== 'scope') stopScopeLoop();
       build();
+    },
+    // Stop this viz's rAF loops. Called before mount() replaces `viz` on a song
+    // switch — otherwise an old scope loop keeps spinning forever (one leaked
+    // requestAnimationFrame per switch-while-scope-open).
+    dispose() {
+      stopScopeLoop();
     },
   };
 }

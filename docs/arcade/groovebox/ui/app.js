@@ -1,6 +1,5 @@
 import { createEngine } from '../engine/index.js';
 import { laneAudible } from '../engine/song.js';
-import { laneByType } from '../engine/lanes.js';
 import { kids } from '../songs/kids.js';
 import { risingSun } from '../songs/rising-sun.js';
 import { electricFeel } from '../songs/electric-feel.js';
@@ -12,7 +11,6 @@ import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
 
 const eng = createEngine();
-const chordModes = ['pad','arp','stab'];
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
 
 // ─── Knob info map (single source of truth) ───────────────────────────────────
@@ -56,10 +54,6 @@ let _draggedLaneId = null;
 // ─── Section drag-reorder state ───────────────────────────────────────────────
 const SECTION_IDS = ['viz', 'master', 'punch', 'strips', 'fills', 'arrange'];
 let _draggedSecId = null;
-
-function options(lane) {
-  return lane.type === 'chords' ? chordModes : Object.keys(lane.pool || {});
-}
 
 function refreshStates() {
   const host = document.getElementById('strips');
@@ -213,21 +207,27 @@ function renderStrips() {
   const lanes = eng.getLanes();
   const isLast = lanes.length === 1;
 
+  const grooves = eng.getGrooves();
+  const patterns = eng.getPatterns();
+  const editPat = patterns[eng.getEditPatternIndex()];
   host.innerHTML = lanes.map(lane => {
-    const opts = options(lane).map(n => `<option${n===lane.selection?' selected':''}>${esc(n)}</option>`).join('');
     const tone = lane.type === 'melody'
       ? `<select data-tone data-lane="${lane.id}">${TONES.map(t=>`<option value="${t}"${t===(lane.tone||'pulse')?' selected':''}>${t==='fatsawtooth'?'fat saw':t}</option>`).join('')}</select>`
       : '';
+    // Groove dropdown — picks the groove the EDIT pattern plays for this lane.
+    const laneGrooves = grooves[lane.id] || {};
+    const picked = editPat?.lanes?.[lane.id];
+    const grooveSel = `<select data-groove data-lane="${lane.id}">${Object.keys(laneGrooves).map(n=>`<option value="${esc(n)}"${n===picked?' selected':''}>${esc(n)}</option>`).join('')}</select>`;
     // Edit button — present for types with an editor (drums, melody, bass); skip chords.
     const hasEditor = lane.type !== 'chords';
     const editBtn = hasEditor
       ? `<button class="lane-edit" data-lane="${lane.id}" title="View/edit ${esc(lane.name)} in the screen">VIEW</button>`
       : `<button class="lane-edit" data-lane="${lane.id}" title="No editor for ${esc(lane.name)}" disabled>VIEW</button>`;
-    // Grid columns: drag | name | pattern-select | meter | MIX | TONE | FX | M/S | actions
+    // Grid columns: drag | name | mctl | meter | MIX | TONE | FX | M/S | actions
     return `<div class="lane" data-lane="${lane.id}" data-type="${lane.type}">
       <span class="lane-drag" title="Drag to reorder">⠿</span>
       <span class="name" title="double-click to rename">${esc(lane.name)}</span>
-      <div class="mctl"><select data-lane="${lane.id}">${opts}</select>${tone}</div>
+      <div class="mctl">${grooveSel}${tone}</div>
       <div class="lvl"><div class="lvl-fill"></div></div>
       <div class="msgroup">
         <button class="mute" data-lane="${lane.id}" aria-label="mute ${esc(lane.name)}" title="Mute">M</button>
@@ -282,12 +282,11 @@ function renderStrips() {
     renderStrips();
   });
 
-  host.querySelectorAll('select[data-lane]').forEach(s => {
-    // skip tone selects (they also have data-tone)
-    if (s.dataset.tone !== undefined) return;
-    s.onchange = e => eng.setLane(e.target.dataset.lane, e.target.value);
-  });
   host.querySelectorAll('select[data-tone]').forEach(s => s.onchange = e => eng.setTone(s.dataset.lane, e.target.value));
+  host.querySelectorAll('select[data-groove]').forEach(s => s.onchange = () => {
+    eng.setLaneGroove(s.dataset.lane, s.value);
+    refreshVizPattern();   // editor must re-target the new groove
+  });
   host.querySelectorAll('.mute').forEach(b => b.onclick = () => {
     eng.toggleMute(b.dataset.lane);
     refreshStates();
@@ -427,6 +426,20 @@ function renderStrips() {
   cacheMeterFills();  // re-cache .lvl-fill refs after DOM rebuild
   renderViewTabs();   // rebuild quick-edit tabs to track the current lane list
   updateEmptyGroups(); // hide kgroups where all knobs are hidden
+}
+
+// Sync every strip groove dropdown to the EDIT pattern's picks. Called whenever
+// the edit pattern changes (from renderPatterns). Reflects the edit pattern only
+// — never chain playback.
+function syncStripGrooves() {
+  const host = document.getElementById('strips');
+  if (!host) return;
+  const editPat = eng.getPatterns()[eng.getEditPatternIndex()];
+  if (!editPat) return;
+  host.querySelectorAll('select[data-groove]').forEach(s => {
+    const picked = editPat.lanes?.[s.dataset.lane];
+    if (picked !== undefined && s.value !== picked) s.value = picked;
+  });
 }
 
 // ─── Fills row ───────────────────────────────────────────────────────────────
@@ -596,66 +609,130 @@ function renderMaster() {
   updateEmptyGroups(); // hide master kgroups where all knobs are hidden
 }
 
-// ─── Arrangement UI ──────────────────────────────────────────────────────────
-// Section colors — cycle through a set for visual variety
-const SECTION_COLORS = ['#54f0c8','#5aa9ff','#ffb054','#ff5b9e','#b98cff','#ffd24a','#7af0a0','#f08a54'];
+// ─── PATTERNS module (patterns row + chain row + playback label) ─────────────
+let _chainDragFrom = null;
 
-function renderArrange() {
-  const host = document.getElementById('arrange');
+function renderPatterns() {
+  const host = document.getElementById('arrange');   // id kept for saved section order
   if (!host) return;
   host.innerHTML = '';
+  const patterns = eng.getPatterns();
+  const chain = eng.getChain();
+  const editIdx = eng.getEditPatternIndex();
 
-  const currentMode = eng.getMode();
-
-  // Header row
   const head = document.createElement('div');
   head.className = 'arrange-head';
-
-  const lbl = document.createElement('span');
-  lbl.className = 'albl';
-  lbl.textContent = 'ARRANGEMENT';
-  head.appendChild(lbl);
-
-  const modeBtn = document.createElement('button');
-  modeBtn.id = 'modeBtn';
-  modeBtn.textContent = currentMode === 'song' ? 'Song' : 'Live';
-  if (currentMode === 'song') modeBtn.classList.add('song');
-  modeBtn.onclick = () => {
-    const next = eng.getMode() === 'live' ? 'song' : 'live';
-    eng.setMode(next);
-    renderArrange();
-  };
-  head.appendChild(modeBtn);
-
-  const captureBtn = document.createElement('button');
-  captureBtn.textContent = '＋ capture scene';
-  captureBtn.onclick = () => { eng.captureScene(); renderArrange(); };
-  head.appendChild(captureBtn);
-
-  const clearBtn = document.createElement('button');
-  clearBtn.textContent = 'clear';
-  clearBtn.onclick = () => { eng.clearArrangement(); renderArrange(); };
-  head.appendChild(clearBtn);
-
+  head.innerHTML = `<span class="albl">PATTERNS</span><span class="pat-editing">Editing: Pattern ${editIdx + 1}</span><span class="pat-playing" id="pat-playing"></span>`;
   host.appendChild(head);
 
-  // Timeline
-  const timeline = document.createElement('div');
-  timeline.className = 'timeline';
-  const arrangement = eng.getSong().arrangement || [];
-  arrangement.forEach((section, i) => {
-    const cell = document.createElement('div');
-    cell.className = 'tcell';
-    cell.dataset.idx = i;
-    const color = SECTION_COLORS[i % SECTION_COLORS.length];
-    cell.style.background = color + '22';
-    cell.style.borderColor = color + '66';
-    // section.lanes is type-keyed (drums/bass/chords/melody) for back-compat
-    const label = section.lanes && section.lanes.drums ? section.lanes.drums : String(i + 1);
-    cell.innerHTML = `<span class="tcell-name">${label}</span>${section.fill ? '<span class="tcell-fill">+f</span>' : ''}`;
-    timeline.appendChild(cell);
+  // Patterns row: slots + length + duplicate/delete for the selected pattern.
+  const prow = document.createElement('div');
+  prow.className = 'pat-row';
+  patterns.forEach((p, i) => {
+    const b = document.createElement('button');
+    b.className = 'pat-slot' + (i === editIdx ? ' sel' : '');
+    b.dataset.idx = i;
+    b.textContent = i + 1;
+    b.title = 'edit (loops while playing)';
+    b.onclick = () => { eng.selectPattern(i); renderPatterns(); refreshVizPattern(); };
+    prow.appendChild(b);
   });
-  host.appendChild(timeline);
+  const add = document.createElement('button');
+  add.className = 'pat-slot pat-add';
+  add.textContent = '＋';
+  add.title = 'add pattern';
+  add.disabled = patterns.length >= 16;
+  add.onclick = () => {
+    const idx = eng.addPattern();
+    if (idx !== null) { eng.selectPattern(idx); renderPatterns(); refreshVizPattern(); }
+  };
+  prow.appendChild(add);
+
+  const dup = document.createElement('button');
+  dup.className = 'pat-act'; dup.textContent = '⧉'; dup.title = 'duplicate pattern';
+  dup.disabled = patterns.length >= 16;
+  dup.onclick = () => {
+    const idx = eng.duplicatePattern(editIdx);
+    if (idx !== null) { eng.selectPattern(idx); renderPatterns(); refreshVizPattern(); }
+  };
+  prow.appendChild(dup);
+
+  const del = document.createElement('button');
+  del.className = 'pat-act'; del.textContent = '✕'; del.title = 'delete pattern';
+  del.disabled = patterns.length <= 1;
+  del.onclick = () => { eng.removePattern(editIdx); renderPatterns(); refreshVizPattern(); };
+  prow.appendChild(del);
+  host.appendChild(prow);
+
+  // Chain row: chips (click = play chain from there; hover-✕ removes; drag reorders) + append.
+  const crow = document.createElement('div');
+  crow.className = 'chain-row';
+  crow.innerHTML = `<span class="pat-lbl">chain</span>`;
+  chain.forEach((pi, pos) => {
+    const chip = document.createElement('button');
+    chip.className = 'chain-chip';
+    chip.dataset.pos = pos;
+    chip.draggable = true;
+    chip.innerHTML = `<span>${pi + 1}</span><span class="chip-x" title="remove">✕</span>`;
+    chip.onclick = e => {
+      if (e.target.classList.contains('chip-x')) { if (eng.removeChainAt(pos)) renderPatterns(); return; }
+      eng.playChain(pos);
+      renderPatterns();
+    };
+    chip.ondragstart = () => { _chainDragFrom = pos; chip.classList.add('dragging'); };
+    chip.ondragend = () => { _chainDragFrom = null; chip.classList.remove('dragging'); };
+    chip.ondragover = e => { e.preventDefault(); };
+    chip.ondrop = e => {
+      e.preventDefault();
+      if (_chainDragFrom === null || _chainDragFrom === pos) return;
+      const rect = chip.getBoundingClientRect();
+      const before = e.clientX < rect.left + rect.width / 2;
+      let to = before ? pos : pos + 1;
+      if (_chainDragFrom < to) to--;           // account for the splice-out shifting targets left
+      eng.moveChain(_chainDragFrom, to);
+      renderPatterns();
+    };
+    crow.appendChild(chip);
+  });
+  const append = document.createElement('button');
+  append.className = 'chain-chip chain-add';
+  append.textContent = '＋';
+  append.title = 'append selected pattern to chain';
+  append.onclick = () => { eng.appendToChain(eng.getEditPatternIndex()); renderPatterns(); };
+  crow.appendChild(append);
+  host.appendChild(crow);
+
+  updatePatternsPlayback(eng.getPlaybackTarget());
+  syncStripGrooves();   // edit pattern may have changed → resync strip dropdowns
+}
+
+// Glow + label + row dimming — called from renderPatterns and every step.
+function updatePatternsPlayback(target) {
+  const host = document.getElementById('arrange');
+  if (!host || !target) return;
+  const isPattern = target.kind === 'pattern';
+  const prow = host.querySelector('.pat-row');
+  const crow = host.querySelector('.chain-row');
+  if (prow) prow.classList.toggle('dimmed', !isPattern);
+  if (crow) crow.classList.toggle('dimmed', isPattern);
+  host.querySelectorAll('.pat-slot').forEach(b => {
+    b.classList.toggle('playing', isPattern && +b.dataset.idx === target.patternIdx);
+  });
+  host.querySelectorAll('.chain-chip').forEach(c => {
+    c.classList.toggle('playing', !isPattern && +c.dataset.pos === target.chainPos);
+  });
+  const lbl = host.querySelector('#pat-playing');
+  if (lbl) {
+    const chain = eng.getChain();
+    lbl.textContent = isPattern
+      ? `Playing: Pattern ${target.patternIdx + 1} (loop)`
+      : `Playing: Chain · ${chain.map((pi, i) => (i === target.chainPos ? '▸' : '') + (pi + 1)).join(' ')}`;
+  }
+}
+
+// Tell the viz the edit pattern changed (rebuilds the open editor).
+function refreshVizPattern() {
+  if (_editingLaneId) activateEditLane(_editingLaneId);
 }
 
 // ─── Reset FX to neutral (call before mount on song switch) ──────────────────
@@ -692,7 +769,8 @@ function mount() {
   renderFills();
   renderPunch();
   renderMaster();
-  renderArrange();
+  renderPatterns();
+  viz?.dispose?.();   // stop the outgoing viz's rAF loops before replacing it
   viz = makeViz(document.getElementById('viz'), song, eng);
   // Scope tab off — lane editor takes over.
   document.querySelectorAll('[data-view]').forEach(x => x.classList.remove('on'));
@@ -709,7 +787,6 @@ function loadSong(key) {
   const play = document.getElementById('play');
   play.classList.remove('on');
   play.textContent = '▶ play';
-  eng.setMode('live');
   eng.load(SONGS[key]);
   const s = eng.getSong();
   const bpm = document.getElementById('bpm');
@@ -778,8 +855,8 @@ document.getElementById('themesel').onchange = e => {
 // (Scope + quick-edit lane tabs are built and wired in renderViewTabs().)
 
 // ─── Step callback (registered once; closes over module-level song/viz) ──────
-eng.onStep(({absStep, bar, stepInBar, fill, mode, songIndex, queue}) => {
-  viz.setStep(absStep, bar, stepInBar);
+eng.onStep(({ absStep, bar, stepInBar, fill, queue, target }) => {
+  viz.setStep({ absStep, bar, stepInBar, target });
   const fillsHost = document.getElementById('fills');
   if (fillsHost) {
     fillsHost.querySelectorAll('.fillbtn').forEach(btn => {
@@ -787,26 +864,7 @@ eng.onStep(({absStep, bar, stepInBar, fill, mode, songIndex, queue}) => {
     });
     renderChain(queue);
   }
-  // Timeline highlight
-  const timeline = document.querySelector('.timeline');
-  if (timeline) {
-    timeline.querySelectorAll('.tcell').forEach(cell => cell.classList.remove('on'));
-    if (mode === 'song' && songIndex >= 0) {
-      const active = timeline.querySelector(`.tcell[data-idx="${songIndex}"]`);
-      if (active) active.classList.add('on');
-    }
-  }
-  // Sync lane selects in song mode
-  if (mode === 'song') {
-    const strips = document.getElementById('strips');
-    if (strips) {
-      for (const lane of eng.getLanes()) {
-        const sel = strips.querySelector(`select[data-lane="${lane.id}"]:not([data-tone])`);
-        if (sel && sel.value !== lane.selection) sel.value = lane.selection;
-      }
-    }
-    refreshStates();
-  }
+  updatePatternsPlayback(target);
 });
 
 // ─── Restore saved theme ──────────────────────────────────────────────────────

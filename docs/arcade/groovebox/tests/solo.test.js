@@ -1,13 +1,12 @@
 import { test, expect } from 'vitest';
-import { toggleSolo, soloExclusive, normalizeLanes } from '../engine/lanes.js';
+import { toggleSolo, soloExclusive } from '../engine/lanes.js';
 import { laneAudible } from '../engine/song.js';
 
 // ─── laneAudible ─────────────────────────────────────────────────────────────
 
 function makeLanes(spec) {
-  // spec: [{ id, muted, soloed }, …]  or object { drums:{…}, bass:{…}, … }
-  if (Array.isArray(spec)) return spec;
-  return normalizeLanes(spec);
+  // spec: [{ id, muted, soloed }, …]
+  return spec;
 }
 
 test('laneAudible: no solo — audible iff not muted', () => {

@@ -1,51 +1,6 @@
-// ─── Lane-list normalisation ──────────────────────────────────────────────────
+// ─── Lane mutation helpers (Tone-free, unit-tested) ──────────────────────────
+import { emptyBarFor } from './patterns.js';
 
-const LANE_ORDER = ['drums', 'bass', 'chords', 'melody'];
-
-/**
- * normalizeLanes(authored)
- * Accepts either:
- *   - the authored object shape  { drums:{…}, bass:{…}, chords:{…}, melody:{…} }
- *   - or an already-normalised list  [{id,type,…}, …]
- * Returns a lane list. Idempotent.
- * Also caches `song._poolsByType` on the song object (caller must pass song as
- * second arg when available, or call cachePoolsByType separately).
- */
-export function normalizeLanes(authored, song) {
-  if (Array.isArray(authored)) {
-    // already a list — idempotent; still cache pools if song provided
-    if (song) cachePoolsByType(authored, song);
-    return authored;
-  }
-  const lanes = LANE_ORDER.map(type => {
-    const src = authored[type] || {};
-    const lane = { id: type, type, name: type, ...src };
-    // melody lanes get a default tone if not set
-    if (type === 'melody' && !lane.tone) lane.tone = 'pulse';
-    return lane;
-  });
-  if (song) cachePoolsByType(lanes, song);
-  return lanes;
-}
-
-/**
- * cachePoolsByType(lanes, song)
- * Stores `song._poolsByType = { drums, bass, chords, melody }` from the first
- * lane of each type that has a pool. Called by normalizeLanes and addLane so
- * the pool is always available even after all lanes of a type are removed.
- */
-export function cachePoolsByType(lanes, song) {
-  const cache = song._poolsByType || {};
-  for (const type of LANE_ORDER) {
-    if (!cache[type]) {
-      const lane = lanes.find(l => l.type === type && l.pool !== undefined);
-      if (lane) cache[type] = lane.pool;
-    }
-  }
-  song._poolsByType = cache;
-}
-
-// ─── Stage 2: lane mutation helpers (Tone-free, unit-tested) ─────────────────
 
 /**
  * uniqueLaneId(lanes, type) → collision-free id string.
@@ -72,54 +27,29 @@ function uniqueLaneName(lanes, baseName) {
 }
 
 /**
- * addLane(song, type) → new lane object (already pushed onto song.lanes).
- * Sources pool from: existing lane of that type → _poolsByType cache → undefined.
- * chords has no pool (it uses chord modes) — pool omitted for chords.
+ * addLane(song, type) → new mixer-only lane + empty data slots in every pattern.
  * Returns the new lane.
  */
 export function addLane(song, type) {
   const lanes = song.lanes;
-  const id   = uniqueLaneId(lanes, type);
-  const name = uniqueLaneName(lanes, type);
-
-  // Source pool: prefer an existing lane of this type, then cached pool
-  let pool;
-  if (type !== 'chords') {
-    const existing = laneByType(lanes, type);
-    pool = existing?.pool ?? song._poolsByType?.[type];
-  }
-
-  // Sensible default selection
-  let selection;
-  if (type === 'chords') {
-    selection = 'pad';
-  } else {
-    const keys = pool ? Object.keys(pool) : [];
-    selection = keys[0] ?? undefined;
-  }
-
   const lane = {
-    id,
+    id: uniqueLaneId(lanes, type),
     type,
-    name,
-    selection,
+    name: uniqueLaneName(lanes, type),
     muted: false,
     soloed: false,
-    ...(pool !== undefined ? { pool } : {}),
     ...(type === 'melody' ? { tone: 'pulse' } : {}),
   };
-
   lanes.push(lane);
-  // Update pool cache
-  if (pool !== undefined && song._poolsByType && !song._poolsByType[type]) {
-    song._poolsByType[type] = pool;
-  }
+  // New lane gets one 'empty' groove; every pattern picks it.
+  song.grooves[lane.id] = { empty: [emptyBarFor(lane)] };
+  for (const pat of song.patterns) pat.lanes[lane.id] = 'empty';
   return lane;
 }
 
 /**
- * duplicateLane(song, id) → clone of the lane with fresh id/name/mute/solo.
- * Pool is shared by reference. Inserted immediately after the source.
+ * duplicateLane(song, id) → clone lane + deep-copy its data in every pattern.
+ * Inserted immediately after the source.
  * Returns the new lane, or null if source not found.
  */
 export function duplicateLane(song, id) {
@@ -127,25 +57,16 @@ export function duplicateLane(song, id) {
   const srcIdx = lanes.findIndex(l => l.id === id);
   if (srcIdx < 0) return null;
   const src = lanes[srcIdx];
-
-  const newId   = uniqueLaneId(lanes, src.type);
-  const newName = uniqueLaneName(lanes, src.name);
-
-  const lane = {
-    ...src,
-    id:     newId,
-    name:   newName,
-    muted:  false,
-    soloed: false,
-    // pool shared by reference (already on src — spread preserves it)
-  };
-
+  const lane = { ...src, id: uniqueLaneId(lanes, src.type), name: uniqueLaneName(lanes, src.name), muted: false, soloed: false };
   lanes.splice(srcIdx + 1, 0, lane);
+  // Deep-copy the source lane's groove map under the new id; copy picks everywhere.
+  song.grooves[lane.id] = JSON.parse(JSON.stringify(song.grooves[src.id] ?? {}));
+  for (const pat of song.patterns) pat.lanes[lane.id] = pat.lanes[src.id];
   return lane;
 }
 
 /**
- * removeLane(song, id) → removed lane id, or null if last lane / not found.
+ * removeLane(song, id) → removed id or null; also drops its pattern data.
  * Guard: never remove the last remaining lane.
  */
 export function removeLane(song, id) {
@@ -154,6 +75,8 @@ export function removeLane(song, id) {
   const idx = lanes.findIndex(l => l.id === id);
   if (idx < 0) return null;
   lanes.splice(idx, 1);
+  delete song.grooves[id];
+  for (const pat of song.patterns) delete pat.lanes[id];
   return id;
 }
 
@@ -176,17 +99,6 @@ export function laneByType(lanes, type) {
 }
 
 // ─── List-based lane mutations (operate by id) ────────────────────────────────
-
-export function setLane(lanes, id, selection) {
-  const lane = lanes.find(l => l.id === id);
-  if (lane) lane.selection = selection;
-}
-
-export function captureScene(lanes) {
-  const sel = {};
-  for (const lane of lanes) sel[lane.id] = lane.selection;
-  return { bars: 4, lanes: sel, fill: null };
-}
 
 export function toggleMute(lanes, id) {
   const lane = lanes.find(l => l.id === id);

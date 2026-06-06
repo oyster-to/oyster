@@ -588,26 +588,6 @@ input[type=range] {
   filter: brightness(1.05);
 }
 
-/* § 6 — added cells: amber gradient, distinct from hit */
-.vc.added {
-  background: linear-gradient(180deg, #ffdd70 0%, #e8b830 60%, #c49420 100%);
-  color: #2a1a00;
-  box-shadow:
-    0 0 7px rgba(255,210,74,0.45),
-    inset 0 1px 0 rgba(255,255,200,0.35),
-    inset 0 -1px 0 rgba(0,0,0,0.2);
-}
-
-/* § 6 — removed cells: ghost outline, clearly distinct */
-.vc.removed {
-  background: var(--cell);
-  outline: 1px dashed rgba(180,140,60,0.55);
-  outline-offset: -2px;
-}
-.vc.removed.bar-alt {
-  background: var(--cell-alt);
-}
-
 /* § 6 — playhead: crisp --acc ring + faint column tint */
 .vc.now {
   outline: 2px solid var(--acc);
@@ -623,61 +603,6 @@ input[type=range] {
     0 0 4px rgba(255,255,255,0.25),
     inset 0 1px 0 rgba(100,220,200,0.3);
 }
-.vc.added.now {
-  outline: 2px solid var(--acc);
-  outline-offset: -2px;
-  box-shadow:
-    0 0 10px rgba(255,210,74,0.65),
-    0 0 4px rgba(84,240,200,0.35);
-}
-
-/* ─── bar selector ───────────────────────────────────────────────────────── */
-.barsel {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-bottom: 8px;
-  font-size: 11px;
-  color: var(--dim);
-}
-.bsel {
-  height: 26px;
-  padding: 0 11px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: var(--panel-2);
-  color: var(--ink);
-  cursor: pointer;
-  font-size: 12px;
-}
-.bsel.on {
-  background: var(--acc);
-  border-color: var(--acc);
-  color: #04201a;
-  font-weight: 700;
-  box-shadow: 0 0 8px rgba(84,240,200,0.35);
-}
-.bsel.playing {
-  outline: 2px solid var(--hot);
-  outline-offset: 2px;
-  box-shadow: 0 0 8px rgba(255,91,158,0.3);
-}
-.cyc {
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: var(--panel-2);
-  color: var(--ink);
-  cursor: pointer;
-  font-size: 12px;
-}
-.cyc.on {
-  background: rgba(84,240,200,0.10);
-  border-color: var(--acc);
-  color: var(--acc);
-}
-
 /* ─── melody piano-roll canvas ──────────────────────────────────────────── */
 #mroll {
   display: block;
@@ -1079,58 +1004,25 @@ input[type=range] {
   margin-right: 4px;
 }
 
-/* § 8 — Live/Song mode button: segmented-control style consistent with view tabs */
-#modeBtn {
-  /* base styles inherited from button {}; tweak to match segmented-control look */
-  min-width: 80px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  height: 28px;
-  border-radius: 6px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  color: var(--dim);
-}
-/* Song mode: teal accent — matches the active vtabs tab style */
-#modeBtn.song {
-  background: rgba(84,240,200,0.10);
-  border-color: var(--acc);
-  color: var(--acc);
-  box-shadow:
-    inset 0 -2px 0 var(--acc),
-    inset 0 1px 0 rgba(84,240,200,0.08);
-}
-
-/* § 8 — timeline cells: panel radius/border, section accent colors, --acc on active */
-.timeline { display: flex; gap: 4px; flex-wrap: wrap; }
-.tcell {
-  flex: 0 0 auto;
-  min-width: 54px;
-  padding: 7px 10px;
-  border-radius: 6px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  font-size: 10px;
-  color: var(--dim);
-  text-align: center;
-  opacity: 0.7;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  transition: opacity 0.1s, box-shadow 0.1s, outline-color 0.1s;
-}
-/* § 8 — active cell: --acc ring consistent with the rest of the control system */
-.tcell.on {
-  opacity: 1;
-  outline: 2px solid var(--acc);
-  outline-offset: 1px;
-  color: var(--ink);
-  box-shadow: 0 0 8px rgba(84,240,200,0.2);
-}
-.tcell-name { font-weight: 600; font-size: 10px; letter-spacing: 0.04em; }
-.tcell-fill { font-size: 8px; color: var(--acc); opacity: 0.8; }
+/* ─── PATTERNS module ─── */
+.pat-editing { margin-left: auto; font-size: 11px; color: var(--acc); opacity: .9; }
+.pat-playing { font-size: 11px; color: var(--hot); opacity: .9; margin-left: 12px; }
+.ed-lbl { font-size: 10px; color: var(--dim); letter-spacing: .1em; text-transform: uppercase; margin: 2px 0 4px; }
+.pat-row, .chain-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0; transition: opacity .2s; }
+.pat-row.dimmed, .chain-row.dimmed { opacity: .45; }
+.pat-lbl { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-right: 4px; }
+.pat-slot { min-width: 34px; height: 30px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+.pat-slot.sel { background: var(--acc); color: var(--bg); border-color: var(--acc); font-weight: 700; }
+.pat-slot.playing { box-shadow: 0 0 8px var(--hot); border-color: var(--hot); }
+.pat-add { opacity: .6; }
+.pat-act { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 5px; padding: 3px 8px; cursor: pointer; margin-left: 4px; }
+.chain-chip { display: inline-flex; align-items: center; gap: 5px; min-width: 30px; height: 27px; border-radius: 5px; padding: 0 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+.chain-chip.playing { border-color: var(--hot); color: var(--hot); box-shadow: 0 0 6px var(--hot); }
+.chain-chip.dragging { opacity: .4; }
+.chain-chip .chip-x { opacity: 0; font-size: 10px; }
+.chain-chip:hover .chip-x { opacity: .7; }
+.chain-add { opacity: .6; }
+.pat-slot:disabled, .pat-act:disabled, .chain-chip:disabled { opacity: .35; cursor: default; }
 
 /* ─── transport key group ────────────────────────────────────────────────── */
 .transport-key {
@@ -2145,3 +2037,56 @@ body.hide-k-bal  .knob[data-k="bal"]  { display: none; }
 body.hide-k-wid  .knob[data-k="wid"]  { display: none; }
 body.hide-k-lo   .knob[data-k="lo"]   { display: none; }
 body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
+
+/* ─── drum bar stepper ───────────────────────────────────────────────────── */
+.barsel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--dim);
+}
+.barsel-lbl { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-right: 4px; }
+.bsel {
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+}
+.bsel.on {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: #04201a;
+  font-weight: 700;
+  box-shadow: 0 0 8px rgba(84,240,200,0.35);
+}
+.bsel.playing {
+  outline: 2px solid var(--hot);
+  outline-offset: 2px;
+  box-shadow: 0 0 8px rgba(255,91,158,0.3);
+}
+.glen { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.glen-lbl { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-right: 2px; }
+.glen-btn {
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+}
+.glen-btn.on {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: #04201a;
+  font-weight: 700;
+  box-shadow: 0 0 8px rgba(84,240,200,0.35);
+}
