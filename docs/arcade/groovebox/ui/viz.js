@@ -50,7 +50,7 @@ const BASS_ROWS = BASS_HI - BASS_LO + 1;
 
 export function makeViz(host, song, eng) {
   let view = 'drums';
-  let lastBar = 0, lastStepInBar = 0;
+  let lastStepInBar = 0;
   let lastTarget = null;            // last onStep target payload (playback position)
   // Scope state
   let scopeSource = 'master';
@@ -359,7 +359,7 @@ export function makeViz(host, song, eng) {
         rollMode = btn.dataset.rm;
         try { localStorage.setItem('gb-rollmode', rollMode); } catch (_) {}
         build();
-        paint(lastBar, lastStepInBar);
+        paint(lastStepInBar);
       };
     });
   }
@@ -442,7 +442,7 @@ export function makeViz(host, song, eng) {
       if (!_blocksColCache[s]) _blocksColCache[s] = [];
       _blocksColCache[s].push(cell);
     });
-    paintBlocksGrid(laneView, lastBar, lastStepInBar);
+    paintBlocksGrid(laneView);
 
     if (laneView === 'melody') {
       // Wire clicks for melody editing.
@@ -458,7 +458,7 @@ export function makeViz(host, song, eng) {
   }
 
   // Repaint the blocks grid cells to reflect current note data + playhead.
-  function paintBlocksGrid(laneView, bar, stepInBar) {
+  function paintBlocksGrid(laneView) {
     const grid = host.querySelector('.bg-grid');
     if (!grid) return;
     const spb = stepsPerBar(song.meter);
@@ -502,7 +502,7 @@ export function makeViz(host, song, eng) {
     const L = getTargetLane();
     eng.toggleNote(L.id, bar, st, noteName, 2);
 
-    paintBlocksGrid('melody', lastBar, lastStepInBar);
+    paintBlocksGrid('melody');
   }
 
   function build() {
@@ -550,16 +550,16 @@ export function makeViz(host, song, eng) {
           const k = row.dataset.k;
           [...row.querySelectorAll('.vc')].forEach((c, i) => c.onclick = () => {
             eng.toggleDrumStep(L.id, k, b, i);
-            paint(lastBar, lastStepInBar);
+            paint(lastStepInBar);
           });
         });
       });
 
       host.querySelectorAll('.dvm').forEach(btn => {
-        btn.onclick = e => { e.stopPropagation(); eng.toggleDrumMute(btn.dataset.voice); paint(lastBar, lastStepInBar); };
+        btn.onclick = e => { e.stopPropagation(); eng.toggleDrumMute(btn.dataset.voice); paint(lastStepInBar); };
       });
       host.querySelectorAll('.dvs').forEach(btn => {
-        btn.onclick = e => { e.stopPropagation(); eng.toggleDrumSolo(btn.dataset.voice); paint(lastBar, lastStepInBar); };
+        btn.onclick = e => { e.stopPropagation(); eng.toggleDrumSolo(btn.dataset.voice); paint(lastStepInBar); };
       });
 
       // Cache: _drumVcCache[bar][voice] = [cells] for the fast playhead path.
@@ -613,8 +613,7 @@ export function makeViz(host, song, eng) {
     }
   }
 
-  function paint(bar, stepInBar) {
-    lastBar = bar;
+  function paint(stepInBar) {
     lastStepInBar = stepInBar;
 
     if (view === 'drums') {
@@ -645,7 +644,7 @@ export function makeViz(host, song, eng) {
       });
     } else if (view === 'melody') {
       if (rollMode === 'blocks') {
-        paintBlocksGrid('melody', bar, stepInBar);
+        paintBlocksGrid('melody');
       } else {
         // Melody view: redraw the piano-roll canvas with current playhead.
         const spb = stepsPerBar(song.meter);
@@ -653,7 +652,7 @@ export function makeViz(host, song, eng) {
       }
     } else if (view === 'bass') {
       if (rollMode === 'blocks') {
-        paintBlocksGrid('bass', bar, stepInBar);
+        paintBlocksGrid('bass');
       } else {
         drawBassRoll(stepInBar);
       }
@@ -680,9 +679,8 @@ export function makeViz(host, song, eng) {
       view = nextView;
       build();
     },
-    setStep({ absStep, bar, stepInBar, target }) {
+    setStep({ stepInBar, target }) {
       lastTarget = target;
-      lastBar = bar;
       lastStepInBar = stepInBar;
       if (view === 'drums') {
         // Fast path: only move the .now highlight across the drum grid.
@@ -719,7 +717,7 @@ export function makeViz(host, song, eng) {
           }
         } else {
           // Canvas views: redraw playhead line only (cheap full canvas redraw).
-          paint(bar, stepInBar);
+          paint(stepInBar);
         }
       }
       // Scope view: rAF loop handles it — nothing to do here.
