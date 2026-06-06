@@ -35,7 +35,7 @@
 | `ui/app.js` | modify | PATTERNS module replaces Arrangement; strips lose pattern dropdowns; onStep rewiring |
 | `ui/viz.js` | modify | Stacked multi-bar drum grid; rolls/blocks use pattern length; edits write into the selected pattern; delete barsel/cycle/fork machinery |
 | `ui/app.css` | modify | Styles for the PATTERNS module; delete barsel/cycle styles |
-| `tests/*.test.js` | modify/delete | Per-file disposition in Task 7 |
+| `tests/*.test.js` | modify/delete | Per-file disposition in Task 5 Step 1 |
 
 ---
 
@@ -887,12 +887,13 @@ git commit -m "feat(groovebox): rich→v2 flattener with steady-state note-strea
 
 ### Task 4: Lane mutations become pattern-aware (`engine/lanes.js`)
 
-In v2, what a lane *plays* lives in patterns, so adding/duplicating/removing a lane must touch every pattern's data. Pools, selections, `captureScene`, `setLane`, and `_poolsByType` die.
+In v2, what a lane *plays* lives in patterns, so adding/duplicating/removing a lane must touch every pattern's data.
+
+**Staging note (keeps this commit green):** this task ONLY rewrites `addLane`/`duplicateLane`/`removeLane` and replaces their test file. The legacy exports (`normalizeLanes`, `cachePoolsByType`, `setLane`, `captureScene`) STAY in `engine/lanes.js` for now — `engine/index.js` and several test files still import them; they are all deleted together in Task 5. Do not touch `tests/lanes.test.js` or `tests/capture.test.js` in this task.
 
 **Files:**
-- Modify: `engine/lanes.js`
-- Modify: `tests/lane-mutations.test.js`, `tests/lanes.test.js`
-- Delete: `tests/capture.test.js`
+- Modify: `engine/lanes.js` (three functions only)
+- Replace: `tests/lane-mutations.test.js`
 
 - [ ] **Step 1: Rewrite the lane-mutation tests for v2 shapes**
 
@@ -965,7 +966,7 @@ test('uniqueLaneId skips taken ids', () => {
 });
 ```
 
-Also delete `tests/capture.test.js` (captureScene is removed), and in `tests/lanes.test.js` delete any tests of `setLane`, `captureScene`, `normalizeLanes` object-shape handling, and `cachePoolsByType`; keep `toggleMute`/`soloExclusive`/`toggleDrumMute`/`toggleDrumSolo`/`laneByType` tests unchanged (read the file; those functions don't change).
+(Test files that exercise the legacy exports — `tests/lanes.test.js`, `tests/capture.test.js`, `tests/solo.test.js`, `tests/drum-voice.test.js` — are untouched here and swept in Task 5 Step 1.)
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -973,7 +974,7 @@ Run: `npx vitest run tests/lane-mutations.test.js` — Expected: FAIL (addLane s
 
 - [ ] **Step 3: Rewrite the mutation half of `engine/lanes.js`**
 
-Delete from `engine/lanes.js`: `normalizeLanes`, `cachePoolsByType`, `setLane`, `captureScene`, the pool-sourcing logic in `addLane`. Keep: `uniqueLaneId`, `uniqueLaneName`, `laneByType`, `toggleMute`, `toggleSolo`, `soloExclusive`, `moveLane` (signature unchanged), `renameLane`, `toggleDrumMute`, `toggleDrumSolo`. New mutation implementations:
+Replace ONLY the bodies of `addLane`, `duplicateLane`, `removeLane` (everything else — including the legacy exports — stays until Task 5). New implementations:
 
 ```js
 import { emptyBarFor } from './patterns.js';
@@ -991,8 +992,7 @@ export function addLane(song, type) {
   };
   lanes.push(lane);
   for (const pat of song.patterns) {
-    pat.lanes[lane.id] = Array.from({ length: pat.lanes[Object.keys(pat.lanes)[0]]?.length ?? pat.bars },
-      () => emptyBarFor(lane));
+    pat.lanes[lane.id] = Array.from({ length: pat.bars }, () => emptyBarFor(lane));
   }
   return lane;
 }
@@ -1023,18 +1023,15 @@ export function removeLane(song, id) {
 }
 ```
 
-(Engine `index.js` still imports the deleted names at this point — that's Task 5. To keep this task's tests green in isolation, also remove those imports/usages in `index.js` *now* if `npm test` loads it; `tests/engine-api.test.js` may import the engine — check it and stub accordingly, or fold its update into this step by deleting assertions about `setLane`/`captureScene`/`setMode`.)
+- [ ] **Step 4: Run the full suite — it must be green**
 
-- [ ] **Step 4: Run lane tests, then full suite to find fallout**
-
-Run: `npx vitest run tests/lane-mutations.test.js tests/lanes.test.js` — Expected: PASS.
-Run: `npm test` — Expected: failures ONLY in files slated for Task 5/7 rewrites (`scheduler.test.js`, `engine-api.test.js`, `solo.test.js` if it imports removed names, `song.test.js`, `drum-voice.test.js`, `arrangement.test.js`). Note which — they're the Task 5/7 worklist. If anything else fails, fix before committing.
+Run: `npm test` — Expected: ALL green. The legacy exports are still in place, so nothing else is disturbed; the only behaviour change (lane mutations) had its test file replaced in Step 1. If anything is red, fix it before committing — no red commits.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add -A tests engine/lanes.js engine/index.js
-git commit -m "feat(groovebox): lane mutations operate on pattern data; pools/captureScene removed"
+git add tests/lane-mutations.test.js engine/lanes.js
+git commit -m "feat(groovebox): lane add/duplicate/remove operate on pattern data"
 ```
 
 ---
@@ -1043,9 +1040,10 @@ git commit -m "feat(groovebox): lane mutations operate on pattern data; pools/ca
 
 **Files:**
 - Modify: `engine/index.js`
+- Modify: `engine/lanes.js` (delete the legacy exports kept alive in Task 4)
 - Modify: `engine/song.js` (delete `resolveDrumPattern`, `hasDrumHit`, `chordAt`)
 - Delete: `engine/scheduler.js`, `engine/arrangement.js`
-- Test: `tests/engine-api.test.js` (rewrite), delete `tests/scheduler.test.js`, `tests/arrangement.test.js`
+- Test: `tests/engine-api.test.js` (rewrite); delete `tests/scheduler.test.js`, `tests/arrangement.test.js`, `tests/song.test.js`, `tests/capture.test.js`; surgical import/test fixes in `tests/lanes.test.js`, `tests/solo.test.js`, `tests/drum-voice.test.js`
 
 - [ ] **Step 1: Rewrite `tests/engine-api.test.js`**
 
@@ -1109,7 +1107,13 @@ test('pattern/chain mutation APIs are wired through', () => {
 });
 ```
 
-Delete `tests/scheduler.test.js` and `tests/arrangement.test.js` (their subjects are deleted; chain math is covered by `tests/patterns.test.js`). Check `tests/solo.test.js`, `tests/song.test.js`, `tests/drum-voice.test.js`, `tests/transpose.test.js`, `tests/meter.test.js`: delete only the individual tests that import `resolveDrumPattern`, `hasDrumHit`, `chordAt`, or `eventsForStep`; keep tests of `laneAudible`, `drumVoiceAudible`, `transposeNote`, meter helpers as-is.
+**Test-suite sweep — explicit per-file dispositions.** Vitest fails a whole file on one dangling named import, so the import lines matter as much as the test bodies:
+
+- **Delete entirely:** `tests/scheduler.test.js`, `tests/arrangement.test.js` (subjects deleted; chain math covered by `tests/patterns.test.js`), `tests/song.test.js` (all 5 tests target `resolveDrumPattern`/`chordAt`/`hasDrumHit` — nothing would survive), `tests/capture.test.js` (captureScene is gone).
+- **`tests/lanes.test.js`:** remove `normalizeLanes` and `captureScene` from the `../engine/lanes.js` import; delete the `import { eventsForStep } from '../engine/scheduler.js'` line entirely; delete the `makeLanes` helper if it calls `normalizeLanes`, plus all tests of `normalizeLanes`, `cachePoolsByType`, `captureScene`, `setLane`, and `eventsForStep`. Keep (rewriting any lane-list construction to plain arrays): the `laneByType` and `laneAudible` tests.
+- **`tests/solo.test.js`:** remove `normalizeLanes` from the import; rewrite its `makeLanes` helper to accept a raw lane-list array (its callers can all pass arrays). All solo/mute behaviour tests stay.
+- **`tests/drum-voice.test.js`:** remove `normalizeLanes` from the lanes import and delete the `eventsForStep` import line; delete the tests that call `eventsForStep` (4 of them); keep the `toggleDrumMute`/`toggleDrumSolo`/`drumVoiceAudible` tests.
+- **`tests/transpose.test.js`, `tests/meter.test.js`:** keep; before committing run `grep -l "eventsForStep\|resolveDrumPattern\|chordAt\|hasDrumHit\|normalizeLanes\|captureScene" tests/*.test.js` — it must return nothing outside `tests/legacy/`-importing files.
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -1246,7 +1250,9 @@ import {
 
 8. **`engine/song.js`:** delete `resolveDrumPattern`, `hasDrumHit`, `chordAt` (and their exports). Keep `DRUM_KEYS`, `DRUM_VOICES`, `laneAudible`, `drumVoiceAudible`, `transposeNote`.
 
-9. Delete `engine/scheduler.js` and `engine/arrangement.js`.
+9. **`engine/lanes.js`:** now delete the legacy exports kept alive in Task 4 — `normalizeLanes`, `cachePoolsByType`, `setLane`, `captureScene` (their only remaining call-sites are the `index.js` imports removed in item 1).
+
+10. Delete `engine/scheduler.js` and `engine/arrangement.js`.
 
 - [ ] **Step 4: Run engine tests, then full suite**
 
@@ -1446,15 +1452,15 @@ Append to `ui/app.css` (reuse the existing theme variables; delete the old `.tim
 .pat-row, .chain-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0; transition: opacity .2s; }
 .pat-row.dimmed, .chain-row.dimmed { opacity: .45; }
 .pat-lbl { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-right: 4px; }
-.pat-slot { min-width: 34px; height: 30px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.pat-slot { min-width: 34px; height: 30px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
 .pat-slot.sel { background: var(--acc); color: var(--bg); border-color: var(--acc); font-weight: 700; }
 .pat-slot.playing { box-shadow: 0 0 8px var(--hot); border-color: var(--hot); }
 .pat-add { opacity: .6; }
 .pat-len { display: flex; align-items: center; gap: 4px; margin-left: 12px; }
-.pat-len-btn { border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 5px; padding: 3px 9px; cursor: pointer; }
+.pat-len-btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 5px; padding: 3px 9px; cursor: pointer; }
 .pat-len-btn.on { border-color: var(--acc); color: var(--acc); }
-.pat-act { border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 5px; padding: 3px 8px; cursor: pointer; margin-left: 4px; }
-.chain-chip { display: inline-flex; align-items: center; gap: 5px; min-width: 30px; height: 27px; border-radius: 5px; padding: 0 8px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.pat-act { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 5px; padding: 3px 8px; cursor: pointer; margin-left: 4px; }
+.chain-chip { display: inline-flex; align-items: center; gap: 5px; min-width: 30px; height: 27px; border-radius: 5px; padding: 0 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
 .chain-chip.playing { border-color: var(--hot); color: var(--hot); box-shadow: 0 0 6px var(--hot); }
 .chain-chip.dragging { opacity: .4; }
 .chain-chip .chip-x { opacity: 0; font-size: 10px; }
@@ -1462,7 +1468,7 @@ Append to `ui/app.css` (reuse the existing theme variables; delete the old `.tim
 .chain-add { opacity: .6; }
 ```
 
-(If the variable names differ — check the top of `app.css` for the actual custom-property names (`--acc`, `--hot`, etc.) and use those. Do not invent new variables.)
+(`--ink` is verified as the foreground variable in `app.css`. Before pasting, check the `:root` block at the top of `app.css` and substitute the real names for the OTHER variables used above — `--acc`, `--hot`, `--line`, `--panel`, `--dim`, `--bg` — they have not all been verified. Do not invent new variables.)
 
 - [ ] **Step 5: Build check + commit**
 
