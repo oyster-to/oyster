@@ -75,8 +75,9 @@ export const DEFAULT_PRESETS = [
         engage: { ramp: { unit: 'steps', value: 1 } }, release: { ramp: { unit: 'steps', value: 1 } } },
     ] },
   { name: 'THROW', key: '5', engageQuantize: 'immediate', releaseQuantize: 'immediate',
+    lanes: ['drums', 'bass', 'chords'],   // ear-tuned: melody throws smear the topline
     automations: [
-      { module: 'delay', param: 'wet', from: 'neutral', to: 0.6,
+      { module: 'delay', param: 'wet', from: 'neutral', to: 0.5,
         engage: { ramp: { unit: 'steps', value: 0.5 } }, release: { ramp: { unit: 'beats', value: 3 } } },
     ] },
   { name: 'STOP', key: '6', engageQuantize: 'immediate', releaseQuantize: 'immediate',
