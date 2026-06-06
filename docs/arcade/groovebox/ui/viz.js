@@ -572,6 +572,7 @@ export function makeViz(host, song, eng) {
           _drumVcCache[b][row.dataset.k] = [...row.querySelectorAll('.vc')];
         });
       });
+      paint(lastStepInBar);   // canvas/blocks views draw inside build; drums needs its hits painted too
     } else if (view === 'melody') {
       if (rollMode === 'blocks') {
         buildBlocksGrid('melody');
