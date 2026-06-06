@@ -23,9 +23,21 @@ export default {
     // load-bearing: the /app/api/* rewrite MUST run before the /app* SPA
     // catch-all, which would otherwise swallow same-origin API calls.
 
-    // 1) www → apex.
-    if (url.hostname === "www.oyster.to" && url.pathname.startsWith("/app")) {
-      return Response.redirect(`https://oyster.to${url.pathname}${url.search}`, 308);
+    // 1) Legacy oyster.to/app* → app.oyster.to 308s (spec
+    //    2026-06-05-app-oyster-to-migration, invariant 7). Path-boundary
+    //    guarded: /application must NOT match — never a bare startsWith("/app").
+    if (
+      (url.hostname === "oyster.to" || url.hostname === "www.oyster.to") &&
+      (url.pathname === "/app" || url.pathname.startsWith("/app/"))
+    ) {
+      const rest = url.pathname.slice("/app".length) || "/";
+      return new Response(null, {
+        status: 308,
+        headers: {
+          location: `https://app.oyster.to${rest}${url.search}`,
+          "cache-control": "public, max-age=3600",
+        },
+      });
     }
     // 2) /app/api/* → /api/* rewrite. A rewritten path no longer starts with
     //    /app/, so the SPA catch-all below never sees it (URL.pathname is mutable).
