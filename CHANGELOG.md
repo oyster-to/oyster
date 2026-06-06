@@ -4,6 +4,10 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- **Your artefact library appears in the cloud remote view** — the Artefacts tab at app.oyster.to now lists everything in your registry (read-only), with a chip showing which device each artefact lives on. Published artefacts stay the openable ones.
+
 ### Changed
 
 - **Sessions list shows everything** — the Sessions tab lists all sessions; no more "Show more" clicks.
@@ -12,6 +16,7 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 ### Fixed
 
 - **Untitled sessions get a name** — sessions without a title now show their folder name instead of a raw ID.
+- **Cloud remote view shows transcripts** — opening a session at app.oyster.to now displays the conversation (with live tail for active sessions) instead of a "transcript isn't on this device" notice.
 
 ## [0.11.0] - 2026-06-05
 

@@ -6,6 +6,7 @@ import { Link2 } from "lucide-react";
 import type { Artifact, ArtefactPublication } from "../../../shared/types";
 import { publishArtifact, unpublishArtifact, unpublishCloudShare, updateCloudShare, PublishApiError } from "../data/publish-api";
 import { apiPath } from "../data/http";
+import { caps } from "../caps";
 import { useCopyLink } from "../hooks/useCopyLink";
 import { ConfirmModal } from "./ConfirmModal";
 import { subscribeUiEvents } from "../data/ui-events";
@@ -182,10 +183,12 @@ export function PublishModal({ artifact, onClose }: Props) {
     setPhase("publishing");
     setError(null);
     try {
-      // Cloud-only artefact: update mode/password without re-uploading bytes
-      // (the bytes live in R2 and we don't have them locally). Otherwise
-      // the normal full re-publish path runs (legacy behaviour).
-      const result = artifact.cloudOnly && publication
+      // Token-routed update (mode/password change without re-uploading
+      // bytes) for cloud-only ghosts AND the cloud build generally — the
+      // by-id publish routes only exist on the local server, and synced
+      // registry rows there aren't cloudOnly. Otherwise the normal full
+      // re-publish path runs (legacy behaviour).
+      const result = (artifact.cloudOnly || caps.cloud) && publication
         ? await updateCloudShare(publication.shareToken, mode, mode === "password" ? password : undefined)
         : await publishArtifact(artifact.id, mode, mode === "password" ? password : undefined);
       setOptimisticPublication({
@@ -211,7 +214,8 @@ export function PublishModal({ artifact, onClose }: Props) {
     setPhase("unpublishing");
     setError(null);
     try {
-      if (artifact.cloudOnly && publication) {
+      // Same routing rule as handleSave: token routes in the cloud build.
+      if ((artifact.cloudOnly || caps.cloud) && publication) {
         await unpublishCloudShare(publication.shareToken);
       } else {
         await unpublishArtifact(artifact.id);

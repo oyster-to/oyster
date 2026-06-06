@@ -311,13 +311,22 @@ export function SessionInspector({ sessionId, focusEventId, initialSearchQuery, 
     );
   }
 
-  // A remote session whose jsonl hasn't been reassembled yet has no local
-  // transcript to show. Render a "reassemble to view" notice instead of
-  // an empty transcript body; the Header above already exposes the Resume
-  // affordance. Once the user resumes, the watcher ingests the jsonl and
-  // the events tab becomes the right surface.
-  const isRemoteUnsynced =
-    !!session.originDeviceId && session.jsonlAvailableLocally === false;
+  // A session whose transcript bytes haven't landed where this build reads
+  // them from has nothing to render — show a notice instead of an empty
+  // transcript body. The two builds read from different places, so the
+  // gate differs:
+  //  - cloud: the worker renders events from synced chunks, so the only
+  //    blocker is "no chunks uploaded yet" (hasBytes). The cloud adapter
+  //    hardcodes jsonlAvailableLocally to false and sessions carry their
+  //    origin device_id (nullable only on legacy pre-stamping rows) — so
+  //    the local predicate blacked out essentially every transcript
+  //    (the #454 gate predates cloud mode).
+  //  - local: a remote session's jsonl hasn't been reassembled here yet;
+  //    the Header above exposes the Resume affordance, and once the user
+  //    resumes, the watcher ingests the jsonl.
+  const isRemoteUnsynced = caps.cloud
+    ? session.hasBytes !== true
+    : !!session.originDeviceId && session.jsonlAvailableLocally === false;
 
   return (
     <>
@@ -331,12 +340,25 @@ export function SessionInspector({ sessionId, focusEventId, initialSearchQuery, 
       <Banner session={session} />
       {isRemoteUnsynced ? (
         <div className="inspector-empty" style={{ padding: "32px 28px", lineHeight: 1.6 }}>
-          <p style={{ margin: "0 0 8px" }}>
-            <strong>Transcript isn't on this device yet.</strong>
-          </p>
-          <p style={{ margin: 0, color: "var(--text-dim)" }}>
-            This session was started on another device. Use <em>Resume on this device</em> above to reassemble the transcript locally — once it lands, the conversation will show up here.
-          </p>
+          {caps.cloud ? (
+            <>
+              <p style={{ margin: "0 0 8px" }}>
+                <strong>Transcript hasn't reached the cloud yet.</strong>
+              </p>
+              <p style={{ margin: 0, color: "var(--text-dim)" }}>
+                It'll sync next time {session.originDeviceLabel ?? "its origin device"} is online — once the first bytes land, the conversation will show up here.
+              </p>
+            </>
+          ) : (
+            <>
+              <p style={{ margin: "0 0 8px" }}>
+                <strong>Transcript isn't on this device yet.</strong>
+              </p>
+              <p style={{ margin: 0, color: "var(--text-dim)" }}>
+                This session was started on another device. Use <em>Resume on this device</em> above to reassemble the transcript locally — once it lands, the conversation will show up here.
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <>

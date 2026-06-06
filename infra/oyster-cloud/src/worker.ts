@@ -94,6 +94,14 @@ export default {
       return handleSessionsMetadataGet(req, env);
     }
 
+    if (url.pathname === "/api/artifacts/metadata" && req.method === "POST") {
+      return handleArtifactsMetadataPost(req, env);
+    }
+
+    if (url.pathname === "/api/artifacts/metadata" && req.method === "GET") {
+      return handleArtifactsMetadataGet(req, env);
+    }
+
     // Session bytes — chunked-delta routes (#322). Four shapes:
     //   PUT  /api/sessions/bytes/:id/chunk/:n        upload one chunk
     //   GET  /api/sessions/bytes/:id/manifest        list chunks for current gen
@@ -562,6 +570,158 @@ async function handleSessionsMetadataGet(req: Request, env: Env): Promise<Respon
   // Normalise has_bytes to boolean for the client.
   const sessions = (results ?? []).map((r) => ({ ...r, has_bytes: r.has_bytes === 1 }));
   return jsonOk({ sessions }, 200, { "cache-control": "private, no-store" });
+}
+
+// ── Artefact registry sync ───────────────────────────────────────────
+// Metadata-only mirror of the local artefact registry so the remote view's
+// Artefacts tab can list what exists. No file content, no publication state
+// (oyster-publish owns that; the web client joins by artifact_id).
+
+interface IncomingArtifact {
+  id: string;
+  device_id?: string | null;
+  device_label?: string | null;
+  label: string;
+  artifact_kind: string;
+  space_id?: string | null;
+  project_id?: string | null;
+  group_name?: string | null;
+  source_origin?: string | null;
+  created_at: string;
+  /** Domain-level timestamp (datetime text) — stored as artifact_updated_at,
+   *  distinct from the LWW key below. */
+  updated_at?: string | null;
+  /** Tombstone marker. Accepted on POST so deletions propagate; rows with
+   *  this set are filtered from GET. */
+  removed_at?: string | null;
+  pinned_at?: number | null;
+  /** LWW key — the pushing device's sync_dirty_at (unix ms). Named
+   *  sync_version_at so the schema doesn't overload updated_at. */
+  sync_version_at: number;
+}
+
+function isValidArtifact(a: unknown): a is IncomingArtifact {
+  if (!a || typeof a !== "object") return false;
+  const o = a as Record<string, unknown>;
+  if (typeof o.id !== "string" || o.id.length === 0) return false;
+  if (typeof o.label !== "string" || o.label.length === 0) return false;
+  if (typeof o.artifact_kind !== "string" || o.artifact_kind.length === 0) return false;
+  if (typeof o.created_at !== "string") return false;
+  if (typeof o.sync_version_at !== "number" || !Number.isFinite(o.sync_version_at)) return false;
+  if (o.sync_version_at < 0) return false;
+  // Nullable strings: anything else would crash D1 .bind() or coerce to
+  // junk. Each malformed artefact is rejected individually so the rest of
+  // the batch still lands (same posture as session metadata ingest).
+  for (const key of ["device_id", "device_label", "space_id", "project_id", "group_name", "source_origin", "updated_at", "removed_at"] as const) {
+    const v = o[key];
+    if (v !== null && v !== undefined && typeof v !== "string") return false;
+  }
+  // Same finiteness posture as sync_version_at — NaN/Infinity would bind
+  // into D1 as junk or throw mid-batch.
+  if (o.pinned_at !== null && o.pinned_at !== undefined
+      && (typeof o.pinned_at !== "number" || !Number.isFinite(o.pinned_at) || o.pinned_at < 0)) return false;
+  // Same cap as sessions' device_label: truncate to null rather than reject.
+  if (typeof o.device_label === "string" && o.device_label.length > DEVICE_LABEL_MAX) {
+    o.device_label = null;
+  }
+  return true;
+}
+
+async function handleArtifactsMetadataPost(req: Request, env: Env): Promise<Response> {
+  const badOrigin = rejectBadOrigin(req);
+  if (badOrigin) return badOrigin;
+  const user = await resolveSession(req, env);
+  if (!user) return jsonError(401, "sign_in_required");
+  if (user.tier !== "pro") return jsonError(403, "pro_required");
+
+  let body: { artifacts?: unknown };
+  try { body = await req.json() as { artifacts?: unknown }; }
+  catch { return jsonError(400, "invalid_metadata"); }
+
+  const incoming = body.artifacts;
+  if (!Array.isArray(incoming)) return jsonError(400, "invalid_metadata");
+
+  const MAX_ARTIFACTS_PER_REQUEST = 1000;
+  if (incoming.length > MAX_ARTIFACTS_PER_REQUEST) {
+    return jsonError(413, "too_many_artifacts");
+  }
+
+  const accepted: string[] = [];
+  const rejected: string[] = [];
+
+  try {
+    for (const raw of incoming) {
+      if (!isValidArtifact(raw)) {
+        const id = (raw as { id?: unknown })?.id;
+        rejected.push(typeof id === "string" && id.length > 0 ? id : "<malformed>");
+        continue;
+      }
+      const a = raw;
+      // LWW: only overwrite when the incoming sync_version_at is strictly
+      // greater. New rows always insert. Mirrors session metadata ingest.
+      await env.DB.prepare(
+        `INSERT INTO synced_artifacts
+           (owner_id, artifact_id, device_id, device_label, label, artifact_kind,
+            space_id, project_id, group_name, source_origin, created_at,
+            artifact_updated_at, removed_at, pinned_at, sync_version_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(owner_id, artifact_id) DO UPDATE SET
+           device_id           = excluded.device_id,
+           device_label        = COALESCE(excluded.device_label, synced_artifacts.device_label),
+           label               = excluded.label,
+           artifact_kind       = excluded.artifact_kind,
+           space_id            = excluded.space_id,
+           project_id          = excluded.project_id,
+           group_name          = excluded.group_name,
+           source_origin       = excluded.source_origin,
+           created_at          = excluded.created_at,
+           artifact_updated_at = excluded.artifact_updated_at,
+           removed_at          = excluded.removed_at,
+           pinned_at           = excluded.pinned_at,
+           sync_version_at     = excluded.sync_version_at
+          WHERE excluded.sync_version_at > synced_artifacts.sync_version_at`,
+      ).bind(
+        user.id, a.id, a.device_id ?? null, a.device_label ?? null, a.label, a.artifact_kind,
+        a.space_id ?? null, a.project_id ?? null, a.group_name ?? null,
+        a.source_origin ?? "manual", a.created_at,
+        a.updated_at ?? null, a.removed_at ?? null, a.pinned_at ?? null, a.sync_version_at,
+      ).run();
+      // Acknowledge even when LWW dropped the write (changes 0) — cloud has
+      // a newer version, the client should clear its dirty flag.
+      accepted.push(a.id);
+    }
+  } catch (err) {
+    console.warn("[artifacts] metadata ingest db error:", err);
+    return jsonError(500, "db_error");
+  }
+
+  return jsonOk({ accepted, rejected });
+}
+
+async function handleArtifactsMetadataGet(req: Request, env: Env): Promise<Response> {
+  const user = await resolveSession(req, env);
+  if (!user) return jsonError(401, "sign_in_required");
+  if (user.tier !== "pro") return jsonError(403, "pro_required");
+
+  type Row = {
+    artifact_id: string; device_id: string | null; device_label: string | null;
+    label: string; artifact_kind: string; space_id: string | null;
+    project_id: string | null; group_name: string | null; source_origin: string;
+    created_at: string; artifact_updated_at: string | null;
+    pinned_at: number | null; sync_version_at: number;
+  };
+  // Tombstones stay in the table (they keep winning LWW against stale
+  // re-pushes) but never reach the client.
+  const { results } = await env.DB.prepare(
+    `SELECT artifact_id, device_id, device_label, label, artifact_kind,
+            space_id, project_id, group_name, source_origin, created_at,
+            artifact_updated_at, pinned_at, sync_version_at
+       FROM synced_artifacts
+      WHERE owner_id = ? AND removed_at IS NULL
+      ORDER BY created_at DESC`,
+  ).bind(user.id).all<Row>();
+
+  return jsonOk({ artifacts: results ?? [] }, 200, { "cache-control": "private, no-store" });
 }
 
 // Per-chunk upload cap. Workers' default body limit is 100 MB; we stay well

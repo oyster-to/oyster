@@ -13,7 +13,7 @@ import {
   setLaneGroove as _setLaneGroove, addGroove as _addGroove, grooveFor,
   setGrooveBars as _setGrooveBars,
 } from './patterns.js';
-import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, isPunchArmed } from './punch.js';
+import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, laneInPunchBus } from './punch.js';
 import { DEFAULT_PRESETS, validatePreset } from './punch-presets.js';
 
 export function createEngine() {
@@ -38,7 +38,7 @@ export function createEngine() {
   let _tapeActive = false;                       // transport.tapeStop engaged (owns the gate)
   let _gateReturnPending = false;                // tapeStop released → gate returns on-grid
   const _pendingQuantized = [];                  // [{ when: 'bar'|'pattern', fn }]
-  let punchAmount = 1;                           // AMOUNT knob: scales engaged intensity
+  let _previewMask;                              // editor TEST: draft's lane mask while held (undefined = no preview)
   let meterL = null, meterR = null;
   let scopeMaster = null, scopeLane = {};
   // Per-lane keyed maps (by lane.id)
@@ -49,18 +49,38 @@ export function createEngine() {
   // Stored after ensure() so buildLane can be called post-graph-init
   let _makeFX = null, _masterIn = null, _laneReverb = null;
 
+  // Per-preset lane targeting: rebuild every lane's punch/clean crossfade from
+  // chips ∩ the union of held presets' masks. Called on every press/release,
+  // chip toggle, and song load. Routing swaps are inaudible while the bus is
+  // neutral, so immediate (un-quantized) re-routing is safe.
+  function _recomputePunchRouting() {
+    if (!song) return;
+    const masks = [];
+    for (let s = 0; s < _slotHeld.length; s++) {
+      if (_slotHeld[s]) masks.push(punchPresets[s]?.lanes ?? null);
+    }
+    if (_previewMask !== undefined) masks.push(_previewMask);   // editor TEST counts as a held pad
+    for (const lane of song.lanes) {
+      const f = fx[lane.id];
+      if (!f || !f.toPunch) continue;
+      const inBus = laneInPunchBus(lane, masks);
+      f.toPunch.gain.rampTo(inBus ? 1 : 0, 0.01);
+      f.toClean.gain.rampTo(inBus ? 0 : 1, 0.01);
+    }
+  }
+
   // Punch v3 automation runner: executes one preset automation (engage or
   // release) against the live graph. gate.* and transport.tapeStop are
   // semantic modules (spec decision 6) — the runner owns their behaviour;
   // everything else maps through _punchBindings + the MODULE_PARAMS registry.
-  function _runAutomation(a, on, timing) {
+  function _runAutomation(a, on, timing, atTime, amount = 1) {
     const id = `${a.module}.${a.param}`;
     const reg = MODULE_PARAMS[id];
     if (!reg) return;
     const ramp = Math.max(durationToSeconds(on ? a.engage?.ramp : a.release?.ramp, timing), 0.003);
     if (id === 'gate.depth') {
       if (on) {
-        _gate = { depth: (typeof a.to === 'number' ? a.to : 1) * punchAmount, division: a.division || '1/16' };
+        _gate = { depth: (typeof a.to === 'number' ? a.to : 1) * amount, division: a.division || '1/16' };
       } else {
         _gate = null;
         // tapeStop owns the gate (v2 safeguard 1) — only restore when idle.
@@ -75,9 +95,9 @@ export function createEngine() {
         // rampTo pins current values (no cancel-then-revert clicks).
         _tapeActive = true; _gateReturnPending = false;
         // `to` is the tapeStop depth fraction (1 = full 0.6s slump — v2 parity).
-        const tapeDepth = 0.6 * Math.min(Math.max(a.to, 0), 1) * punchAmount;
-        punchGate.gain.rampTo(0, ramp);
-        punchTape.delayTime.rampTo(tapeDepth, ramp);
+        const tapeDepth = 0.6 * Math.min(Math.max(a.to, 0), 1) * amount;
+        punchGate.gain.rampTo(0, ramp, atTime);
+        punchTape.delayTime.rampTo(tapeDepth, ramp, atTime);
       } else {
         // Strict release order (v2 safeguard 2), click-free on quick taps:
         // close fast, freeze the slump, snap delayTime back once silent,
@@ -95,12 +115,14 @@ export function createEngine() {
     if (!bound) return;
     const from = (a.from === 'neutral' || a.from == null) ? reg.neutral : a.from;
     const scale = a.scale || reg.scale;
-    bound.rampTo(on ? scaleValue(from, a.to, punchAmount, scale) : from, ramp);
+    // atTime (quantized actions): schedule the ramp AT the boundary's audio
+    // time — the callback fires ~lookahead early, so ramping "now" would land
+    // a third of a second before the downbeat.
+    bound.rampTo(on ? scaleValue(from, a.to, amount, scale) : from, ramp, atTime);
   }
 
   function buildLane(lane) {
     fx[lane.id]     = _makeFX(_masterIn);
-    if (!isPunchArmed(lane)) { fx[lane.id].toPunch.gain.value = 0; fx[lane.id].toClean.gain.value = 1; }
     voices[lane.id] = createVoiceForType(lane.type, fx[lane.id].input);
     // Apply saved tone to melody lanes
     if (lane.type === 'melody' && lane.tone) {
@@ -245,17 +267,9 @@ export function createEngine() {
             voices[lane.id].lead.set({ oscillator: { type: lane.tone, width: 0.3 } });
           }
         }
-        // Re-sync punch routing for REUSED lane graphs: the new song's lanes
-        // carry their own punchArm state, but matching-id graphs keep their
-        // old toPunch/toClean gains (review: song-switch desync).
-        for (const lane of s.lanes) {
-          const f = fx[lane.id];
-          if (f && f.toPunch) {
-            const armed = isPunchArmed(lane);
-            f.toPunch.gain.rampTo(armed ? 1 : 0, 0.01);
-            f.toClean.gain.rampTo(armed ? 0 : 1, 0.01);
-          }
-        }
+        // Re-sync punch routing for REUSED lane graphs (song-switch desync) —
+        // mask-aware recompute covers chips and any held presets.
+        _recomputePunchRouting();
       }
     },
     async play() {
@@ -317,7 +331,7 @@ export function createEngine() {
               due.push(p.fn); _pendingQuantized.splice(i, 1);
             } else i++;
           }
-          for (const fn of due) fn();
+          for (const fn of due) fn(t);
         }
         if (_gateReturnPending) {
           punchGate.gain.setValueAtTime(0, t);
@@ -372,6 +386,8 @@ export function createEngine() {
       // gate settle so any reverb tail doesn't doppler.
       _slotHeld.fill(false);
       _gate = null; _tapeActive = false; _gateReturnPending = false; _pendingQuantized.length = 0;
+      _previewMask = undefined;
+      _recomputePunchRouting();
       if (started) {
         const now = Tone.now();
         punchGate.gain.rampTo(PUNCH_NEUTRAL.gateGain, 0.01);
@@ -386,31 +402,13 @@ export function createEngine() {
     },
     setTempo(bpm) { if (typeof bpm === 'number' && isFinite(bpm)) { tempo = bpm; Tone.Transport.bpm.value = bpm; } },
     onStep(cb) { onStepCb = cb; },
+    isPlaying()  { return playing; },
     getSong() { return song; },
     getLanes() { return song ? song.lanes : []; },
     // Lane ops by id
     toggleMute(id)          { return song ? _toggleMute(song.lanes, id) : false; },
     toggleSolo(id)          { return song ? _soloExclusive(song.lanes, id) : false; },
     triggerFill(name)       { pendingFill = name; },
-    // Punch bus channel-assign (v2): 10ms complementary crossfade, no surgery.
-    setPunchArm(id, on) {
-      if (!song) return;
-      const lane = song.lanes.find(l => l.id === id);
-      // Armed is the default — only an explicit false is stored, so toggling
-      // a lane off and back on leaves no punchArm key to serialize.
-      if (lane) { if (on) delete lane.punchArm; else lane.punchArm = false; }
-      const f = fx[id];
-      if (f && f.toPunch) {
-        f.toPunch.gain.rampTo(on ? 1 : 0, 0.01);
-        f.toClean.gain.rampTo(on ? 0 : 1, 0.01);
-      }
-    },
-    getPunchArm(id) {
-      const lane = song?.lanes.find(l => l.id === id);
-      return lane ? isPunchArmed(lane) : true;
-    },
-    setPunchAmount(v01) { if (typeof v01 === 'number' && isFinite(v01)) punchAmount = Math.max(0, Math.min(1, v01)); },
-    getPunchAmount()    { return punchAmount; },
     // Punch v3: slot-based momentary trigger — punch(slot, true) on press,
     // punch(slot, false) on release. Executes the slot's preset automations
     // (data, not code) with engage/release quantize.
@@ -419,6 +417,7 @@ export function createEngine() {
       on = !!on;
       if (_slotHeld[slot] === on) return;            // ignore repeat echoes
       _slotHeld[slot] = on;
+      _recomputePunchRouting();
       const preset = punchPresets[slot];
       const beatSeconds = 60 / Tone.Transport.bpm.value;
       const timing = {
@@ -427,7 +426,8 @@ export function createEngine() {
         barSeconds: stepsPerBar(song.meter) * (beatSeconds / 4),
       };
       const q = on ? preset.engageQuantize : preset.releaseQuantize;
-      const run = () => { for (const a of preset.automations) _runAutomation(a, on, timing); };
+      const amount = preset.amount ?? 1;
+      const run = (atTime) => { for (const a of preset.automations) _runAutomation(a, on, timing, atTime, amount); };
       if (q === 'immediate' || !playing) run();
       else _pendingQuantized.push({ when: q, fn: run });
     },
@@ -436,6 +436,24 @@ export function createEngine() {
       return punchPresets;
     },
     getPunchPresets() { return punchPresets; },
+    // v3.5 editor TEST pad: audition an UNSAVED draft preset momentarily.
+    // Same runner path as punch(); no slot state. UI gates on isPlaying().
+    punchPreview(preset, on) {
+      if (!started || !validatePreset(preset)) return;
+      // The draft's lane mask must route like a held pad, or TEST plays
+      // through the idle all-lanes bus regardless of "active on".
+      _previewMask = on ? (preset.lanes ?? null) : undefined;
+      _recomputePunchRouting();
+      const amount = preset.amount ?? 1;
+      const beatSeconds = 60 / Tone.Transport.bpm.value;
+      const timing = {
+        sixteenth: beatSeconds / 4,
+        beatSeconds,
+        barSeconds: stepsPerBar(song.meter) * (beatSeconds / 4),
+      };
+      for (const a of preset.automations) _runAutomation(a, !!on, timing, undefined, amount);
+    },
+    isPlaying() { return playing; },
     queueFill(name)         { fillQueue.push(name); return fillQueue.length; },
     unqueueAt(i)            { if (i >= 0 && i < fillQueue.length) fillQueue.splice(i, 1); return fillQueue.slice(); },
     clearQueue()            { fillQueue = []; },

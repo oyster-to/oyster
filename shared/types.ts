@@ -60,6 +60,11 @@ export interface Artifact {
   pinnedAt?: number | null;
   /** Filesystem path of the backing file (filesystem artefacts only). */
   path?: string;
+  /** Cloud remote view only: human label of the device whose registry this
+   *  row was synced from (e.g. "MacBook-Pro"). Drives the "on <device>"
+   *  chip — the artefact's content lives on that machine, not in the cloud.
+   *  Never set in local builds. */
+  originDeviceLabel?: string | null;
 }
 
 export interface ArtefactPublication {

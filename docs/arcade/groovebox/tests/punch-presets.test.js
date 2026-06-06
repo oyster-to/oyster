@@ -5,7 +5,7 @@ import { MODULE_PARAMS } from '../engine/punch.js';
 describe('DEFAULT_PRESETS', () => {
   it('ships exactly five slots with keys 1-5', () => {
     expect(DEFAULT_PRESETS.map(p => p.key)).toEqual(['1', '2', '3', '4', '5']);
-    expect(DEFAULT_PRESETS.map(p => p.name)).toEqual(['STUT', 'CRUSH', 'DIVE', 'THROW', 'STOP']);
+    expect(DEFAULT_PRESETS.map(p => p.name)).toEqual(['STUTTER', 'CRUSH', 'DIVE', 'THROW', 'STOP']);
   });
   it('every preset validates', () => {
     for (const p of DEFAULT_PRESETS) expect(validatePreset(p)).toBe(true);
@@ -59,5 +59,50 @@ describe('validatePreset hardening (user-supplied localStorage overrides)', () =
   });
   it('accepts a valid gate automation with explicit division', () => {
     expect(validatePreset({ ...base, automations: [{ module: 'gate', param: 'depth', from: 'neutral', to: 0.8, division: '1/32' }] })).toBe(true);
+  });
+});
+
+describe('registry ranges (v3.5 — single source of truth)', () => {
+  const base = { name: 'X', key: '1', engageQuantize: 'immediate', releaseQuantize: 'immediate' };
+  it('rejects delay.feedback above 0.95 (the v3 runaway hole)', () => {
+    expect(validatePreset({ ...base, automations: [{ module: 'delay', param: 'feedback', from: 'neutral', to: 5 }] })).toBe(false);
+    expect(validatePreset({ ...base, automations: [{ module: 'delay', param: 'feedback', from: 'neutral', to: 0.9 }] })).toBe(true);
+  });
+  it('rejects out-of-range from (release would park the param out of bounds)', () => {
+    expect(validatePreset({ ...base, automations: [{ module: 'filter', param: 'freq', from: 90000, to: 150 }] })).toBe(false);
+    expect(validatePreset({ ...base, automations: [{ module: 'delay', param: 'feedback', from: 2, to: 0.5 }] })).toBe(false);
+  });
+  it('rejects out-of-range to on any ranged param', () => {
+    expect(validatePreset({ ...base, automations: [{ module: 'crusher', param: 'wet', from: 'neutral', to: 1.5 }] })).toBe(false);
+    expect(validatePreset({ ...base, automations: [{ module: 'filter', param: 'freq', from: 'neutral', to: 50000 }] })).toBe(false);
+  });
+});
+
+describe('lane masks (v3.5 — per-preset targeting)', () => {
+  const base = { name: 'X', key: '1', engageQuantize: 'immediate', releaseQuantize: 'immediate', automations: [] };
+  it('STUT defaults to 1/8 chop on drums+bass only', () => {
+    const stut = DEFAULT_PRESETS.find(p => p.name === 'STUTTER');
+    expect(stut.automations[0].division).toBe('1/8');
+    expect(stut.lanes).toEqual(['drums', 'bass']);
+  });
+  it('validates lanes as a subset of known lane types', () => {
+    expect(validatePreset({ ...base, lanes: ['drums', 'bass'] })).toBe(true);
+    expect(validatePreset({ ...base, lanes: ['drums', 'vocals'] })).toBe(false);
+    expect(validatePreset({ ...base, lanes: 'drums' })).toBe(false);
+  });
+  it('omitted lanes means all (other defaults carry no mask)', () => {
+    expect(DEFAULT_PRESETS.find(p => p.name === 'DIVE').lanes).toBeUndefined();
+  });
+});
+
+describe('per-preset amount (v3.5 — replaces the global AMT knob)', () => {
+  const base = { name: 'X', key: '1', engageQuantize: 'immediate', releaseQuantize: 'immediate', automations: [] };
+  it('accepts amount in 0..1, rejects outside', () => {
+    expect(validatePreset({ ...base, amount: 0.5 })).toBe(true);
+    expect(validatePreset({ ...base, amount: 1.5 })).toBe(false);
+    expect(validatePreset({ ...base, amount: -0.1 })).toBe(false);
+  });
+  it('defaults carry no amount (= full strength)', () => {
+    for (const p of DEFAULT_PRESETS) expect(p.amount).toBeUndefined();
   });
 });

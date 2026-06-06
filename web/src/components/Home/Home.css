@@ -691,6 +691,10 @@
   background: rgba(124, 107, 255, 0.05);
 }
 .home-artefact-row:last-child { border-bottom: none; }
+/* Cloud registry rows without a publication aren't openable — content lives
+   on the origin device. No pointer, no hover invite. */
+.home-artefact-row--inert { cursor: default; }
+.home-artefact-row--inert:hover { background: transparent; }
 
 /* Column-header row for the artefacts table (mirrors .home-row--header on the
    sessions table). Reuses .home-artefact-row's grid; just restyles + disables
