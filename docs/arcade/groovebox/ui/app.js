@@ -10,7 +10,7 @@ import { memoryReboot } from '../songs/memory-reboot.js';
 import { takeOnMe } from '../songs/take-on-me.js';
 import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
-import { initShare, maybeLoadShared } from './share.js';
+import { initShare, maybeLoadShared, clearLoadedFrom } from './share.js';
 
 const eng = createEngine();
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
@@ -979,6 +979,7 @@ function loadSong(key) {
   play.classList.remove('on');
   play.textContent = '▶ play';
   eng.load(SONGS[key]);
+  clearLoadedFrom();   // the registry item this session had loaded is gone
   afterSongLoad();
 }
 

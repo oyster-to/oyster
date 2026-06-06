@@ -57,7 +57,8 @@ function chordsValid(chords) {
   if (!Array.isArray(chords) || chords.length < 1) return false;
   return chords.every((c) => c === null ||
     (isObj(c) && strictKeys(c, ['name', 'root', 'voicing'], 'chord') === null &&
-     typeof c.name === 'string' && typeof c.root === 'string' && Array.isArray(c.voicing)));
+     typeof c.name === 'string' && typeof c.root === 'string' &&
+     Array.isArray(c.voicing) && c.voicing.every((v) => typeof v === 'string')));
 }
 
 export function validateGroovePayload(p) {

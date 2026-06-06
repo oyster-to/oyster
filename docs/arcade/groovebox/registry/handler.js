@@ -94,7 +94,7 @@ async function update(id, req, db, secret) {
 
 export async function handleRegistry(req, db, secret) {
   const url = new URL(req.url);
-  const m = url.pathname.match(/^\/api\/registry(?:\/([a-z0-9]{1,32}))?$/);
+  const m = url.pathname.match(/^\/api\/registry(?:\/([a-z0-9]{8}))?$/);
   if (!m) return json(404, { error: 'not found' });
   const id = m[1];
   try {

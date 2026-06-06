@@ -61,6 +61,10 @@ export function importGroove(eng, record, laneId) {
 let loadedFrom = null;          // { id, kind } of the record this session loaded, if any
 const $ = (id) => document.getElementById(id);
 
+// Called by app.js when a preset load replaces the session — whatever was
+// loaded from the registry is gone, so Update/remix must not target it.
+export function clearLoadedFrom() { loadedFrom = null; }
+
 // initShare(eng, hooks) — hooks: { notice, onSongLoaded, onGroovesChanged, pickLane }.
 // app.js supplies render callbacks and its notice helper; share.js owns the modal.
 export function initShare(eng, hooks) {
@@ -77,16 +81,18 @@ export function initShare(eng, hooks) {
   };
   const close = () => { $('share-modal').hidden = true; };
 
+  // Lane/groove names can originate in shared payloads (untrusted) — always
+  // esc() before innerHTML.
   function fillPickers() {
     const lanes = eng.getLanes();
     const cur = $('share-lane').value;
-    $('share-lane').innerHTML = lanes.map((l) => `<option value="${l.id}"${l.id === cur ? ' selected' : ''}>${l.name}</option>`).join('');
+    $('share-lane').innerHTML = lanes.map((l) => `<option value="${esc(l.id)}"${l.id === cur ? ' selected' : ''}>${esc(l.name)}</option>`).join('');
     fillGrooves();
   }
   function fillGrooves() {
     const laneId = $('share-lane').value;
     const names = Object.keys(eng.getGrooves()[laneId] || {});
-    $('share-groove').innerHTML = names.map((n) => `<option value="${n}">${n}</option>`).join('');
+    $('share-groove').innerHTML = names.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
   }
   function syncMode() {
     const mode = decideShareMode({ loadedFrom, hasEditKey: !!(loadedFrom && getEditKey(loadedFrom.id)), kind: tab });
@@ -113,6 +119,7 @@ export function initShare(eng, hooks) {
   async function submit(asUpdate) {
     const name = $('share-name').value.trim(), author = $('share-author').value.trim();
     if (!name) return showError('name required');
+    if (tab === 'groove' && !$('share-groove').value) return showError('this lane has no grooves to publish');
     setAuthor(author);
     try {
       const base = bodyForTab();

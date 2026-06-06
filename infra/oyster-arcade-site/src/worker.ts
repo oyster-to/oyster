@@ -33,7 +33,8 @@ function d1Db(d1: D1Database) {
           .bind(r.id, r.kind, r.schema_version, r.name, r.author, r.payload, r.remix_of,
                 r.revision, r.edit_key_hash, r.created_at, r.updated_at).run();
       } catch (e) {
-        if (String(e).includes('UNIQUE')) {
+        const msg = `${(e as Error).message ?? e} ${((e as Error & { cause?: Error }).cause?.message) ?? ''}`;
+        if (msg.includes('UNIQUE')) {
           const err = new Error('conflict') as Error & { code: string };
           err.code = 'conflict';
           throw err;
@@ -71,7 +72,7 @@ export default {
     // app lives at /; on arcade.oyster.to and wrangler dev (localhost) it lives
     // at /groovebox/. @rev is reserved syntax, ignored in v1 (never 404s).
     {
-      const m = url.pathname.match(/^\/s\/([a-z0-9]{4,16})(?:@\d+)?\/?$/i);
+      const m = url.pathname.match(/^\/s\/([a-z0-9]{8})(?:@\d+)?\/?$/i);
       if (m) {
         const base = url.hostname === 'groovebox.oyster.to' ? '/' : '/groovebox/';
         return Response.redirect(new URL(`${base}?s=${m[1].toLowerCase()}`, req.url).toString(), 302);
