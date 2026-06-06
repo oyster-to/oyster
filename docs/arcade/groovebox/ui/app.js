@@ -584,14 +584,21 @@ function renderFills() {
 // (no editor UI yet — v3.5; hand-edited or future-UI overrides both load here).
 function loadPunchPresets() {
   try {
-    const saved = JSON.parse(localStorage.getItem('gb-punch-presets') || 'null');
-    // Migration: saved sets gain any defaults they lack — matched BY NAME
-    // (index-based appending duplicated STOP when the default order changed).
-    // Keys then reassign to slot order, since keys are slot-bound.
+    let saved = JSON.parse(localStorage.getItem('gb-punch-presets') || 'null');
+    // Migration (matched BY NAME — index math broke when defaults reordered):
+    // fill any defaults the saved set lacks, then — if no pads were renamed —
+    // adopt the canonical default ORDER while keeping each pad's saved edits.
+    // Renamed pads = user owns the layout; keep their order. Keys are
+    // slot-bound, so they renumber either way.
     if (Array.isArray(saved)) {
-      const have = new Set(saved.map(p => p && p.name));
-      for (const d of DEFAULT_PRESETS) if (!have.has(d.name)) saved.push(d);
-      saved.forEach((p, i) => { if (p) p.key = String(i + 1); });
+      const byName = new Map(saved.filter(Boolean).map(p => [p.name, p]));
+      for (const d of DEFAULT_PRESETS) if (!byName.has(d.name)) byName.set(d.name, d);
+      const defaultNames = DEFAULT_PRESETS.map(d => d.name);
+      const allStock = byName.size === defaultNames.length && defaultNames.every(n => byName.has(n));
+      saved = allStock
+        ? defaultNames.map(n => byName.get(n))
+        : [...byName.values()].slice(0, DEFAULT_PRESETS.length);
+      saved.forEach((p, i) => { p.key = String(i + 1); });
     }
     if (saved) return eng.setPunchPresets(saved);   // engine validates; invalid → defaults kept
   } catch (_) { /* corrupt JSON → defaults */ }
