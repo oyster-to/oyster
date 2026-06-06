@@ -4,6 +4,7 @@ import { eventsForStep } from './scheduler.js';
 import { createVoiceForType, trigger } from './voices.js';
 import { normalizeLanes, cachePoolsByType, laneByType, setLane as _setLane, toggleMute as _toggleMute, soloExclusive as _soloExclusive, captureScene as _captureScene, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane, moveLane as _moveLane } from './lanes.js';
 import { sectionAt } from './arrangement.js';
+import { PUNCH_NEUTRAL, stutterAllowed, stutterEvents } from './punch.js';
 
 export function createEngine() {
   let song = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, pendingFill = null, activeFill = null, fillQueue = [];
@@ -11,6 +12,10 @@ export function createEngine() {
   let keyQuantize = false, pendingTranspose = null;
   let masterComp = null, masterRev = null, masterVol = null, masterPan = null, masterWidth = null, masterEQ = null;
   let _widthOn = false;   // is the StereoWidener spliced into the master chain?
+  // Punch-in FX: pre-wired neutral insert chain (comp → punch → pan); momentary.
+  let punchGate = null, punchCrush = null, punchFilter = null, punchThrow = null, punchTape = null;
+  const _punchHeld = { stutter: false, crush: false, dive: false, throw: false, stop: false };
+  let _gateReturnPending = false;   // STOP released → gate returns on the next step boundary
   let meterL = null, meterR = null;
   let scopeMaster = null, scopeLane = {};
   // Per-lane keyed maps (by lane.id)
@@ -75,7 +80,16 @@ export function createEngine() {
     const masterTrim = new Tone.Gain(0.5).connect(out);
     masterVol  = new Tone.Gain(1).connect(masterTrim);
     masterPan  = new Tone.Panner(0).connect(masterVol);
-    masterComp = new Tone.Compressor({ threshold: 0, ratio: 1, attack: 0.01, release: 0.2 }).connect(masterPan);
+    // Punch-in FX insert (pre-wired, neutral — engaging a pad is param ramps only;
+    // spec: project-notes/oyster/po20/2026-06-08-punch-in-fx-spec.md). Between
+    // comp and pan: outside the EQ↔width↔reverb splice zone, after the reverb so
+    // punches chop/slur the full mix including tails.
+    punchTape   = new Tone.Delay({ delayTime: PUNCH_NEUTRAL.tapeDelay, maxDelay: 1 }).connect(masterPan);
+    punchThrow  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.55, wet: PUNCH_NEUTRAL.throwWet }).connect(punchTape);
+    punchFilter = new Tone.Filter({ type: 'lowpass', frequency: PUNCH_NEUTRAL.filterFreq, Q: PUNCH_NEUTRAL.filterQ }).connect(punchThrow);
+    punchCrush  = new Tone.BitCrusher(4); punchCrush.wet.value = PUNCH_NEUTRAL.crushWet; punchCrush.connect(punchFilter);
+    punchGate   = new Tone.Gain(PUNCH_NEUTRAL.gateGain).connect(punchCrush);
+    masterComp = new Tone.Compressor({ threshold: 0, ratio: 1, attack: 0.01, release: 0.2 }).connect(punchGate);
     masterRev  = new Tone.Reverb({ decay: 2.2, wet: 0 }).connect(masterComp);
     // StereoWidener bypassed by default — its mid/side processing weakens per-lane
     // pan and drops level on a mono-ish mix. Spliced in only when WID leaves centre.
@@ -118,7 +132,8 @@ export function createEngine() {
     _masterIn = masterIn;
     // Waveform analyser for master (sink — doesn't alter audio chain).
     scopeMaster = new Tone.Waveform(1024);
-    masterComp.connect(scopeMaster);
+    // Tapped post-punch so the scope shows chops/slumps (analyser sink only).
+    punchTape.connect(scopeMaster);
     // Build per-lane graph
     buildLaneGraph(song.lanes);
     started = true;
