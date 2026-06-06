@@ -1457,3 +1457,11 @@ eng.setTempo(initialSong.bpm);
 mount();
 // Wrap sections and wire section drag-reorder once, after first mount.
 initSectionWrappers();
+// Press-and-hold on a control must not open the browser context menu (Android
+// Chrome long-press → "more actions / translate"). Scoped to controls so
+// right-click elsewhere stays normal on desktop.
+document.addEventListener('contextmenu', e => {
+  if (e.target.closest('.knob, .punchpad, .lane-expand, .knob-scroll-hint, .lane-drag, .sec-drag, #viz')) {
+    e.preventDefault();
+  }
+});
