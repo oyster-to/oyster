@@ -2171,7 +2171,7 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
       "pull  pull  pull  pull";
     column-gap: 8px;
     row-gap: 8px;
-    padding: 8px 8px 0;
+    padding: 8px;
     cursor: pointer;
   }
   .lane.open {
@@ -2198,43 +2198,36 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
     border-color: var(--acc-dim);
   }
 
-  /* drawer-pull strip — the accordion affordance: full-width bottom bar
+  /* expand button — the accordion affordance: a real full-width button with
+     the unified control chrome, so it can't be mistaken for decoration
      (.lane prefix outranks the base display:none, which follows in source) */
   .lane .lane-expand {
     display: flex;
     grid-area: pull;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    height: 20px;
-    margin: 0 -8px;             /* bleed to the card edges */
+    gap: 7px;
+    height: 26px;
     padding: 0;
-    background: transparent;
-    border: none;
-    border-top: 1px solid var(--line);
-    border-radius: 0 0 7px 7px;
-    box-shadow: none;
-    color: var(--faint);
-  }
-  .lane .lane-expand:hover,
-  .lane .lane-expand:active {
-    background: var(--panel-3);
     color: var(--dim);
   }
   .le-arrow {
     font-size: 11px;
     line-height: 1;
+    color: var(--acc);
     transition: transform 0.18s ease;
   }
   .le-lbl {
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
   }
-  .lane.open .lane-expand { color: var(--acc); }
+  .lane.open .lane-expand {
+    color: var(--acc);
+    border-color: var(--acc-dim);
+  }
   .lane.open .le-arrow { transform: rotate(180deg); }
-  .lane.open .le-lbl { display: none; }
 
   /* ── master strip: label+meters row, knobs row (always visible) ── */
   .masterfx { flex-wrap: wrap; row-gap: 8px; }
