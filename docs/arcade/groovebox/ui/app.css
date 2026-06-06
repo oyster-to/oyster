@@ -2504,3 +2504,27 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   transition: opacity 0.2s;
 }
 #gb-notice.show { opacity: 1; }
+
+/* "Your published" list in the publish modal */
+#share-mine[hidden] { display: none; }
+#share-mine h3 {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 4px 0 6px;
+}
+#share-mine-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 140px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+#share-mine-list a { color: var(--ink); text-decoration: none; }
+#share-mine-list a:hover { text-decoration: underline; }

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { parseShareParam, shareUrl, getEditKey, storeEditKey, getAuthor, setAuthor } from '../registry/client.js';
+import { parseShareParam, shareUrl, getEditKey, storeEditKey, listMine, getAuthor, setAuthor } from '../registry/client.js';
 
 describe('parseShareParam', () => {
   it('reads ?s=<id>', () => expect(parseShareParam('?s=abcd1234')).toBe('abcd1234'));
@@ -39,6 +39,24 @@ describe('editKey + author storage (gb-registry-*)', () => {
     setAuthor('Henry');
     expect(getAuthor()).toBe('Henry');
     expect(localStorage.getItem('gb-registry-author')).toBe('Henry');
+  });
+  it('stores name/kind meta; listMine returns newest first', () => {
+    let t = 1000;
+    vi.spyOn(Date, 'now').mockImplementation(() => ++t);   // same-ms publishes must still order
+    storeEditKey('abcd1234', 'KEY1', { name: 'Kids', kind: 'song' });
+    storeEditKey('efgh5678', 'KEY2', { name: 'amen', kind: 'groove' });
+    expect(getEditKey('abcd1234')).toBe('KEY1');
+    const mine = listMine();
+    expect(mine.map((m) => m.id)).toEqual(['efgh5678', 'abcd1234']);
+    expect(mine[1]).toMatchObject({ name: 'Kids', kind: 'song' });
+  });
+  it('tolerates legacy bare-string values', () => {
+    localStorage.setItem('gb-registry-edit-keys', JSON.stringify({ old00000: 'RAWKEY' }));
+    expect(getEditKey('old00000')).toBe('RAWKEY');
+    expect(listMine()).toEqual([{ id: 'old00000', name: 'old00000', kind: '', at: 0 }]);
+    storeEditKey('old00000', 'RAWKEY', { name: 'Named now', kind: 'song' });
+    expect(getEditKey('old00000')).toBe('RAWKEY');
+    expect(listMine()[0].name).toBe('Named now');
   });
   it('degrades silently without localStorage', () => {
     vi.stubGlobal('localStorage', undefined);

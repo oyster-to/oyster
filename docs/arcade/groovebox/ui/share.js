@@ -2,7 +2,7 @@
 // Pure helpers up top (unit-tested, no DOM). initShare()/maybeLoadShared() at
 // the bottom own all DOM and are only called from app.js in the browser.
 
-import { createItem, getItem, updateItem, getEditKey, storeEditKey, getAuthor, setAuthor,
+import { createItem, getItem, updateItem, getEditKey, storeEditKey, listMine, getAuthor, setAuthor,
          shareUrl, parseShareParam } from '../registry/client.js';
 import { KIND_VERSIONS } from '../registry/validate.js';
 
@@ -72,6 +72,7 @@ export function initShare(eng, hooks) {
     $('share-name').value = tab === 'song' ? (eng.getSong()?.title || 'untitled') : ($('share-groove').value || '');
     syncMode();
     $('share-result').hidden = true; $('share-error').hidden = true;
+    renderMine();
     $('share-modal').hidden = false;
   };
   const close = () => { $('share-modal').hidden = true; };
@@ -118,13 +119,14 @@ export function initShare(eng, hooks) {
       if (asUpdate) {
         const { revision } = await updateItem(loadedFrom.id, {
           editKey: getEditKey(loadedFrom.id), name, author, payload: base.payload });
+        storeEditKey(loadedFrom.id, getEditKey(loadedFrom.id), { name, kind: tab });
         showResult(loadedFrom.id, `updated (rev ${revision})`);
       } else {
         const body = { ...base, name, author };
         const mode = decideShareMode({ loadedFrom, hasEditKey: !!(loadedFrom && getEditKey(loadedFrom.id)), kind: tab });
         if (mode === 'remix') body.remix_of = loadedFrom.id;
         const { id, editKey } = await createItem(body);
-        storeEditKey(id, editKey);
+        storeEditKey(id, editKey, { name, kind: tab });
         if (tab === 'song') loadedFrom = { id, kind: 'song' };   // you now own what's on screen
         showResult(id);
       }
@@ -136,7 +138,17 @@ export function initShare(eng, hooks) {
     $('share-result').hidden = false; $('share-error').hidden = true;
     if (note) hooks.notice(note);
     syncMode();
+    renderMine();
   }
+
+  // "Your published" — private list from this browser's editKey store.
+  function renderMine() {
+    const mine = listMine();
+    $('share-mine').hidden = mine.length === 0;
+    $('share-mine-list').innerHTML = mine.map((m) =>
+      `<li><a href="${shareUrl(m.id)}">${m.kind ? `[${m.kind}] ` : ''}${esc(m.name)}</a></li>`).join('');
+  }
+  function esc(s) { const d = document.createElement('span'); d.textContent = s; return d.innerHTML; }
   function showError(msg) { $('share-error').textContent = msg; $('share-error').hidden = false; }
 
   $('share-btn').onclick = open;

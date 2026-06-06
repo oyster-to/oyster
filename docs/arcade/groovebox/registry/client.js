@@ -24,13 +24,27 @@ export function parseShareParam(search) {
 function readJSON(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; }
 }
-export function getEditKey(id) { return readJSON('gb-registry-edit-keys', {})[id] ?? null; }
-export function storeEditKey(id, key) {
+// Map values are { key, name, kind, at } — or a bare key string from the
+// earliest builds (tolerated on read).
+export function getEditKey(id) {
+  const v = readJSON('gb-registry-edit-keys', {})[id];
+  return v ? (typeof v === 'string' ? v : v.key) : null;
+}
+export function storeEditKey(id, key, meta = {}) {
   try {
     const map = readJSON('gb-registry-edit-keys', {});
-    map[id] = key;
+    const prev = typeof map[id] === 'object' ? map[id] : {};
+    map[id] = { ...prev, key, ...meta, at: Date.now() };
     localStorage.setItem('gb-registry-edit-keys', JSON.stringify(map));
   } catch {}
+}
+// Your private publish history (newest first) — local to this browser, NOT a
+// discovery surface. Bare-string legacy entries surface as unnamed items.
+export function listMine() {
+  const map = readJSON('gb-registry-edit-keys', {});
+  return Object.entries(map)
+    .map(([id, v]) => typeof v === 'string' ? { id, name: id, kind: '', at: 0 } : { id, name: v.name || id, kind: v.kind || '', at: v.at || 0 })
+    .sort((a, b) => b.at - a.at);
 }
 export function getAuthor() { try { return localStorage.getItem('gb-registry-author') || ''; } catch { return ''; } }
 export function setAuthor(name) { try { localStorage.setItem('gb-registry-author', name); } catch {} }
