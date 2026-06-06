@@ -73,3 +73,20 @@ describe('registry ranges (v3.5 — single source of truth)', () => {
     expect(validatePreset({ ...base, automations: [{ module: 'filter', param: 'freq', from: 'neutral', to: 50000 }] })).toBe(false);
   });
 });
+
+describe('lane masks (v3.5 — per-preset targeting)', () => {
+  const base = { name: 'X', key: '1', engageQuantize: 'immediate', releaseQuantize: 'immediate', automations: [] };
+  it('STUT defaults to 1/8 chop on drums+bass only', () => {
+    const stut = DEFAULT_PRESETS.find(p => p.name === 'STUT');
+    expect(stut.automations[0].division).toBe('1/8');
+    expect(stut.lanes).toEqual(['drums', 'bass']);
+  });
+  it('validates lanes as a subset of known lane types', () => {
+    expect(validatePreset({ ...base, lanes: ['drums', 'bass'] })).toBe(true);
+    expect(validatePreset({ ...base, lanes: ['drums', 'vocals'] })).toBe(false);
+    expect(validatePreset({ ...base, lanes: 'drums' })).toBe(false);
+  });
+  it('omitted lanes means all (other defaults carry no mask)', () => {
+    expect(DEFAULT_PRESETS.find(p => p.name === 'DIVE').lanes).toBeUndefined();
+  });
+});

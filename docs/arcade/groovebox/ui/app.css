@@ -996,6 +996,12 @@ body.gb-knob-values .knob-val { display: block; }
 .pe-val { width: 56px; flex: 0 0 56px; text-align: right; color: var(--ink); }
 .pe-sel { background: var(--panel-3); border: 1px solid var(--line); border-radius: 5px; padding: 2px 8px; color: var(--dim); font: inherit; }
 .pe-add { margin: 8px 0; }
+.pe-lane {
+  height: 24px; padding: 0 10px; border-radius: 12px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel-3); color: var(--faint);
+  font: 600 10px ui-monospace, Menlo, monospace; letter-spacing: 0.06em;
+}
+.pe-lane.on { background: var(--acc); border-color: var(--acc); color: #04201a; }
 .pe-ft { display: flex; align-items: center; gap: 14px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 .pe-reset { background: none; border: 0; color: var(--hot); cursor: pointer; font: inherit; }
 .pe-cancel { background: none; border: 0; color: var(--faint); cursor: pointer; font: inherit; }

@@ -20,6 +20,16 @@ export function isPunchArmed(lane) {
   return lane.punchArm !== false;
 }
 
+// Per-preset lane targeting: a lane feeds the punch bus when it's armed
+// (chip) AND, while any pads are held, at least one held preset's mask
+// includes its type (null mask = all lanes). Idle (no masks) = armed routing,
+// which is sonically transparent anyway.
+export function laneInPunchBus(lane, activeMasks) {
+  if (!isPunchArmed(lane)) return false;
+  if (!activeMasks.length) return true;
+  return activeMasks.some(m => m == null || m.includes(lane.type));
+}
+
 // GATE module math: tempo-synced chopper. division picks the chop cycle;
 // depth 1 = chop to silence, depth d = chop to (1 - d). `ramp`-second edges
 // so the chops don't click. stepIdx matters for divisions longer than one

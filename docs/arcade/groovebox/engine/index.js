@@ -13,7 +13,7 @@ import {
   setLaneGroove as _setLaneGroove, grooveFor,
   setGrooveBars as _setGrooveBars,
 } from './patterns.js';
-import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, isPunchArmed } from './punch.js';
+import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, isPunchArmed, laneInPunchBus } from './punch.js';
 import { DEFAULT_PRESETS, validatePreset } from './punch-presets.js';
 
 export function createEngine() {
@@ -48,6 +48,25 @@ export function createEngine() {
   let _fxInserted = {};
   // Stored after ensure() so buildLane can be called post-graph-init
   let _makeFX = null, _masterIn = null, _laneReverb = null;
+
+  // Per-preset lane targeting: rebuild every lane's punch/clean crossfade from
+  // chips ∩ the union of held presets' masks. Called on every press/release,
+  // chip toggle, and song load. Routing swaps are inaudible while the bus is
+  // neutral, so immediate (un-quantized) re-routing is safe.
+  function _recomputePunchRouting() {
+    if (!song) return;
+    const masks = [];
+    for (let s = 0; s < _slotHeld.length; s++) {
+      if (_slotHeld[s]) masks.push(punchPresets[s]?.lanes ?? null);
+    }
+    for (const lane of song.lanes) {
+      const f = fx[lane.id];
+      if (!f || !f.toPunch) continue;
+      const inBus = laneInPunchBus(lane, masks);
+      f.toPunch.gain.rampTo(inBus ? 1 : 0, 0.01);
+      f.toClean.gain.rampTo(inBus ? 0 : 1, 0.01);
+    }
+  }
 
   // Punch v3 automation runner: executes one preset automation (engage or
   // release) against the live graph. gate.* and transport.tapeStop are
@@ -248,17 +267,9 @@ export function createEngine() {
             voices[lane.id].lead.set({ oscillator: { type: lane.tone, width: 0.3 } });
           }
         }
-        // Re-sync punch routing for REUSED lane graphs: the new song's lanes
-        // carry their own punchArm state, but matching-id graphs keep their
-        // old toPunch/toClean gains (review: song-switch desync).
-        for (const lane of s.lanes) {
-          const f = fx[lane.id];
-          if (f && f.toPunch) {
-            const armed = isPunchArmed(lane);
-            f.toPunch.gain.rampTo(armed ? 1 : 0, 0.01);
-            f.toClean.gain.rampTo(armed ? 0 : 1, 0.01);
-          }
-        }
+        // Re-sync punch routing for REUSED lane graphs (song-switch desync) —
+        // mask-aware recompute covers chips and any held presets.
+        _recomputePunchRouting();
       }
     },
     async play() {
@@ -375,6 +386,7 @@ export function createEngine() {
       // gate settle so any reverb tail doesn't doppler.
       _slotHeld.fill(false);
       _gate = null; _tapeActive = false; _gateReturnPending = false; _pendingQuantized.length = 0;
+      _recomputePunchRouting();
       if (started) {
         const now = Tone.now();
         punchGate.gain.rampTo(PUNCH_NEUTRAL.gateGain, 0.01);
@@ -402,11 +414,7 @@ export function createEngine() {
       // Armed is the default — only an explicit false is stored, so toggling
       // a lane off and back on leaves no punchArm key to serialize.
       if (lane) { if (on) delete lane.punchArm; else lane.punchArm = false; }
-      const f = fx[id];
-      if (f && f.toPunch) {
-        f.toPunch.gain.rampTo(on ? 1 : 0, 0.01);
-        f.toClean.gain.rampTo(on ? 0 : 1, 0.01);
-      }
+      _recomputePunchRouting();
     },
     getPunchArm(id) {
       const lane = song?.lanes.find(l => l.id === id);
@@ -422,6 +430,7 @@ export function createEngine() {
       on = !!on;
       if (_slotHeld[slot] === on) return;            // ignore repeat echoes
       _slotHeld[slot] = on;
+      _recomputePunchRouting();
       const preset = punchPresets[slot];
       const beatSeconds = 60 / Tone.Transport.bpm.value;
       const timing = {

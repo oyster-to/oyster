@@ -206,6 +206,29 @@ export function openPunchEditor({ slot, eng, onSaved }) {
       modal.appendChild(addRow);
     }
 
+    // active-on lane mask (omitted = all lanes)
+    const LANE_TYPES = ['drums', 'bass', 'chords', 'melody'];
+    const laneRow = document.createElement('div');
+    laneRow.className = 'pe-row';
+    const ll = label('active on');
+    ll.title = 'Which lanes this pad affects — intersects with the ⚡ arm chips; multiple held pads union';
+    laneRow.appendChild(ll);
+    const sel = new Set(draft.lanes ?? LANE_TYPES);
+    for (const lt of LANE_TYPES) {
+      const chip = document.createElement('button');
+      chip.className = 'pe-lane' + (sel.has(lt) ? ' on' : '');
+      chip.textContent = lt;
+      chip.onclick = () => {
+        if (sel.has(lt)) sel.delete(lt); else sel.add(lt);
+        if (sel.size === LANE_TYPES.length) delete draft.lanes;
+        else draft.lanes = LANE_TYPES.filter(t => sel.has(t));
+        chip.classList.toggle('on', sel.has(lt));
+        refreshSave();
+      };
+      laneRow.appendChild(chip);
+    }
+    modal.appendChild(laneRow);
+
     // quantize
     const q = document.createElement('div');
     q.className = 'pe-row pe-q';
