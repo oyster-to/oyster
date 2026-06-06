@@ -8,6 +8,7 @@ import { heartbeats } from '../songs/heartbeats.js';
 import { digitalLove } from '../songs/digital-love.js';
 import { memoryReboot } from '../songs/memory-reboot.js';
 import { takeOnMe } from '../songs/take-on-me.js';
+import { firstRoll } from '../songs/first-roll.js';
 import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
 
@@ -39,7 +40,7 @@ function knobTip(k) {
   return info ? info[0] + ' — ' + info[1] : k;
 }
 
-const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, heartbeats, 'digital-love': digitalLove, 'memory-reboot': memoryReboot, 'take-on-me': takeOnMe };
+const SONGS = { kids, 'rising-sun': risingSun, 'electric-feel': electricFeel, heartbeats, 'digital-love': digitalLove, 'memory-reboot': memoryReboot, 'take-on-me': takeOnMe, 'first-roll': firstRoll };
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -1449,7 +1450,7 @@ function initSectionWrappers() {
 }
 
 // ─── Initial load ─────────────────────────────────────────────────────────────
-eng.load(kids);
+eng.load(firstRoll);
 const initialSong = eng.getSong();
 document.getElementById('bpm').value = initialSong.bpm;
 document.getElementById('bpmv').textContent = initialSong.bpm;
