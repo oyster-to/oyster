@@ -960,8 +960,8 @@ input[type=range] {
 }
 
 /* ─── PATTERNS module ─── */
-.pat-playing { margin-left: auto; font-size: 11px; color: var(--hot); opacity: .9; }
-.pat-editing { font-size: 11px; color: var(--acc); opacity: .9; margin-left: 12px; }
+.pat-editing { margin-left: auto; font-size: 11px; color: var(--acc); opacity: .9; }
+.pat-playing { font-size: 11px; color: var(--hot); opacity: .9; margin-left: 12px; }
 .ed-lbl { font-size: 10px; color: var(--dim); letter-spacing: .1em; text-transform: uppercase; margin: 2px 0 4px; }
 .pat-row, .chain-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0; transition: opacity .2s; }
 .pat-row.dimmed, .chain-row.dimmed { opacity: .45; }
