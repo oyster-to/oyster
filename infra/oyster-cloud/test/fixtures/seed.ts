@@ -6,6 +6,7 @@ import { env } from "cloudflare:test";
 const SCHEMA_SQL = `
 -- Mirror of oyster-auth's relevant schema for tests. Keep in sync with:
 --   infra/auth-worker/migrations/0001_init.sql  (users, sessions)
+--   infra/auth-worker/migrations/0013_app_handoff_codes.sql (app_handoff_codes)
 CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
   email         TEXT NOT NULL UNIQUE,
@@ -88,6 +89,16 @@ CREATE TABLE IF NOT EXISTS synced_session_chunks (
 );
 CREATE INDEX IF NOT EXISTS idx_synced_session_chunks_active
   ON synced_session_chunks (owner_id, session_id, bytes_generation, chunk_number);
+-- Mirror of infra/auth-worker/migrations/0013_app_handoff_codes.sql
+CREATE TABLE IF NOT EXISTS app_handoff_codes (
+  code_hash   TEXT PRIMARY KEY,
+  session_id  TEXT NOT NULL,
+  created_at  INTEGER NOT NULL,
+  expires_at  INTEGER NOT NULL,
+  consumed_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_app_handoff_codes_expires_at
+  ON app_handoff_codes (expires_at);
 `;
 
 export async function applySchema(): Promise<void> {
