@@ -104,3 +104,35 @@ The 7 preset songs stay authored in their current rich format and are **flattene
 ## Out of scope
 
 URL sharing / persistence of user songs, parameter locks, punch-in FX, fills rework, pattern naming, >4-bar patterns, velocity. (These come after — this redesign produces the explicit-JSON substrate they need.)
+
+---
+
+## Amendment 2 (2026-06-06, after second hands-on review): grooves return — patterns become combos
+
+Hands-on use showed the whole-machine-pattern model lost the most playable part of the old groovebox: **switching an instrument's groove from the strip dropdown**. Matthew's verdict, agreed: restore the old surface; patterns become *remembered dropdown combos*.
+
+**The contract (the whole design in three sentences):**
+1. The groovebox goes back to how it was — groove dropdowns on the strips, knobs, fills, the one-bar grid with the bar stepper.
+2. The only new thing is one row: `PATTERNS [1][2][3][+] · CHAIN [1][2][3]`. A pattern slot remembers where the dropdowns are; click a slot and they snap back; the chain is the order they play.
+3. `cycle 2/4`, `capture scene`, and `Live/Song` are simply gone — pattern slots quietly do their jobs.
+
+**Data model (supersedes the inline-pattern shape):**
+
+```js
+song = {
+  lanes:   [ { id, type, name, muted, soloed, tone? } ],      // unchanged
+  grooves: { [laneId]: { [grooveName]: perBarData[] } },      // named, explicit, shared
+  patterns:[ { bars: 1|2|4, lanes: { [laneId]: grooveName } } ], // a combo of picks
+  chain:   [patternIndex, …],                                  // unchanged, never empty
+  fills:   { … }                                               // unchanged
+}
+```
+
+- A **groove** owns its own length (its data array, 1–4 bars); at pattern bar `b` it plays bar `b % groove.length`. `pattern.bars` is the loop length (the honest cycle). The *inactive bars* concept dissolves — grooves keep their full data; pattern length just cycles them.
+- **Editing a groove edits it everywhere it's used** — that is the point (tweak the kick once). The editor is labelled with the groove name it's editing; the bar stepper shows `groove.length` buttons.
+- **Dropdowns show the EDIT pattern's picks** and never auto-follow chain playback (the old song-mode dropdown-sync was part of the confusion). An `Editing: Pattern N` indicator sits in the PATTERNS header next to the playback label.
+- **`+` (add pattern) clones the selected pattern's picks** (an empty combo is silence — useless); `⧉ duplicate` is therefore the same thing and the two collapse into one affordance if that reads better.
+- **Flattener:** bake per-bar per-lane exactly as today, group into patterns as today, then per pattern/lane extract the lane's bars as a groove — **deduped by content across the song**, named from the source pool selection where known (`four`, `four +tom roll` for fill-affected variants, else numbered). Patterns store groove names. **The existing 7-preset parity tests must keep passing unchanged** — same streams, new indirection.
+- **Engine API:** `setLaneGroove(laneId, grooveName)` (writes the EDIT pattern's pick), `getGrooves()`; step-edit setters now write into the groove referenced by the edit pattern's pick for that lane. Everything else (target playback, chain ops, length, fills queue) unchanged.
+
+**Out of scope for this amendment:** creating/renaming/deleting grooves from the UI (the dropdown lists what migration produced; editing mutates in place), per-pattern fills, recipe labels on pattern slots. All natural follow-ups.
