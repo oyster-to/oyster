@@ -595,7 +595,11 @@ function renderPatterns() {
     chip.ondrop = e => {
       e.preventDefault();
       if (_chainDragFrom === null || _chainDragFrom === pos) return;
-      eng.moveChain(_chainDragFrom, pos);
+      const rect = chip.getBoundingClientRect();
+      const before = e.clientX < rect.left + rect.width / 2;
+      let to = before ? pos : pos + 1;
+      if (_chainDragFrom < to) to--;           // account for the splice-out shifting targets left
+      eng.moveChain(_chainDragFrom, to);
       renderPatterns();
     };
     crow.appendChild(chip);
