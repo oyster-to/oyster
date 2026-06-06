@@ -10,6 +10,7 @@ import { memoryReboot } from '../songs/memory-reboot.js';
 import { takeOnMe } from '../songs/take-on-me.js';
 import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
+import { initShare, maybeLoadShared } from './share.js';
 
 const eng = createEngine();
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
@@ -978,6 +979,12 @@ function loadSong(key) {
   play.classList.remove('on');
   play.textContent = '▶ play';
   eng.load(SONGS[key]);
+  afterSongLoad();
+}
+
+// Shared post-load path (preset switch + shared-song load): bpm/key sync, FX
+// reset, full UI remount. Caller has already eng.load()ed the new song.
+function afterSongLoad() {
   const s = eng.getSong();
   const bpm = document.getElementById('bpm');
   bpm.value = s.bpm;
@@ -1457,6 +1464,43 @@ eng.setTempo(initialSong.bpm);
 mount();
 // Wrap sections and wire section drag-reorder once, after first mount.
 initSectionWrappers();
+
+// ─── Share registry ───────────────────────────────────────────────────────────
+function gbNotice(msg) {
+  let el = document.getElementById('gb-notice');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'gb-notice';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(gbNotice._t);
+  gbNotice._t = setTimeout(() => el.classList.remove('show'), 2600);
+}
+const shareHooks = {
+  notice: gbNotice,
+  onSongLoaded: () => {
+    afterSongLoad();
+    // songsel no longer matches a preset — park it on a hidden "(shared)" option.
+    const sel = document.getElementById('songsel');
+    let opt = document.getElementById('songsel-shared');
+    if (!opt) {
+      opt = document.createElement('option');
+      opt.id = 'songsel-shared';
+      opt.hidden = true;
+      opt.textContent = '(shared)';
+      sel.appendChild(opt);
+    }
+    opt.selected = true;
+  },
+  onGroovesChanged: () => { renderStrips(); refreshVizPattern(); },
+  // v1: import into the first matching lane (multi-lane-same-type songs are
+  // rare; the groove still lands correctly, just without a picker).
+  pickLane: lanes => Promise.resolve(lanes[0].id),
+};
+initShare(eng, shareHooks);
+maybeLoadShared(eng, shareHooks);
 // Press-and-hold on a control must not open the browser context menu (Android
 // Chrome long-press → "more actions / translate"). Scoped to controls so
 // right-click elsewhere stays normal on desktop.
