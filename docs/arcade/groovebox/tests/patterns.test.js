@@ -4,7 +4,7 @@ import {
   addPattern, duplicatePattern, removePattern,
   appendToChain, removeChainAt, moveChain,
   setDrumStep, toggleNote, setLaneGroove, grooveFor, emptyBarFor,
-  doubleGroove, halveGroove,
+  setGrooveBars,
 } from '../engine/patterns.js';
 
 const meter44 = { beatsPerBar: 4, beatUnit: 4, stepsPerBeat: 4 };
@@ -266,63 +266,64 @@ test('emptyBarFor returns {} for drums lanes and [] for others', () => {
   expect(emptyBarFor({ type: 'melody' })).toEqual([]);
 });
 
-// ── groove bar count (powers of two: 1/2/4/8) ──
-test('doubleGroove appends a DEEP copy of all bars; mutating a copy leaves originals intact', () => {
+// ── groove length picker (powers of two: 1/2/4/8) ──
+test('setGrooveBars grows by cycling deep copies of the original bars', () => {
   const s = makeSong();
-  expect(doubleGroove(s, 'drums', 'groove2')).toBe(4);   // 2 → 4 (bars 1,2,1,2)
+  // 1-bar → 4 fills 1,1,1,1
+  s.grooves.melody.one = [[[0, 'C4', 2]]];                 // 1-bar
+  expect(setGrooveBars(s, 'melody', 'one', 4)).toBe(4);
+  const one = s.grooves.melody.one;
+  expect(one.length).toBe(4);
+  expect(one).toEqual([[[0, 'C4', 2]], [[0, 'C4', 2]], [[0, 'C4', 2]], [[0, 'C4', 2]]]);
+  // 2-bar → 4 fills 1,2,1,2
+  expect(setGrooveBars(s, 'drums', 'groove2', 4)).toBe(4);
   const g = s.grooves.drums.groove2;
   expect(g.length).toBe(4);
-  expect(g[2]).toEqual(g[0]);                             // copy of bar 0
-  expect(g[3]).toEqual(g[1]);                             // copy of bar 1
-  // deep copy: mutating a copied bar doesn't touch the original it came from
-  g[2].kick.push(7);
+  expect(g[2]).toEqual(g[0]);                              // bar 1 cycled
+  expect(g[3]).toEqual(g[1]);                              // bar 2 cycled
+});
+
+test('setGrooveBars deep-copies filled bars; mutating one leaves the original intact', () => {
+  const s = makeSong();
+  expect(setGrooveBars(s, 'drums', 'groove2', 4)).toBe(4); // 2 → 4 (1,2,1,2)
+  const g = s.grooves.drums.groove2;
+  g[2].kick.push(7);                                       // mutate the copy
   expect(g[0].kick).toEqual([0, 8]);                       // original bar 0 unchanged
   // melodic arrays deep-copied too
-  expect(doubleGroove(s, 'melody', 'riff')).toBe(4);
+  expect(setGrooveBars(s, 'melody', 'riff', 4)).toBe(4);
   const m = s.grooves.melody.riff;
   m[2].push([0, 'Z9', 1]);
   expect(m[0]).toEqual([[0, 'C4', 2]]);                    // original bar 0 unchanged
 });
 
-test('doubleGroove walks 1→2→4→8 then returns null at 8 / missing groove', () => {
+test('setGrooveBars shrinks by keeping the front bars', () => {
   const s = makeSong();
-  s.grooves.melody.one = [[]];                            // 1-bar
-  expect(doubleGroove(s, 'melody', 'one')).toBe(2);       // 1 → 2
-  expect(doubleGroove(s, 'melody', 'one')).toBe(4);       // 2 → 4
-  expect(doubleGroove(s, 'melody', 'one')).toBe(8);       // 4 → 8
-  expect(doubleGroove(s, 'melody', 'one')).toBeNull();    // 8 → cap, no-op
-  expect(s.grooves.melody.one.length).toBe(8);
-  expect(doubleGroove(s, 'drums', 'nope')).toBeNull();    // missing groove
-  expect(doubleGroove(s, 'nolane', 'x')).toBeNull();      // missing lane
+  s.grooves.drums.big = [{ a: [0] }, { a: [1] }, { a: [2] }, { a: [3] }];  // 4-bar
+  expect(setGrooveBars(s, 'drums', 'big', 2)).toBe(2);    // 4 → 2 (front)
+  expect(s.grooves.drums.big).toEqual([{ a: [0] }, { a: [1] }]);
 });
 
-test('halveGroove keeps the first half; walks 8→4→2→1 then null at 1 / missing groove', () => {
+test('setGrooveBars rejects invalid n (3, 5, 16) → null, no change', () => {
   const s = makeSong();
-  s.grooves.drums.big = [{ a: [0] }, { a: [1] }, { a: [2] }, { a: [3] },
-                         { a: [4] }, { a: [5] }, { a: [6] }, { a: [7] }]; // 8-bar
-  expect(halveGroove(s, 'drums', 'big')).toBe(4);         // 8 → 4 (first half)
-  expect(s.grooves.drums.big).toEqual([{ a: [0] }, { a: [1] }, { a: [2] }, { a: [3] }]);
-  expect(halveGroove(s, 'drums', 'big')).toBe(2);         // 4 → 2
-  expect(halveGroove(s, 'drums', 'big')).toBe(1);         // 2 → 1
-  expect(halveGroove(s, 'drums', 'big')).toBeNull();      // 1 → min, no-op
-  expect(s.grooves.drums.big.length).toBe(1);
-  expect(halveGroove(s, 'drums', 'nope')).toBeNull();     // missing groove
+  expect(setGrooveBars(s, 'drums', 'groove2', 3)).toBeNull();
+  expect(setGrooveBars(s, 'drums', 'groove2', 5)).toBeNull();
+  expect(setGrooveBars(s, 'drums', 'groove2', 16)).toBeNull();
+  expect(s.grooves.drums.groove2.length).toBe(2);         // untouched
 });
 
-test('halveGroove rounds a legacy odd length down to the next power of two below (defensive)', () => {
+test('setGrooveBars is a no-op at the same length / missing groove → null', () => {
   const s = makeSong();
-  s.grooves.drums.legacy = [{ a: [0] }, { a: [1] }, { a: [2] }];  // 3-bar (legacy)
-  expect(halveGroove(s, 'drums', 'legacy')).toBe(2);     // 3 → 2 (next pow2 below)
-  expect(s.grooves.drums.legacy).toEqual([{ a: [0] }, { a: [1] }]);
+  expect(setGrooveBars(s, 'drums', 'groove2', 2)).toBeNull(); // already 2
+  expect(setGrooveBars(s, 'drums', 'nope', 4)).toBeNull();    // missing groove
+  expect(setGrooveBars(s, 'nolane', 'x', 4)).toBeNull();      // missing lane
 });
 
-test('patternBars follows groove length changes (pattern duration tracks the groove)', () => {
+test('patternBars follows setGrooveBars length changes (pattern duration tracks the groove)', () => {
   const s = makeSong();
   expect(patternBars(s, 0)).toBe(2);                      // groove2 (2) + riff (2)
-  doubleGroove(s, 'drums', 'groove2');                    // 2 → 4
+  setGrooveBars(s, 'drums', 'groove2', 4);                // 2 → 4
   expect(patternBars(s, 0)).toBe(4);                      // pattern grows with the groove
-  halveGroove(s, 'drums', 'groove2');                     // 4 → 2
-  halveGroove(s, 'drums', 'groove2');                     // 2 → 1
-  halveGroove(s, 'melody', 'riff');                       // 2 → 1 (both now 1)
+  setGrooveBars(s, 'drums', 'groove2', 1);               // 4 → 1
+  setGrooveBars(s, 'melody', 'riff', 1);                 // 2 → 1 (both now 1)
   expect(patternBars(s, 0)).toBe(1);
 });

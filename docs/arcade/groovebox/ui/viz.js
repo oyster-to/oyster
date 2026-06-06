@@ -374,8 +374,8 @@ export function makeViz(host, song, eng) {
 
   // ─── Roll-mode toggle bar (melody + bass only) ───────────────────────────
   // Returns an HTML string for the segmented Piano/Blocks toggle.
-  // `barCtrlLane` (optional): when given an editable lane, append ＋/− bar-count
-  // controls into the toggle bar (melody only; bass is read-only).
+  // `barCtrlLane` (optional): when given an editable lane, append the groove-
+  // length selector into the toggle bar (melody only; bass is read-only).
   function rollModeToggleHTML(barCtrlLane = null) {
     const pa = rollMode === 'piano'  ? ' rm-on' : '';
     const ba = rollMode === 'blocks' ? ' rm-on' : '';
@@ -383,25 +383,31 @@ export function makeViz(host, song, eng) {
       + `<span class="roll-mode-lbl">VIEW</span>`
       + `<button class="roll-mode-btn${pa}" data-rm="piano">Piano</button>`
       + `<button class="roll-mode-btn${ba}" data-rm="blocks">Blocks</button>`
-      + (barCtrlLane ? `<span class="barsel-lbl" style="margin-left:auto">bar</span>` + barCountControlsHTML(barCtrlLane) : '')
+      + (barCtrlLane ? barCountControlsHTML(barCtrlLane) : '')
       + `</div>`;
   }
 
-  // Bar-count controls (×2 doubles, ÷2 halves) for the lane's groove. Groove
-  // lengths are powers of two (1/2/4/8). ×2 is hidden at 8; ÷2 only shows once
-  // the groove has >1 bar. Reuses the .bsel look.
+  // Groove-length selector for the lane's groove. Groove lengths are powers of
+  // two — pick one directly (1/2/4/8 bars), like a hardware sequencer. The
+  // current length is marked `on`. Reuses the .bsel look via .glen-btn.
   function barCountControlsHTML(L) {
     const len = grooveLen(L);
-    return (len < 8 ? `<button class="bsel bsel-add" title="double — copies existing bars">×2</button>` : '')
-      + (len > 1 ? `<button class="bsel bsel-rm" title="halve — drops the back half">÷2</button>` : '');
+    const btns = [1, 2, 4, 8]
+      .map(n => `<button class="glen-btn${n === len ? ' on' : ''}" data-glen="${n}">${n}</button>`)
+      .join('');
+    return `<span class="glen"><span class="glen-lbl">bars</span>${btns}</span>`;
   }
-  // Wire ×2/÷2 inside host after build() injects them. Full rebuild on change so
-  // the stepper count + clamped editBars repaint correctly.
+  // Wire the length selector inside host after build() injects it. Full rebuild
+  // on change so the stepper count + clamped editBars repaint correctly.
   function wireBarCountControls(L) {
-    const add = host.querySelector('.bsel-add');
-    const rm = host.querySelector('.bsel-rm');
-    if (add) add.onclick = () => { eng.doubleGroove(L.id); build(); paint(lastStepInBar); };
-    if (rm)  rm.onclick  = () => { eng.halveGroove(L.id); build(); paint(lastStepInBar); };
+    host.querySelectorAll('.glen-btn').forEach(btn => {
+      btn.onclick = () => {
+        if (eng.setGrooveBars(L.id, +btn.dataset.glen) !== null) {
+          build();
+          paint(lastStepInBar);
+        }
+      };
+    });
   }
 
   // Wire the toggle buttons inside host after build() injects them.
@@ -605,7 +611,7 @@ export function makeViz(host, song, eng) {
       const BARS = grooveLen(L);
       let html = edLabelHTML(L);
       // Bar stepper — render whenever the lane has a groove (even 1 bar), since
-      // it now also hosts the ＋/− bar-count controls.
+      // it now also hosts the groove-length selector.
       if (editGroove(L)) {
         html += `<div class="barsel"><span class="barsel-lbl">bar</span>`;
         for (let b = 0; b < BARS; b++) html += `<button class="bsel" data-b="${b}">${b + 1}</button>`;

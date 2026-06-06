@@ -2016,4 +2016,22 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   outline-offset: 2px;
   box-shadow: 0 0 8px rgba(255,91,158,0.3);
 }
-.bsel-add, .bsel-rm { opacity: .7; }
+.glen { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.glen-lbl { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-right: 2px; }
+.glen-btn {
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+}
+.glen-btn.on {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: #04201a;
+  font-weight: 700;
+  box-shadow: 0 0 8px rgba(84,240,200,0.35);
+}
