@@ -1,5 +1,5 @@
 // cloud-spaces.ts — maps the oyster-publish worker's synced_spaces rows
-// (GET /api/spaces/mine on the APEX, NOT under the /app/api rewrite) into
+// (GET /api/spaces/mine via the oyster-cloud service-binding proxy on app.oyster.to) into
 // the local Space shape so the space switcher works in the cloud build.
 import type { Space } from "../../../shared/types";
 

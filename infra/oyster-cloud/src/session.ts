@@ -10,8 +10,8 @@ export interface Env {
   // The actual AES key is derived per-user (salt = user id) so a leak of
   // one user's derived key never compromises another.
   SESSIONS_ENCRYPTION_KEY: string;
-  // Cloud remote view SPA assets (web/dist-cloud). Served under /app via the
-  // worker; hashed assets are public, navigations are auth-gated.
+  // Cloud remote view SPA assets (web/dist-cloud). Served at the
+  // app.oyster.to root; hashed assets are public, navigations are auth-gated.
   ASSETS: Fetcher;
   // Service binding to oyster-publish: /api/publish/* and /api/spaces/*
   // on app.oyster.to forward over this (no public hop, cookie + Origin
