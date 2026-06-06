@@ -45,7 +45,7 @@ export function validatePreset(p) {
 // throw release 1.5s≈beats:3, stop slump 0.8s≈beats:1.5. CRUSH 0.9 = the
 // dogfood-approved level. These are seed data — never mutated in place.
 export const DEFAULT_PRESETS = [
-  { name: 'STUT', key: '1', engageQuantize: 'immediate', releaseQuantize: 'immediate',
+  { name: 'STUTTER', key: '1', engageQuantize: 'immediate', releaseQuantize: 'immediate',
     lanes: ['drums', 'bass'],   // chop the rhythm section; pads/melody ride on top
     automations: [
       { module: 'gate', param: 'depth', from: 'neutral', to: 1, division: '1/8',

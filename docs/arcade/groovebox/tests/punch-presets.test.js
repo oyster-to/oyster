@@ -5,7 +5,7 @@ import { MODULE_PARAMS } from '../engine/punch.js';
 describe('DEFAULT_PRESETS', () => {
   it('ships exactly five slots with keys 1-5', () => {
     expect(DEFAULT_PRESETS.map(p => p.key)).toEqual(['1', '2', '3', '4', '5']);
-    expect(DEFAULT_PRESETS.map(p => p.name)).toEqual(['STUT', 'CRUSH', 'DIVE', 'THROW', 'STOP']);
+    expect(DEFAULT_PRESETS.map(p => p.name)).toEqual(['STUTTER', 'CRUSH', 'DIVE', 'THROW', 'STOP']);
   });
   it('every preset validates', () => {
     for (const p of DEFAULT_PRESETS) expect(validatePreset(p)).toBe(true);
@@ -77,7 +77,7 @@ describe('registry ranges (v3.5 — single source of truth)', () => {
 describe('lane masks (v3.5 — per-preset targeting)', () => {
   const base = { name: 'X', key: '1', engageQuantize: 'immediate', releaseQuantize: 'immediate', automations: [] };
   it('STUT defaults to 1/8 chop on drums+bass only', () => {
-    const stut = DEFAULT_PRESETS.find(p => p.name === 'STUT');
+    const stut = DEFAULT_PRESETS.find(p => p.name === 'STUTTER');
     expect(stut.automations[0].division).toBe('1/8');
     expect(stut.lanes).toEqual(['drums', 'bass']);
   });
