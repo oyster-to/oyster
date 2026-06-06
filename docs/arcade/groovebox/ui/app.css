@@ -1,0 +1,2092 @@
+/* ─── design tokens ─────────────────────────────────────────────────────── */
+:root {
+  /* § 1 — color system */
+  --bg:        #0a0b0f;
+  --panel:     #13151c;
+  --panel-2:   #1a1d26;
+  --panel-3:   #232732;
+  --line:      rgba(255,255,255,0.07);
+  --line-dk:   rgba(0,0,0,0.45);
+  --ink:       #e6e8ee;
+  --dim:       #8a90a0;
+  --faint:     #5a6072;
+  --acc:       #54f0c8;
+  --acc-dim:   #2e8a74;
+  --hot:       #ff5b9e;
+  --warn:      #ffd24a;
+  --ink-on-acc: #04201a;  /* text colour on --acc background; override per theme */
+  --tab-on-ink: var(--acc); /* active-tab text colour; override when --panel-3 is dark */
+  --tab-bg:     var(--panel-3); /* active-tab pill fill; decoupled from hover surface */
+  --meter-lo:  #54f0c8;
+  --meter-mid: #ffd24a;
+  --meter-hi:  #ff5b6b;
+
+  /* component tokens — themed per [data-theme] */
+  --cell:         #0d1020;   /* empty drum cell */
+  --cell-alt:     #111828;   /* bar-alt cell */
+  --hit1:         #3a5890;   /* groove hit gradient top */
+  --hit2:         #1c2f54;   /* groove hit gradient bottom */
+  --roll-bg:      #0f121a;   /* piano-roll / bass lane (white key) */
+  --roll-bg-blk:  #0c0e14;   /* piano-roll / bass lane (black key) */
+  --roll-note:    var(--acc); /* note blocks + bass notes */
+  --grid-line:    #2a2e3a;   /* roll / scope gridlines */
+  --scope:        #7dffe0;   /* scope trace */
+  --playhead:     #ffffff;   /* roll / scope playhead */
+
+  /* screen / glow */
+  --screen-bg:   #07080d;
+  --screen-glow: rgba(84,240,200,0.06);
+
+  /* cabinet chrome — kept for screws */
+  --chrome-hi:  #3a3e4e;
+  --chrome-mid: #22252f;
+  --chrome-lo:  #12141a;
+  --bevel-hi:   rgba(255,255,255,0.06);
+  --bevel-lo:   rgba(0,0,0,0.45);
+}
+
+/* ─── reset ─────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ─── page background ───────────────────────────────────────────────────── */
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 32px 16px 48px;
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, #0d1120 0%, #05060a 100%);
+  /* § 2 — system-sans body font */
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+/* § 2 — mono utility: numeric readouts */
+.mono,
+#bpmv,
+.vhcell,
+.vrow .vl,
+.knob-lbl {
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+/* ─── cabinet frame — lightened from original ───────────────────────────── */
+.cabinet {
+  width: 100%;
+  max-width: 1280px;
+  border-radius: 18px;
+  padding: 24px 22px 28px;
+  position: relative;
+  overflow: visible;
+
+  /* subtle sheen only — no loud brushed-metal stripes */
+  background: linear-gradient(
+    170deg,
+    var(--chrome-hi)  0%,
+    var(--chrome-mid) 40%,
+    var(--chrome-lo)  70%,
+    #1a1c24           100%
+  );
+
+  box-shadow:
+    inset 0 1px 0 var(--bevel-hi),
+    inset 0 -1px 0 var(--bevel-lo),
+    inset 1px 0 0 var(--bevel-hi),
+    inset -1px 0 0 var(--bevel-lo),
+    0 8px 48px rgba(0,0,0,0.7),
+    0 2px 8px rgba(0,0,0,0.5);
+}
+
+/* screw accents */
+.cabinet-corners { pointer-events: none; }
+.screw {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #4a4e5e, #1a1c22);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,0.18),
+    inset 0 -1px 1px rgba(0,0,0,0.5),
+    0 0 0 1px rgba(0,0,0,0.4);
+}
+.screw::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 20%; right: 20%;
+  height: 1px;
+  background: rgba(0,0,0,0.5);
+  transform: translateY(-50%) rotate(45deg);
+}
+.screw.tl { top: 12px;  left: 12px;  }
+.screw.tr { top: 12px;  right: 12px; }
+.screw.bl { bottom: 12px; left: 12px; }
+.screw.br { bottom: 12px; right: 12px; }
+
+/* inner panel */
+.cabinet-inner {
+  position: relative;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 18px 18px 20px;
+  box-shadow:
+    inset 0 2px 6px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(0,0,0,0.4);
+}
+
+/* ─── soft cabinet vignette — pointer-events:none preserved ─────────────── */
+.crt-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 51;
+  background: radial-gradient(ellipse at center,
+    transparent 55%,
+    rgba(0,0,0,0.22) 80%,
+    rgba(0,0,0,0.45) 100%);
+  border-radius: 18px;
+}
+
+/* ─── § 2 — title bar (tier 1) ──────────────────────────────────────────── */
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 12px;
+}
+.titlebar-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+/* Tool chrome — smaller, visually secondary vs transport */
+.titlebar-tools select,
+.titlebar-tools button {
+  height: 26px;
+  font-size: 11px;
+  padding: 0 10px;
+  color: var(--dim);
+  background: transparent;
+  border-color: var(--line);
+  box-shadow: none;
+}
+.titlebar-tools select {
+  padding-right: 26px;
+}
+.titlebar-tools button {
+  width: 26px;
+  padding: 0;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.titlebar-tools button:hover,
+.titlebar-tools select:hover {
+  background-color: var(--panel-2);
+  border-color: var(--acc-dim);
+  color: var(--ink);
+}
+
+h1 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-shadow: 0 0 12px rgba(84,240,200,0.3);
+}
+
+/* ─── § 3 — unified control base ───────────────────────────────────────── */
+button, select {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+  padding: 0 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 -1px 0 rgba(0,0,0,0.25),
+    0 1px 3px rgba(0,0,0,0.35);
+  transition: background 0.1s, border-color 0.1s, box-shadow 0.1s;
+}
+button:hover, select:hover {
+  background-color: var(--panel-3);   /* not `background:` — shorthand would wipe the select chevron */
+  border-color: var(--acc-dim);
+}
+button:active {
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.45),
+    inset 0 -1px 0 rgba(255,255,255,0.03);
+  transform: translateY(1px);
+}
+button:focus-visible, select:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+
+/* § 3 — select: explicit chevron */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a90a0'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+
+/* ─── § 3 — play button ─────────────────────────────────────────────────── */
+#play {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--acc) 82%, #fff) 0%,
+    var(--acc) 55%,
+    color-mix(in srgb, var(--acc) 80%, #000) 100%);
+  color: var(--ink-on-acc);
+  border-color: color-mix(in srgb, var(--acc) 70%, #000);
+  font-weight: 700;
+  min-width: 100px;
+  letter-spacing: 0.05em;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    inset 0 -2px 0 rgba(0,0,0,0.25),
+    0 0 12px color-mix(in srgb, var(--acc) 50%, transparent),
+    0 2px 6px rgba(0,0,0,0.45);
+}
+#play:hover {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--acc) 90%, #fff) 0%,
+    color-mix(in srgb, var(--acc) 95%, #fff) 50%,
+    color-mix(in srgb, var(--acc) 85%, #000) 100%);
+  border-color: color-mix(in srgb, var(--acc) 75%, #000);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.4),
+    inset 0 -2px 0 rgba(0,0,0,0.2),
+    0 0 20px color-mix(in srgb, var(--acc) 65%, transparent),
+    0 2px 6px rgba(0,0,0,0.4);
+}
+#play.on {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--hot) 82%, #fff) 0%,
+    var(--hot) 55%,
+    color-mix(in srgb, var(--hot) 80%, #000) 100%);
+  border-color: color-mix(in srgb, var(--hot) 70%, #000);
+  color: #fff;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.3),
+    inset 0 -2px 0 rgba(0,0,0,0.25),
+    0 0 16px color-mix(in srgb, var(--hot) 55%, transparent),
+    0 2px 6px rgba(0,0,0,0.45);
+}
+
+/* ─── § 3 — segmented tab control ──────────────────────────────────────── */
+/* song credit — inline subtitle below the song selector */
+#credit {
+  font-size: 10px;
+  color: var(--faint);
+  min-height: 12px;
+  letter-spacing: 0.02em;
+  font-style: italic;
+  line-height: 1.2;
+}
+#credit:not(:empty)::before { content: '♪ '; font-style: normal; opacity: 0.7; }
+
+.vtabs {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+/* "VIEW" label to the left of the Scope toggle */
+.vtabs-lbl {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding-right: 2px;
+  user-select: none;
+}
+/* Scope is now a standalone toggle button, not a full-width pill strip */
+.vtabs button {
+  flex: 0 0 auto;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 -1px 0 rgba(0,0,0,0.25),
+    0 1px 3px rgba(0,0,0,0.35);
+  padding: 0 14px;
+  transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+.vtabs button:hover {
+  background: var(--panel-3);
+  border-color: var(--acc-dim);
+  color: var(--ink);
+}
+.vtabs button.on {
+  background: rgba(84,240,200,0.10);
+  border-color: var(--acc);
+  color: var(--acc);
+  box-shadow:
+    inset 0 -2px 0 var(--acc),
+    inset 0 1px 0 rgba(84,240,200,0.08);
+}
+.vtabs button:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+.vtab-lane { font-size: 11px; text-transform: capitalize; }
+
+/* ─── tempo range ────────────────────────────────────────────────────────── */
+input[type=range] {
+  accent-color: var(--acc);
+  height: 4px;
+  cursor: pointer;
+}
+
+/* ─── § 8 — transport bar ───────────────────────────────────────────────── */
+.transport {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.transport-tempo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.transport-bpm-val {
+  font-size: 13px;
+  font-family: ui-monospace, Menlo, monospace;
+  color: var(--ink);
+  min-width: 3ch;
+  text-align: right;
+}
+.transport-song {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* ─── § 4 — section panels ──────────────────────────────────────────────── */
+/* Common panel chrome applied to the main content areas */
+#viz,
+#strips,
+#fills,
+#master,
+#arrange {
+  /* soft top-light → bottom-shade sheen (derived from --panel) so panels read
+     as smooth surfaces in every theme, not flat matte cards on dark */
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--panel) 86%, #fff) 0%,
+    var(--panel) 48%,
+    color-mix(in srgb, var(--panel) 92%, #000) 100%);
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 1px 4px rgba(0,0,0,0.45);
+  margin-bottom: 12px;
+}
+
+/* ─── CRT screen / viz area ──────────────────────────────────────────────── */
+#viz {
+  position: relative;
+  padding: 10px 10px 8px;
+  background: var(--screen-bg);
+  /* Frame the screen with the theme hairline so the bezel reads on EVERY theme —
+     on dark a black ring vanished against the near-black body. */
+  border: 1px solid var(--line);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    inset 0 2px 14px rgba(0,0,0,0.85),
+    inset 0 0 40px rgba(0,0,0,0.5),
+    0 0 0 1px var(--line),
+    0 0 24px var(--screen-glow);
+
+  outline: 1px solid rgba(0,0,0,0.30);
+  outline-offset: -2px;
+}
+
+/* ─── lane strips panel ──────────────────────────────────────────────────── */
+#strips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 100%;
+  padding: 12px;
+  margin-top: 0;
+}
+
+/* ─── fills panel ────────────────────────────────────────────────────────── */
+#fills {
+  padding: 12px 16px;
+}
+
+/* ─── master panel ───────────────────────────────────────────────────────── */
+#master {
+  padding: 12px 16px;
+}
+
+/* ─── arrangement panel ──────────────────────────────────────────────────── */
+#arrange {
+  padding: 12px 16px;
+}
+
+/* ─── beat-number header row ────────────────────────────────────────────── */
+.vhead {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  margin: 0 0 2px;
+}
+.vhl {
+  width: 46px;
+  flex: 0 0 46px;
+}
+.vhcell {
+  flex: 1;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: transparent;
+  user-select: none;
+  pointer-events: none;
+}
+.vhcell.beat {
+  color: var(--dim);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 6px rgba(84,240,200,0.4);
+}
+
+/* ─── grid rows ──────────────────────────────────────────────────────────── */
+.vrow {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  margin: 3px 0;
+}
+.vrow .vl {
+  width: 46px;
+  font-size: 10px;
+  color: var(--dim);
+  text-align: right;
+  padding-right: 4px;
+  flex: 0 0 46px;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.vrow .vl-lbl { line-height: 1; }
+.vrow .vr { flex: 0 0 auto; display: flex; gap: 2px; align-items: center; padding-left: 5px; }
+.vrow.silenced > .vc,
+.vrow.silenced > .vl > .vl-lbl { opacity: 0.3; transition: opacity .15s; }
+
+/* ─── per-drum mute/solo buttons ─────────────────────────────────────────── */
+.dvm, .dvs {
+  width: 14px; height: 14px; flex: 0 0 14px; padding: 0; border-radius: 3px;
+  font: 700 8px ui-monospace,Menlo,monospace; color: var(--dim);
+  border: 1px solid var(--line); cursor: pointer; transition: .12s;
+  background: linear-gradient(180deg, #22252f, #15171f);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 1px 2px rgba(0,0,0,.4);
+  line-height: 14px; text-align: center;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.dvm:hover, .dvs:hover { border-color: var(--acc-dim); }
+.dvm.muted {
+  color: #fff1e8; border-color: #a8391c;
+  background: linear-gradient(180deg, #ff7a3d, #d6481e);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 6px rgba(255,90,40,.5);
+}
+.dvs.soloed {
+  color: #04201a; border-color: #2eaa8a;
+  background: linear-gradient(180deg, #63f8d4, #3dd6b0);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 6px rgba(84,240,200,.5);
+}
+.vrow .vr .dvm, .vrow .vr .dvs { margin: 0; }
+
+/* ─── step cells ─────────────────────────────────────────────────────────── */
+.vc {
+  flex: 1;
+  height: 18px;
+  border-radius: 3px;
+  background: var(--cell);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: #cfe0ff;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+  transition: box-shadow 0.08s;
+}
+
+/* § 6 — alternating beat-group shading: odd beat-groups slightly lighter */
+.vc.bar-alt { background: var(--cell-alt); }
+
+/* § 6 — beat lines: stronger left border at beat starts */
+.vc.beat {
+  background: var(--cell);
+  box-shadow: inset 1px 0 0 rgba(255,255,255,0.10);
+}
+.vc.bar-alt.beat { background: var(--cell-alt); }
+
+/* § 6 — downbeat (step 0): even stronger marker */
+.vc.downbeat {
+  box-shadow: inset 2px 0 0 rgba(84,240,200,0.35);
+}
+
+/* § 6 — hit cells: subtle vertical gradient + soft teal glow */
+.vc.hit {
+  background: linear-gradient(180deg, var(--hit1) 0%, color-mix(in srgb, var(--hit1) 60%, var(--hit2)) 60%, var(--hit2) 100%);
+  color: #cfe0ff;
+  box-shadow:
+    0 0 6px rgba(84,240,200,0.35),
+    inset 0 1px 0 rgba(100,180,255,0.25),
+    inset 0 -1px 0 rgba(0,0,0,0.3);
+}
+.vc.hit.bar-alt {
+  background: linear-gradient(180deg, var(--hit1) 0%, color-mix(in srgb, var(--hit1) 60%, var(--hit2)) 60%, var(--hit2) 100%);
+  filter: brightness(1.05);
+}
+
+/* § 6 — added cells: amber gradient, distinct from hit */
+.vc.added {
+  background: linear-gradient(180deg, #ffdd70 0%, #e8b830 60%, #c49420 100%);
+  color: #2a1a00;
+  box-shadow:
+    0 0 7px rgba(255,210,74,0.45),
+    inset 0 1px 0 rgba(255,255,200,0.35),
+    inset 0 -1px 0 rgba(0,0,0,0.2);
+}
+
+/* § 6 — removed cells: ghost outline, clearly distinct */
+.vc.removed {
+  background: var(--cell);
+  outline: 1px dashed rgba(180,140,60,0.55);
+  outline-offset: -2px;
+}
+.vc.removed.bar-alt {
+  background: var(--cell-alt);
+}
+
+/* § 6 — playhead: crisp --acc ring + faint column tint */
+.vc.now {
+  outline: 2px solid var(--acc);
+  outline-offset: -2px;
+  box-shadow: 0 0 8px rgba(84,240,200,0.30);
+  background: rgba(84,240,200,0.06);
+}
+.vc.hit.now {
+  outline: 2px solid var(--acc);
+  outline-offset: -2px;
+  box-shadow:
+    0 0 10px rgba(84,240,200,0.55),
+    0 0 4px rgba(255,255,255,0.25),
+    inset 0 1px 0 rgba(100,220,200,0.3);
+}
+.vc.added.now {
+  outline: 2px solid var(--acc);
+  outline-offset: -2px;
+  box-shadow:
+    0 0 10px rgba(255,210,74,0.65),
+    0 0 4px rgba(84,240,200,0.35);
+}
+
+/* ─── bar selector ───────────────────────────────────────────────────────── */
+.barsel {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--dim);
+}
+.bsel {
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+}
+.bsel.on {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: #04201a;
+  font-weight: 700;
+  box-shadow: 0 0 8px rgba(84,240,200,0.35);
+}
+.bsel.playing {
+  outline: 2px solid var(--hot);
+  outline-offset: 2px;
+  box-shadow: 0 0 8px rgba(255,91,158,0.3);
+}
+.cyc {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+}
+.cyc.on {
+  background: rgba(84,240,200,0.10);
+  border-color: var(--acc);
+  color: var(--acc);
+}
+
+/* ─── melody piano-roll canvas ──────────────────────────────────────────── */
+#mroll {
+  display: block;
+  width: 100%;
+  background: #07080d;
+  border-radius: 6px;
+  cursor: crosshair;
+  position: relative;
+  z-index: 2;
+}
+
+/* ─── bass roll canvas ──────────────────────────────────────────────────── */
+#broll {
+  display: block;
+  width: 100%;
+  background: #07080d;
+  border-radius: 6px;
+  position: relative;
+  z-index: 2;
+}
+
+/* ─── scope canvas + bar ────────────────────────────────────────────────── */
+#scope-canvas {
+  display: block;
+  width: 100%;
+  background: #0b0d12;
+  border-radius: 6px;
+  position: relative;
+  z-index: 2;
+}
+.scope-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  position: relative;
+  z-index: 2;
+  font-size: 11px;
+  color: var(--dim);
+}
+.scope-bar select {
+  background: var(--panel-2);
+  color: var(--acc);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 28px 0 4px;
+  font: inherit;
+  cursor: pointer;
+  height: 26px;
+}
+
+/* ─── § 5 — lane strips: aligned shared grid ────────────────────────────── */
+.lane {
+  display: grid;
+  /* drag | name | pattern-select | meter | MIX | TONE | FX | M/S | actions */
+  grid-template-columns: 16px 64px minmax(150px,220px) 10px auto auto auto 56px auto;
+  column-gap: 12px;
+  align-items: center;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.03),
+    0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* § 2 — section header labels */
+.lane .name {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.lane select { width: 100%; }
+
+/* dim non-audible lane */
+.mute.on {
+  background: #3a1622;
+  border-color: #5a2030;
+  color: #ff7da6;
+}
+.lane.silenced > :not(.msgroup) { opacity: .4; transition: opacity .15s; }
+
+.mctl { display:flex; gap:8px; align-items:center; }
+.mctl select { width:auto; }
+.mctl select[data-lane] { flex:1; }
+.mctl select[data-tone] { flex:0 0 auto; color:var(--dim); }
+
+/* ─── § 5 — knob groups ─────────────────────────────────────────────────── */
+.kgroup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.kgroup-lbl {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.kgroup-knobs {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: center;
+}
+/* hairline divider between groups (not on the first) */
+.kgroup + .kgroup {
+  border-left: 1px solid var(--line);
+  padding-left: 12px;
+  margin-left: 2px;
+}
+
+/* legacy .knobs kept for master strip compatibility */
+.knobs {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: center;
+}
+.knob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  user-select: none;
+}
+.knob-dial {
+  width: 32px; height: 32px; border-radius: 50%; position: relative; cursor: ns-resize;
+  background: radial-gradient(circle at 38% 32%, #3a3e4e, #15171f 70%);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,0.15),
+    inset 0 -2px 3px rgba(0,0,0,0.6),
+    0 1px 2px rgba(0,0,0,0.5);
+}
+.knob-ind {
+  position: absolute; top: 3px; left: 50%; width: 2px; height: 11px;
+  background: var(--acc); border-radius: 1px;
+  transform-origin: 50% 13px;
+  transform: translateX(-50%) rotate(-135deg);
+  box-shadow: 0 0 4px var(--acc);
+}
+/* § 2 — control label: 9px / 600 / .06em / uppercase / --faint */
+.knob-lbl {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--faint);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ─── mute / solo buttons ────────────────────────────────────────────────── */
+.mute, .solo {
+  width: 26px; height: 26px; flex: 0 0 26px; padding: 0; border-radius: 6px;
+  font: 700 11px ui-monospace,Menlo,monospace; color: var(--dim);
+  border: 1px solid var(--line); cursor: pointer; transition: .12s;
+  background: var(--panel-2);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), inset 0 -1px 2px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.3);
+}
+.mute:hover, .solo:hover { border-color: var(--acc-dim); background: var(--panel-3); }
+.mute.muted {
+  color: #fff1e8; border-color: #a8391c;
+  background: linear-gradient(180deg, #ff7a3d, #d6481e);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 0 12px rgba(255,90,40,.6), 0 1px 2px rgba(0,0,0,.4);
+  text-shadow: 0 1px 0 rgba(0,0,0,.3);
+}
+.solo.soloed {
+  color: #04201a; border-color: #2eaa8a;
+  background: linear-gradient(180deg, #63f8d4, #3dd6b0);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 0 12px rgba(84,240,200,.6), 0 1px 2px rgba(0,0,0,.4);
+  text-shadow: 0 1px 0 rgba(255,255,255,.2);
+}
+
+/* ─── § 5 — mute/solo group (no caption labels; letters + tooltip suffice) ── */
+.msgroup { display:flex; gap:6px; align-items:center; justify-content:center; }
+/* .ctrl-lbl suppressed — captions removed per §3 */
+.ctrl-lbl { display: none; }
+
+/* ─── § 7 — per-lane level meter ────────────────────────────────────────── */
+.lvl {
+  width: 8px;
+  height: 40px;
+  background: var(--screen-bg);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+  align-self: center;
+}
+.lvl-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 0%;
+  background: linear-gradient(
+    to top,
+    var(--meter-lo)  0%,
+    var(--meter-mid) 65%,
+    var(--meter-hi)  100%
+  );
+  /* Size the gradient to the FULL well (40px) anchored at the bottom, so a
+     growing fill REVEALS the fixed gradient upward instead of squashing it. */
+  background-size: 100% 40px;
+  background-position: left bottom;
+  background-repeat: no-repeat;
+  border-radius: 2px;
+  transition: height 0.04s linear;
+}
+
+/* ─── master stereo meter wrapper (two .lvl bars side by side) ─────────── */
+.lvl-stereo {
+  display: flex;
+  flex-direction: row;
+  gap: 3px;
+  align-items: center;
+}
+
+/* ─── fills row (panel chrome via #fills) ───────────────────────────────── */
+.fillsrow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+/* § 2 — section header */
+.fillsrow .flbl {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+  text-transform: uppercase;
+  flex: 0 0 auto;
+  margin-right: 2px;
+}
+
+/* § 8 — fill trigger buttons: unified control base, compact */
+.fillbtn {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 -1px 0 rgba(0,0,0,0.25),
+    0 1px 2px rgba(0,0,0,0.3);
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.fillbtn:hover {
+  background: var(--panel-3);
+  border-color: var(--acc-dim);
+  color: var(--ink);
+}
+.fillbtn:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+.fillbtn.firing {
+  background: linear-gradient(180deg, #ff7ab8 0%, #e03e84 50%, #be1f65 100%);
+  border-color: #be1f65;
+  color: #fff;
+  font-weight: 700;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.25),
+    0 0 10px rgba(255,91,158,0.5);
+}
+
+/* § 8 — fill chain chips: small --panel-2 pills */
+.fillchain {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  min-height: 24px;
+  margin-left: 4px;
+}
+.fillchip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 10px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--dim);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s, border-color 0.1s;
+}
+.fillchip:hover { background: var(--panel-3); border-color: var(--acc-dim); color: var(--ink); }
+/* § 8 — .next chip: --acc ring (next-to-fire) */
+.fillchip.next {
+  border-color: var(--acc);
+  color: var(--acc);
+  box-shadow: 0 0 0 1px rgba(84,240,200,0.25), 0 0 6px rgba(84,240,200,0.2);
+}
+
+/* § 8 — clear button: subtle icon button */
+.fillclear {
+  padding: 0 8px;
+  border-radius: 6px;
+  height: 24px;
+  font-size: 12px;
+  color: var(--faint);
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+  opacity: 0.7;
+  transition: opacity 0.1s, color 0.1s, border-color 0.1s;
+}
+.fillclear:hover {
+  opacity: 1;
+  color: var(--hot);
+  border-color: rgba(255,91,158,0.4);
+  background: transparent;
+}
+
+/* ─── master FX strip (panel chrome via #master) ────────────────────────── */
+.masterfx {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+/* § 2 — section header */
+.masterfx .mlbl {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+  text-transform: uppercase;
+}
+
+/* ─── arrangement UI (panel chrome via #arrange) ────────────────────────── */
+.arrange-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+/* § 2 — section header */
+.albl {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+
+/* § 8 — Live/Song mode button: segmented-control style consistent with view tabs */
+#modeBtn {
+  /* base styles inherited from button {}; tweak to match segmented-control look */
+  min-width: 80px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--dim);
+}
+/* Song mode: teal accent — matches the active vtabs tab style */
+#modeBtn.song {
+  background: rgba(84,240,200,0.10);
+  border-color: var(--acc);
+  color: var(--acc);
+  box-shadow:
+    inset 0 -2px 0 var(--acc),
+    inset 0 1px 0 rgba(84,240,200,0.08);
+}
+
+/* § 8 — timeline cells: panel radius/border, section accent colors, --acc on active */
+.timeline { display: flex; gap: 4px; flex-wrap: wrap; }
+.tcell {
+  flex: 0 0 auto;
+  min-width: 54px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  font-size: 10px;
+  color: var(--dim);
+  text-align: center;
+  opacity: 0.7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: opacity 0.1s, box-shadow 0.1s, outline-color 0.1s;
+}
+/* § 8 — active cell: --acc ring consistent with the rest of the control system */
+.tcell.on {
+  opacity: 1;
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+  color: var(--ink);
+  box-shadow: 0 0 8px rgba(84,240,200,0.2);
+}
+.tcell-name { font-weight: 600; font-size: 10px; letter-spacing: 0.04em; }
+.tcell-fill { font-size: 8px; color: var(--acc); opacity: 0.8; }
+
+/* ─── transport key group ────────────────────────────────────────────────── */
+.transport-key {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* KEY quantize toggle */
+.key-q {
+  width: auto;
+  padding: 0 7px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--dim);
+  border-color: var(--line);
+}
+.key-q.on {
+  background: rgba(84,240,200,0.12);
+  border-color: var(--acc);
+  color: var(--acc);
+  box-shadow:
+    inset 0 -1px 0 var(--acc),
+    inset 0 1px 0 rgba(84,240,200,0.06);
+}
+
+/* ─── transport: shared label style (muted) ──────────────────────────────── */
+.transport-lbl {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* ─── transport: vertical dividers between chunks ───────────────────────── */
+.transport-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* ─── key stepper: tight unit wrapping − value + ───────────────────────── */
+.key-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--panel-3);
+}
+.key-stepper button {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1;
+  box-shadow: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.key-stepper button:hover { background: var(--panel-2); border-color: transparent; }
+.key-stepper button:active { background: var(--acc-dim); }
+.key-stepper #keyv {
+  font-size: 12px;
+  font-family: ui-monospace, Menlo, monospace;
+  color: var(--ink);
+  min-width: 3ch;
+  text-align: center;
+  padding: 0 2px;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  line-height: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ─── song-wrap: selector + inline credit stacked ───────────────────────── */
+.song-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ─── transport-bpm-unit: muted ─────────────────────────────────────────── */
+.transport-bpm-unit {
+  font-size: 9px;
+  color: var(--faint);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ─── colour themes — each block overrides design tokens only ────────────── */
+
+[data-theme="light"] {
+  --bg:          #e8eaef;
+  --panel:       #ffffff;
+  --panel-2:     #f1f3f7;
+  --panel-3:     #e3e6ec;
+  --line:        rgba(0,0,0,.12);
+  --line-dk:     rgba(0,0,0,.18);
+  --ink:         #1b1e26;
+  --dim:         #565c6b;
+  --faint:       #9298a8;
+  --acc:         #0e9c80;
+  --acc-dim:     #5cc3ad;
+  --hot:         #d8357d;
+  --ink-on-acc:  #ffffff;
+  --warn:        #b8860a;
+  --meter-lo:    #0e9c80;
+  --meter-mid:   #b8860a;
+  --meter-hi:    #d8357d;
+  --cell:        #dfe3ea;
+  --cell-alt:    #e8ebf1;
+  --hit1:        #5b86d6;
+  --hit2:        #3f6bc0;
+  --roll-bg:     #eef1f6;
+  --roll-bg-blk: #e2e6ee;
+  --grid-line:   #c4ccd8;
+  --scope:       #0e9c80;
+  --playhead:    #1b1e26;
+  --screen-bg:   #eef1f6;
+  --screen-glow: transparent;
+  --chrome-hi:   #d0d3dc;
+  --chrome-mid:  #c0c4cd;
+  --chrome-lo:   #b0b4bd;
+  --bevel-hi:    rgba(255,255,255,0.6);
+  --bevel-lo:    rgba(0,0,0,0.1);
+}
+/* disable dark glows on light theme */
+[data-theme="light"] #viz,
+[data-theme="light"] .vc.hit { box-shadow: none; }
+[data-theme="light"] h1 { text-shadow: none; }
+
+[data-theme="beige"] {
+  --bg:          #cfc6b0;
+  --panel:       #efe9d8;
+  --panel-2:     #e5dec9;
+  --panel-3:     #d7cfb6;
+  --line:        rgba(70,58,34,.18);
+  --line-dk:     rgba(70,58,34,.30);
+  --ink:         #2c281e;
+  --dim:         #6a6250;
+  --faint:       #948b74;
+  --acc:         #b06a22;
+  --acc-dim:     #cf9b5e;
+  --hot:         #b0405f;
+  --ink-on-acc:  #ffffff;
+  --warn:        #8a7212;
+  --meter-lo:    #b06a22;
+  --meter-mid:   #8a7212;
+  --meter-hi:    #b0405f;
+  --cell:        #c9c0a8;
+  --cell-alt:    #d3cab2;
+  --hit1:        #b58a4a;
+  --hit2:        #8f6a2e;
+  --roll-bg:     #ded6c0;
+  --roll-bg-blk: #d3cab2;
+  --grid-line:   #b7ad92;
+  --scope:       #b06a22;
+  --playhead:    #2c281e;
+  --screen-bg:   #ded6c0;
+  --screen-glow: transparent;
+  --chrome-hi:   #b8ae98;
+  --chrome-mid:  #a8a090;
+  --chrome-lo:   #988e78;
+  --bevel-hi:    rgba(255,255,255,0.4);
+  --bevel-lo:    rgba(0,0,0,0.15);
+}
+[data-theme="beige"] #viz,
+[data-theme="beige"] .vc.hit { box-shadow: none; }
+[data-theme="beige"] h1 { text-shadow: none; }
+
+[data-theme="playdate"] {
+  /* BODY — yellow plastic, with Panic's signature PURPLE as the accent */
+  --bg:          #caa600;
+  --panel:       #ffd11a;
+  --panel-2:     #f4c200;
+  --panel-3:     #ffe066;   /* light hover surface (dark text stays legible) */
+  --tab-bg:      #1a1500;   /* active-tab pill stays near-black */
+  --line:        rgba(0,0,0,.30);
+  --line-dk:     rgba(0,0,0,.45);
+  --ink:         #1a1500;
+  --dim:         #5a4900;
+  --faint:       #8a7400;
+  --acc:         #6a2ce0;   /* Panic purple — play, knobs, selection */
+  --acc-dim:     #4a1ea0;
+  --hot:         #ff4d8d;
+  --warn:        #8a5a00;
+  --meter-lo:    #6a2ce0;
+  --meter-mid:   #c8a000;
+  --meter-hi:    #ff4d8d;
+  --ink-on-acc:  #ffffff;   /* white text on the purple play button */
+  --tab-on-ink:  #ffe27a;   /* yellow label on the near-black active pill */
+  --chrome-hi:   #d0a800;
+  --chrome-mid:  #c09800;
+  --chrome-lo:   #b08a00;
+  --bevel-hi:    rgba(255,255,255,0.3);
+  --bevel-lo:    rgba(0,0,0,0.2);
+  /* SCREEN — reflective 1-bit Sharp LCD: silvery grey with dark content */
+  --screen-bg:   #b6b8ac;
+  --screen-glow: rgba(0,0,0,0.05);
+  --roll-bg:     #bcbeb2;
+  --roll-bg-blk: #b0b2a6;
+  --roll-note:   #1a1a12;
+  --grid-line:   #989a8c;
+  --scope:       #2a2a1e;
+  --playhead:    #6a2ce0;   /* purple playhead pops on the grey screen */
+  --cell:        #b6b8ac;
+  --cell-alt:    #bec0b4;
+  --hit1:        #3a3a2e;
+  --hit2:        #1a1a12;
+}
+[data-theme="playdate"] h1 { text-shadow: none; }
+/* Signature purple surround behind the yellow device (Panic marketing look). */
+[data-theme="playdate"] body {
+  background: radial-gradient(ellipse 90% 70% at 50% 0%, #7b3cff 0%, #5b22d6 100%);
+}
+/* Light 1-bit screen: soften the deep inset glow so #viz reads as a pale LCD. */
+[data-theme="playdate"] #viz {
+  box-shadow:
+    inset 0 0 0 1px rgba(0,0,0,0.15),
+    inset 0 2px 8px rgba(0,0,0,0.18),
+    0 0 0 1px rgba(0,0,0,0.3);
+}
+
+[data-theme="purple"] {
+  --bg:          #140a22;
+  --panel:       #1e1034;
+  --panel-2:     #291745;
+  --panel-3:     #38215c;
+  --line:        rgba(255,255,255,.09);
+  --line-dk:     rgba(0,0,0,.5);
+  --ink:         #f1e7ff;
+  --dim:         #b29cd2;
+  --faint:       #7a6a9c;
+  --acc:         #c77dff;
+  --acc-dim:     #8a4fd0;
+  --hot:         #ff5bb0;
+  --ink-on-acc:  #1a0f2e;
+  --warn:        #ffd24a;
+  --meter-lo:    #c77dff;
+  --meter-mid:   #ffd24a;
+  --meter-hi:    #ff5bb0;
+  --cell:        #1a0f2e;
+  --cell-alt:    #221340;
+  --hit1:        #7d4fd0;
+  --hit2:        #4f2e8a;
+  --roll-bg:     #190d2c;
+  --roll-bg-blk: #140a22;
+  --grid-line:   #3a2860;
+  --scope:       #e0a8ff;
+  --playhead:    #ffffff;
+  --screen-bg:   #0d0718;
+  --screen-glow: rgba(199,125,255,0.08);
+  --chrome-hi:   #3a2060;
+  --chrome-mid:  #2a1448;
+  --chrome-lo:   #1c0e30;
+}
+
+[data-theme="gameboy"] {
+  /* BODY — light-grey plastic + magenta A/B accent */
+  --bg:          #b0b0a2;
+  --panel:       #d2d2c4;
+  --panel-2:     #c6c6b8;
+  --panel-3:     #adafa0;
+  --line:        rgba(0,0,0,.16);
+  --line-dk:     rgba(0,0,0,.30);
+  --ink:         #2e2e28;
+  --dim:         #5a5a50;
+  --faint:       #86867a;
+  --acc:         #b53a5b;
+  --acc-dim:     #8a2a44;
+  --hot:         #b53a5b;
+  --warn:        #7a7a14;
+  --ink-on-acc:  #ffffff;
+  --tab-on-ink:  #b53a5b;
+  --meter-lo:    #8bac0f;
+  --meter-mid:   #6f8f12;
+  --meter-hi:    #b53a5b;
+  --chrome-hi:   #c0c0b2;
+  --chrome-mid:  #aeae9e;
+  --chrome-lo:   #9c9c8c;
+  --bevel-hi:    rgba(255,255,255,0.45);
+  --bevel-lo:    rgba(0,0,0,0.18);
+  /* SCREEN — olive-green LCD, dark-green content */
+  --screen-bg:   #9bbc0f;
+  --screen-glow: rgba(155,188,15,0.12);
+  --roll-bg:     #8bac0f;
+  --roll-bg-blk: #7e9d0d;
+  --roll-note:   #0f380f;
+  --grid-line:   #6f8f0d;
+  --scope:       #0f380f;
+  --playhead:    #0f380f;
+  --cell:        #8bac0f;
+  --cell-alt:    #93b412;
+  --hit1:        #306230;
+  --hit2:        #0f380f;
+}
+/* neutralise dark glows on the olive LCD screen */
+[data-theme="gameboy"] #viz {
+  box-shadow:
+    inset 0 0 0 1px rgba(0,0,0,0.15),
+    inset 0 2px 8px rgba(0,0,0,0.25),
+    0 0 0 1px rgba(0,0,0,0.3),
+    0 0 16px var(--screen-glow);
+}
+/* Game Boy theme: GROOVEBOX™ as a navy rounded plastic-stamped wordmark,
+   in the spirit of the console's silkscreened logo on the grey shell. */
+[data-theme="gameboy"] h1 {
+  color: #2a2a78;
+  font-family: 'Arial Rounded MT Bold', 'Helvetica Rounded', 'Trebuchet MS', system-ui, sans-serif;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.45);   /* embossed-on-plastic */
+}
+[data-theme="gameboy"] h1::after {
+  content: '™';
+  font-size: 0.42em;
+  font-style: normal;
+  font-weight: 600;
+  vertical-align: 0.7em;
+  margin-left: 3px;
+  letter-spacing: 0;
+}
+/* Game Boy is a two-accent palette: navy BLUE for the silkscreened labels/logo,
+   magenta for the interactive controls (A/B buttons → play, knobs, active states).
+   Tint the body section labels blue to match the console. */
+[data-theme="gameboy"] .lane .name,
+[data-theme="gameboy"] .kgroup-lbl,
+[data-theme="gameboy"] .fillsrow .flbl,
+[data-theme="gameboy"] .masterfx .mlbl,
+[data-theme="gameboy"] .albl,
+[data-theme="gameboy"] .transport-lbl {
+  color: #2a2a78;
+  font-weight: 800;
+}
+
+[data-theme="amber"] {
+  --bg:          #080500;
+  --panel:       #110c03;
+  --panel-2:     #1b1408;
+  --panel-3:     #2a200e;
+  --line:        rgba(255,176,0,.16);
+  --line-dk:     rgba(0,0,0,.5);
+  --ink:         #ffcf7a;
+  --dim:         #b87f20;
+  --faint:       #7a5410;
+  --acc:         #ffb000;
+  --acc-dim:     #a06e00;
+  --hot:         #ff6a3d;
+  --ink-on-acc:  #1b1400;
+  --warn:        #ffd24a;
+  --meter-lo:    #ffb000;
+  --meter-mid:   #ffd24a;
+  --meter-hi:    #ff6a3d;
+  --cell:        #140d02;
+  --cell-alt:    #1e1506;
+  --hit1:        #b87f20;
+  --hit2:        #7a5410;
+  --roll-bg:     #140d02;
+  --roll-bg-blk: #0d0800;
+  --grid-line:   #3a2c0e;
+  --scope:       #ffd24a;
+  --playhead:    #ffcf7a;
+  --screen-bg:   #050300;
+  --screen-glow: rgba(255,176,0,0.08);
+  --chrome-hi:   #3a2c0e;
+  --chrome-mid:  #2a200e;
+  --chrome-lo:   #1b1408;
+}
+
+[data-theme="r1"] {
+  /* BODY — Rabbit orange + white/black UI */
+  --bg:          #d63e00;
+  --panel:       #fe5000;
+  --panel-2:     #e84800;
+  --panel-3:     #161616;
+  --line:        rgba(0,0,0,.26);
+  --line-dk:     rgba(0,0,0,.40);
+  --ink:         #ffffff;
+  --dim:         #ffd2bf;
+  --faint:       #ffae8c;
+  --acc:         #ffffff;
+  --acc-dim:     #cccccc;
+  --hot:         #ff2d00;
+  --warn:        #ffd24a;
+  --ink-on-acc:  #161616;
+  --tab-on-ink:  #ffffff;
+  --meter-lo:    #ff7836;
+  --meter-mid:   #ffd24a;
+  --meter-hi:    #ff2d00;
+  --chrome-hi:   #ff6a20;
+  --chrome-mid:  #e84800;
+  --chrome-lo:   #c83e00;
+  --bevel-hi:    rgba(255,255,255,0.18);
+  --bevel-lo:    rgba(0,0,0,0.35);
+  /* SCREEN — true black, white content, orange highlight */
+  --screen-bg:   #000000;
+  --screen-glow: rgba(255,80,0,0.10);
+  --roll-bg:     #0a0a0a;
+  --roll-bg-blk: #050505;
+  --roll-note:   #ffffff;
+  --grid-line:   #242424;
+  --scope:       #ffffff;
+  --playhead:    #ff5000;
+  --cell:        #0a0a0a;
+  --cell-alt:    #141414;
+  --hit1:        #ff7836;
+  --hit2:        #d64800;
+}
+
+/* ─── § 5 — lane actions: dup + remove buttons ────────────────────────────── */
+.lane-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+/* Shared base for dup and remove — small icon buttons */
+.lane-dup, .lane-rm {
+  width: 24px; height: 24px; flex: 0 0 24px;
+  padding: 0;
+  border-radius: 5px;
+  font-size: 13px;
+  line-height: 1;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--faint);
+  box-shadow: none;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.lane-dup:hover {
+  background: var(--panel-3);
+  border-color: var(--acc-dim);
+  color: var(--acc);
+}
+.lane-rm:hover:not(:disabled) {
+  background: rgba(255,91,158,0.10);
+  border-color: rgba(255,91,158,0.4);
+  color: var(--hot);
+}
+.lane-rm:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+/* ─── § 5 — lane edit button ───────────────────────────────────────────────── */
+/* Old-school radio-SELECT push button: raised at rest, latched (pushed-in + lit)
+   when this lane is the one open in the editor. Only one latched at a time. */
+.lane-edit {
+  width: 40px; height: 24px; flex: 0 0 40px;
+  padding: 0;
+  border-radius: 4px;
+  font-size: 8px; font-weight: 700; letter-spacing: 0.08em;
+  line-height: 1;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--panel-3), var(--panel-2));
+  color: var(--faint);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 1px 2px rgba(0,0,0,0.4);
+  transition: background 0.1s, color 0.1s, border-color 0.1s, box-shadow 0.12s, transform 0.06s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.lane-edit:hover:not(:disabled) {
+  border-color: var(--acc-dim);
+  color: var(--acc);
+}
+.lane-edit:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}
+/* Latched/lit state — the lane whose editor is currently open (the "selected" one) */
+.lane-edit.editing {
+  background: var(--acc);
+  border-color: color-mix(in srgb, var(--acc) 60%, #000);
+  color: var(--ink-on-acc);
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.4),
+    0 0 8px color-mix(in srgb, var(--acc) 55%, transparent);
+}
+
+/* Editing lane strip: subtle teal left border highlight */
+.lane.editing {
+  border-left: 2px solid var(--acc);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.03),
+    0 1px 2px rgba(0,0,0,0.3),
+    0 0 0 1px rgba(84,240,200,0.08);
+}
+
+/* ─── § 5 — inline lane rename input ───────────────────────────────────────── */
+.lane-rename-input {
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--panel-3);
+  border: 1px solid var(--acc-dim);
+  border-radius: 4px;
+  padding: 1px 5px;
+  height: 22px;
+  width: 60px;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(84,240,200,0.15);
+}
+
+/* ─── § 5 — add-lane button + menu ─────────────────────────────────────────── */
+.addlane-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 4px 0 0;
+}
+
+.addlane-btn {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px dashed var(--line);
+  background: transparent;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  box-shadow: none;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.addlane-btn:hover {
+  background: var(--panel-2);
+  border-color: var(--acc-dim);
+  color: var(--acc);
+  border-style: solid;
+}
+
+.addlane-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--panel-3);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.45);
+  min-width: 110px;
+}
+.addlane-menu[hidden] { display: none; }
+.addlane-menu button {
+  width: 100%;
+  height: 28px;
+  text-align: left;
+  padding: 0 10px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--dim);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: none;
+  transition: background 0.08s, color 0.08s;
+}
+.addlane-menu button:hover {
+  background: var(--panel-2);
+  color: var(--ink);
+  border-color: transparent;
+}
+
+/* ─── § 5 — drag handle ─────────────────────────────────────────────────────── */
+.lane-drag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 24px;
+  font-size: 14px;
+  color: var(--faint);
+  cursor: grab;
+  user-select: none;
+  opacity: 0.45;
+  transition: opacity 0.1s, color 0.1s;
+  line-height: 1;
+}
+.lane-drag:hover { opacity: 1; color: var(--dim); }
+.lane-drag:active { cursor: grabbing; }
+
+/* ─── Dragging state ─────────────────────────────────────────────────────────── */
+.lane.dragging {
+  opacity: 0.45;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.03),
+    0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* ─── Drop-position indicators ───────────────────────────────────────────────── */
+.lane.drop-above {
+  border-top: 2px solid var(--acc);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.03),
+    0 1px 2px rgba(0,0,0,0.3),
+    0 -2px 8px rgba(84,240,200,0.25);
+}
+.lane.drop-below {
+  border-bottom: 2px solid var(--acc);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.03),
+    0 1px 2px rgba(0,0,0,0.3),
+    0 2px 8px rgba(84,240,200,0.25);
+}
+
+/* ─── Piano ⇄ Blocks roll-mode toggle ──────────────────────────────────────── */
+.roll-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.roll-mode-lbl {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding-right: 4px;
+  user-select: none;
+}
+.roll-mode-btn {
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--dim);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 -1px 0 rgba(0,0,0,0.2);
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.roll-mode-btn:hover {
+  background: var(--panel-3);
+  border-color: var(--acc-dim);
+  color: var(--ink);
+}
+.roll-mode-btn.rm-on {
+  background: rgba(84,240,200,0.10);
+  border-color: var(--acc);
+  color: var(--acc);
+  box-shadow:
+    inset 0 -2px 0 var(--acc),
+    inset 0 1px 0 rgba(84,240,200,0.08);
+}
+
+/* ─── Blocks grid (pitch × step DOM grid) ───────────────────────────────────── */
+/* Outer scroll wrapper: constrain height so ~25 pitch rows fit */
+.bg-scroll {
+  overflow-y: auto;
+  max-height: 200px;
+  border-radius: 4px;
+}
+/* The grid container: rows are stacked flex lines */
+.bg-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+/* Each row (header + pitch rows) is a flex line */
+.bg-row {
+  display: flex;
+  gap: 1px;
+  align-items: center;
+}
+/* Header row (bar numbers) */
+.bg-head-row {
+  margin-bottom: 2px;
+}
+.bg-hcell {
+  flex: 1;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: transparent;
+  user-select: none;
+  pointer-events: none;
+}
+.bg-hcell.beat { color: var(--dim); font-weight: 600; }
+.bg-hcell.downbeat { color: var(--acc); font-weight: 700; }
+
+/* Pitch label cell (left column) */
+.bg-lbl {
+  flex: 0 0 30px;
+  height: 10px;
+  font-size: 7px;
+  font-family: ui-monospace, Menlo, monospace;
+  color: transparent;          /* only C-notes get visible labels */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 3px;
+  user-select: none;
+  pointer-events: none;
+}
+/* Show label only on C rows (non-empty lbl text) */
+.bg-lbl:not(:empty) { color: var(--faint); }
+.bg-blk .bg-lbl:not(:empty) { color: var(--dim); }
+
+/* Step cells — compact height for pitch-density */
+.bg-grid .vc {
+  flex: 1;
+  height: 10px;
+  border-radius: 2px;
+  min-width: 0;
+  cursor: default;
+}
+.bg-grid[data-lv="melody"] .vc { cursor: crosshair; }
+
+/* ─── § 4 — section drag-reorder wrappers ────────────────────────────────────── */
+/* .sec wraps each top-level section so the .sec-drag handle persists across
+   re-renders (renderStrips/renderFills etc. rebuild section innerHTML, not .sec) */
+.sec {
+  position: relative;
+}
+
+.sec-drag {
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 22px;
+  font-size: 13px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+  opacity: 0.35;
+  cursor: grab;
+  user-select: none;
+  z-index: 5;
+  transition: opacity 0.1s, color 0.1s;
+}
+.sec-drag:hover { opacity: 0.9; color: var(--dim); }
+.sec-drag:active { cursor: grabbing; }
+
+/* Dragging state for a section wrapper */
+.sec.sec-dragging { opacity: 0.45; }
+
+/* Drop indicators */
+.sec.sec-drop-above {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+  box-shadow: 0 -3px 10px rgba(84,240,200,0.25);
+}
+.sec.sec-drop-below {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+  box-shadow: 0 3px 10px rgba(84,240,200,0.25);
+}
+
+/* ─── Transport actions group (View + Help) ──────────────────────────────────── */
+.transport-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+}
+
+/* ─── View-settings popover ──────────────────────────────────────────────────── */
+.vs-wrap {
+  position: relative;
+}
+#viewsettings {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 200;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  min-width: 210px;
+}
+#viewsettings[hidden] { display: none; }
+.vs-title {
+  display: block;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 8px;
+}
+.vs-presets {
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.vs-preset-lbl {
+  display: block;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 5px;
+}
+.vs-preset-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#viewsettings .vs-preset-btn {
+  display: block !important;
+  width: 100% !important;
+  box-sizing: border-box;
+  height: 26px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--dim);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 -1px 0 rgba(0,0,0,0.2);
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.vs-preset-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.vs-preset-btn:hover {
+  background: var(--panel-3);
+  border-color: var(--acc-dim);
+  color: var(--ink);
+}
+.vs-preset-btn.on {
+  background: rgba(84,240,200,0.10);
+  border-color: var(--acc);
+  color: var(--acc);
+  box-shadow:
+    inset 0 -2px 0 var(--acc),
+    inset 0 1px 0 rgba(84,240,200,0.08);
+}
+.vs-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.vs-row input[type="checkbox"] {
+  accent-color: var(--acc);
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+/* ─── Help modal ─────────────────────────────────────────────────────────────── */
+#help-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#help-modal[hidden] { display: none; }
+#help-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+}
+#help-modal-box {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px 28px 28px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  max-width: 640px;
+  width: calc(100vw - 48px);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  z-index: 1;
+}
+#help-modal-box h2 {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin: 0 0 18px;
+}
+#help-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--faint);
+  font-size: 13px;
+  box-shadow: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s;
+}
+#help-modal-close:hover {
+  background: var(--panel-3);
+  color: var(--ink);
+}
+.help-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px 28px;
+}
+.help-section h3 {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 0 0 8px;
+}
+.help-section dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  row-gap: 4px;
+  align-items: baseline;
+}
+.help-section dt {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.help-section dd {
+  font-size: 11px;
+  color: var(--dim);
+  margin: 0;
+}
+
+/* ─── Global hide-knob rules ─────────────────────────────────────────────────── */
+body.hide-k-vol  .knob[data-k="vol"]  { display: none; }
+body.hide-k-pan  .knob[data-k="pan"]  { display: none; }
+body.hide-k-cut  .knob[data-k="cut"]  { display: none; }
+body.hide-k-res  .knob[data-k="res"]  { display: none; }
+body.hide-k-drv  .knob[data-k="drv"]  { display: none; }
+body.hide-k-dly  .knob[data-k="dly"]  { display: none; }
+body.hide-k-fdbk .knob[data-k="fdbk"] { display: none; }
+body.hide-k-cho  .knob[data-k="cho"]  { display: none; }
+body.hide-k-wob  .knob[data-k="wob"]  { display: none; }
+body.hide-k-cru  .knob[data-k="cru"]  { display: none; }
+body.hide-k-vrb  .knob[data-k="vrb"]  { display: none; }
+body.hide-k-cmp  .knob[data-k="cmp"]  { display: none; }
+body.hide-k-bal  .knob[data-k="bal"]  { display: none; }
+body.hide-k-wid  .knob[data-k="wid"]  { display: none; }
+body.hide-k-lo   .knob[data-k="lo"]   { display: none; }
+body.hide-k-hi   .knob[data-k="hi"]   { display: none; }

@@ -1,0 +1,125 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oyster Groovebox</title><link rel="stylesheet" href="ui/app.css"></head>
+<body>
+  <div class="cabinet">
+    <div class="cabinet-inner">
+      <div class="cabinet-corners">
+        <span class="screw tl"></span>
+        <span class="screw tr"></span>
+        <span class="screw bl"></span>
+        <span class="screw br"></span>
+      </div>
+      <!-- Tier 1 — title bar -->
+      <div class="titlebar">
+        <h1>oyster groovebox</h1>
+        <div class="titlebar-tools">
+          <select id="themesel">
+            <option value="dark" selected>Dark</option>
+            <option value="light">Light</option>
+            <option value="beige">Beige</option>
+            <option value="playdate">Playdate</option>
+            <option value="purple">Purple</option>
+            <option value="gameboy">Game Boy</option>
+            <option value="amber">Amber</option>
+            <option value="r1">Rabbit</option>
+          </select>
+          <div class="vs-wrap">
+            <button id="viewsettings-btn" title="View settings">⚙</button>
+            <div id="viewsettings" hidden>
+              <span class="vs-title">Active knobs</span>
+              <div id="viewsettings-checks"></div>
+            </div>
+          </div>
+          <button id="help-btn" title="Open help">?</button>
+        </div>
+      </div>
+
+      <!-- Tier 2 — transport (performance controls only) -->
+      <div class="transport">
+        <button id="play">▶ play</button>
+        <div class="transport-divider"></div>
+        <div class="transport-tempo">
+          <span class="transport-lbl">Tempo</span>
+          <input type="range" id="bpm" min="80" max="180" value="120">
+          <span id="bpmv" class="transport-bpm-val">120</span>
+          <span class="transport-bpm-unit">BPM</span>
+        </div>
+        <div class="transport-key">
+          <span class="transport-lbl">Key</span>
+          <div class="key-stepper">
+            <button id="key-dn">−</button><span id="keyv" class="mono">0</span><button id="key-up">＋</button>
+          </div>
+          <button id="key-q" class="key-q" title="Quantize key change to the bar" aria-pressed="false">⟳ bar</button>
+        </div>
+        <div class="transport-song">
+          <span class="transport-lbl">Song</span>
+          <div class="song-wrap">
+            <select id="songsel"><option value="kids">Kids</option><option value="rising-sun">House of the Rising Sun</option><option value="electric-feel">Electric Feel</option><option value="heartbeats">Heartbeats</option><option value="digital-love">Digital Love</option><option value="memory-reboot">Memory Reboot</option><option value="take-on-me">Take On Me</option></select>
+            <div id="credit"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Help modal -->
+      <div id="help-modal" hidden>
+        <div id="help-modal-backdrop"></div>
+        <div id="help-modal-box" role="dialog" aria-modal="true" aria-label="Groovebox help">
+          <button id="help-modal-close" aria-label="Close help">✕</button>
+          <h2>Groovebox — Quick Reference</h2>
+          <div class="help-sections">
+            <div class="help-section">
+              <h3>Mix</h3>
+              <dl>
+                <dt>Volume</dt><dd>Lane output level</dd>
+                <dt>Pan</dt><dd>Left / right placement</dd>
+                <dt>Balance</dt><dd>Master left / right</dd>
+                <dt>Width</dt><dd>Stereo width (mono ↔ wide)</dd>
+              </dl>
+            </div>
+            <div class="help-section">
+              <h3>Tone</h3>
+              <dl>
+                <dt>Cutoff</dt><dd>Filter sweep — left = low-pass (darker), right = high-pass (thinner), centre = open</dd>
+                <dt>Resonance</dt><dd>Emphasis at the filter cutoff (squelch)</dd>
+                <dt>Drive</dt><dd>Overdrive / distortion</dd>
+                <dt>Low EQ</dt><dd>Master bass shelf</dd>
+                <dt>High EQ</dt><dd>Master treble shelf</dd>
+              </dl>
+            </div>
+            <div class="help-section">
+              <h3>FX</h3>
+              <dl>
+                <dt>Delay</dt><dd>Echo send amount</dd>
+                <dt>Feedback</dt><dd>How many times the delay repeats (slap → wash)</dd>
+                <dt>Chorus</dt><dd>Shimmer / width</dd>
+                <dt>Wobble</dt><dd>LFO auto-filter movement</dd>
+                <dt>Crush</dt><dd>Bit-crusher (lo-fi)</dd>
+                <dt>Reverb</dt><dd>Space / room send</dd>
+                <dt>Comp</dt><dd>Compression — evens out dynamics</dd>
+              </dl>
+            </div>
+            <div class="help-section">
+              <h3>Controls</h3>
+              <dl>
+                <dt>M</dt><dd>Mute a lane (silences it; FX state preserved)</dd>
+                <dt>S</dt><dd>Solo a lane (silences all others)</dd>
+                <dt>VIEW</dt><dd>Open that lane in the step editor / piano roll</dd>
+                <dt>FILLS</dt><dd>Queue fill patterns — click a chip to remove it from the queue</dd>
+                <dt>KEY ± </dt><dd>Transpose the whole song up or down in semitones</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Tier 3 — views (built by renderViewTabs) -->
+      <div class="vtabs"><span class="vtabs-lbl">VIEW</span><button data-view="scope">📈 Scope</button></div>
+      <div id="viz"></div>
+      <div id="strips"></div>
+      <div id="fills"></div>
+      <div id="master"></div>
+      <div id="arrange"></div>
+    </div>
+    <div class="crt-vignette"></div>
+  </div>
+  <script type="module" src="ui/app.js"></script>
+</body></html>
