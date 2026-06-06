@@ -428,7 +428,7 @@ function renderStrips() {
     };
     row.querySelector('.lane-expand').onclick = toggleOpen;
     row.addEventListener('click', e => {
-      if (!window.matchMedia('(max-width: 760px)').matches) return;
+      if (!window.matchMedia('(max-width: 900px)').matches) return;
       if (e.target.closest('button, select, input, .knobrow, .lane-drag')) return;
       toggleOpen();
     });

@@ -721,13 +721,57 @@ input[type=range] {
   margin-left: 2px;
 }
 
-/* all kgroups of a strip live in one .knobrow so mobile variants can scroll/wrap it */
+/* all kgroups of a strip live in one .knobrow — a horizontal scroll container.
+   On wide desktop it never overflows (inert); on tablet/mobile widths the
+   knobs swipe within the lane instead of blowing out the grid. */
 .knobrow {
   display: flex;
   gap: 12px;
   align-items: center;
   min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
 }
+.knobrow::-webkit-scrollbar { display: none; }
+/* dials pass horizontal pans to the strip; vertical drags turn the knob */
+.knobrow .knob-dial { touch-action: pan-x; }
+
+/* edge arrows + gradient scrims (shown via JS .fade-l/.fade-r classes):
+   sticky to the strip edges, fade the clipped knobs, tap to page */
+.knob-scroll-hint {
+  position: sticky;
+  z-index: 2;
+  align-self: stretch;
+  flex: 0 0 30px;
+  width: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  height: auto;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--acc);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--acc) 45%, transparent);
+}
+.knob-scroll-hint.l {
+  left: 0;
+  margin-right: -30px;
+  background: linear-gradient(270deg, transparent, var(--panel-2) 70%);
+  justify-content: flex-start;
+}
+.knob-scroll-hint.r {
+  right: 0;
+  margin-left: -30px;
+  background: linear-gradient(90deg, transparent, var(--panel-2) 70%);
+  justify-content: flex-end;
+}
+.knobrow.fade-l .knob-scroll-hint.l { display: flex; }
+.knobrow.fade-r .knob-scroll-hint.r { display: flex; }
 
 /* legacy .knobs kept for master strip compatibility */
 .knobs {
@@ -2134,13 +2178,13 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   box-shadow: 0 0 8px rgba(84,240,200,0.35);
 }
 
-/* ═══ MOBILE LAYOUT (≤760px) ═════════════════════════════════════════════════
+/* ═══ MOBILE LAYOUT (≤900px) ═════════════════════════════════════════════════
    Lanes collapse to an accordion: header rows only; tap a lane (or its chevron)
    to expand its knob strip — one open at a time. The strip swipes horizontally
    with edge fades; body.gb-knobwrap (Display setting) wraps it instead.
    body.gb-knobval — persistent numeric readout (global Display setting).
 */
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   /* ── reclaim chrome: edge-to-edge — cabinet flattens into the page ── */
   html, body { background: var(--bg); }   /* one flat surface, no bands at the page bottom */
   body { padding: 0; }
@@ -2245,52 +2289,6 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   .masterfx { flex-wrap: wrap; row-gap: 8px; }
   .masterfx .knobrow { flex: 1 1 100%; }
 
-  /* ── knob strips swipe horizontally (default) ── */
-  .knobrow {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding-bottom: 2px;
-  }
-  .knobrow::-webkit-scrollbar { display: none; }
-  /* dials pass horizontal pans to the strip; vertical drags turn the knob */
-  .knobrow .knob-dial { touch-action: pan-x; }
-
-  /* edge arrows + gradient scrims (shown via JS .fade-l/.fade-r classes):
-     sticky to the strip edges, fade the clipped knobs, tap to page */
-  .knobrow .knob-scroll-hint {
-    position: sticky;
-    z-index: 2;
-    align-self: stretch;
-    flex: 0 0 30px;
-    width: 30px;
-    padding: 0;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-    height: auto;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    color: var(--acc);
-    text-shadow: 0 0 6px color-mix(in srgb, var(--acc) 45%, transparent);
-  }
-  .knobrow .knob-scroll-hint.l {
-    left: 0;
-    margin-right: -30px;
-    background: linear-gradient(270deg, transparent, var(--panel-2) 70%);
-    justify-content: flex-start;
-  }
-  .knobrow .knob-scroll-hint.r {
-    right: 0;
-    margin-left: -30px;
-    background: linear-gradient(90deg, transparent, var(--panel-2) 70%);
-    justify-content: flex-end;
-  }
-  .knobrow.fade-l .knob-scroll-hint.l { display: flex; }
-  .knobrow.fade-r .knob-scroll-hint.r { display: flex; }
-
   /* ── Display setting: wrap knobs onto extra rows instead of swiping ── */
   body.gb-knobwrap .knobrow { flex-wrap: wrap; row-gap: 10px; overflow-x: hidden; }
 }
@@ -2299,6 +2297,5 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   from { opacity: 0; transform: translateY(-4px); }
 }
 
-/* accordion pull strip + swipe hints: hidden on desktop, shown by the mobile layout */
+/* accordion expand button: hidden on desktop, shown by the mobile layout */
 .lane-expand { display: none; }
-.knob-scroll-hint { display: none; }
