@@ -693,6 +693,7 @@ function mount() {
   renderFills();
   renderMaster();
   renderPatterns();
+  viz?.dispose?.();   // stop the outgoing viz's rAF loops before replacing it
   viz = makeViz(document.getElementById('viz'), song, eng);
   // Scope tab off — lane editor takes over.
   document.querySelectorAll('[data-view]').forEach(x => x.classList.remove('on'));

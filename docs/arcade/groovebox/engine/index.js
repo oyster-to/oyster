@@ -151,6 +151,14 @@ export function createEngine() {
         }
         for (const lane of v2.lanes) {
           if (!voices[lane.id]) buildLane(lane);
+          // Re-apply tone to SURVIVING melody voices: the voice (keyed by lane id)
+          // is reused across a song switch, but the new song carries its own
+          // lane.tone. Without this the reused oscillator keeps the previous
+          // song's (or the user's last-dialed) tone while the UI shows the new
+          // one — an audible/visual desync after switching songs.
+          else if (lane.type === 'melody' && lane.tone && voices[lane.id]?.lead) {
+            voices[lane.id].lead.set({ oscillator: { type: lane.tone, width: 0.3 } });
+          }
         }
       }
     },

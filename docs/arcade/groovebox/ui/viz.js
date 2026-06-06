@@ -824,5 +824,11 @@ export function makeViz(host, song, eng) {
       if (view !== 'scope') stopScopeLoop();
       build();
     },
+    // Stop this viz's rAF loops. Called before mount() replaces `viz` on a song
+    // switch — otherwise an old scope loop keeps spinning forever (one leaked
+    // requestAnimationFrame per switch-while-scope-open).
+    dispose() {
+      stopScopeLoop();
+    },
   };
 }
