@@ -34,7 +34,7 @@ export function createEngine() {
   const _punchCaptures = new Map();              // 'laneId|paramId' → { value: knob value at first engage, count }
   let punchPresets = DEFAULT_PRESETS;            // replaced via setPunchPresets (validated)
   const _slotHeld = new Array(DEFAULT_PRESETS.length).fill(false);
-  let _gate = null;                              // active gate: { depth, division, laneIds } | null
+  const _gates = new Map();                      // slot → { depth, division, laneIds } (preview uses 'preview')
   let _tapeActive = false;                       // transport.tapeStop engaged (owns the BUS punchGate; lane-fader gate is independent)
   let _gateReturnPending = false;                // tapeStop released → gate returns on-grid
   const _pendingQuantized = [];                  // [{ when: 'bar'|'pattern', fn, slot, on }] — slot/on drive quick-tap annihilation
@@ -108,11 +108,12 @@ export function createEngine() {
     }
   }
 
-  // Punch v3 automation runner: executes one preset automation (engage or
-  // release) against the live graph. gate.* and transport.tapeStop are
-  // semantic modules (spec decision 6) — the runner owns their behaviour;
-  // everything else maps through _punchBindings + the MODULE_PARAMS registry.
-  function _runAutomation(a, on, timing, atTime, amount = 1, mask = null) {
+  // Punch automation runner: executes one preset automation (engage or
+  // release) against the live graph. gate.* chops per-lane faders (state in
+  // _gates, keyed by slot); transport.tapeStop drives the shared bus; every
+  // other param resolves per masked lane via _laneParam, with knob values
+  // captured/restored through _punchCaptures.
+  function _runAutomation(a, on, timing, atTime, amount = 1, mask = null, slotKey = 'preview') {
     const id = `${a.module}.${a.param}`;
     const reg = MODULE_PARAMS[id];
     if (!reg) return;
@@ -120,7 +121,9 @@ export function createEngine() {
     if (id === 'gate.depth') {
       if (on) {
         // Chop each masked lane's fader (scaled by its captured knob value)
-        // in the step callback — no shared gate node involved.
+        // in the step callback. Gate state is PER SLOT — two gate pads held
+        // together (e.g. default STUTTER + STUTTER BASS) must not overwrite
+        // each other's lane lists (review: stranded captures).
         const laneIds = [];
         for (const lane of _maskedLanes(mask)) {
           const f = fx[lane.id];
@@ -128,11 +131,11 @@ export function createEngine() {
           engageCapture(_punchCaptures, lane.id + '|vol', f.vol.gain.value);
           laneIds.push(lane.id);
         }
-        _gate = { depth: (typeof a.to === 'number' ? a.to : 1) * amount, division: a.division || '1/16', laneIds };
+        _gates.set(slotKey, { depth: (typeof a.to === 'number' ? a.to : 1) * amount, division: a.division || '1/16', laneIds });
       } else {
-        const laneIds = _gate ? _gate.laneIds : [];
-        _gate = null;
-        for (const laneId of laneIds) {
+        const g = _gates.get(slotKey);
+        _gates.delete(slotKey);
+        for (const laneId of (g ? g.laneIds : [])) {
           const v = releaseCapture(_punchCaptures, laneId + '|vol');
           if (v != null && fx[laneId]) fx[laneId].vol.gain.rampTo(v, Math.max(ramp, 0.01), atTime);
         }
@@ -392,12 +395,12 @@ export function createEngine() {
           punchGate.gain.linearRampToValueAtTime(PUNCH_NEUTRAL.gateGain, t + 0.003);
           _gateReturnPending = false;
         }
-        if (_gate) {
-          for (const laneId of _gate.laneIds) {
+        for (const g of _gates.values()) {
+          for (const laneId of g.laneIds) {
             const f = fx[laneId];
             const cap = _punchCaptures.get(laneId + '|vol');
             if (!f || !cap) continue;
-            for (const [at, v] of gateEventsForStep(t, sixteenth, step, _gate.division, _gate.depth))
+            for (const [at, v] of gateEventsForStep(t, sixteenth, step, g.division, g.depth))
               f.vol.gain.linearRampToValueAtTime(v * cap.value, at);
           }
         }
@@ -444,7 +447,7 @@ export function createEngine() {
       // (no cancel-then-revert clicks); delayTime snaps back after the brief
       // gate settle so any reverb tail doesn't doppler.
       _slotHeld.fill(false);
-      _gate = null; _tapeActive = false; _gateReturnPending = false; _pendingQuantized.length = 0;
+      _gates.clear(); _tapeActive = false; _gateReturnPending = false; _pendingQuantized.length = 0;
       _previewMask = undefined;
       // Restore every captured lane param to its knob value.
       for (const [key, cap] of _punchCaptures) {
@@ -505,7 +508,7 @@ export function createEngine() {
           return;
         }
       }
-      const run = (atTime) => { for (const a of preset.automations) _runAutomation(a, on, timing, atTime, amount, mask); };
+      const run = (atTime) => { for (const a of preset.automations) _runAutomation(a, on, timing, atTime, amount, mask, slot); };
       if (q === 'immediate' || !playing) run();
       else _pendingQuantized.push({ when: q, fn: run, slot, on });
     },
@@ -533,7 +536,7 @@ export function createEngine() {
         barSeconds: stepsPerBar(song.meter) * (beatSeconds / 4),
       };
       if (on) _prebuildPunchNodes([preset]);   // draft may use crush on lanes without the node yet
-      for (const a of preset.automations) _runAutomation(a, !!on, timing, undefined, amount, preset.lanes ?? null);
+      for (const a of preset.automations) _runAutomation(a, !!on, timing, undefined, amount, preset.lanes ?? null, 'preview');
     },
     isPlaying() { return playing; },
     queueFill(name)         { fillQueue.push(name); return fillQueue.length; },
