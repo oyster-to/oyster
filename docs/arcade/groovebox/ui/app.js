@@ -585,9 +585,13 @@ function renderFills() {
 function loadPunchPresets() {
   try {
     const saved = JSON.parse(localStorage.getItem('gb-punch-presets') || 'null');
-    // Migration: sets saved before the slot count grew gain the new defaults.
+    // Migration: saved sets gain any defaults they lack — matched BY NAME
+    // (index-based appending duplicated STOP when the default order changed).
+    // Keys then reassign to slot order, since keys are slot-bound.
     if (Array.isArray(saved)) {
-      while (saved.length < DEFAULT_PRESETS.length) saved.push(DEFAULT_PRESETS[saved.length]);
+      const have = new Set(saved.map(p => p && p.name));
+      for (const d of DEFAULT_PRESETS) if (!have.has(d.name)) saved.push(d);
+      saved.forEach((p, i) => { if (p) p.key = String(i + 1); });
     }
     if (saved) return eng.setPunchPresets(saved);   // engine validates; invalid → defaults kept
   } catch (_) { /* corrupt JSON → defaults */ }
