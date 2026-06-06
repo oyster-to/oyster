@@ -7,8 +7,8 @@
  */
 
 // One shared bubble on <body> — inside a knob strip it would be clipped by the
-// strip's overflow scroll + edge-fade mask (mask-image masks fixed descendants
-// too). Only one pointer drags a knob at a time, so a singleton is enough.
+// strip's overflow scroll container. Only one pointer drags a knob at a time,
+// so a singleton is enough.
 let _bubble = null;
 function getBubble() {
   if (!_bubble) {
@@ -41,7 +41,7 @@ export function makeKnob({ label, value = 0, onChange, tip, k }) {
   lbl.className = 'knob-lbl';
   lbl.textContent = label;
 
-  // Persistent numeric readout (hidden unless body.gb-knobval)
+  // Persistent numeric readout (hidden unless body.gb-knob-values)
   const val = document.createElement('span');
   val.className = 'knob-val';
 
@@ -59,6 +59,9 @@ export function makeKnob({ label, value = 0, onChange, tip, k }) {
     current = Math.max(0, Math.min(1, v));
     setRotation(current);
     val.textContent = fmt(current);
+    // Keep the visible bubble in sync for non-move value changes too
+    // (double-tap / double-click reset while it is still showing).
+    if (_bubble && _bubble.classList.contains('show')) _bubble.textContent = fmt(current);
     onChange(current);
   }
 
@@ -68,7 +71,9 @@ export function makeKnob({ label, value = 0, onChange, tip, k }) {
   function showBubble() {
     const bubble = getBubble();
     const r = dial.getBoundingClientRect();
-    bubble.style.left = (r.left + r.width / 2) + 'px';
+    // Clamp so the (~40px wide) bubble stays on-screen for edge-of-strip knobs
+    const x = Math.max(26, Math.min(window.innerWidth - 26, r.left + r.width / 2));
+    bubble.style.left = x + 'px';
     // Flip below the dial when there's no headroom (knob near viewport top)
     const below = r.top < 40;
     bubble.classList.toggle('below', below);
@@ -102,7 +107,6 @@ export function makeKnob({ label, value = 0, onChange, tip, k }) {
     const dy = e.clientY - dragStartY;
     movedPx = Math.max(movedPx, Math.abs(dy));
     setValue(dragStartValue - dy / 150);
-    getBubble().textContent = fmt(current);
   });
 
   // End the drag on up OR on cancel/lost-capture (OS gesture, blur, modal),
@@ -114,8 +118,9 @@ export function makeKnob({ label, value = 0, onChange, tip, k }) {
     hideBubble();
   };
   dial.addEventListener('pointerup', e => {
-    // Double-tap reset for touch, where dblclick is unreliable with pointer capture
-    if (e.pointerType === 'touch' && movedPx < 5) {
+    // Double-tap reset for touch, where dblclick is unreliable with pointer
+    // capture. 10px slop: finger taps jitter well past a mouse's.
+    if (e.pointerType === 'touch' && movedPx < 10) {
       const now = performance.now();
       if (now - lastTapAt < 350) { setValue(initial); lastTapAt = 0; }
       else lastTapAt = now;

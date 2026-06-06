@@ -686,7 +686,8 @@ input[type=range] {
   border-color: #5a2030;
   color: #ff7da6;
 }
-.lane.silenced > :not(.msgroup) { opacity: .4; transition: opacity .15s; }
+/* keep the expand chevron full-strength — it's a control, not lane content */
+.lane.silenced > :not(.msgroup):not(.lane-expand) { opacity: .4; transition: opacity .15s; }
 
 .mctl { display:flex; gap:8px; align-items:center; }
 .mctl select { width:auto; }
@@ -812,14 +813,14 @@ input[type=range] {
   text-transform: uppercase;
 }
 
-/* persistent numeric readout under the label — opt-in via body.gb-knobval */
+/* persistent numeric readout under the label — opt-in via body.gb-knob-values */
 .knob-val {
   display: none;
   font: 500 9px ui-monospace, Menlo, monospace;
   color: var(--dim);
   line-height: 1;
 }
-body.gb-knobval .knob-val { display: block; }
+body.gb-knob-values .knob-val { display: block; }
 
 /* floating value bubble while dragging a knob (fixed → escapes overflow clips) */
 .knob-bubble {
@@ -2178,11 +2179,14 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   box-shadow: 0 0 8px rgba(84,240,200,0.35);
 }
 
+/* accordion expand button: hidden by default; the mobile layout shows it */
+.lane-expand { display: none; }
+
 /* ═══ MOBILE LAYOUT (≤900px) ═════════════════════════════════════════════════
    Lanes collapse to an accordion: header rows only; tap a lane (or its chevron)
    to expand its knob strip — one open at a time. The strip swipes horizontally
-   with edge fades; body.gb-knobwrap (Display setting) wraps it instead.
-   body.gb-knobval — persistent numeric readout (global Display setting).
+   with edge fades; body.gb-knob-wrap (Display setting) wraps it instead.
+   body.gb-knob-values — persistent numeric readout (global Display setting).
 */
 @media (max-width: 900px) {
   /* ── reclaim chrome: edge-to-edge — cabinet flattens into the page ── */
@@ -2261,9 +2265,8 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   }
 
   /* expand button — the accordion affordance: a square control beside the
-     groove select, with the unified button chrome + lucide chevron
-     (.lane prefix outranks the base display:none, which follows in source) */
-  .lane .lane-expand {
+     groove select, with the unified button chrome + lucide chevron */
+  .lane-expand {
     display: inline-flex;
     grid-area: pull;
     justify-self: end;          /* flush with the card's right edge, under ✕ */
@@ -2290,12 +2293,10 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   .masterfx .knobrow { flex: 1 1 100%; }
 
   /* ── Display setting: wrap knobs onto extra rows instead of swiping ── */
-  body.gb-knobwrap .knobrow { flex-wrap: wrap; row-gap: 10px; overflow-x: hidden; }
+  body.gb-knob-wrap .knobrow { flex-wrap: wrap; row-gap: 10px; overflow-x: hidden; }
 }
 
 @keyframes gbm-expand {
   from { opacity: 0; transform: translateY(-4px); }
 }
 
-/* accordion expand button: hidden on desktop, shown by the mobile layout */
-.lane-expand { display: none; }

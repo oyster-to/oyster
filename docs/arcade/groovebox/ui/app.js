@@ -47,6 +47,9 @@ let song;
 let viz;
 // Track which lane is currently open in the viz (for edit-button highlight).
 let _editingLaneId = null;
+// Mobile accordion — which lane's knob strip is expanded. Survives re-renders
+// (renderStrips re-applies it), mirroring the _editingLaneId pattern.
+let _openLaneId = null;
 
 // ─── Drag-reorder state ───────────────────────────────────────────────────────
 let _draggedLaneId = null;
@@ -148,17 +151,38 @@ function makeKnobrow(groups) {
   return row;
 }
 
-// Edge-fade hint classes for horizontally scrollable knob strips (strip variant).
+// Edge-fade hint classes for horizontally scrollable knob strips. rAF-coalesced:
+// momentum scrolling and resize bursts fire many times per frame, but the
+// layout reads + class toggles only need to run once per paint.
 function updateKnobrowFade(row) {
-  const overR = row.scrollLeft + row.clientWidth < row.scrollWidth - 1;
-  const overL = row.scrollLeft > 1;
-  row.classList.toggle('fade-r', overR);
-  row.classList.toggle('fade-l', overL);
+  if (row._fadeRaf) return;
+  row._fadeRaf = requestAnimationFrame(() => {
+    row._fadeRaf = null;
+    const overR = row.scrollLeft + row.clientWidth < row.scrollWidth - 1;
+    const overL = row.scrollLeft > 1;
+    row.classList.toggle('fade-r', overR);
+    row.classList.toggle('fade-l', overL);
+  });
 }
 function updateAllKnobrowFades() {
   document.querySelectorAll('.knobrow').forEach(updateKnobrowFade);
 }
 window.addEventListener('resize', updateAllKnobrowFades);
+
+// Open/close the mobile accordion. null closes all. Single owner of the .open
+// class and aria-expanded so they can't drift.
+function setOpenLane(id) {
+  _openLaneId = id;
+  const host = document.getElementById('strips');
+  if (!host) return;
+  host.querySelectorAll('.lane').forEach(l => {
+    const open = !!id && l.dataset.lane === id;
+    l.classList.toggle('open', open);
+    const chev = l.querySelector('.lane-expand');
+    if (chev) chev.setAttribute('aria-expanded', String(open));
+  });
+  updateAllKnobrowFades();
+}
 
 function makeKgroup(label, knobDefs) {
   const grp = document.createElement('div');
@@ -414,22 +438,15 @@ function renderStrips() {
     // Mobile accordion: chevron or lane header (not its controls) toggles the
     // lane's knob strip — one lane open at a time. No-op on desktop (chevron
     // hidden, knobrows always visible).
-    const toggleOpen = () => {
-      const wasOpen = row.classList.contains('open');
-      host.querySelectorAll('.lane.open').forEach(l => {
-        l.classList.remove('open');
-        l.querySelector('.lane-expand').setAttribute('aria-expanded', 'false');
-      });
-      if (!wasOpen) {
-        row.classList.add('open');
-        row.querySelector('.lane-expand').setAttribute('aria-expanded', 'true');
-        updateAllKnobrowFades();
-      }
-    };
-    row.querySelector('.lane-expand').onclick = toggleOpen;
+    const chev = row.querySelector('.lane-expand');
+    const toggleOpen = () => setOpenLane(row.classList.contains('open') ? null : id);
+    chev.onclick = toggleOpen;
     row.addEventListener('click', e => {
-      if (!window.matchMedia('(max-width: 900px)').matches) return;
-      if (e.target.closest('button, select, input, .knobrow, .lane-drag')) return;
+      // Gate on the CSS breakpoint itself (chevron is display:none on desktop)
+      // so the JS behaviour can't desync from the @media value.
+      if (getComputedStyle(chev).display === 'none') return;
+      // .name owns dblclick-rename; .lvl is a readout, not a control.
+      if (e.target.closest('button, select, input, .knobrow, .lane-drag, .name, .lvl')) return;
       toggleOpen();
     });
   });
@@ -487,6 +504,9 @@ function renderStrips() {
   cacheMeterFills();  // re-cache .lvl-fill refs after DOM rebuild
   renderViewTabs();   // rebuild quick-edit tabs to track the current lane list
   updateEmptyGroups(); // hide kgroups where all knobs are hidden
+  // Re-apply the accordion's open lane across the innerHTML rebuild (drop it
+  // if that lane was removed).
+  setOpenLane(host.querySelector(`.lane[data-lane="${_openLaneId}"]`) ? _openLaneId : null);
 }
 
 // Sync every strip groove dropdown to the EDIT pattern's picks. Called whenever
@@ -1158,16 +1178,18 @@ for (const [groupName, groupKeys] of _vsGroups) {
   head.className = 'vs-group-lbl';
   head.textContent = 'DISPLAY';
   _vsForm.appendChild(head);
-  const addToggle = (label, storeKey, bodyClass, onChange) => {
+  // `key` doubles as the localStorage key and the body class, so one grep
+  // finds every representation of a toggle.
+  const addToggle = (label, key, onChange) => {
     const row = document.createElement('label');
     row.className = 'vs-row';
     const cb = document.createElement('input');
     cb.type = 'checkbox';
-    cb.checked = localStorage.getItem(storeKey) === '1';
-    document.body.classList.toggle(bodyClass, cb.checked);
+    cb.checked = localStorage.getItem(key) === '1';
+    document.body.classList.toggle(key, cb.checked);
     cb.addEventListener('change', () => {
-      document.body.classList.toggle(bodyClass, cb.checked);
-      localStorage.setItem(storeKey, cb.checked ? '1' : '0');
+      document.body.classList.toggle(key, cb.checked);
+      localStorage.setItem(key, cb.checked ? '1' : '0');
       if (onChange) onChange();
     });
     const lbl = document.createElement('span');
@@ -1176,8 +1198,8 @@ for (const [groupName, groupKeys] of _vsGroups) {
     row.appendChild(lbl);
     _vsForm.appendChild(row);
   };
-  addToggle('Knob values', 'gb-knob-values', 'gb-knobval');
-  addToggle('Wrap knobs (mobile)', 'gb-knob-wrap', 'gb-knobwrap', updateAllKnobrowFades);
+  addToggle('Knob values', 'gb-knob-values');
+  addToggle('Wrap knobs (mobile)', 'gb-knob-wrap', updateAllKnobrowFades);
 }
 
 // Highlight the matching preset on load (based on already-restored hidden set).
