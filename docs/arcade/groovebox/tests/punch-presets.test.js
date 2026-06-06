@@ -5,7 +5,7 @@ import { MODULE_PARAMS } from '../engine/punch.js';
 describe('DEFAULT_PRESETS', () => {
   it('ships six slots with keys 1-6', () => {
     expect(DEFAULT_PRESETS.map(p => p.key)).toEqual(['1', '2', '3', '4', '5', '6']);
-    expect(DEFAULT_PRESETS.map(p => p.name)).toEqual(['STUTTER', 'CRUSH', 'DIVE', 'THROW', 'STOP', 'STUTTER BASS']);
+    expect(DEFAULT_PRESETS.map(p => p.name)).toEqual(['STUTTER', 'STUTTER BASS', 'CRUSH', 'DIVE', 'THROW', 'STOP']);
   });
   it('every preset validates', () => {
     for (const p of DEFAULT_PRESETS) expect(validatePreset(p)).toBe(true);
