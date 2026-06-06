@@ -8,7 +8,7 @@
 song = {
   version: 2,                                        // schema version — bump only with this doc
   title: string, artist: string,
-  meter: { beatsPerBar, beatUnit, stepsPerBeat },   // 4/4 → 16 steps/bar; 6/8 → 12
+  meter: { beatsPerBar, beatUnit, stepsPerBeat, group? },  // 4/4 → 16 steps/bar; 6/8 → 12, group:3 accents
   bpm: number,
 
   // INSTRUMENT CHANNELS — mixer + voice identity. NO musical content here.
@@ -88,10 +88,11 @@ Other threads should leave room for these, not invent competing shapes:
 
 - **`pattern.chords` + chord-relative grooves** — *LIVE.* Chords live on each pattern (one per bar, cycling), and the relative-groove syntax resolves against them (documented above). The chord line in the PATTERNS module edits the selected pattern's chords (parser-backed); melody snap/tint read `song.key`. The flattener translates known bass figures (`octave`, `eighths`, `16ths`, `arp`, …) and the chord modes (`pad`/`stab`/`arp`) into single chord-relative grooves and attaches each pattern's chords from the source progression's bar offsets; array/MIDI bass, melody, and drums stay baked literal. Parity with the legacy note stream is proven for all 7 presets. **Still future:** editable chord-relative grooves (groove writes are no-ops today).
 - **`instruments`** *(direction only — design after #630 lands)*: a definitions layer (`instruments: { [id]: synth params | sample ref }`) that lanes reference, replacing the hardcoded `type → voices.js` synthesis. A drum kit becomes an *ensemble* of instrument refs; samples (wav/mp3) enter here. This is the unlock for the social/composable vision. **Until then: `lane.type` stays a broad routing identity — do not extend its semantics or let it become an instrument-definition dumping ground.**
-- **Sharing**: grooves, patterns, and songs are already self-contained named JSON. Sample assets are the one future exception (need hosting/IDs, can't ride in JSON).
+- **Sharing** — *LIVE (share registry v1).* Songs and grooves are **registry items**: a kind-generic Worker+D1 store behind `groovebox.oyster.to/api/registry`, pretty links `/s/<id>` (`@rev` reserved, ignored in v1). Per-kind schema versions: `song=2` (this doc), `groove=1` (bundle: `{ laneType, meter, bars, relative?, bpm?, extensions? }`). The enforcement point is `registry/validate.js` — shared verbatim by the Worker and the app, strict keys with `extensions: {}` as the only hatch; change it only with this doc and the spec (`project-notes po20/2026-06-06-share-registry-spec.md`). Future kinds (`instrument`, `sample`, `module`) are new enum values, not new systems.
+- **`sampleRef`** *(reserved, NOT in any schema yet)*: when samples arrive they are **metadata-only** first — `sampleRef: { type: 'built-in', id: 'kick-808' }`, later `{ type: 'r2', assetId }`. Audio bytes never ride in registry JSON (the validator's 1KB string cap enforces this); R2 hosting is the instruments-layer slice.
 
 ## API surface (engine — `engine/index.js`)
 
 Read: `getSong getLanes getGrooves getPatterns getChain getEditPatternIndex getEditGroove(laneId) getPlaybackTarget getKey getPatternChords(i)`.
-Mutate: `selectPattern playChain addPattern duplicatePattern removePattern appendToChain removeChainAt moveChain setLaneGroove(laneId, name) setGrooveBars(laneId, n) setDrumStep toggleNote setPatternChords(chords)` + lanes (`addLane duplicateLane removeLane renameLane moveLane`), mixer/FX, fills queue, transport.
+Mutate: `selectPattern playChain addPattern duplicatePattern removePattern appendToChain removeChainAt moveChain setLaneGroove(laneId, name) addGroove(laneId, name, value) setGrooveBars(laneId, n) setDrumStep toggleNote setPatternChords(chords)` + lanes (`addLane duplicateLane removeLane renameLane moveLane`), mixer/FX, fills queue, transport.
 Gone (do not reintroduce): `setMode getMode captureScene clearArrangement setLane` per-lane selection, `cycleLen`, pattern `bars`/`setPatternBars`, `getHarmony`/`setProgression` (chords are pattern-owned now).
