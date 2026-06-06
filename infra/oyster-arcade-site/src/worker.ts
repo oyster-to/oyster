@@ -13,6 +13,20 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
 
+    // groovebox.oyster.to serves the groovebox at its root — rewrite every
+    // path onto the /groovebox/ subtree of the same ASSETS directory. The
+    // groovebox is fully self-contained (all-relative refs), so a bare
+    // prefix rewrite is sufficient — no /assets/ proxying needed.
+    // Idempotent (pasted arcade.oyster.to/groovebox/... deep links don't
+    // double-prefix) and preserves the query string.
+    if (url.hostname === 'groovebox.oyster.to') {
+      const path = url.pathname === '/groovebox' || url.pathname.startsWith('/groovebox/')
+        ? url.pathname
+        : '/groovebox' + url.pathname;
+      const rewritten = new URL(path + url.search, req.url);
+      return env.ASSETS.fetch(new Request(rewritten, req));
+    }
+
     if (url.pathname.startsWith('/assets/')) {
       // Wrap the original Request so the proxy preserves method,
       // headers, and any body — bare `fetch(string)` always issues a

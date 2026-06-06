@@ -121,5 +121,8 @@
     </div>
     <div class="crt-vignette"></div>
   </div>
+  <!-- Resolves the bare `import 'tone'` when served statically (no bundler).
+       Vite dev rewrites the import itself, so the map is inert there. -->
+  <script type="importmap">{"imports":{"tone":"./vendor/tone.js"}}</script>
   <script type="module" src="ui/app.js"></script>
 </body></html>

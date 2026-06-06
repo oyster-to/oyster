@@ -21,6 +21,12 @@ not_found_handling = "404-page"
 pattern = "arcade.oyster.to"
 custom_domain = true
 
+# groovebox.oyster.to — same worker; the host rewrite in worker.ts serves
+# the /groovebox/ subtree at this domain's root.
+[[routes]]
+pattern = "groovebox.oyster.to"
+custom_domain = true
+
 # Observability: lets `wrangler tail` work for debugging.
 [observability]
 enabled = true
