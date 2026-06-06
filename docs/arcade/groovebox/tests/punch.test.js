@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PUNCH_NEUTRAL, PUNCH_PARAMS, MODULE_PARAMS, scaleValue, durationToSeconds, stutterAllowed, stutterEvents, isPunchArmed, diveFreqForAmount } from '../engine/punch.js';
+import { PUNCH_NEUTRAL, PUNCH_PARAMS, MODULE_PARAMS, scaleValue, durationToSeconds, gateEventsForStep, stutterAllowed, stutterEvents, isPunchArmed, diveFreqForAmount } from '../engine/punch.js';
 
 describe('PUNCH_NEUTRAL', () => {
   it('pins the idle chain to audibly-transparent values (spec safeguard 3)', () => {
@@ -117,5 +117,33 @@ describe('durationToSeconds', () => {
   });
   it('throws on unknown unit (seconds is future, not v3)', () => {
     expect(() => durationToSeconds({ unit: 'seconds', value: 1 }, T)).toThrow();
+  });
+});
+
+describe('gateEventsForStep', () => {
+  const SIX = 0.125;
+  it("division '1/16' = open first half, closed second (v2 stutter parity)", () => {
+    expect(gateEventsForStep(10, SIX, 0, '1/16', 1)).toEqual([
+      [10.003, 1], [10 + SIX / 2, 1], [10 + SIX / 2 + 0.003, 0], [10 + SIX, 0],
+    ]);
+  });
+  it("division '1/8' alternates whole steps: even open, odd closed", () => {
+    expect(gateEventsForStep(0, SIX, 0, '1/8', 1)).toEqual([[0.003, 1], [SIX, 1]]);
+    expect(gateEventsForStep(0, SIX, 1, '1/8', 1)).toEqual([[0.003, 0], [SIX, 0]]);
+  });
+  it("division '1/32' chops twice per step", () => {
+    const q = SIX / 4;
+    expect(gateEventsForStep(0, SIX, 0, '1/32', 1)).toEqual([
+      [0.003, 1], [q, 1], [q + 0.003, 0], [2 * q, 0],
+      [2 * q + 0.003, 1], [3 * q, 1], [3 * q + 0.003, 0], [4 * q, 0],
+    ]);
+  });
+  it('depth scales the closed level (depth 0.6 → closed 0.4)', () => {
+    const ev = gateEventsForStep(0, SIX, 0, '1/16', 0.6);
+    expect(ev[2][1]).toBeCloseTo(0.4);
+    expect(ev[3][1]).toBeCloseTo(0.4);
+  });
+  it('stutterEvents stays as the 1/16 wrapper (v2 back-compat)', () => {
+    expect(stutterEvents(5, SIX, 0.003, 0.25)).toEqual(gateEventsForStep(5, SIX, 0, '1/16', 0.75));
   });
 });

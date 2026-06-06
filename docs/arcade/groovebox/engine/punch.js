@@ -41,19 +41,32 @@ export function stutterAllowed(held) {
   return !held.stop;
 }
 
-// Gate envelope breakpoints for one 16th step: open first half, `closed`-level
-// second half (0 = full chop; AMOUNT scales it via closed = 1 - amount), with
-// `ramp`-second edges so the chops don't click. Consumed via
-// linearRampToValueAtTime; the final [stepEnd, closed] means the next step's
-// opening edge ramps cleanly from the closed level.
-export function stutterEvents(t, sixteenth, ramp = 0.003, closed = 0) {
+// GATE module math: tempo-synced chopper. division picks the chop cycle;
+// depth 1 = chop to silence, depth d = chop to (1 - d). `ramp`-second edges
+// so the chops don't click. stepIdx matters for divisions longer than one
+// step ('1/8' alternates whole steps). Consumed via linearRampToValueAtTime;
+// each step's final breakpoint is the level the next step ramps from.
+export function gateEventsForStep(t, sixteenth, stepIdx, division, depth, ramp = 0.003) {
+  const closed = 1 - depth;
+  if (division === '1/8') {
+    const lvl = stepIdx % 2 === 0 ? 1 : closed;
+    return [[t + ramp, lvl], [t + sixteenth, lvl]];
+  }
+  if (division === '1/32') {
+    const q = sixteenth / 4;
+    return [
+      [t + ramp, 1], [t + q, 1], [t + q + ramp, closed], [t + 2 * q, closed],
+      [t + 2 * q + ramp, 1], [t + 3 * q, 1], [t + 3 * q + ramp, closed], [t + 4 * q, closed],
+    ];
+  }
+  // default '1/16': open first half, closed second half of each step
   const half = sixteenth / 2;
-  return [
-    [t + ramp, 1],
-    [t + half, 1],
-    [t + half + ramp, closed],
-    [t + sixteenth, closed],
-  ];
+  return [[t + ramp, 1], [t + half, 1], [t + half + ramp, closed], [t + sixteenth, closed]];
+}
+
+// Back-compat wrapper (v2 signature took the closed level, not depth).
+export function stutterEvents(t, sixteenth, ramp = 0.003, closed = 0) {
+  return gateEventsForStep(t, sixteenth, 0, '1/16', 1 - closed, ramp);
 }
 
 // ── v3: module-param registry + interpolation/timing math ────────────────────
