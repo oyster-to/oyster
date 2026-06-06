@@ -396,13 +396,14 @@ function renderStrips() {
     const knobrow = makeKnobrow([mixGrp, toneGrp, fxGrp]);
     msgroup.before(knobrow);
 
-    // PROTO accordion variant: chevron or lane header (not its controls) toggles
+    // Mobile accordion: chevron or lane header (not its controls) toggles the
+    // lane's knob strip — one lane open at a time. No-op on desktop (chevron
+    // hidden, knobrows always visible).
     const toggleOpen = () => {
       const wasOpen = row.classList.contains('open');
       host.querySelectorAll('.lane.open').forEach(l => {
         l.classList.remove('open');
-        const c = l.querySelector('.lane-expand');
-        if (c) c.setAttribute('aria-expanded', 'false');
+        l.querySelector('.lane-expand').setAttribute('aria-expanded', 'false');
       });
       if (!wasOpen) {
         row.classList.add('open');
@@ -412,7 +413,7 @@ function renderStrips() {
     };
     row.querySelector('.lane-expand').onclick = toggleOpen;
     row.addEventListener('click', e => {
-      if (!document.body.classList.contains('gbm-accordion')) return;
+      if (!window.matchMedia('(max-width: 760px)').matches) return;
       if (e.target.closest('button, select, input, .knobrow, .lane-drag')) return;
       toggleOpen();
     });
@@ -1136,27 +1137,32 @@ for (const [groupName, groupKeys] of _vsGroups) {
   }
 }
 
-// ── Display section: persistent knob value readout (global, default off) ──
+// ── Display section: global UI toggles (all default off) ──
 {
   const head = document.createElement('div');
   head.className = 'vs-group-lbl';
   head.textContent = 'DISPLAY';
   _vsForm.appendChild(head);
-  const row = document.createElement('label');
-  row.className = 'vs-row';
-  const cb = document.createElement('input');
-  cb.type = 'checkbox';
-  cb.checked = localStorage.getItem('gb-knob-values') === '1';
-  document.body.classList.toggle('gb-knobval', cb.checked);
-  cb.addEventListener('change', () => {
-    document.body.classList.toggle('gb-knobval', cb.checked);
-    localStorage.setItem('gb-knob-values', cb.checked ? '1' : '0');
-  });
-  const lbl = document.createElement('span');
-  lbl.textContent = 'Knob values';
-  row.appendChild(cb);
-  row.appendChild(lbl);
-  _vsForm.appendChild(row);
+  const addToggle = (label, storeKey, bodyClass, onChange) => {
+    const row = document.createElement('label');
+    row.className = 'vs-row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = localStorage.getItem(storeKey) === '1';
+    document.body.classList.toggle(bodyClass, cb.checked);
+    cb.addEventListener('change', () => {
+      document.body.classList.toggle(bodyClass, cb.checked);
+      localStorage.setItem(storeKey, cb.checked ? '1' : '0');
+      if (onChange) onChange();
+    });
+    const lbl = document.createElement('span');
+    lbl.textContent = label;
+    row.appendChild(cb);
+    row.appendChild(lbl);
+    _vsForm.appendChild(row);
+  };
+  addToggle('Knob values', 'gb-knob-values', 'gb-knobval');
+  addToggle('Wrap knobs (mobile)', 'gb-knob-wrap', 'gb-knobwrap', updateAllKnobrowFades);
 }
 
 // Highlight the matching preset on load (based on already-restored hidden set).
@@ -1294,31 +1300,6 @@ function initSectionWrappers() {
   });
 }
 
-// ─── PROTO: mobile layout variant switcher ────────────────────────────────────
-// Temporary, prototype-only. Floating chip row to flip between mobile lane
-// layouts live: STRIP (h-scroll knobs) / WRAP / ACCORDION.
-const GBM_VARIANTS = ['strip', 'wrap', 'accordion'];
-
-function applyGbmVariant(v) {
-  for (const x of GBM_VARIANTS) document.body.classList.toggle('gbm-' + x, x === v);
-  localStorage.setItem('gbm-variant', v);
-  document.querySelectorAll('#gbm-proto [data-variant]').forEach(b =>
-    b.classList.toggle('on', b.dataset.variant === v));
-  requestAnimationFrame(updateAllKnobrowFades);
-}
-
-function initProtoSwitcher() {
-  const el = document.createElement('div');
-  el.id = 'gbm-proto';
-  el.innerHTML = `<span class="gbm-lbl">PROTO</span>` +
-    GBM_VARIANTS.map(v => `<button data-variant="${v}">${v}</button>`).join('');
-  document.body.appendChild(el);
-
-  el.querySelectorAll('[data-variant]').forEach(b => b.onclick = () => applyGbmVariant(b.dataset.variant));
-
-  applyGbmVariant(localStorage.getItem('gbm-variant') || 'accordion');
-}
-
 // ─── Initial load ─────────────────────────────────────────────────────────────
 eng.load(kids);
 const initialSong = eng.getSong();
@@ -1328,4 +1309,3 @@ eng.setTempo(initialSong.bpm);
 mount();
 // Wrap sections and wire section drag-reorder once, after first mount.
 initSectionWrappers();
-initProtoSwitcher();
