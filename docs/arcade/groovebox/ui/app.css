@@ -983,7 +983,7 @@ body.gb-knob-values .knob-val { display: block; }
   box-shadow: 0 0 14px rgba(84, 240, 200, 0.4); user-select: none; touch-action: none;
 }
 .pe-test small { display: block; font-weight: 400; font-size: 9px; opacity: 0.7; }
-.pe-test:disabled { filter: grayscale(1); opacity: 0.5; box-shadow: none; cursor: default; }
+.pe-test.idle { filter: grayscale(1); opacity: 0.5; box-shadow: none; }
 .pe-fx { border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); padding: 10px; margin: 8px 0; }
 .pe-fxhd { display: flex; align-items: center; margin-bottom: 6px; }
 .pe-fxname { color: var(--ink); font-weight: 700; }

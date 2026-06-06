@@ -67,6 +67,8 @@ export function openPunchEditor({ slot, eng, onSaved }) {
   if (isPunchEditorOpen()) return;
   let draft = draftFromPreset(eng.getPunchPresets()[slot]);
   let previewHeld = false;
+  let _saveBtn = null;
+  function refreshSave() { if (_saveBtn) _saveBtn.disabled = !validatePreset(draft); }
 
   const backdrop = document.createElement('div');
   backdrop.id = 'punch-editor-backdrop';
@@ -115,12 +117,18 @@ export function openPunchEditor({ slot, eng, onSaved }) {
     badge.className = 'pe-badge';
     badge.textContent = `key ${draft.key} · slot ${slot + 1} of 5`;
     const test = document.createElement('button');
-    test.className = 'pe-test';
-    test.disabled = !playing;
-    test.innerHTML = playing ? 'TEST<small>hold to hear</small>' : 'TEST<small>press ▶ first</small>';
+    test.className = 'pe-test' + (playing ? '' : ' idle');
+    test.innerHTML = 'TEST<small>hold to hear</small>';
     test.addEventListener('pointerdown', e => {
       e.preventDefault(); test.setPointerCapture(e.pointerId);
-      if (eng.isPlaying() && validatePreset(draft)) { eng.punchPreview(draft, true); previewHeld = true; }
+      if (!eng.isPlaying()) {            // live check — not the render-time snapshot
+        test.classList.add('idle');
+        test.innerHTML = 'TEST<small>press ▶ first</small>';
+        return;
+      }
+      test.classList.remove('idle');
+      test.innerHTML = 'TEST<small>hold to hear</small>';
+      if (validatePreset(draft)) { eng.punchPreview(draft, true); previewHeld = true; }
     });
     const off = () => stopPreview();
     test.addEventListener('pointerup', off);
@@ -145,16 +153,21 @@ export function openPunchEditor({ slot, eng, onSaved }) {
       fxhd.appendChild(rm);
       fx.appendChild(fxhd);
 
-      // value slider (registry range, registry scale)
-      fx.appendChild(sliderRow('amount', paramPos(id, a.to), ui.fmt(a.to), pos => {
+      // value slider (registry range, registry scale) — updates in place;
+      // a full re-render here would destroy the slider mid-drag.
+      fx.appendChild(sliderRow('amount', paramPos(id, a.to), ui.fmt(a.to), (pos, setVal) => {
         a.to = paramValue(id, pos);
         if (reg.scale === 'log') a.to = Math.round(a.to);
-        render();
+        setVal(ui.fmt(a.to));
+        refreshSave();
       }));
 
       // gate division
       if (id === 'gate.depth') {
-        fx.appendChild(selectRow('chop', GATE_DIVISIONS.map(d => [d, d]), a.division || '1/16', v => { a.division = v; }));
+        const row = document.createElement('div');
+        row.className = 'pe-row';
+        row.append(label('chop'), select(GATE_DIVISIONS.map(d => [d, d]), a.division || '1/16', v => { a.division = v; }));
+        fx.appendChild(row);
       }
 
       // ramps
@@ -163,12 +176,14 @@ export function openPunchEditor({ slot, eng, onSaved }) {
         const row = document.createElement('div');
         row.className = 'pe-row';
         row.appendChild(label(phase));
+        const rv = value(`${ramp.value}`);
         const s = slider(ramp.value / UNIT_MAX[ramp.unit], pos => {
           ramp.value = Math.round(pos * UNIT_MAX[ramp.unit] * 10) / 10;
-          render();
+          rv.textContent = `${ramp.value}`;
+          refreshSave();
         });
         row.appendChild(s);
-        row.appendChild(value(`${ramp.value}`));
+        row.appendChild(rv);
         const sel = select(UNITS.map(u => [u, u]), ramp.unit, v => { ramp.unit = v; ramp.value = Math.min(ramp.value, UNIT_MAX[v]); render(); });
         row.appendChild(sel);
         fx.appendChild(row);
@@ -213,6 +228,7 @@ export function openPunchEditor({ slot, eng, onSaved }) {
     saveBtn.textContent = 'SAVE';
     saveBtn.disabled = !valid;
     saveBtn.onclick = save;
+    _saveBtn = saveBtn;
     ft.append(reset, cancel, saveBtn);
     modal.appendChild(ft);
   }
@@ -230,7 +246,8 @@ export function openPunchEditor({ slot, eng, onSaved }) {
   function sliderRow(lbl, pos, val, onPos) {
     const row = document.createElement('div');
     row.className = 'pe-row';
-    row.append(label(lbl), slider(pos, onPos), value(val));
+    const v = value(val);
+    row.append(label(lbl), slider(pos, p => onPos(p, t => { v.textContent = t; })), v);
     return row;
   }
   function select(pairs, current, onChange) {
