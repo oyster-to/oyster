@@ -87,3 +87,21 @@ export function durationToSeconds(dur, t) {
   if (dur.unit === 'bars')  return dur.value * t.barSeconds;
   throw new Error(`punch: unsupported duration unit "${dur.unit}"`);
 }
+
+// ── v4: per-lane capture/refcount ────────────────────────────────────────────
+// Punch automations drive masked lanes' OWN fx params, which hold the user's
+// knob values. The first automation on a (lane, param) captures that value;
+// nested holds refcount; the LAST release restores. Pure Map logic.
+export function engageCapture(map, key, current) {
+  const e = map.get(key);
+  if (e) { e.count++; return e.value; }
+  map.set(key, { value: current, count: 1 });
+  return current;
+}
+export function releaseCapture(map, key) {
+  const e = map.get(key);
+  if (!e) return null;
+  if (--e.count > 0) return null;
+  map.delete(key);
+  return e.value;
+}

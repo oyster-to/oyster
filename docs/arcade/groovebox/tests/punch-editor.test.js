@@ -11,7 +11,7 @@ describe('PARAM_UI', () => {
 
 describe('draftFromPreset', () => {
   it('deep clones — editing the draft never touches the source', () => {
-    const src = DEFAULT_PRESETS[1];
+    const src = DEFAULT_PRESETS.find(p => p.name === 'CRUSH');
     const draft = draftFromPreset(src);
     draft.name = 'WRECK';
     draft.automations[0].to = 0.1;
@@ -35,7 +35,7 @@ describe('paramPos / paramValue (slider mapping in registry scale space)', () =>
 
 describe('availableParams', () => {
   it('excludes params already used by the draft', () => {
-    const draft = draftFromPreset(DEFAULT_PRESETS[1]); // CRUSH uses crusher.wet
+    const draft = draftFromPreset(DEFAULT_PRESETS.find(p => p.name === 'CRUSH')); // CRUSH uses crusher.wet
     const avail = availableParams(draft);
     expect(avail).not.toContain('crusher.wet');
     expect(avail).toContain('gate.depth');

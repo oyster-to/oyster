@@ -49,29 +49,38 @@ export function validatePreset(p) {
 // dogfood-approved level. These are seed data — never mutated in place.
 export const DEFAULT_PRESETS = [
   { name: 'STUTTER', key: '1', engageQuantize: 'immediate', releaseQuantize: 'immediate',
+    lanes: ['melody'],          // chop the topline; rhythm section rides underneath
+    automations: [
+      { module: 'gate', param: 'depth', from: 'neutral', to: 1, division: '1/8',
+        engage: { ramp: { unit: 'steps', value: 0 } }, release: { ramp: { unit: 'steps', value: 0.1 } } },
+    ] },
+  { name: 'STUTTER BASS', key: '2', engageQuantize: 'immediate', releaseQuantize: 'immediate',
     lanes: ['drums', 'bass'],   // chop the rhythm section; pads/melody ride on top
     automations: [
       { module: 'gate', param: 'depth', from: 'neutral', to: 1, division: '1/8',
         engage: { ramp: { unit: 'steps', value: 0 } }, release: { ramp: { unit: 'steps', value: 0.1 } } },
     ] },
-  { name: 'CRUSH', key: '2', engageQuantize: 'immediate', releaseQuantize: 'immediate',
+  { name: 'CRUSH', key: '3', engageQuantize: 'immediate', releaseQuantize: 'immediate',
+    lanes: ['drums', 'bass'],   // crushed pads/melody read as noise — keep the grit on the rhythm section
+    amount: 0.6,                // ear-tuned: full-strength crush is too much even on the rhythm section
     automations: [
       { module: 'crusher', param: 'wet', from: 'neutral', to: 0.9,
         engage: { ramp: { unit: 'steps', value: 0.5 } }, release: { ramp: { unit: 'steps', value: 0.5 } } },
     ] },
-  { name: 'DIVE', key: '3', engageQuantize: 'immediate', releaseQuantize: 'immediate',
+  { name: 'DIVE', key: '4', engageQuantize: 'immediate', releaseQuantize: 'immediate',
     automations: [
       { module: 'filter', param: 'freq', from: 'neutral', to: 150,
         engage: { ramp: { unit: 'steps', value: 1 } }, release: { ramp: { unit: 'steps', value: 1 } } },
       { module: 'filter', param: 'Q', from: 'neutral', to: 8,
         engage: { ramp: { unit: 'steps', value: 1 } }, release: { ramp: { unit: 'steps', value: 1 } } },
     ] },
-  { name: 'THROW', key: '4', engageQuantize: 'immediate', releaseQuantize: 'immediate',
+  { name: 'THROW', key: '5', engageQuantize: 'immediate', releaseQuantize: 'immediate',
+    lanes: ['drums', 'bass', 'chords'],   // ear-tuned: melody throws smear the topline
     automations: [
-      { module: 'delay', param: 'wet', from: 'neutral', to: 0.6,
+      { module: 'delay', param: 'wet', from: 'neutral', to: 0.5,
         engage: { ramp: { unit: 'steps', value: 0.5 } }, release: { ramp: { unit: 'beats', value: 3 } } },
     ] },
-  { name: 'STOP', key: '5', engageQuantize: 'immediate', releaseQuantize: 'immediate',
+  { name: 'STOP', key: '6', engageQuantize: 'immediate', releaseQuantize: 'immediate',
     automations: [
       // Semantic module (spec decision 6): the engine implements tapeStop
       // internally (gate fade + tape slump + on-grid return). Engage ramp =

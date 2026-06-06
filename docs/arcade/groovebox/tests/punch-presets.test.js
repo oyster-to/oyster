@@ -3,9 +3,9 @@ import { DEFAULT_PRESETS, validatePreset } from '../engine/punch-presets.js';
 import { MODULE_PARAMS } from '../engine/punch.js';
 
 describe('DEFAULT_PRESETS', () => {
-  it('ships exactly five slots with keys 1-5', () => {
-    expect(DEFAULT_PRESETS.map(p => p.key)).toEqual(['1', '2', '3', '4', '5']);
-    expect(DEFAULT_PRESETS.map(p => p.name)).toEqual(['STUTTER', 'CRUSH', 'DIVE', 'THROW', 'STOP']);
+  it('ships six slots with keys 1-6', () => {
+    expect(DEFAULT_PRESETS.map(p => p.key)).toEqual(['1', '2', '3', '4', '5', '6']);
+    expect(DEFAULT_PRESETS.map(p => p.name)).toEqual(['STUTTER', 'STUTTER BASS', 'CRUSH', 'DIVE', 'THROW', 'STOP']);
   });
   it('every preset validates', () => {
     for (const p of DEFAULT_PRESETS) expect(validatePreset(p)).toBe(true);
@@ -15,9 +15,13 @@ describe('DEFAULT_PRESETS', () => {
       for (const a of p.automations)
         expect(MODULE_PARAMS[`${a.module}.${a.param}`]).toBeDefined();
   });
-  it('CRUSH carries the dogfood-approved 0.9 target', () => {
-    const crush = DEFAULT_PRESETS.find(p => p.name === 'CRUSH');
-    expect(crush.automations[0].to).toBe(0.9);
+  it('both stutters chop at 1/8 with their own sections', () => {
+    const mel = DEFAULT_PRESETS.find(p => p.name === 'STUTTER');
+    const bas = DEFAULT_PRESETS.find(p => p.name === 'STUTTER BASS');
+    expect(mel.automations[0].division).toBe('1/8');
+    expect(mel.lanes).toEqual(['melody']);
+    expect(bas.automations[0].division).toBe('1/8');
+    expect(bas.lanes).toEqual(['drums', 'bass']);
   });
 });
 
@@ -80,18 +84,27 @@ describe('registry ranges (v3.5 — single source of truth)', () => {
 
 describe('lane masks (v3.5 — per-preset targeting)', () => {
   const base = { name: 'X', key: '1', engageQuantize: 'immediate', releaseQuantize: 'immediate', automations: [] };
-  it('STUT defaults to 1/8 chop on drums+bass only', () => {
+  it('STUTTER defaults to 1/8 on melody', () => {
     const stut = DEFAULT_PRESETS.find(p => p.name === 'STUTTER');
     expect(stut.automations[0].division).toBe('1/8');
-    expect(stut.lanes).toEqual(['drums', 'bass']);
+    expect(stut.lanes).toEqual(['melody']);
   });
   it('validates lanes as a subset of known lane types', () => {
     expect(validatePreset({ ...base, lanes: ['drums', 'bass'] })).toBe(true);
     expect(validatePreset({ ...base, lanes: ['drums', 'vocals'] })).toBe(false);
     expect(validatePreset({ ...base, lanes: 'drums' })).toBe(false);
   });
-  it('omitted lanes means all (other defaults carry no mask)', () => {
+  it('CRUSH targets the rhythm section by default', () => {
+    expect(DEFAULT_PRESETS.find(p => p.name === 'CRUSH').lanes).toEqual(['drums', 'bass']);
+  });
+  it('THROW ear-tuned: 0.5 echo on drums+bass+chords', () => {
+    const th = DEFAULT_PRESETS.find(p => p.name === 'THROW');
+    expect(th.automations[0].to).toBe(0.5);
+    expect(th.lanes).toEqual(['drums', 'bass', 'chords']);
+  });
+  it('omitted lanes means all (DIVE/STOP carry no mask)', () => {
     expect(DEFAULT_PRESETS.find(p => p.name === 'DIVE').lanes).toBeUndefined();
+    expect(DEFAULT_PRESETS.find(p => p.name === 'STOP').lanes).toBeUndefined();
   });
 });
 
@@ -102,7 +115,10 @@ describe('per-preset amount (v3.5 — replaces the global AMT knob)', () => {
     expect(validatePreset({ ...base, amount: 1.5 })).toBe(false);
     expect(validatePreset({ ...base, amount: -0.1 })).toBe(false);
   });
-  it('defaults carry no amount (= full strength)', () => {
-    for (const p of DEFAULT_PRESETS) expect(p.amount).toBeUndefined();
+  it('amount defaults: CRUSH ear-tuned to 0.6, everything else full', () => {
+    for (const p of DEFAULT_PRESETS) {
+      if (p.name === 'CRUSH') expect(p.amount).toBe(0.6);
+      else expect(p.amount).toBeUndefined();
+    }
   });
 });

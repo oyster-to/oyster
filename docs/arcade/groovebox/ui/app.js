@@ -16,6 +16,7 @@ import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
 import { initShare, maybeLoadShared, clearLoadedFrom } from './share.js';
 import { openPunchEditor, isPunchEditorOpen } from './punch-editor.js';
+import { DEFAULT_PRESETS } from '../engine/punch-presets.js';
 
 const eng = createEngine();
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
@@ -583,7 +584,22 @@ function renderFills() {
 // (no editor UI yet — v3.5; hand-edited or future-UI overrides both load here).
 function loadPunchPresets() {
   try {
-    const saved = JSON.parse(localStorage.getItem('gb-punch-presets') || 'null');
+    let saved = JSON.parse(localStorage.getItem('gb-punch-presets') || 'null');
+    // Migration (matched BY NAME — index math broke when defaults reordered):
+    // fill any defaults the saved set lacks, then — if no pads were renamed —
+    // adopt the canonical default ORDER while keeping each pad's saved edits.
+    // Renamed pads = user owns the layout; keep their order. Keys are
+    // slot-bound, so they renumber either way.
+    if (Array.isArray(saved)) {
+      const byName = new Map(saved.filter(Boolean).map(p => [p.name, p]));
+      for (const d of DEFAULT_PRESETS) if (!byName.has(d.name)) byName.set(d.name, d);
+      const defaultNames = DEFAULT_PRESETS.map(d => d.name);
+      const allStock = byName.size === defaultNames.length && defaultNames.every(n => byName.has(n));
+      saved = allStock
+        ? defaultNames.map(n => byName.get(n))
+        : [...byName.values()].slice(0, DEFAULT_PRESETS.length);
+      saved.forEach((p, i) => { p.key = String(i + 1); });
+    }
     if (saved) return eng.setPunchPresets(saved);   // engine validates; invalid → defaults kept
   } catch (_) { /* corrupt JSON → defaults */ }
   return eng.getPunchPresets();
@@ -654,7 +670,7 @@ document.addEventListener('keyup', e => {
   if (slot !== undefined) setPunch(slot, false);
 });
 // Stuck-key guard: losing window focus releases every pad.
-window.addEventListener('blur', () => { for (let s = 0; s < 5; s++) setPunch(s, false); });
+window.addEventListener('blur', () => { for (let s = 0; s < eng.getPunchPresets().length; s++) setPunch(s, false); });
 
 // ─── Master FX ───────────────────────────────────────────────────────────────
 function renderMaster() {

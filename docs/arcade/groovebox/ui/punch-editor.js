@@ -128,7 +128,7 @@ export function openPunchEditor({ slot, eng, onSaved }) {
     name.oninput = () => { draft.name = name.value; };
     const badge = document.createElement('span');
     badge.className = 'pe-badge';
-    badge.textContent = `key ${draft.key} · slot ${slot + 1} of 5`;
+    badge.textContent = `key ${draft.key} · slot ${slot + 1} of ${eng.getPunchPresets().length}`;
     const test = document.createElement('button');
     test.className = 'pe-test' + (playing ? '' : ' idle');
     test.innerHTML = `TEST<small>hold · or key ${draft.key}</small>`;
