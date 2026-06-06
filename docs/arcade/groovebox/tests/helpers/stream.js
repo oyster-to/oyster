@@ -11,7 +11,8 @@ export function renderChainStream(song, { cycles = 3, skipCycles = 1 } = {}) {
     const { patternIdx, barInPattern } = chainBarAt(song, bar);
     const outBar = bar - total * skipCycles;
     for (let step = 0; step < spb; step++) {
-      for (const e of eventsForStepV2(song, patternIdx, barInPattern, step, null, 0)) {
+      // `bar` is the song-absolute bar → it is the harmony clock for relative grooves.
+      for (const e of eventsForStepV2(song, patternIdx, barInPattern, step, null, 0, bar)) {
         out.add(eventKey(outBar, step, e));
       }
     }

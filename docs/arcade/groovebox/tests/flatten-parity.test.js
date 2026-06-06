@@ -1,6 +1,14 @@
 import { test, expect } from 'vitest';
 import { flattenSong } from '../engine/flatten.js';
-import { patternBars } from '../engine/patterns.js';
+import { patternBars, grooveBars } from '../engine/patterns.js';
+
+// A groove is a literal bars[] array OR a chord-relative wrapper
+// { relative:true, bars:[…] }. grooveBars() normalizes both to the bars array.
+function isValidGroove(g) {
+  if (Array.isArray(g)) return g.length >= 1 && g.length <= 8;
+  if (g && g.relative === true) return Array.isArray(g.bars) && g.bars.length >= 1 && g.bars.length <= 8;
+  return false;
+}
 import { renderLegacyStream } from './legacy/legacy-engine.js';
 import { renderChainStream } from './helpers/stream.js';
 import { kids } from '../songs/kids.js';
@@ -27,16 +35,26 @@ for (const [name, song] of Object.entries(SONGS)) {
       const p = v2.patterns[pi];
       // pattern.bars is gone — duration is derived from the longest picked groove.
       expect(p.bars).toBeUndefined();
-      // Every pick references an existing groove.
+      // Every pick references an existing, well-formed groove (literal or relative).
       for (const lane of v2.lanes) {
         const name = p.lanes[lane.id];
         expect(typeof name).toBe('string');
-        expect(v2.grooves[lane.id]?.[name]).toBeDefined();
+        const g = v2.grooves[lane.id]?.[name];
+        expect(isValidGroove(g)).toBe(true);
       }
-      // Flattener chunks lanes together → all picked grooves share one length,
-      // so the derived bar count is that shared 1/2/4 length.
-      const lengths = v2.lanes.map(l => v2.grooves[l.id][p.lanes[l.id]].length);
-      expect(new Set(lengths).size).toBe(1);
+      // Literal lanes (drums/melody, plus any untranslated bass/chords) share one
+      // length per pattern. Chord-relative grooves are one bar and cycle
+      // underneath — they're excluded from this check.
+      const litLengths = v2.lanes
+        .map(l => v2.grooves[l.id][p.lanes[l.id]])
+        .filter(g => Array.isArray(g))
+        .map(g => g.length);
+      expect(new Set(litLengths).size).toBe(1);
+      // Relative grooves are exactly one bar.
+      for (const lane of v2.lanes) {
+        const g = v2.grooves[lane.id][p.lanes[lane.id]];
+        if (g && g.relative) expect(grooveBars(g).length).toBe(1);
+      }
       expect([1, 2, 4]).toContain(patternBars(v2, pi));
     }
     // Every chain entry indexes an existing pattern.

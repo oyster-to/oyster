@@ -6,9 +6,44 @@
 // A groove owns its length (its array); at pattern bar b it plays
 // groove[b % groove.length]. A pattern's loop length is DERIVED — the longest
 // picked groove (see patternBars); shorter grooves cycle underneath.
-import { laneAudible, drumVoiceAudible, transposeNote, DRUM_KEYS } from './song.js';
+import { laneAudible, drumVoiceAudible, transposeNote, chordAt, DRUM_KEYS } from './song.js';
 
 export const MAX_PATTERNS = 16;
+
+// ── chord-relative grooves ────────────────────────────────────────────────────
+// A groove is either a plain bars[] array (literal notes) or a chord-relative
+// wrapper { relative: true, bars: [[[step, REF, dur], …], …] }. grooveBars(g)
+// normalizes to the bars array so length/cycling logic stays shape-agnostic.
+export function grooveBars(g) {
+  return Array.isArray(g) ? g : (g ? g.bars : undefined);
+}
+
+// resolveRef(ref, chord) — resolve a chord-relative reference against a chord
+// { root, voicing }. Grammar:
+//   'R'        → chord.root
+//   'V<i>'     → chord.voicing[i % voicing.length]   (degree, clamped)
+//   'V*'       → the whole voicing array
+//   any of the above may carry a '+N'/'-N' semitone suffix (e.g. 'R+12',
+//   'V2-24', 'V*-12') applied via transposeNote.
+// Returns a note string, an array of note strings (for 'V*'), or null
+// (invalid ref / missing chord / empty voicing).
+export function resolveRef(ref, chord) {
+  if (typeof ref !== 'string' || !chord) return null;
+  const m = ref.match(/^(R|V\*|V\d+)([+-]\d+)?$/);
+  if (!m) return null;
+  const base = m[1];
+  const semi = m[2] ? parseInt(m[2], 10) : 0;
+  const shift = n => (semi ? transposeNote(n, semi) : n);
+  if (base === 'R') {
+    if (!chord.root) return null;
+    return shift(chord.root);
+  }
+  const voicing = chord.voicing;
+  if (!Array.isArray(voicing) || !voicing.length) return null;
+  if (base === 'V*') return voicing.map(shift);
+  const i = parseInt(base.slice(1), 10);
+  return shift(voicing[i % voicing.length]);
+}
 
 // patternBars(song, idx) → the pattern's derived duration: the longest groove
 // among its picks (grooves are 1/2/4 bars; shorter ones cycle). Minimum 1.
@@ -17,8 +52,8 @@ export function patternBars(song, patternIdx) {
   if (!pat) return 1;
   let max = 1;
   for (const laneId of Object.keys(pat.lanes)) {
-    const g = song.grooves[laneId]?.[pat.lanes[laneId]];
-    if (Array.isArray(g) && g.length > max) max = g.length;
+    const bars = grooveBars(song.grooves[laneId]?.[pat.lanes[laneId]]);
+    if (Array.isArray(bars) && bars.length > max) max = bars.length;
   }
   return max;
 }
@@ -56,26 +91,29 @@ export function advanceTarget(target, song) {
 }
 
 // ── groove resolution ───────────────────────────────────────────────────────
-// Resolve the groove data array for a lane at a pattern. Returns the array or
-// null (missing groove / empty → silent lane).
+// Resolve the raw groove for a lane at a pattern (literal array OR relative
+// wrapper). Returns the groove value, or null (missing / empty → silent lane).
 function grooveData(song, pat, laneId) {
-  const name = pat.lanes[laneId];
-  const g = song.grooves[laneId]?.[name];
-  return (Array.isArray(g) && g.length) ? g : null;
+  const g = song.grooves[laneId]?.[pat.lanes[laneId]];
+  const bars = grooveBars(g);
+  return (Array.isArray(bars) && bars.length) ? g : null;
 }
 
 // grooveFor(song, patternIdx, laneId) → { name, bars } | null
-// `bars` is the groove's own data array (named `bars` per the rework contract).
+// `bars` is the groove's own per-bar data array — normalized so callers (the
+// editors, viz) never see the relative wrapper.
 export function grooveFor(song, patternIdx, laneId) {
   const pat = song.patterns[patternIdx];
   if (!pat) return null;
   const name = pat.lanes[laneId];
-  const data = song.grooves[laneId]?.[name];
-  return data ? { name, bars: data } : null;
+  const bars = grooveBars(song.grooves[laneId]?.[name]);
+  return bars ? { name, bars } : null;
 }
 
 // ── event resolution ──────────────────────────────────────────────────────────
-export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = null, transpose = 0) {
+// absoluteBar — the song-absolute bar, used to resolve the harmony clock for
+// chord-relative grooves. Literal grooves ignore it.
+export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = null, transpose = 0, absoluteBar = 0) {
   const pat = song.patterns[patternIdx];
   const ev = [];
   const tr = transpose | 0;
@@ -84,7 +122,8 @@ export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = 
     if (!laneAudible(song.lanes, lane)) continue;
     const g = grooveData(song, pat, lane.id);
     if (lane.type === 'drums') {
-      const bar = fillPat || (g ? g[barInPattern % g.length] : null) || {};
+      const bars = grooveBars(g);
+      const bar = fillPat || (bars ? bars[barInPattern % bars.length] : null) || {};
       for (const k of DRUM_KEYS) {
         if (bar[k] && bar[k].includes(step) && drumVoiceAudible(lane, k))
           ev.push({ laneId: lane.id, type: 'drums', voice: k });
@@ -95,16 +134,36 @@ export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = 
             ev.push({ laneId: lane.id, type: 'drums', voice: 'tom', semi: semi ?? 0 });
         }
       }
-    } else {
-      const notes = (g ? g[barInPattern % g.length] : null) || [];
-      for (const [s, n, dur] of notes) {
+      continue;
+    }
+    const bars = grooveBars(g);
+    const notes = (bars ? bars[barInPattern % bars.length] : null) || [];
+    if (g && g.relative) {
+      // Chord-relative: resolve each REF against the chord on the absolute bar.
+      // No harmony / empty progression → the lane is silent (resolveRef → null).
+      const chord = chordAt(song.harmony?.progression ?? [], absoluteBar);
+      for (const [s, ref, dur] of notes) {
         if (s !== step) continue;
-        if (lane.type === 'chords') {
-          if (Array.isArray(n)) ev.push({ laneId: lane.id, type: 'chords', mode: 'pad', notes: n.map(T), dur });
-          else ev.push({ laneId: lane.id, type: 'chords', mode: 'arp', note: T(n), dur });
+        const resolved = resolveRef(ref, chord);
+        if (resolved == null) continue;
+        if (Array.isArray(resolved)) {
+          ev.push({ laneId: lane.id, type: 'chords', mode: 'pad', notes: resolved.map(T), dur });
+        } else if (lane.type === 'chords') {
+          ev.push({ laneId: lane.id, type: 'chords', mode: 'arp', note: T(resolved), dur });
         } else {
-          ev.push({ laneId: lane.id, type: lane.type, note: T(n), dur });
+          ev.push({ laneId: lane.id, type: lane.type, note: T(resolved), dur });
         }
+      }
+      continue;
+    }
+    // Literal groove — untouched behaviour.
+    for (const [s, n, dur] of notes) {
+      if (s !== step) continue;
+      if (lane.type === 'chords') {
+        if (Array.isArray(n)) ev.push({ laneId: lane.id, type: 'chords', mode: 'pad', notes: n.map(T), dur });
+        else ev.push({ laneId: lane.id, type: 'chords', mode: 'arp', note: T(n), dur });
+      } else {
+        ev.push({ laneId: lane.id, type: lane.type, note: T(n), dur });
       }
     }
   }
@@ -156,6 +215,7 @@ const MAX_GROOVE_BARS = 8;
  *  Returns the new length, or null (missing groove / invalid n / no-op same length). */
 export function setGrooveBars(song, laneId, grooveName, n) {
   const bars = song.grooves[laneId]?.[grooveName];
+  // Relative grooves are read-only (no editor yet).
   if (!Array.isArray(bars) || !bars.length) return null;
   if (n !== 1 && n !== 2 && n !== 4 && n !== 8) return null;
   const len = bars.length;
@@ -192,7 +252,7 @@ export function moveChain(song, from, to) {
 // barIdx is within the referenced groove's own length; the caller guarantees range.
 export function setDrumStep(song, laneId, grooveName, barIdx, voice, step, on) {
   const groove = song.grooves[laneId]?.[grooveName];
-  if (!groove) return;
+  if (!Array.isArray(groove)) return;        // missing or relative (read-only)
   const bar = groove[barIdx] || (groove[barIdx] = {});
   if (voice === 'tom') {
     bar.tom = bar.tom || [];
@@ -209,7 +269,7 @@ export function setDrumStep(song, laneId, grooveName, barIdx, voice, step, on) {
 
 export function toggleNote(song, laneId, grooveName, barIdx, step, note, dur = 2) {
   const groove = song.grooves[laneId]?.[grooveName];
-  if (!groove) return;
+  if (!Array.isArray(groove)) return;        // missing or relative (read-only)
   const arr = groove[barIdx] || (groove[barIdx] = []);
   const i = arr.findIndex(x => x[0] === step);
   // Deep compare — chords lanes store array notes (['A3','C4']); reference

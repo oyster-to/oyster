@@ -4,6 +4,8 @@
 // The rich-resolution copies below live here ON PURPOSE — when the presets are
 // eventually re-authored as explicit JSON, this whole file is deleted.
 import { stepsPerBar } from './meter.js';
+import { chordAt } from './song.js';
+import { resolveRef } from './patterns.js';
 
 const DRUM_SET_KEYS = ['kick', 'snare', 'hat', 'crash'];
 
@@ -11,11 +13,6 @@ function resolveDrumPattern(pattern, bar, cycleLen) {
   if (!Array.isArray(pattern)) return pattern;
   const len = cycleLen ? Math.min(cycleLen, pattern.length) : pattern.length;
   return pattern[((bar % len) + len) % len];
-}
-
-function chordAt(progression, bar) {
-  const n = progression.length || 1;
-  return progression[((bar % n) + n) % n];
 }
 
 function sectionAt(arrangement, songBar) {
@@ -76,6 +73,70 @@ function bakeBar(rich, lane, bar, spb, fillPat, crashFlourish) {
     return phrase.map(([s, n, d]) => [s, n, d]);
   }
   return [];
+}
+
+// ── chord-relative translation ────────────────────────────────────────────────
+// Known bass pool-generator NAMES → a one-bar chord-relative figure, generated
+// from the SAME step math the legacy generator uses (parameterised by spb). The
+// figure is bar-independent (every bar plays the same shape against its own
+// chord), so a one-bar relative groove resolves to the legacy stream. Anything
+// not here (array/MIDI bass, melody pools, drums) bakes literal.
+//
+// Each entry returns [[step, REF, dur], …] | null. The result is always
+// VERIFIED bar-by-bar against the literal bake before use, so a translation
+// that drifts from the source is silently rejected (parity decides, not this
+// table).
+const evens = spb => Array.from({ length: Math.ceil(spb / 2) }, (_, i) => i * 2);
+
+const BASS_TRANSLATIONS = {
+  // octave: alternate root / root+12 on every 8th step (dur 2).
+  octave:    spb => evens(spb).map((s, i) => [s, i % 2 ? 'R+12' : 'R', 2]),
+  // eighths: root on every 8th step (dur 2).
+  eighths:   spb => evens(spb).map(s => [s, 'R', 2]),
+  // 16ths: root on every step (dur 1).
+  '16ths':   spb => Array.from({ length: spb }, (_, s) => [s, 'R', 1]),
+  // on-beat: root on each beat (dur = steps/beat). 4/4 → [0,4,8,12].
+  'on-beat': spb => [0, 4, 8, 12].filter(s => s < spb).map(s => [s, 'R', 4]),
+  // whole: one root spanning the whole bar.
+  whole:     spb => [[0, 'R', spb]],
+  // offbeat: root on the offbeats (dur 2). 4/4 → [2,6,10,14].
+  offbeat:   spb => [2, 6, 10, 14].filter(s => s < spb).map(s => [s, 'R', 2]),
+  // walking: low voicing-degree on each beat (dur 4). low(v[i%len]) = V<i>-24.
+  walking:   spb => [0, 4, 8, 12].filter(s => s < spb).map((s, i) => [s, `V${i}-24`, 4]),
+  // counter: root + low voicing degrees (dur 2). v[2]||v[0] ↔ V2 (clamps to v[0]
+  // on short voicings); v[1]||v[0] ↔ V1; v[0] ↔ V0.
+  counter:   () => [[0, 'R', 2], [3, 'V2-24', 2], [6, 'V1-24', 2], [10, 'R', 2], [12, 'V1-24', 2], [14, 'V0-24', 2]],
+  // busy: root / root+12 + low voicing degrees.
+  busy:      () => [[0, 'R', 2], [2, 'V0-24', 1], [3, 'V1-24', 1], [6, 'V2-24', 2], [8, 'R', 2], [10, 'V1-24', 1], [11, 'V0-24', 1], [14, 'R+12', 2]],
+  // scale run: root, low degrees, root octaves. v[2]||v[1]||v[0] only matches V2
+  // for voicings of length ≥3 — the verify gate rejects shorter ones.
+  'scale run': spb => evens(spb).map((s, i) =>
+    [s, ['R', 'V1-24', 'V2-24', 'R+12', 'V0-24', 'V1-24', 'V2-24', 'R+24'][i], 2]),
+  // rising-sun arp: ascending arpeggio — low voicing degree on every 8th (dur 2).
+  arp:       spb => evens(spb).map((s, i) => [s, `V${i}-24`, 2]),
+  // rising-sun root: root on the two dotted-quarter pulses (6/8 → steps 0,6).
+  root:      spb => [[0, 'R', spb / 2], [spb / 2, 'R', spb / 2]],
+};
+
+// Chord-lane mode → one-bar chord-relative figure.
+function chordTranslation(mode, spb) {
+  if (mode === 'pad')  return [[0, 'V*', 'bar']];
+  if (mode === 'stab') return [[0, 'V*', 2], [spb / 2, 'V*', 2]];
+  if (mode === 'arp')  return Array.from({ length: spb }, (_, s) => [s, `V${s}`, 1]);
+  return null;
+}
+
+// Render one bar of a relative figure against a chord, mirroring eventsForStepV2:
+// V*/array → notes[] entries; single note → [s, note, dur]. Used to verify a
+// translation reproduces the literal bake.
+function renderRelativeBar(figure, chord) {
+  const out = [];
+  for (const [s, ref, dur] of figure) {
+    const resolved = resolveRef(ref, chord);
+    if (resolved == null) return null;            // a ref that won't resolve → reject
+    out.push([s, resolved, dur]);
+  }
+  return out;
 }
 
 // Greedy chunk sizes for a section that has no 1/2/4 period: [4,4,2,1...]
@@ -150,13 +211,8 @@ export function flattenSong(rich) {
     return fill ? `${base} +${fill}` : base;
   }
 
-  // Intern a lane's bars as a groove; return its (deduped) name.
-  function internGroove(laneId, barRange) {
-    const data = barRange.map(b => baked[b][laneId]);
-    const key = JSON.stringify(data);
-    const table = grooveByLane[laneId];
-    if (table.has(key)) return table.get(key);
-    // New content → assign a name, disambiguating collisions with ·2, ·3…
+  // Assign a fresh (collision-free) name for a lane, based on the source selection.
+  function uniqueName(laneId, barRange) {
     let name = baseName(laneId, barRange);
     if (usedNames[laneId].has(name)) {
       let n = 2;
@@ -164,14 +220,59 @@ export function flattenSong(rich) {
       name = `${name} ·${n}`;
     }
     usedNames[laneId].add(name);
+    return name;
+  }
+
+  // Intern a lane's bars as a LITERAL groove; return its (deduped) name.
+  function internGroove(laneId, barRange) {
+    const data = barRange.map(b => baked[b][laneId]);
+    const key = JSON.stringify(data);
+    const table = grooveByLane[laneId];
+    if (table.has(key)) return table.get(key);
+    const name = uniqueName(laneId, barRange);
     table.set(key, name);
     grooves[laneId][name] = data;
     return name;
   }
 
+  // Per-lane relative-groove intern table: JSON(figure) → grooveName.
+  const relByLane = {};
+  for (const lane of working) relByLane[lane.id] = new Map();
+
+  // Try to intern a CHORD-RELATIVE groove for a bass/chords lane over barRange.
+  // Returns the groove name, or null if no faithful translation exists (caller
+  // falls back to literal interning). Faithfulness is VERIFIED: the relative
+  // figure, resolved against each bar's absolute chord, must reproduce the
+  // literal bake exactly.
+  function tryRelativeGroove(lane, barRange) {
+    if (lane.type !== 'bass' && lane.type !== 'chords') return null;
+    const sel = bakedMeta[barRange[0]][lane.id]?.selection;
+    // A fill never lands on bass/chords lanes, but be defensive: a baked variant
+    // (fill present) is never relative.
+    if (barRange.some(b => bakedMeta[b][lane.id]?.fill)) return null;
+    const figure = lane.type === 'chords'
+      ? chordTranslation(sel, spb)
+      : (typeof BASS_TRANSLATIONS[sel] === 'function' ? BASS_TRANSLATIONS[sel](spb) : null);
+    if (!figure) return null;
+    // Verify against every bar in the range (absolute chords).
+    for (const b of barRange) {
+      const chord = chordAt(rich.harmony?.progression ?? [], b);
+      const rendered = renderRelativeBar(figure, chord);
+      if (JSON.stringify(rendered) !== JSON.stringify(baked[b][lane.id])) return null;
+    }
+    // Faithful → intern the one-bar relative figure (deduped by content).
+    const key = JSON.stringify(figure);
+    const table = relByLane[lane.id];
+    if (table.has(key)) return table.get(key);
+    const name = uniqueName(lane.id, barRange);
+    table.set(key, name);
+    grooves[lane.id][name] = { relative: true, bars: [figure] };
+    return name;
+  }
+
   function pushPattern(barRange) {
     const lanes = {};
-    for (const lane of working) lanes[lane.id] = internGroove(lane.id, barRange);
+    for (const lane of working) lanes[lane.id] = tryRelativeGroove(lane, barRange) ?? internGroove(lane.id, barRange);
     const pat = { lanes };
     const key = JSON.stringify(pat);
     if (seen.has(key)) return seen.get(key);
@@ -210,5 +311,10 @@ export function flattenSong(rich) {
     version: 2,                                   // schema version — see DATA-MODEL.md
     title: rich.title, artist: rich.artist, meter: rich.meter, bpm: rich.bpm,
     lanes, grooves, patterns, chain, fills: rich.fills || {},
+    // Harmony carries through so chord-relative grooves resolve at play time.
+    // Deep, JSON-clean copy (no aliasing into the rich source).
+    ...(rich.harmony?.progression?.length
+      ? { harmony: { progression: rich.harmony.progression.map(c => ({ name: c.name, root: c.root, voicing: [...c.voicing] })) } }
+      : {}),
   };
 }
