@@ -496,9 +496,18 @@ export function createEngine() {
       const q = on ? preset.engageQuantize : preset.releaseQuantize;
       const amount = preset.amount ?? 1;
       const mask = preset.lanes ?? null;
+      // Quick-tap correctness: an UNFIRED opposite action for this slot
+      // annihilates instead of stacking (quantized engage + instant release
+      // would otherwise fire the engage at the bar with the pad already up).
+      for (let i = 0; i < _pendingQuantized.length; i++) {
+        if (_pendingQuantized[i].slot === slot && _pendingQuantized[i].on === !on) {
+          _pendingQuantized.splice(i, 1);
+          return;
+        }
+      }
       const run = (atTime) => { for (const a of preset.automations) _runAutomation(a, on, timing, atTime, amount, mask); };
       if (q === 'immediate' || !playing) run();
-      else _pendingQuantized.push({ when: q, fn: run });
+      else _pendingQuantized.push({ when: q, fn: run, slot, on });
     },
     setPunchPresets(presets) {
       if (Array.isArray(presets) && presets.length === 5 && presets.every(validatePreset)) {
