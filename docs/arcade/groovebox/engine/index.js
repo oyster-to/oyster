@@ -234,7 +234,7 @@ export function createEngine() {
         }
         const patternIdx = targetPattern(target, song);
         const fillPat = activeFill ? (song.fills?.[activeFill] ?? null) : null;
-        for (const ev of eventsForStepV2(song, patternIdx, target.barInPattern, step % spb, fillPat, song.transpose || 0)) {
+        for (const ev of eventsForStepV2(song, patternIdx, target.barInPattern, step % spb, fillPat, song.transpose || 0, Math.floor(step / spb))) {
           const v = voices[ev.laneId];
           if (v) trigger(v, ev, t, sixteenth, barSeconds);
         }

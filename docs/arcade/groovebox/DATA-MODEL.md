@@ -18,14 +18,31 @@ song = {
       tone?: string }                                // melody lanes: oscillator type
   ],
 
+  // HARMONY — one chord per bar, cycling on the ABSOLUTE bar counter. Lets
+  // grooves be chord-relative (see below). Optional: a song with no harmony has
+  // only literal grooves.
+  harmony?: { progression: [ { name, root, voicing: [note, …] }, … ] },
+
   // GROOVES — named musical content, per lane. Pure data, shareable.
   grooves: {
     [laneId]: {
-      [grooveName]: bars[]                           // 1..8 bars, each:
+      // A groove is EITHER a literal bars[] array OR a chord-relative wrapper.
+      [grooveName]: bars[] | { relative: true, bars: relBars[] }   // 1..8 bars
+      // LITERAL bars[] — each bar:
       // drums lane:   { kick:[steps], snare:[steps], hat:[steps], crash:[steps],
       //                 tom:[[step, semitoneOffset], …] }
       // other lanes:  [ [step, note|notes[], durSteps|'bar'], … ]
       //               note = 'C4' style; notes[] = simultaneous (chords)
+      // RELATIVE relBars[] — each bar: [ [step, REF, durSteps|'bar'], … ]
+      //   REFs resolve against the chord on the absolute bar (harmony.progression):
+      //     'R'        → chord.root
+      //     'R±N'      → root ±N semitones      (e.g. 'R+12')
+      //     'V<i>'     → chord.voicing[i % len] (degree; index clamped)
+      //     'V<i>±N'   → that degree ±N semitones (e.g. 'V2-24')
+      //     'V*'       → the whole voicing (a chords-style pad event)
+      //     'V*±N'     → the whole voicing, each note shifted
+      //   No harmony / empty progression → a relative groove is silent.
+      //   Relative grooves are read-only today (no editor yet); drums never relative.
     }
   },
 
@@ -61,7 +78,7 @@ The 7 preset songs in `songs/*.js` are authored in the OLD rich format (per-lane
 
 Other threads should leave room for these, not invent competing shapes:
 
-- **`harmony`** *(next slice, plan approved — **engine-only and read-only first**)*: `{ progression: [{name, root, voicing}, …] }` — one chord per bar, cycling on the absolute bar counter. With it, grooves may be **chord-relative**: `{ relative: true, bars: [[[step, REF, dur], …]] }`, REF ∈ `'R' | 'R±12' | 'V<i>' | 'V<i>±12|24' | 'V*'` (root / voicing-degree / whole voicing). The slice: copy `harmony.progression` through flatten, support chord-relative bass/chord grooves, prove parity still passes. **No harmony editor yet.** Drums + melody stay literal.
+- **`harmony` + chord-relative grooves** — *LIVE (engine-only, read-only).* The schema and the relative-groove syntax are documented above. The flattener translates known bass figures (`octave`, `eighths`, `16ths`, `arp`, …) and the chord modes (`pad`/`stab`/`arp`) into single chord-relative grooves; array/MIDI bass, melody, and drums stay baked literal. Parity with the legacy note stream is proven for all 7 presets. **Still future:** a harmony editor and editable chord-relative grooves (writes are no-ops today).
 - **`instruments`** *(direction only — design after #630 lands)*: a definitions layer (`instruments: { [id]: synth params | sample ref }`) that lanes reference, replacing the hardcoded `type → voices.js` synthesis. A drum kit becomes an *ensemble* of instrument refs; samples (wav/mp3) enter here. This is the unlock for the social/composable vision. **Until then: `lane.type` stays a broad routing identity — do not extend its semantics or let it become an instrument-definition dumping ground.**
 - **Sharing**: grooves, patterns, and songs are already self-contained named JSON. Sample assets are the one future exception (need hosting/IDs, can't ride in JSON).
 
