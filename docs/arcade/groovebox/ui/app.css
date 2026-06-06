@@ -184,9 +184,9 @@ body {
   padding-right: 26px;
 }
 .titlebar-tools button {
-  width: 26px;
-  padding: 0;
-  font-size: 13px;
+  padding: 0 10px;
+  font-size: 11px;
+  letter-spacing: .04em;
   display: inline-flex;
   align-items: center;
   justify-content: center;
