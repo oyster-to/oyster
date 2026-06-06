@@ -6,7 +6,7 @@
 // id — so sign-out (which revokes the row) signs the browser out of the
 // apex too, by design.
 import type { Env } from "./session.js";
-import { jsonOk, rejectBadOrigin } from "./json.js";
+import { jsonOk, jsonError, rejectBadOrigin } from "./json.js";
 import { sha256Hex } from "./encryption.js";
 
 // Cookie Max-Age matches the apex cookie (30 days). The session row's own
@@ -50,20 +50,27 @@ export async function handleAppCallback(req: Request, env: Env, url: URL): Promi
 
   const codeHash = await sha256Hex(new TextEncoder().encode(raw));
   const now = Date.now();
-  // Atomic burn (invariant 2): only an unconsumed, unexpired row marks
-  // itself consumed; two concurrent callbacks cannot both see RETURNING.
-  const burned = await env.DB.prepare(
-    `UPDATE app_handoff_codes
-        SET consumed_at = ?
-      WHERE code_hash = ? AND consumed_at IS NULL AND expires_at > ?
-      RETURNING session_id`,
-  ).bind(now, codeHash, now).first<{ session_id: string }>();
-  if (!burned) return retryPage();
 
-  // The session may have been revoked/expired between mint and burn.
-  const live = await env.DB.prepare(
-    "SELECT 1 FROM sessions WHERE id = ? AND revoked_at IS NULL AND expires_at > ?",
-  ).bind(burned.session_id, now).first();
+  let burned: { session_id: string } | null;
+  let live: unknown;
+  try {
+    // Atomic burn (invariant 2): only an unconsumed, unexpired row marks
+    // itself consumed; two concurrent callbacks cannot both see RETURNING.
+    burned = await env.DB.prepare(
+      `UPDATE app_handoff_codes
+          SET consumed_at = ?
+        WHERE code_hash = ? AND consumed_at IS NULL AND expires_at > ?
+        RETURNING session_id`,
+    ).bind(now, codeHash, now).first<{ session_id: string }>();
+    if (!burned) return retryPage();
+    // The session may have been revoked/expired between mint and burn.
+    live = await env.DB.prepare(
+      "SELECT 1 FROM sessions WHERE id = ? AND revoked_at IS NULL AND expires_at > ?",
+    ).bind(burned.session_id, now).first();
+  } catch (err) {
+    console.warn("[app-auth] code burn db error:", err);
+    return retryPage();
+  }
   if (!live) return retryPage();
 
   const ret = validateAppReturn(url.searchParams.get("return")) ?? "/";
@@ -86,8 +93,13 @@ export async function handleAppSignOut(req: Request, env: Env): Promise<Response
   const m = (req.headers.get("Cookie") ?? "").match(/(?:^|;\s*)oyster_session=([^;]+)/);
   const sid = m?.[1];
   if (sid) {
-    await env.DB.prepare("UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
-      .bind(Date.now(), sid).run();
+    try {
+      await env.DB.prepare("UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
+        .bind(Date.now(), sid).run();
+    } catch (err) {
+      console.warn("[app-auth] sign-out db error:", err);
+      return jsonError(500, "db_error");
+    }
   }
   return jsonOk({ ok: true }, 200, { "set-cookie": CLEARED_COOKIE, "cache-control": "no-store" });
 }

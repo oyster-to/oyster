@@ -117,6 +117,9 @@ describe("GET /auth/callback (app.oyster.to)", () => {
     await expectRetryPage(await handleAppCallback(b.req, env, b.url));
   });
 
+  // Miniflare serialises D1 writes, so this runs the two callbacks
+  // back-to-back rather than truly interleaved — it proves single-use
+  // under racing callers at the SQL level, not scheduler-level races.
   it("burns exactly once under concurrency", async () => {
     const sid = await seedSession();
     const raw = await seedCode(sid);
