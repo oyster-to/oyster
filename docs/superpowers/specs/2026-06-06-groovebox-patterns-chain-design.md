@@ -34,9 +34,9 @@ Two rows:
 
 ### Playback: the chain always plays; a pattern click temporarily loops (no mode toggle)
 
-- **Transport play** → plays the chain from the start. The chain is never empty, so there is no fallback case.
-- **Click a pattern slot** → becomes the edit target AND temporarily loops that pattern, switching at the next bar boundary. The chain is untouched — it resumes when you click a chain chip.
-- **Click a chain chip** → the chain plays from that position onward, switching at the next bar boundary.
+- **The playback target follows your last click, even while stopped.** Transport play starts the *current target* from its top bar — the chain from the start by default, or the pattern/chain position you last clicked. Stop keeps the target (and discards any pending switch). The playback label always names the target, so there is no hidden pre-play state. The chain is never empty, so there is no fallback case.
+- **Click a pattern slot** → becomes the edit target AND the playback target: while playing it loops from the next bar boundary; while stopped it's what play will start. The chain is untouched — it resumes when you click a chain chip.
+- **Click a chain chip** → the chain plays from that position onward — at the next bar boundary while playing, or on the next play while stopped.
 - **Disambiguation is brutal, not subtle:** besides the playback label, the row *not* driving sound drops opacity, and edit-selection (green fill on a pattern slot) is visually distinct from playing (pink glow). A pattern loop = patterns row lit, chain row dimmed; chain playing = the reverse.
 - **Deletion rules preserving the invariant:** the last pattern cannot be deleted; removing the last chain chip is blocked; deleting a pattern removes its chain chips, and if that would empty the chain, the chain becomes `[first remaining pattern]`.
 

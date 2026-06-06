@@ -17,6 +17,8 @@
 - Don't pipe `git commit` through `tail`/etc.
 - Manual deploy only; do not deploy as part of this plan.
 
+**How to read the code blocks:** they are the *intended shape*, not gospel — adapt to the code as you find it and keep the tests green; the tests are the contract. ONE exception: Task 1's legacy copies must be verbatim from HEAD — they are the frozen parity reference, and "improving" them defeats their purpose.
+
 ---
 
 ## File structure
@@ -597,7 +599,10 @@ export function toggleNote(song, patternIdx, laneId, barIdx, step, note, dur = 2
   const arr = song.patterns[patternIdx].lanes[laneId][barIdx]
     || (song.patterns[patternIdx].lanes[laneId][barIdx] = []);
   const i = arr.findIndex(x => x[0] === step);
-  if (i >= 0 && arr[i][1] === note) { arr.splice(i, 1); return; }
+  // Deep compare — chords lanes store array notes (['A3','C4']); reference
+  // equality would silently fail to toggle them.
+  const same = i >= 0 && JSON.stringify(arr[i][1]) === JSON.stringify(note);
+  if (same) { arr.splice(i, 1); return; }
   if (i >= 0) arr.splice(i, 1);                    // monophonic per step
   arr.push([step, note, dur]);
 }
@@ -1092,6 +1097,15 @@ test('selectPattern sets the edit target; removePattern clamps it', () => {
   expect(eng.getEditPatternIndex()).toBe(eng.getSong().patterns.length - 1);
 });
 
+test('playback target follows the last click even while stopped', () => {
+  const eng = loaded();
+  expect(eng.getPlaybackTarget().kind).toBe('chain');          // default
+  eng.selectPattern(1);
+  expect(eng.getPlaybackTarget()).toMatchObject({ kind: 'pattern', patternIdx: 1 });
+  eng.playChain(0);
+  expect(eng.getPlaybackTarget().kind).toBe('chain');
+});
+
 test('pattern/chain mutation APIs are wired through', () => {
   const eng = loaded();
   const before = eng.getSong().patterns.length;
@@ -1139,11 +1153,12 @@ import {
 2. **State:** replace `let mode = 'live', songBar = 0;` with:
 
 ```js
-  // Playback target — what is driving sound. Chain is the default; clicking a
-  // pattern slot while playing temporarily loops it (spec: no modes).
+  // Playback target — what is driving sound. Follows the LAST CLICK even while
+  // stopped (spec): clicking sets `target` directly when stopped, or queues
+  // `pendingTarget` for the next bar boundary when playing. play() starts the
+  // current target from its top bar; stop() keeps the target.
   let target = { kind: 'chain', pos: 0, barInPattern: 0 };
   let pendingTarget = null;      // applied at the next bar boundary
-  let chainStart = 0;            // chain position play() starts from
   let editIdx = 0;               // pattern open in the editors
 ```
 
@@ -1152,7 +1167,7 @@ import {
 ```js
       const v2 = (s.patterns && s.chain) ? s : flattenSong(s);
       song = v2;
-      editIdx = 0; chainStart = 0; pendingTarget = null;
+      editIdx = 0; pendingTarget = null;
       target = { kind: 'chain', pos: 0, barInPattern: 0 };
       tempo = (typeof v2.bpm === 'number' && isFinite(v2.bpm)) ? v2.bpm : tempo;
 ```
@@ -1165,7 +1180,7 @@ import {
         if (step % spb === 0) {
           if (pendingTranspose !== null) { song.transpose = pendingTranspose; pendingTranspose = null; }
           if (step === 0) {
-            target = { kind: 'chain', pos: chainStart, barInPattern: 0 };  // play always starts the chain
+            target = { ...target, barInPattern: 0 };       // play restarts the current target from its top bar
           } else if (pendingTarget) {
             target = pendingTarget; pendingTarget = null;                  // switch at bar boundary
           } else {
@@ -1201,7 +1216,7 @@ import {
           }, t);
 ```
 
-6. **`stop()`:** add `pendingTarget = null; chainStart = 0; target = { kind: 'chain', pos: 0, barInPattern: 0 };` to the existing resets.
+6. **`stop()`:** add `pendingTarget = null;` to the existing resets. Deliberately do NOT reset `target` — the last click stands across stop/play (spec), and `play()` restarts it from its top bar.
 
 7. **API:** delete `setLane`, `setMode`, `getMode`, `captureScene`, `clearArrangement`. Add:
 
@@ -1213,13 +1228,14 @@ import {
     selectPattern(i) {
       if (!song || !song.patterns[i]) return;
       editIdx = i;
-      if (playing) pendingTarget = { kind: 'pattern', idx: i, barInPattern: 0 };
+      const next = { kind: 'pattern', idx: i, barInPattern: 0 };
+      if (playing) pendingTarget = next; else target = next;
     },
     playChain(pos) {
       if (!song) return;
       const p = Math.max(0, Math.min(pos, song.chain.length - 1));
-      if (playing) pendingTarget = { kind: 'chain', pos: p, barInPattern: 0 };
-      else chainStart = p;
+      const next = { kind: 'chain', pos: p, barInPattern: 0 };
+      if (playing) pendingTarget = next; else target = next;
     },
     getPlaybackTarget() {
       return { kind: target.kind, chainPos: target.kind === 'chain' ? target.pos : -1,
@@ -1681,15 +1697,38 @@ Expected: all green, including the 7-preset parity suite. Report the test count.
 
 - [ ] **Step 4: Hand-test against the running app**
 
-Run: `npx vite --port 5180` (background) and open `http://localhost:5180/`. Check, for at least Kids and House of the Rising Sun (6/8, 6-bar sections → 4+2-bar pattern chunks):
-1. Play → chain plays; label reads `Playing: Chain · ▸1 …`; chain row lit, patterns row dimmed.
-2. Click a pattern slot mid-playback → at the next bar it loops; label flips to `Playing: Pattern N (loop)`; rows swap dimming.
-3. Click a chain chip → chain resumes from there at the next bar.
-4. Drum editor shows all bars stacked; toggling a hit in bar 2 only affects bar 2; the playhead walks the correct bar group.
-5. Length 4→2→4 round-trips bars 3–4 (edit bar 4, shrink, grow, edits intact).
-6. Duplicate pattern → edit the copy → original unchanged. Delete guards: last pattern undeletable, last chain chip unremovable.
-7. Fills still queue and fire; melody piano-roll/blocks editing works; tempo/key/mute/solo/knobs/song-switching unaffected.
-8. Presets *sound* like they did (spot-check against `main` at http://localhost:4173 via `git stash` or a second checkout if unsure — the parity tests are the real guarantee; this is a sanity listen).
+Run: `npx vite --port 5180` (background) and open `http://localhost:5180/`. Work through this checklist for Kids, and repeat the playback items (1–6) for House of the Rising Sun (6/8, 6-bar sections → 4+2-bar pattern chunks). Every item gets an explicit pass/fail in the report:
+
+**Playback target legibility (the point of the redesign):**
+1. Play from fresh load → chain plays; label reads `Playing: Chain · ▸1 …`; chain row lit, patterns row dimmed.
+2. Click a pattern slot WHILE PLAYING → at the next bar it loops; label flips to `Playing: Pattern N (loop)`; rows swap dimming.
+3. Click a chain chip WHILE PLAYING → chain resumes from that position at the next bar.
+4. Stop. Click a pattern slot, then Play → that pattern loops (not the chain); label says so.
+5. Stop. Click a chain chip, then Play → chain plays from that chip.
+6. Stop mid-pattern-loop, Play again → same target restarts from its top bar.
+
+**Pattern management:**
+7. Add pattern (+) → empty slot appears, selected, editor shows one empty bar.
+8. Duplicate pattern → edit the copy → original unchanged.
+9. Delete pattern → its chain chips vanish; guards: last pattern undeletable, last chain chip unremovable; deleting the pattern that fills the whole chain leaves chain = [first remaining].
+10. Length 1/2/4: set 4, edit bar 4 (a fill), shrink to 2, grow back to 4 → bar-4 edits intact (inactive bars round-trip); while playing at length 4, the bar-4 fill is audible.
+
+**Chain editing:**
+11. Append (+) adds the selected pattern; hover-✕ removes a chip; drag reorders; playing chip glow tracks all three.
+
+**Editors:**
+12. Drum editor shows all bars stacked; toggling a hit in bar 2 affects only bar 2; the playhead walks the correct bar group; tom row click places a tom.
+13. Melody piano-roll AND blocks view: add/remove/replace a note; pattern length reflected in both.
+
+**Mixer/lanes:**
+14. Mute/solo (lane and per-drum-voice) still silence correctly during playback.
+15. Duplicate a lane → its notes play doubled and appear in EVERY pattern; remove it → gone from every pattern; rename/reorder still work.
+
+**Regression sweep:**
+16. Fills still queue and fire (and the post-fill crash flourish still sounds after a queued fill).
+17. Tempo, KEY ± (with and without bar-quantize), theme switch, knob presets, song switching — all unaffected.
+18. Re-run `npm test` AFTER all UI work: the 7-preset parity suite must still pass (UI must not have mutated engine semantics).
+19. Presets *sound* like they did (the parity tests are the real guarantee; this is a sanity listen).
 
 - [ ] **Step 5: Final commit**
 
