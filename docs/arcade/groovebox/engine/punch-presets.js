@@ -11,15 +11,30 @@ function validDuration(d) {
   return d == null || (UNITS.includes(d.unit) && typeof d.value === 'number' && isFinite(d.value) && d.value >= 0);
 }
 
+const GATE_DIVISIONS = ['1/8', '1/16', '1/32'];
+
 export function validatePreset(p) {
   if (!p || typeof p.name !== 'string' || typeof p.key !== 'string') return false;
   if (!QUANTIZE.includes(p.engageQuantize) || !QUANTIZE.includes(p.releaseQuantize)) return false;
   if (!Array.isArray(p.automations)) return false;
   for (const a of p.automations) {
-    if (!MODULE_PARAMS[`${a.module}.${a.param}`]) return false;
-    if (a.from !== 'neutral' && a.from != null && typeof a.from !== 'number') return false;
-    if (typeof a.to !== 'number') return false;
+    const id = `${a.module}.${a.param}`;
+    const reg = MODULE_PARAMS[id];
+    if (!reg) return false;
+    // Numeric sanity — overrides are user-supplied (localStorage), so this is
+    // the safety boundary between "valid JSON" and a NaN'd audio graph.
+    if (a.from !== 'neutral' && a.from != null && !Number.isFinite(a.from)) return false;
+    if (!Number.isFinite(a.to)) return false;
     if (a.scale && a.scale !== 'linear' && a.scale !== 'log') return false;
+    // Log-space interpolation needs strictly positive endpoints.
+    const scale = a.scale || reg.scale;
+    const from = (a.from === 'neutral' || a.from == null) ? reg.neutral : a.from;
+    if (scale === 'log' && (from <= 0 || a.to <= 0)) return false;
+    // Gate-specific: depth is 0..1; division must be a supported chop cycle.
+    if (id === 'gate.depth') {
+      if (a.to < 0 || a.to > 1) return false;
+      if (a.division != null && !GATE_DIVISIONS.includes(a.division)) return false;
+    }
     if (!validDuration(a.engage?.ramp) || !validDuration(a.release?.ramp)) return false;
   }
   return true;

@@ -41,3 +41,23 @@ describe('validatePreset', () => {
         engage: { ramp: { unit: 'beats', value: 1 } } }] })).toBe(true);
   });
 });
+
+describe('validatePreset hardening (user-supplied localStorage overrides)', () => {
+  const base = { name: 'X', key: '1', engageQuantize: 'immediate', releaseQuantize: 'immediate' };
+  it('rejects non-finite to/from', () => {
+    expect(validatePreset({ ...base, automations: [{ module: 'crusher', param: 'wet', from: 'neutral', to: Infinity }] })).toBe(false);
+    expect(validatePreset({ ...base, automations: [{ module: 'crusher', param: 'wet', from: NaN, to: 0.5 }] })).toBe(false);
+  });
+  it('rejects non-positive values on log-scaled params (scaleValue would NaN)', () => {
+    expect(validatePreset({ ...base, automations: [{ module: 'filter', param: 'freq', from: 'neutral', to: 0 }] })).toBe(false);
+    expect(validatePreset({ ...base, automations: [{ module: 'filter', param: 'freq', from: -5, to: 150 }] })).toBe(false);
+    expect(validatePreset({ ...base, automations: [{ module: 'crusher', param: 'wet', from: 'neutral', to: 0.5, scale: 'log' }] })).toBe(false); // neutral 0 + log
+  });
+  it('rejects bad gate divisions and out-of-range gate depth', () => {
+    expect(validatePreset({ ...base, automations: [{ module: 'gate', param: 'depth', from: 'neutral', to: 1, division: '1/7' }] })).toBe(false);
+    expect(validatePreset({ ...base, automations: [{ module: 'gate', param: 'depth', from: 'neutral', to: 1.5 }] })).toBe(false);
+  });
+  it('accepts a valid gate automation with explicit division', () => {
+    expect(validatePreset({ ...base, automations: [{ module: 'gate', param: 'depth', from: 'neutral', to: 0.8, division: '1/32' }] })).toBe(true);
+  });
+});

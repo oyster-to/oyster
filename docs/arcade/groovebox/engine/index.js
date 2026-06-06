@@ -73,8 +73,10 @@ export function createEngine() {
         // before the tape delay, so the line keeps emitting the slowing audio.
         // rampTo pins current values (no cancel-then-revert clicks).
         _tapeActive = true; _gateReturnPending = false;
+        // `to` is the tapeStop depth fraction (1 = full 0.6s slump — v2 parity).
+        const tapeDepth = 0.6 * Math.min(Math.max(a.to, 0), 1) * punchAmount;
         punchGate.gain.rampTo(0, ramp);
-        punchTape.delayTime.rampTo(0.6 * punchAmount, ramp);
+        punchTape.delayTime.rampTo(tapeDepth, ramp);
       } else {
         // Strict release order (v2 safeguard 2), click-free on quick taps:
         // close fast, freeze the slump, snap delayTime back once silent,
@@ -305,12 +307,16 @@ export function createEngine() {
         // tapeStop, then GATE chops (tapeStop owns the gate while active).
         if (_pendingQuantized.length && step % spb === 0) {
           const patternStart = target.barInPattern === 0;
-          for (let i = _pendingQuantized.length - 1; i >= 0; i--) {
+          // FIFO: engage-then-release queued before the same boundary must run
+          // in press order, or the preset ends up stuck engaged (PR review).
+          const due = [];
+          for (let i = 0; i < _pendingQuantized.length; ) {
             const p = _pendingQuantized[i];
             if (p.when === 'bar' || (p.when === 'pattern' && patternStart)) {
-              p.fn(); _pendingQuantized.splice(i, 1);
-            }
+              due.push(p.fn); _pendingQuantized.splice(i, 1);
+            } else i++;
           }
+          for (const fn of due) fn();
         }
         if (_gateReturnPending) {
           punchGate.gain.setValueAtTime(0, t);
