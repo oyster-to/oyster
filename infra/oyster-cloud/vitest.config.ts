@@ -29,8 +29,8 @@ export default defineWorkersConfig({
               );
             },
           },
-          // Static SPA assets fixture for the /app serving tests. Mirrors the
-          // production [assets] binding (dist-cloud) at directory root.
+          // Static SPA assets fixture for the app.oyster.to shell tests.
+          // Mirrors the production [assets] binding (dist-cloud) at directory root.
           assets: { directory: "./test/fixtures/app-assets", binding: "ASSETS" },
           // Encryption key fed in as a binding for tests; in production it's
           // a wrangler secret.

@@ -2,7 +2,7 @@
 // Local (default): full surface against the local server.
 // Cloud (VITE_OYSTER_MODE=cloud): read-mostly remote view served by the
 // oyster-cloud worker at app.oyster.to (spec
-// docs/superpowers/specs/2026-06-05-cloud-remote-view-design.md).
+// docs/superpowers/specs/2026-06-05-app-oyster-to-migration-design.md).
 // Gate on these named capabilities, never on `mode` directly — call sites
 // should say what they need, not where they run.
 const cloud = import.meta.env.VITE_OYSTER_MODE === "cloud";
@@ -21,7 +21,8 @@ export const caps = {
   /** Projects grid / registry — no cloud counterpart yet. */
   hasProjects: !cloud,
   /** Publication management (unpublish / access mode) — available in BOTH
-   *  modes; cloud calls the apex publish API directly. */
+   *  modes; cloud reaches the publish API via the oyster-cloud
+   *  service-binding proxy on app.oyster.to. */
   canManagePublications: true,
   /** Prefix for API calls. Cloud lives at the app.oyster.to root since
    *  spec 2026-06-05-app-oyster-to-migration, so both modes are "". The
