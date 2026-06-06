@@ -387,20 +387,21 @@ export function makeViz(host, song, eng) {
       + `</div>`;
   }
 
-  // Bar-count controls (＋ adds a bar, − removes the last) for the lane's groove.
-  // − only shows once the groove has >1 bar. Reuses the .bsel look.
+  // Bar-count controls (×2 doubles, ÷2 halves) for the lane's groove. Groove
+  // lengths are powers of two (1/2/4/8). ×2 is hidden at 8; ÷2 only shows once
+  // the groove has >1 bar. Reuses the .bsel look.
   function barCountControlsHTML(L) {
-    const more = grooveLen(L) > 1;
-    return `<button class="bsel bsel-add" title="add bar (copies the last)">＋</button>`
-      + (more ? `<button class="bsel bsel-rm" title="remove last bar">−</button>` : '');
+    const len = grooveLen(L);
+    return (len < 8 ? `<button class="bsel bsel-add" title="double — copies existing bars">×2</button>` : '')
+      + (len > 1 ? `<button class="bsel bsel-rm" title="halve — drops the back half">÷2</button>` : '');
   }
-  // Wire ＋/− inside host after build() injects them. Full rebuild on change so
+  // Wire ×2/÷2 inside host after build() injects them. Full rebuild on change so
   // the stepper count + clamped editBars repaint correctly.
   function wireBarCountControls(L) {
     const add = host.querySelector('.bsel-add');
     const rm = host.querySelector('.bsel-rm');
-    if (add) add.onclick = () => { eng.addGrooveBar(L.id); build(); paint(lastStepInBar); };
-    if (rm)  rm.onclick  = () => { eng.removeGrooveBar(L.id); build(); paint(lastStepInBar); };
+    if (add) add.onclick = () => { eng.doubleGroove(L.id); build(); paint(lastStepInBar); };
+    if (rm)  rm.onclick  = () => { eng.halveGroove(L.id); build(); paint(lastStepInBar); };
   }
 
   // Wire the toggle buttons inside host after build() injects them.

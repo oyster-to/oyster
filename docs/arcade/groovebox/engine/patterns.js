@@ -147,25 +147,33 @@ export function setLaneGroove(song, patternIdx, laneId, grooveName) {
 }
 
 // ── groove bar count ──────────────────────────────────────────────────────────
-const MAX_GROOVE_BARS = 4;
+// Groove lengths are powers of two (1/2/4/8). This keeps every groove dividing
+// the pattern's longest groove cleanly — no audible drift/wrapping.
+const MAX_GROOVE_BARS = 8;
 
-// addGrooveBar(song, laneId, grooveName) — grow the groove by one bar (a DEEP
-// copy of its current last bar). Returns the new length, or null at cap 4 / when
-// the groove is missing.
-export function addGrooveBar(song, laneId, grooveName) {
+// doubleGroove(song, laneId, grooveName) — double the groove's length by appending
+// a DEEP copy of ALL its current bars (2 bars → 1,2,1,2). Returns the new length,
+// or null when the result would exceed 8 / when the groove is missing.
+export function doubleGroove(song, laneId, grooveName) {
   const groove = song.grooves[laneId]?.[grooveName];
-  if (!Array.isArray(groove) || groove.length >= MAX_GROOVE_BARS) return null;
-  const last = groove[groove.length - 1];
-  groove.push(JSON.parse(JSON.stringify(last)));
+  if (!Array.isArray(groove) || !groove.length) return null;
+  if (groove.length * 2 > MAX_GROOVE_BARS) return null;
+  const copy = JSON.parse(JSON.stringify(groove));
+  groove.push(...copy);
   return groove.length;
 }
 
-// removeGrooveBar(song, laneId, grooveName) — drop the groove's last bar.
-// Returns the new length, or null at min 1 / when the groove is missing.
-export function removeGrooveBar(song, laneId, grooveName) {
+// halveGroove(song, laneId, grooveName) — keep the first half. Returns the new
+// length, or null at min 1 / when the groove is missing. Defensive: a legacy
+// odd length (e.g. 3 from earlier sessions) rounds down to the next power of two
+// below (3 → 2).
+export function halveGroove(song, laneId, grooveName) {
   const groove = song.grooves[laneId]?.[grooveName];
   if (!Array.isArray(groove) || groove.length <= 1) return null;
-  groove.pop();
+  const target = groove.length % 2 === 0
+    ? groove.length / 2
+    : Math.pow(2, Math.floor(Math.log2(groove.length)));   // odd → next pow2 below
+  groove.length = target;
   return groove.length;
 }
 

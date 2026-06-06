@@ -1986,6 +1986,7 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
 /* ─── drum bar stepper ───────────────────────────────────────────────────── */
 .barsel {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   align-items: center;
   margin-bottom: 8px;
