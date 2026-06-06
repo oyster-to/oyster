@@ -29,7 +29,10 @@ function makeDb(): Database.Database {
       published_at         INTEGER,
       share_updated_at     INTEGER,
       unpublished_at       INTEGER,
-      pinned_at            INTEGER
+      pinned_at            INTEGER,
+      sync_dirty_at        INTEGER,
+      cloud_synced_at      INTEGER,
+      cloud_owner_id       TEXT
     );
     CREATE TABLE projects (
       id       TEXT PRIMARY KEY,

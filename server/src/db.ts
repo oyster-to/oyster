@@ -133,6 +133,30 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
   // the user pinned the artefact, used to sort most-recently-pinned first.
   try { db.exec("ALTER TABLE artifacts ADD COLUMN pinned_at INTEGER"); } catch { /* already exists */ }
 
+  // Cloud mirror of the artefact registry — metadata only, no file content.
+  // Same dirty-tracking trio as sessions: the store stamps sync_dirty_at on
+  // every mutation; artifact-sync-service drains pending rows to D1 and
+  // records cloud_synced_at + cloud_owner_id on ack.
+  for (const sql of [
+    "ALTER TABLE artifacts ADD COLUMN sync_dirty_at INTEGER",
+    "ALTER TABLE artifacts ADD COLUMN cloud_synced_at INTEGER",
+    "ALTER TABLE artifacts ADD COLUMN cloud_owner_id TEXT",
+  ]) {
+    try { db.exec(sql); } catch { /* already exists */ }
+  }
+  // Promotion backfill, mirroring the spaces one above: rows that pre-date
+  // these columns (or were created on the free tier) get marked dirty exactly
+  // once so the whole registry reaches the cloud on first Pro sign-in.
+  // Tombstones (removed_at) are excluded — the cloud never knew them, so
+  // there's nothing to propagate.
+  db.exec(`
+    UPDATE artifacts
+       SET sync_dirty_at = CAST(strftime('%s','now') AS INTEGER) * 1000
+     WHERE sync_dirty_at IS NULL
+       AND cloud_synced_at IS NULL
+       AND removed_at IS NULL
+  `);
+
   // Profile binding (#318). Locks this local Oyster profile to one cloud
   // account on first Pro sign-in, preventing a second Pro user from pulling
   // their cloud data into the wrong local SQLite via cross-device sync.
@@ -636,8 +660,11 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
     .prepare("SELECT id, storage_config FROM artifacts WHERE removed_at IS NOT NULL AND storage_kind = 'filesystem'")
     .all() as Array<{ id: string; storage_config: string }>;
   if (tombstones.length > 0) {
+    // sync_dirty_at: an un-deleted row must reach the cloud mirror — without
+    // the stamp it stays invisible to artifact-sync (the promotion backfill
+    // above already ran this boot and skipped it as a tombstone).
     const update = db.prepare(
-      "UPDATE artifacts SET removed_at = NULL, storage_config = ?, project_id = ?, updated_at = datetime('now') WHERE id = ?",
+      "UPDATE artifacts SET removed_at = NULL, storage_config = ?, project_id = ?, updated_at = datetime('now'), sync_dirty_at = CAST(strftime('%s','now') AS INTEGER) * 1000 WHERE id = ?",
     );
     for (const row of tombstones) {
       let oldPath: string | undefined;
@@ -705,7 +732,8 @@ export function initDb(dbDir: string, oysterHome: string = dbDir): Database.Data
     UPDATE session_artifacts
        SET artifact_id = (SELECT winner_id FROM artefact_dedup_winners WHERE loser_id = session_artifacts.artifact_id)
      WHERE artifact_id IN (SELECT loser_id FROM artefact_dedup_winners);
-    UPDATE artifacts SET removed_at = datetime('now')
+    UPDATE artifacts SET removed_at = datetime('now'),
+           sync_dirty_at = CAST(strftime('%s','now') AS INTEGER) * 1000
      WHERE id IN (SELECT loser_id FROM artefact_dedup_winners);
     DROP TABLE artefact_dedup_winners;
   `);

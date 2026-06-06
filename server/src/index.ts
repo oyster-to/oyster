@@ -42,6 +42,7 @@ import { createPublishService, PublishError } from "./publish-service.js";
 import { createSpaceSyncService } from "./space-sync-service.js";
 import { createMemorySyncService, type MemorySyncService } from "./memory-sync-service.js";
 import { createSessionSyncService, encodeCwd, projectsRoot, type SessionSyncService } from "./session-sync-service.js";
+import { createArtifactSyncService, type ArtifactSyncService } from "./artifact-sync-service.js";
 import { createProfileBindingService } from "./profile-binding-service.js";
 import { hashPassword } from "./password-hash.js";
 import { tryHandleOAuthMcpRoute } from "./routes/oauth-mcp.js";
@@ -478,6 +479,22 @@ const sessionSync: SessionSyncService = createSessionSyncService({
   fetch: globalThis.fetch,
 });
 
+// Artefact registry mirror — metadata-only push so the cloud remote view's
+// Artefacts tab can list what exists (no file content, no publication
+// state). The store stamps sync_dirty_at on every mutation; the 30s poll
+// tick below + syncOnAuth drain pending rows.
+const artifactSync: ArtifactSyncService = createArtifactSyncService({
+  db,
+  profileBinding,
+  currentUser: () => {
+    const u = authService.getState().user;
+    return u ? { id: u.id, email: u.email, tier: u.tier } : null;
+  },
+  sessionToken: () => authService.getState().sessionToken,
+  workerBase: CLOUD_WORKER_BASE,
+  fetch: globalThis.fetch,
+});
+
 // Periodic pull. Pull-only triggers (auth-changed and app-startup) leave a
 // running server stale until the next reconcile event. A modest 30s tick
 // keeps cross-device memory updates fresh without burning excessive
@@ -506,6 +523,17 @@ const memoryPollHandle = setInterval(() => {
     }
   }).catch((err) => {
     console.warn("[sessions] periodic pull failed:", err);
+  });
+  // Artefact registry push on the same tick. Store mutations only stamp
+  // sync_dirty_at (no push trigger of their own), so this drain is what
+  // bounds cloud staleness — ≤30s from mutation to remote view. No-op (one
+  // SQL query, zero HTTP) when nothing is dirty.
+  artifactSync.pushPending().then((pushed) => {
+    if (pushed > 0) {
+      console.log(`[artifacts] periodic push: accepted=${pushed}`);
+    }
+  }).catch((err) => {
+    console.warn("[artifacts] periodic push failed:", err);
   });
 }, MEMORY_POLL_INTERVAL_MS);
 memoryPollHandle.unref();
@@ -651,6 +679,14 @@ async function syncOnAuth(label: string): Promise<void> {
       }
     } catch (err) {
       console.warn(`[sessions] ${label} reconcile failed:`, err);
+    }
+    try {
+      const artPushed = await artifactSync.pushPending();
+      if (artPushed > 0) {
+        console.log(`[artifacts] push (${label}): accepted=${artPushed}`);
+      }
+    } catch (err) {
+      console.warn(`[artifacts] ${label} push failed:`, err);
     }
   }
   // Then publications (preserves existing behaviour: clears ghost cache on

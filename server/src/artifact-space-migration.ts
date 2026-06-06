@@ -34,7 +34,11 @@ export function backfillArtifactProjects(db: Database.Database, userlandDir: str
          OR substr(?, 1, length(pp.path) + 1) = pp.path || '\\'
       ORDER BY LENGTH(pp.path) DESC LIMIT 1`,
   );
-  const setProject = db.prepare("UPDATE artifacts SET project_id = ? WHERE id = ?");
+  // sync_dirty_at: project binding drives the derived space_id the cloud
+  // mirror scopes by, so a rebound row must re-push.
+  const setProject = db.prepare(
+    "UPDATE artifacts SET project_id = ?, sync_dirty_at = CAST(strftime('%s','now') AS INTEGER) * 1000 WHERE id = ?",
+  );
   const projectSpace = db.prepare("SELECT space_id FROM projects WHERE id = ?");
   const nativeRoot = join(userlandDir, "spaces");
 

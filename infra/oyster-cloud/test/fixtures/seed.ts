@@ -89,6 +89,27 @@ CREATE TABLE IF NOT EXISTS synced_session_chunks (
 );
 CREATE INDEX IF NOT EXISTS idx_synced_session_chunks_active
   ON synced_session_chunks (owner_id, session_id, bytes_generation, chunk_number);
+-- Mirror of infra/auth-worker/migrations/0014_synced_artifacts.sql
+CREATE TABLE IF NOT EXISTS synced_artifacts (
+  owner_id            TEXT    NOT NULL,
+  artifact_id         TEXT    NOT NULL,
+  device_id           TEXT,
+  device_label        TEXT,
+  label               TEXT    NOT NULL,
+  artifact_kind       TEXT    NOT NULL,
+  space_id            TEXT,
+  project_id          TEXT,
+  group_name          TEXT,
+  source_origin       TEXT    NOT NULL DEFAULT 'manual',
+  created_at          TEXT    NOT NULL,
+  artifact_updated_at TEXT,
+  removed_at          TEXT,
+  pinned_at           INTEGER,
+  sync_version_at     INTEGER NOT NULL,
+  PRIMARY KEY (owner_id, artifact_id)
+);
+CREATE INDEX IF NOT EXISTS idx_synced_artifacts_owner_version
+  ON synced_artifacts (owner_id, sync_version_at DESC);
 -- Mirror of infra/auth-worker/migrations/0013_app_handoff_codes.sql
 CREATE TABLE IF NOT EXISTS app_handoff_codes (
   code_hash   TEXT PRIMARY KEY,
