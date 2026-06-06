@@ -68,6 +68,10 @@ describe('registry ranges (v3.5 — single source of truth)', () => {
     expect(validatePreset({ ...base, automations: [{ module: 'delay', param: 'feedback', from: 'neutral', to: 5 }] })).toBe(false);
     expect(validatePreset({ ...base, automations: [{ module: 'delay', param: 'feedback', from: 'neutral', to: 0.9 }] })).toBe(true);
   });
+  it('rejects out-of-range from (release would park the param out of bounds)', () => {
+    expect(validatePreset({ ...base, automations: [{ module: 'filter', param: 'freq', from: 90000, to: 150 }] })).toBe(false);
+    expect(validatePreset({ ...base, automations: [{ module: 'delay', param: 'feedback', from: 2, to: 0.5 }] })).toBe(false);
+  });
   it('rejects out-of-range to on any ranged param', () => {
     expect(validatePreset({ ...base, automations: [{ module: 'crusher', param: 'wet', from: 'neutral', to: 1.5 }] })).toBe(false);
     expect(validatePreset({ ...base, automations: [{ module: 'filter', param: 'freq', from: 'neutral', to: 50000 }] })).toBe(false);

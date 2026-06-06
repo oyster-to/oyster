@@ -943,7 +943,6 @@ body.gb-knob-values .knob-val { display: block; }
   background: var(--panel-3);
 }
 .punchpad .punchkey { margin-left: 7px; opacity: 0.45; font-size: 9px; }
-.punchrow .knob { margin-left: 10px; }
 .punchpad.held {
   background: var(--hot);
   color: var(--ink);

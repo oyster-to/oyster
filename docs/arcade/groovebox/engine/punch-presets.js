@@ -34,8 +34,10 @@ export function validatePreset(p) {
     const from = (a.from === 'neutral' || a.from == null) ? reg.neutral : a.from;
     if (scale === 'log' && (from <= 0 || a.to <= 0)) return false;
     // Registry ranges are the safety boundary (e.g. delay feedback runaway).
-    if (reg.min != null && a.to < reg.min) return false;
-    if (reg.max != null && a.to > reg.max) return false;
+    // `from` matters as much as `to`: release ramps BACK to from, so an
+    // out-of-range from would park the param outside bounds permanently.
+    if (reg.min != null && (a.to < reg.min || from < reg.min)) return false;
+    if (reg.max != null && (a.to > reg.max || from > reg.max)) return false;
     if (id === 'gate.depth' && a.division != null && !GATE_DIVISIONS.includes(a.division)) return false;
     if (!validDuration(a.engage?.ramp) || !validDuration(a.release?.ramp)) return false;
   }
