@@ -251,9 +251,13 @@ export function createEngine() {
           const s = step; const qSnap = fillQueue.slice();
           const tSnap = { kind: target.kind, chainPos: target.kind === 'chain' ? target.pos : -1,
                           patternIdx: targetPattern(target, song), barInPattern: target.barInPattern };
+          // Which chord is sounding (index into harmony.progression), or -1 when
+          // the song has no harmony. The progression cycles on the absolute bar.
+          const progLen = song.harmony?.progression?.length || 0;
+          const chordIdx = progLen ? Math.floor(s / spb) % progLen : -1;
           Tone.Draw.schedule(() => {
             onStepCb({ absStep: s, bar: Math.floor(s / spb), stepInBar: s % spb,
-                       fill: activeFill, queue: qSnap, target: tSnap });
+                       fill: activeFill, queue: qSnap, target: tSnap, chordIdx });
           }, t);
         }
         if (PERF) {
@@ -604,6 +608,17 @@ export function createEngine() {
     },
     moveLane(id, toIndex) {
       if (song) _moveLane(song, id, toIndex);
+    },
+    // ─── harmony ──────────────────────────────────────────────────────────────
+    getHarmony() { return song?.harmony ?? null; },
+    getKey()     { return song?.harmony?.key ?? null; },
+    // Replace the chord progression. Creates a harmony object if absent. Relative
+    // grooves read song.harmony.progression live (via chordAt), so the change is
+    // audible immediately — no other side effects.
+    setProgression(chords) {
+      if (!song || !Array.isArray(chords)) return;
+      if (song.harmony) song.harmony.progression = chords;
+      else song.harmony = { progression: chords };
     },
     setTranspose(semis) {
       if (!song) return;

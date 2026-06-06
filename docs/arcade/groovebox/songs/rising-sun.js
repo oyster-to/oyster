@@ -66,7 +66,10 @@ export const risingSun = {
     'crash open': { kick:[0,6], crash:[0], hat:[0,2,4,6,8,10] },
   },
 
+  // Key: A minor — opens and resolves on Am; Am–C–D–F–Am–E are diatonic to
+  // A natural minor (the E major V is the usual raised-leading-tone exception).
   harmony: {
+    key: { root:'A', mode:'minor' },
     progression: [
       { name:'Am', root:'A2', voicing:['A3','C4','E4'] },
       { name:'C',  root:'C2', voicing:['C3','E3','G3'] },

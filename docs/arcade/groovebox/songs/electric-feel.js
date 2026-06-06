@@ -28,7 +28,8 @@ export const electricFeel = {
     'crash build':{ kick:[0,8], snare:[14,15], crash:[12] },
     'tom roll':   { kick:[0,4], tom:[[8,7],[10,3],[12,2],[14,-2]] },
   },
-  harmony: { progression: [
+  // Key: G# major — the riff anchors on G# (G#, G#, Gm); tonic = first chord.
+  harmony: { key: { root:'G#', mode:'major' }, progression: [
     { name:'G#', root:'G#2', voicing:['G#3','C3','D#3'] },
     { name:'G#', root:'G#2', voicing:['G#3','C3','D#3'] },
     { name:'Gm', root:'G2', voicing:['G3','A#3','D3'] },

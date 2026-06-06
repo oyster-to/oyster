@@ -105,6 +105,31 @@ test('addPattern clones the edit pattern picks', () => {
   expect(eng.getSong().patterns[idx].lanes).toEqual(picks);
 });
 
+// ── harmony API ──────────────────────────────────────────────────────────
+test('getHarmony/getKey: kids flattens with its authored A-major key', () => {
+  const eng = loaded();
+  const h = eng.getHarmony();
+  expect(h.progression.length).toBeGreaterThan(0);
+  expect(eng.getKey()).toEqual({ root: 'A', mode: 'major' });
+});
+
+test('setProgression replaces the progression; relative grooves track it live', () => {
+  const eng = loaded();
+  const newProg = [{ name: 'Cm', root: 'C2', voicing: ['C3', 'D#3', 'G3'] }];
+  eng.setProgression(newProg);
+  expect(eng.getHarmony().progression).toBe(newProg);
+  expect(eng.getHarmony().progression[0].name).toBe('Cm');
+});
+
+test('setProgression creates a harmony object when absent', () => {
+  const eng = createEngine();
+  eng.load({ patterns: [{ lanes: {} }], chain: [0], lanes: [], grooves: {}, meter: { beatsPerBar: 4, beatUnit: 4, stepsPerBeat: 4 }, bpm: 120 });
+  expect(eng.getHarmony()).toBeNull();
+  const prog = [{ name: 'A', root: 'A2', voicing: ['A3', 'C#4', 'E4'] }];
+  eng.setProgression(prog);
+  expect(eng.getHarmony().progression).toBe(prog);
+});
+
 test('getEditGroove returns the edit pattern groove for a lane (name + data) and tracks selectPattern', () => {
   const eng = loaded();
   const g0 = eng.getEditGroove('drums');

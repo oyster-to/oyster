@@ -41,7 +41,8 @@ export const takeOnMe = {
     'crash build':{ kick:[0,8], snare:[14,15], crash:[12] },
     'tom roll':   { kick:[0,4], tom:[[8,7],[10,3],[12,2],[14,-2]] },
   },
-  harmony: { progression: [
+  // Key: C major — the vamp opens and dwells on C; tonic = first chord.
+  harmony: { key: { root:'C', mode:'major' }, progression: [
     { name:'C', root:'C2', voicing:['C3','E3','G3'] },
     { name:'C', root:'C2', voicing:['C3','E3','G3'] },
     { name:'C', root:'C2', voicing:['C3','E3','G3'] },

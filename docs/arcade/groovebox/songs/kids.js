@@ -51,7 +51,9 @@ export const kids = {
     'crash + tom':{ kick:[0,8], tom:[[10,5],[12,2]], crash:[0,14] },
     'gated glitch':{ snare:[0,1,4,5,8,9,12,13], kick:[6,14], crash:[2,10] },
   },
-  harmony: { progression: [
+  // Key: A major — progression F#m–D–A–E/G# are all diatonic to A major
+  // (the song's tonal centre, though it opens on the relative minor F#m).
+  harmony: { key: { root:'A', mode:'major' }, progression: [
     { name:'F#m',  root:'F#2', voicing:['F#3','A3','C#4','E4'] },
     { name:'D',    root:'D2',  voicing:['D3','E3','A3'] },
     { name:'A',    root:'A2',  voicing:['A3','C#4','E4'] },

@@ -1,5 +1,6 @@
 import { createEngine } from '../engine/index.js';
 import { laneAudible } from '../engine/song.js';
+import { parseProgression, formatProgression } from '../engine/chords.js';
 import { kids } from '../songs/kids.js';
 import { risingSun } from '../songs/rising-sun.js';
 import { electricFeel } from '../songs/electric-feel.js';
@@ -52,7 +53,7 @@ let _editingLaneId = null;
 let _draggedLaneId = null;
 
 // ─── Section drag-reorder state ───────────────────────────────────────────────
-const SECTION_IDS = ['viz', 'master', 'punch', 'strips', 'fills', 'arrange'];
+const SECTION_IDS = ['viz', 'master', 'harmony', 'punch', 'strips', 'fills', 'arrange'];
 let _draggedSecId = null;
 
 function refreshStates() {
@@ -609,6 +610,98 @@ function renderMaster() {
   updateEmptyGroups(); // hide master kgroups where all knobs are hidden
 }
 
+// ─── HARMONY row (chord chips + click-to-edit text) ──────────────────────────
+function fmtKeyName(key) {
+  return key ? `${key.root} ${key.mode}` : '';
+}
+
+function renderHarmony() {
+  const host = document.getElementById('harmony');
+  if (!host) return;
+  const harmony = eng.getHarmony();
+  host.innerHTML = '';
+  const row = document.createElement('div');
+  row.className = 'harmonyrow';
+  const lbl = document.createElement('span');
+  lbl.className = 'flbl';
+  lbl.textContent = 'HARMONY';
+  row.appendChild(lbl);
+
+  const chips = document.createElement('div');
+  chips.className = 'h-chips';
+  const prog = harmony?.progression || [];
+  if (prog.length) {
+    prog.forEach((c, i) => {
+      const chip = document.createElement('span');
+      chip.className = 'h-chip';
+      chip.dataset.idx = i;
+      chip.textContent = c.name;
+      chips.appendChild(chip);
+    });
+  } else {
+    const dash = document.createElement('span');
+    dash.className = 'h-chip h-empty';
+    dash.textContent = '—';
+    chips.appendChild(dash);
+  }
+  row.appendChild(chips);
+
+  const key = eng.getKey();
+  if (key) {
+    const badge = document.createElement('span');
+    badge.className = 'pat-lbl h-key';
+    badge.textContent = fmtKeyName(key);
+    row.appendChild(badge);
+  }
+  host.appendChild(row);
+
+  // Click anywhere on the chip area → swap to a text input (mirrors lane rename).
+  chips.onclick = () => beginHarmonyEdit();
+}
+
+// Swap the chip area for a text input prefilled from the current progression.
+// Enter / blur commit (parse → setProgression → re-render); Escape cancels.
+function beginHarmonyEdit() {
+  const host = document.getElementById('harmony');
+  if (!host) return;
+  const chips = host.querySelector('.h-chips');
+  if (!chips) return;
+  const prog = eng.getHarmony()?.progression || [];
+  const input = document.createElement('input');
+  input.className = 'h-edit';
+  input.value = formatProgression(prog);
+  input.placeholder = 'e.g. F#m D A E/G#';
+  chips.replaceWith(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const cancel = () => { if (done) return; done = true; renderHarmony(); };
+  const commit = () => {
+    if (done) return;
+    const { chords, errors } = parseProgression(input.value);
+    if (errors.length || !chords.length) { input.classList.add('invalid'); return; }
+    done = true;
+    eng.setProgression(chords);
+    renderHarmony();
+    refreshVizPattern();   // melody/bass tinting reads the new chords/key
+  };
+  input.oninput = () => input.classList.remove('invalid');
+  input.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+  };
+  input.onblur = commit;
+}
+
+// Highlight the sounding chord chip. chordIdx -1 → no harmony, clear all.
+function updateHarmonyPlayback(chordIdx) {
+  const host = document.getElementById('harmony');
+  if (!host) return;
+  host.querySelectorAll('.h-chip').forEach(chip => {
+    chip.classList.toggle('sounding', +chip.dataset.idx === chordIdx);
+  });
+}
+
 // ─── PATTERNS module (patterns row + chain row + playback label) ─────────────
 let _chainDragFrom = null;
 
@@ -769,6 +862,7 @@ function mount() {
   renderFills();
   renderPunch();
   renderMaster();
+  renderHarmony();
   renderPatterns();
   viz?.dispose?.();   // stop the outgoing viz's rAF loops before replacing it
   viz = makeViz(document.getElementById('viz'), song, eng);
@@ -855,7 +949,7 @@ document.getElementById('themesel').onchange = e => {
 // (Scope + quick-edit lane tabs are built and wired in renderViewTabs().)
 
 // ─── Step callback (registered once; closes over module-level song/viz) ──────
-eng.onStep(({ absStep, bar, stepInBar, fill, queue, target }) => {
+eng.onStep(({ absStep, bar, stepInBar, fill, queue, target, chordIdx }) => {
   viz.setStep({ absStep, bar, stepInBar, target });
   const fillsHost = document.getElementById('fills');
   if (fillsHost) {
@@ -865,6 +959,7 @@ eng.onStep(({ absStep, bar, stepInBar, fill, queue, target }) => {
     renderChain(queue);
   }
   updatePatternsPlayback(target);
+  updateHarmonyPlayback(chordIdx);
 });
 
 // ─── Restore saved theme ──────────────────────────────────────────────────────

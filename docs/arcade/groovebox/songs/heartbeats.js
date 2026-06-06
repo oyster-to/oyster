@@ -33,7 +33,8 @@ export const heartbeats = {
     'crash build':{ kick:[0,8], snare:[14,15], crash:[12] },
     'tom roll':   { kick:[0,4], tom:[[8,7],[10,3],[12,2],[14,-2]] },
   },
-  harmony: { progression: [
+  // Key: D# major — vamps D#↔C; tonic = the opening (and most-held) D# chord.
+  harmony: { key: { root:'D#', mode:'major' }, progression: [
     { name:'D#', root:'D#2', voicing:['D#3','G3','A#3'] },
     { name:'D#', root:'D#2', voicing:['D#3','G3','A#3'] },
     { name:'C', root:'C2', voicing:['C3','E3','G3'] },

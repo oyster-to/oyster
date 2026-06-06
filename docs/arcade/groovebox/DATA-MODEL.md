@@ -21,7 +21,10 @@ song = {
   // HARMONY — one chord per bar, cycling on the ABSOLUTE bar counter. Lets
   // grooves be chord-relative (see below). Optional: a song with no harmony has
   // only literal grooves.
-  harmony?: { progression: [ { name, root, voicing: [note, …] }, … ] },
+  harmony?: {
+    key?: { root: 'A'|'C#'|…, mode: 'major'|'minor' },  // tonic for snap-to-scale + editor tinting (inert at playback)
+    progression: [ { name, root, voicing: [note, …] }, … ],
+  },
 
   // GROOVES — named musical content, per lane. Pure data, shareable.
   grooves: {

@@ -4,7 +4,7 @@
 // The rich-resolution copies below live here ON PURPOSE — when the presets are
 // eventually re-authored as explicit JSON, this whole file is deleted.
 import { stepsPerBar } from './meter.js';
-import { chordAt } from './song.js';
+import { chordAt, deriveKey } from './song.js';
 import { resolveRef } from './patterns.js';
 
 const DRUM_SET_KEYS = ['kick', 'snare', 'hat', 'crash'];
@@ -312,9 +312,16 @@ export function flattenSong(rich) {
     title: rich.title, artist: rich.artist, meter: rich.meter, bpm: rich.bpm,
     lanes, grooves, patterns, chain, fills: rich.fills || {},
     // Harmony carries through so chord-relative grooves resolve at play time.
-    // Deep, JSON-clean copy (no aliasing into the rich source).
+    // Deep, JSON-clean copy (no aliasing into the rich source). The `key` rides
+    // through when authored; otherwise it's derived from the progression so the
+    // melody editor's snap-to-scale + tinting always have a key to read.
     ...(rich.harmony?.progression?.length
-      ? { harmony: { progression: rich.harmony.progression.map(c => ({ name: c.name, root: c.root, voicing: [...c.voicing] })) } }
+      ? { harmony: {
+          key: rich.harmony.key
+            ? { root: rich.harmony.key.root, mode: rich.harmony.key.mode }
+            : deriveKey(rich.harmony.progression),
+          progression: rich.harmony.progression.map(c => ({ name: c.name, root: c.root, voicing: [...c.voicing] })),
+        } }
       : {}),
   };
 }
