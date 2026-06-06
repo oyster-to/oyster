@@ -123,11 +123,26 @@ function stopMeterLoop() {
   if (_masterFillCache[1]) _masterFillCache[1].style.height = '0%';
 }
 
-// Wrap kgroups in a single flex container so mobile variants can scroll/wrap it.
+// Wrap kgroups in a single flex container so the mobile layout can scroll/wrap it.
+// Sticky edge arrows (shown via .fade-l/.fade-r) hint at off-screen knobs and
+// page the strip on tap.
 function makeKnobrow(groups) {
   const row = document.createElement('div');
   row.className = 'knobrow';
+  const mkHint = dir => {
+    const h = document.createElement('button');
+    h.className = 'knob-scroll-hint ' + dir;
+    h.textContent = dir === 'l' ? '‹' : '›';
+    h.tabIndex = -1;
+    h.addEventListener('click', e => {
+      e.stopPropagation();
+      row.scrollBy({ left: dir === 'l' ? -140 : 140, behavior: 'smooth' });
+    });
+    return h;
+  };
+  row.appendChild(mkHint('l'));
   for (const g of groups) row.appendChild(g);
+  row.appendChild(mkHint('r'));
   row.addEventListener('scroll', () => updateKnobrowFade(row), { passive: true });
   requestAnimationFrame(() => updateKnobrowFade(row));
   return row;
@@ -261,7 +276,7 @@ function renderStrips() {
         <button class="lane-dup" data-lane="${lane.id}" title="Duplicate lane">⧉</button>
         <button class="lane-rm" data-lane="${lane.id}" title="Remove lane"${isLast ? ' disabled' : ''}>✕</button>
       </div>
-      <button class="lane-expand" data-lane="${lane.id}" title="Show/hide mixer knobs" aria-expanded="false">▾</button>
+      <button class="lane-expand" data-lane="${lane.id}" title="Show/hide mixer knobs" aria-expanded="false"><span class="le-arrow">▾</span><span class="le-lbl">mix · fx</span></button>
     </div>`;
   }).join('');
 

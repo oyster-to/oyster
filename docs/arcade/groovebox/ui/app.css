@@ -2162,17 +2162,24 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   .transport-song .song-wrap { flex: 1; min-width: 0; }
   .transport-song select { width: 100%; }
 
-  /* ── lane accordion: header row / select row / knob row (when open) ── */
+  /* ── lane accordion: header / select / knobs (when open) / pull strip ── */
   .lane {
-    grid-template-columns: 16px 1fr auto auto auto;
+    grid-template-columns: 16px 1fr auto auto;
     grid-template-areas:
-      "drag  name  ms    actions chev"
-      "mctl  mctl  mctl  mctl    lvl"
-      "knobs knobs knobs knobs   knobs";
+      "drag  name  ms    actions"
+      "mctl  mctl  mctl  lvl"
+      "pull  pull  pull  pull";
     column-gap: 8px;
     row-gap: 8px;
-    padding: 8px 8px 10px;
+    padding: 8px 8px 0;
     cursor: pointer;
+  }
+  .lane.open {
+    grid-template-areas:
+      "drag  name  ms    actions"
+      "mctl  mctl  mctl  lvl"
+      "knobs knobs knobs knobs"
+      "pull  pull  pull  pull";
   }
   .lane .lane-drag     { grid-area: drag; }
   .lane .name          { grid-area: name; }
@@ -2187,20 +2194,47 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
     display: flex;
     animation: gbm-expand 0.16s ease;
   }
-  /* disclosure chevron — the accordion affordance
-     (.lane prefix outranks the base display:none, which follows in source) */
-  .lane .lane-expand {
-    display: inline-flex;
-    grid-area: chev;
-  }
   .lane.open {
     border-color: var(--acc-dim);
   }
-  .lane.open .lane-expand {
-    transform: rotate(180deg);
-    color: var(--acc);
-    border-color: var(--acc-dim);
+
+  /* drawer-pull strip — the accordion affordance: full-width bottom bar
+     (.lane prefix outranks the base display:none, which follows in source) */
+  .lane .lane-expand {
+    display: flex;
+    grid-area: pull;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 20px;
+    margin: 0 -8px;             /* bleed to the card edges */
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-top: 1px solid var(--line);
+    border-radius: 0 0 7px 7px;
+    box-shadow: none;
+    color: var(--faint);
   }
+  .lane .lane-expand:hover,
+  .lane .lane-expand:active {
+    background: var(--panel-3);
+    color: var(--dim);
+  }
+  .le-arrow {
+    font-size: 11px;
+    line-height: 1;
+    transition: transform 0.18s ease;
+  }
+  .le-lbl {
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .lane.open .lane-expand { color: var(--acc); }
+  .lane.open .le-arrow { transform: rotate(180deg); }
+  .lane.open .le-lbl { display: none; }
 
   /* ── master strip: label+meters row, knobs row (always visible) ── */
   .masterfx { flex-wrap: wrap; row-gap: 8px; }
@@ -2216,19 +2250,41 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   .knobrow::-webkit-scrollbar { display: none; }
   /* dials pass horizontal pans to the strip; vertical drags turn the knob */
   .knobrow .knob-dial { touch-action: pan-x; }
-  /* edge fades (classes maintained by JS) hint at off-screen knobs */
-  .knobrow.fade-r {
-    mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
-    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+
+  /* edge arrows + gradient scrims (shown via JS .fade-l/.fade-r classes):
+     sticky to the strip edges, fade the clipped knobs, tap to page */
+  .knobrow .knob-scroll-hint {
+    position: sticky;
+    z-index: 2;
+    align-self: stretch;
+    flex: 0 0 30px;
+    width: 30px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    height: auto;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: var(--acc);
+    text-shadow: 0 0 6px color-mix(in srgb, var(--acc) 45%, transparent);
   }
-  .knobrow.fade-l {
-    mask-image: linear-gradient(90deg, transparent, #000 28px);
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px);
+  .knobrow .knob-scroll-hint.l {
+    left: 0;
+    margin-right: -30px;
+    background: linear-gradient(270deg, transparent, var(--panel-2) 70%);
+    justify-content: flex-start;
   }
-  .knobrow.fade-l.fade-r {
-    mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent);
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  .knobrow .knob-scroll-hint.r {
+    right: 0;
+    margin-left: -30px;
+    background: linear-gradient(90deg, transparent, var(--panel-2) 70%);
+    justify-content: flex-end;
   }
+  .knobrow.fade-l .knob-scroll-hint.l { display: flex; }
+  .knobrow.fade-r .knob-scroll-hint.r { display: flex; }
 
   /* ── Display setting: wrap knobs onto extra rows instead of swiping ── */
   body.gb-knobwrap .knobrow { flex-wrap: wrap; row-gap: 10px; overflow-x: hidden; }
@@ -2238,16 +2294,6 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   from { opacity: 0; transform: translateY(-4px); }
 }
 
-/* chevron button: hidden on desktop, shown by the mobile accordion */
-.lane-expand {
-  display: none;
-  width: 26px; height: 26px; padding: 0;
-  align-items: center; justify-content: center;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: var(--panel-2);
-  color: var(--dim);
-  font-size: 12px;
-  line-height: 1;
-  transition: transform 0.18s ease, color 0.12s, border-color 0.12s;
-}
+/* accordion pull strip + swipe hints: hidden on desktop, shown by the mobile layout */
+.lane-expand { display: none; }
+.knob-scroll-hint { display: none; }
