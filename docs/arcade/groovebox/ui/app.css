@@ -2469,6 +2469,7 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
 #share-tabs { display: flex; gap: 8px; }
 .share-tab.active { background: var(--panel-3); color: var(--ink); border-color: var(--dim); }
 #share-groove-pickers { display: flex; gap: 8px; }
+#share-groove-pickers[hidden] { display: none; }
 #share-groove-pickers select { flex: 1; min-width: 0; }
 .share-field {
   display: flex;

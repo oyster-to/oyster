@@ -90,7 +90,7 @@ export function initShare(eng, hooks) {
   function syncMode() {
     const mode = decideShareMode({ loadedFrom, hasEditKey: !!(loadedFrom && getEditKey(loadedFrom.id)), kind: tab });
     $('share-update').hidden = mode !== 'owner-choice';
-    $('share-submit').textContent = mode === 'owner-choice' ? 'Share as new' : 'Share';
+    $('share-submit').textContent = mode === 'owner-choice' ? 'Publish as new' : 'Publish';
   }
   function setTab(t) {
     tab = t;
@@ -172,6 +172,6 @@ export async function maybeLoadShared(eng, hooks) {
       hooks.notice(placed ? `imported "${name}"${rec.author ? ` by ${rec.author}` : ''}`
         : `imported "${name}" (${rec.payload.meter.beatsPerBar}/${rec.payload.meter.beatUnit}) — in the groove menu, but this song is a different meter`);
     }
-  } catch (e) { hooks.notice(`share not found (${e.message})`); }  // app boots normally regardless
+  } catch (e) { hooks.notice(`not found (${e.message})`); }  // app boots normally regardless
   return true;
 }
