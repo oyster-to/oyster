@@ -2174,6 +2174,13 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   .transport-song { grid-area: song; margin-left: 0; min-width: 0; }
   .transport-song .song-wrap { flex: 1; min-width: 0; }
   .transport-song select { width: 100%; }
+  /* drop labels that repeat what the control already says ("120 BPM" labels
+     the slider, "♪ Kids" labels the dropdown, tabs label themselves); KEY
+     stays — a bare stepper is ambiguous */
+  .transport-tempo .transport-lbl,
+  .transport-song .transport-lbl,
+  .vtabs-lbl { display: none; }
+  .vtabs { margin-bottom: 8px; }
 
   /* ── lane accordion: header / select+expand / knobs (when open) ── */
   .lane {
