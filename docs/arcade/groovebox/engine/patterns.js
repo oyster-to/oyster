@@ -307,7 +307,9 @@ export function setDrumStep(song, laneId, grooveName, barIdx, voice, step, on, p
     else if (i >= 0) bar[k].splice(i, 1);
   } else {
     bar[k] = bar[k] || [];
-    const i = bar[k].indexOf(step);
+    // A non-pitched step is a plain number, OR a lock tuple [step, lock] — match
+    // both so a locked hit can still be toggled off / isn't duplicated.
+    const i = bar[k].findIndex(x => x === step || (Array.isArray(x) && x[0] === step));
     if (on) { if (i < 0) bar[k].push(step); }
     else if (i >= 0) bar[k].splice(i, 1);
   }

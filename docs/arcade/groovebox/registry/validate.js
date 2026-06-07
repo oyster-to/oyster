@@ -49,7 +49,9 @@ function lockValid(x) {
 function stepTrailingLockOk(step) {
   if (!Array.isArray(step) || step.length === 0) return typeof step === 'number';
   const last = step[step.length - 1];
-  return (last !== null && typeof last === 'object') ? lockValid(last) : true;
+  // Only a plain object is a lock. A trailing ARRAY is a chord voicing (e.g.
+  // [step, ['E4','G4']] with dur omitted) — not a lock, and was valid before.
+  return (last !== null && typeof last === 'object' && !Array.isArray(last)) ? lockValid(last) : true;
 }
 
 // Bar-shape depth: drums bar = plain object of arrays; note bar

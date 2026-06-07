@@ -85,16 +85,29 @@ test('fill bar drum locks are honoured', () => {
 
 // ── editor preservation: edits must not strip other steps' locks ──
 test('setDrumStep toggling one step preserves locks on other steps', () => {
-  const song = makeSong();
-  setDrumStep(song, 'drums', 0, 42, 10, true);   // add step 10
-  setDrumStep(song, 'drums', 0, 42, 0, false);   // remove step 0
+  const song = makeSong();                                  // hat: [0, [4,{v:0.4}], 8]
+  setDrumStep(song, 'drums', 'beat', 0, 42, 10, true, false);   // add step 10
+  setDrumStep(song, 'drums', 'beat', 0, 42, 0, false, false);   // remove step 0
   expect(at(song, 4).find(e => e.voice === 42).vel).toBe(0.4);
 });
 
 test('toggleNote on one step preserves locks on other steps', () => {
   const song = makeSong();
-  toggleNote(song, 'melody', 0, 8, 'E4');        // add a note at step 8
+  toggleNote(song, 'melody', 'riff', 0, 8, 'E4');          // add a note at step 8
   expect(lane(at(song, 0), 'melody').vel).toBe(0.5);
+});
+
+test('setDrumStep can remove a LOCKED non-pitched step (stored as [step, lock])', () => {
+  const song = makeSong();                                  // hat: [0, [4,{v:0.4}], 8]
+  setDrumStep(song, 'drums', 'beat', 0, 42, 4, false, false);
+  expect(at(song, 4).some(e => e.type === 'drums' && e.voice === 42)).toBe(false);
+});
+
+test('setDrumStep toggling a locked step ON does not duplicate it', () => {
+  const song = makeSong();
+  setDrumStep(song, 'drums', 'beat', 0, 42, 4, true, false);    // already present as a lock
+  const hits = at(song, 4).filter(e => e.type === 'drums' && e.voice === 42);
+  expect(hits.length).toBe(1);
 });
 
 // ── trigger: vel multiplies the voice's base velocity, clamped to 0..1 ──
@@ -277,4 +290,11 @@ test('song payload rejects a malformed drum lock', () => {
 
 test('unlocked songs and grooves still validate (additive, no regression)', () => {
   expect(validateGroovePayload(groove([[[0, 'R', 2]]])).ok).toBe(true);
+});
+
+test('a chord tuple whose last element is a notes-array (dur omitted) is NOT mistaken for a lock', () => {
+  // [step, notesArray] — old validator accepted it (b.every(Array.isArray)); the
+  // trailing array must not be routed through lockValid and rejected.
+  const chordGroove = { laneType: 'chords', meter: meter44, bars: [[[0, ['E4', 'G4']]]] };
+  expect(validateGroovePayload(chordGroove).ok).toBe(true);
 });
