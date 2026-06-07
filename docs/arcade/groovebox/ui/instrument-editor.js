@@ -2,7 +2,7 @@
 // Pattern follows ui/punch-editor.js: deep-cloned draft, sliders read ranges
 // from the engine registry (PATCH_PARAMS), hold-to-TEST auditions the UNSAVED
 // draft live (the playing loop sounds it), SAVE persists to localStorage.
-import { PATCH_PARAMS, OSC_SHAPES, validateInstrument } from '../engine/instruments.js';
+import { PATCH_PARAMS, OSC_SHAPES, validateInstrument, DEFAULT_INSTRUMENTS } from '../engine/instruments.js';
 
 // UI metadata only — ranges/scales live in PATCH_PARAMS (one source of truth).
 const PARAM_UI = {
@@ -63,6 +63,14 @@ export function openInstrumentEditor({ id, eng, onSaved }) {
   const stash = eng.getInstruments();
   let draft = JSON.parse(JSON.stringify(stash[id]));
   let previewing = false;
+  let _tweakTimer = null, _tweakLast = 0;
+  function applyDraftLive() {
+    if (!previewing) return;
+    const now = Date.now();
+    const run = () => { _tweakLast = Date.now(); if (previewing) eng.setInstruments({ ...stash, [id]: draft }); };
+    if (now - _tweakLast > 150) run();
+    else { clearTimeout(_tweakTimer); _tweakTimer = setTimeout(run, 150 - (now - _tweakLast)); }
+  }
 
   const backdrop = document.createElement('div');
   backdrop.id = 'inst-editor-backdrop';
@@ -90,6 +98,7 @@ export function openInstrumentEditor({ id, eng, onSaved }) {
 
   function save() {
     if (!validateInstrument(draft)) return;
+    previewing = false;                     // a still-held TEST must not restore over the save
     draft.name = (draft.name || 'SOUND').toUpperCase().slice(0, 24);
     const next = { ...stash, [id]: draft };
     eng.setInstruments(next);
@@ -168,7 +177,7 @@ export function openInstrumentEditor({ id, eng, onSaved }) {
         const nv = posToVal(pid, s.value / 1000);
         set(draft.patch, pid, Math.round(nv * 1000) / 1000);
         v.textContent = ui.fmt(get(draft.patch, pid));
-        if (previewing) eng.setInstruments({ ...stash, [id]: draft });   // live-tweak while held… cheap graph swap
+        applyDraftLive();                            // throttled — see above
         refreshSave();
       };
       row.append(label(ui.label), s, v);
@@ -181,8 +190,7 @@ export function openInstrumentEditor({ id, eng, onSaved }) {
     const reset = document.createElement('button');
     reset.className = 'ie-reset';
     reset.textContent = 'reset to default';
-    reset.onclick = async () => {
-      const { DEFAULT_INSTRUMENTS } = await import('../engine/instruments.js');
+    reset.onclick = () => {
       if (DEFAULT_INSTRUMENTS[id]) { draft = JSON.parse(JSON.stringify(DEFAULT_INSTRUMENTS[id])); render(); }
     };
     const cancel = document.createElement('button');
