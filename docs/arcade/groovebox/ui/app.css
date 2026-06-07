@@ -1020,6 +1020,7 @@ body.gb-knob-values .knob-val { display: block; }
 .pe-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
 .pe-rl { width: 84px; flex: 0 0 84px; color: var(--faint); font-size: 11px; }
 .pe-q .pe-rl { width: auto; flex: 0 0 auto; }
+.pe-qpair { display: inline-flex; align-items: center; gap: 10px; }
 .pe-slider { flex: 1; accent-color: var(--acc); }
 .pe-val { width: 56px; flex: 0 0 56px; text-align: right; color: var(--ink); }
 .pe-sel { background: var(--panel-3); border: 1px solid var(--line); border-radius: 5px; padding: 2px 8px; color: var(--dim); font: inherit; }
@@ -3235,6 +3236,32 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
 
   /* ── Display setting: wrap knobs onto extra rows instead of swiping ── */
   body.gb-knob-wrap .knobrow { flex-wrap: wrap; row-gap: 10px; overflow-x: hidden; }
+
+  /* ── punch preset editor: bottom sheet, thumb-sized, nothing clips ── */
+  #punch-editor-backdrop { align-items: flex-end; }
+  #punch-editor {
+    width: 100vw;
+    max-height: calc(100vh - 32px);    /* fallback where dvh is unsupported */
+    max-height: calc(100dvh - 32px);
+    border-radius: 14px 14px 0 0;
+    border-left: 0; border-right: 0; border-bottom: 0;
+    padding: 14px 12px calc(16px + env(safe-area-inset-bottom));
+  }
+  .pe-hd { flex-wrap: wrap; row-gap: 8px; }
+  .pe-name { flex: 1 1 120px; min-width: 0; font-size: 16px; }  /* ≥16px = no iOS focus-zoom */
+  .pe-badge { display: none; }   /* the editable name is right there; keys don't exist on phones */
+  .pe-test { padding: 10px 20px; }
+  .pe-row { gap: 6px; }
+  .pe-rl { width: 64px; flex: 0 0 64px; }
+  .pe-val { width: 42px; flex: 0 0 42px; }
+  .pe-slider { min-width: 0; }
+  .pe-sel { padding: 6px 8px; }            /* thumb-sized */
+  .pe-lane { height: 30px; }
+  .pe-lanes { flex-wrap: wrap; row-gap: 6px; }
+  .pe-lanes .pe-rl { width: auto; flex: 0 0 100%; }   /* label gets its own line, chips wrap below */
+  .pe-q { flex-wrap: wrap; row-gap: 8px; column-gap: 14px; }
+  .pe-qpair { gap: 6px; }
+  .pe-save { padding: 8px 22px; }
 }
 
 @keyframes gbm-expand {
