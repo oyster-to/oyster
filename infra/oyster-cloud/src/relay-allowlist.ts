@@ -25,6 +25,11 @@ export const RELAY_ALLOWLIST: ReadonlyArray<string> = [
   // the allowlist, and that's why.
   "/api/artifacts",
   "/artifacts/*",
+  // The registry's viewer URL for filesystem artefacts is /docs/<id> —
+  // resolved server-side from the artefact's own registered path
+  // (artifact-service getDocFile), never computed from the URL, so it has
+  // no traversal surface.
+  "/docs/:name",
 ];
 
 // (Everything else stays off the list — notably no memories, no chat, no
