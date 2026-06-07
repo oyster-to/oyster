@@ -1513,7 +1513,7 @@ document.addEventListener('click', e => {
   // Picking a tile re-renders the drawer (to move the ✓), detaching the
   // clicked button before this listener runs — closest() on the detached
   // node still identifies it as a tile, so the drawer stays open.
-  if (e.target.closest?.('.ttile, .picker-done')) return;
+  if (e.target.closest?.('.ttile, .picker-done, .help-tab')) return;
   if (host && !host.contains(e.target) && e.target !== btn && !btn?.contains(e.target)) closeThemePicker();
 });
 // Screen picker (Settings) — override the theme's glass with a chosen LCD.
