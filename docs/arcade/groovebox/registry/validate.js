@@ -33,13 +33,36 @@ function meterValid(m) {
     (m.group === undefined || (Number.isInteger(m.group) && m.group >= 1 && m.group <= 64));
 }
 
-// Bar-shape depth only: drums bar = plain object of arrays; note bar
-// (bass/chords/melody) = array of note events. Per-step tuples are not
-// re-validated here — the engine is robust to bad picks by contract.
+// A per-step lock (DATA-MODEL "the lock object"): the one extensible slot on a
+// step. Today only velocity — { v } where v multiplies the voice's base
+// velocity (0 < v <= 2). Strict-keyed so a typo or a future-only key fails loud
+// instead of silently no-op'ing. New lock params join `v` here, with this doc.
+function lockValid(x) {
+  return isObj(x) && strictKeys(x, ['v'], 'lock') === null &&
+    typeof x.v === 'number' && Number.isFinite(x.v) && x.v > 0 && x.v <= 2;
+}
+
+// A pitched step tuple is [step, note, dur] with an OPTIONAL trailing lock
+// object: [step, note, dur, lock]. A drum step is a plain number, or a tuple
+// [step, ...] whose trailing element MAY be a lock ([step, lock] or
+// [step, semi, lock]). Trailing object ⇒ must be a valid lock.
+function stepTrailingLockOk(step) {
+  if (!Array.isArray(step) || step.length === 0) return typeof step === 'number';
+  const last = step[step.length - 1];
+  return (last !== null && typeof last === 'object') ? lockValid(last) : true;
+}
+
+// Bar-shape depth: drums bar = plain object of arrays; note bar
+// (bass/chords/melody) = array of note events. Step tuples are otherwise NOT
+// re-validated here (the engine is robust to bad picks) — the one exception is
+// the lock object, which is strict contract surface.
 function barsValid(laneType, bars) {
   if (!Array.isArray(bars) || bars.length < 1 || bars.length > 8) return false;
-  if (laneType === 'drums') return bars.every((b) => isObj(b) && Object.values(b).every(Array.isArray));
-  return bars.every((b) => Array.isArray(b) && b.every(Array.isArray));
+  if (laneType === 'drums') {
+    return bars.every((b) => isObj(b) &&
+      Object.values(b).every((steps) => Array.isArray(steps) && steps.every(stepTrailingLockOk)));
+  }
+  return bars.every((b) => Array.isArray(b) && b.every((t) => Array.isArray(t) && stepTrailingLockOk(t)));
 }
 
 // A groove VALUE in song.grooves: bars[] (literal) or — note lanes only —

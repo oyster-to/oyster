@@ -149,6 +149,16 @@ function durSeconds(dur, sixteenth, barSeconds) {
   return (typeof dur === 'number' && Number.isFinite(dur) && dur > 0 ? dur : 2) * sixteenth;
 }
 
+// Velocity p-lock: ev.vel multiplies the voice's base velocity, product clamped
+// to 0..1. Unlocked events (ev.vel == null) pass the base through UNCHANGED —
+// undefined base stays undefined (Tone defaults it), so legacy songs are
+// byte-identical. Scalar math only: nothing here allocates in the hot path.
+function lockVel(base, vel) {
+  if (vel == null) return base;
+  const v = (base ?? 1) * vel;
+  return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+
 /**
  * trigger(voice, ev, t, sixteenth, barSeconds)
  * Fires one scheduler event at audio time `t`.
@@ -163,19 +173,19 @@ export function trigger(voice, ev, t, sixteenth, barSeconds) {
     if (!slot) return;
     const { synth, trig } = slot;
     if (trig.sig === 'noise') {
-      synth.triggerAttackRelease(trig.dur ?? '16n', t, trig.velocity);
+      synth.triggerAttackRelease(trig.dur ?? '16n', t, lockVel(trig.velocity, ev.vel));
     } else {
       const base = trig.note ?? 'C3';
       const pitch = ev.semi ? Tone.Frequency(base).transpose(ev.semi) : base;
-      synth.triggerAttackRelease(pitch, trig.dur ?? '8n', t, trig.velocity);
+      synth.triggerAttackRelease(pitch, trig.dur ?? '8n', t, lockVel(trig.velocity, ev.vel));
     }
   } else if (ev.type === 'bass') {
-    voice.bass.triggerAttackRelease(ev.note, durSeconds(ev.dur, sixteenth, barSeconds), t, voice.trig?.velocity ?? 0.85);
+    voice.bass.triggerAttackRelease(ev.note, durSeconds(ev.dur, sixteenth, barSeconds), t, lockVel(voice.trig?.velocity ?? 0.85, ev.vel));
   } else if (ev.type === 'melody') {
-    voice.lead.triggerAttackRelease(ev.note, durSeconds(ev.dur, sixteenth, barSeconds), t, voice.trig?.velocity ?? 0.82);
+    voice.lead.triggerAttackRelease(ev.note, durSeconds(ev.dur, sixteenth, barSeconds), t, lockVel(voice.trig?.velocity ?? 0.82, ev.vel));
   } else if (ev.type === 'chords') {
     // Arp hits ride slightly hotter than sustained voicings (legacy 0.34 vs 0.30).
-    if (ev.mode === 'arp') voice.chordSyn.triggerAttackRelease(ev.note, sixteenth, t, 0.34);
-    else voice.chordSyn.triggerAttackRelease(ev.notes, durSeconds(ev.dur, sixteenth, barSeconds), t, voice.trig?.velocity ?? 0.3);
+    if (ev.mode === 'arp') voice.chordSyn.triggerAttackRelease(ev.note, sixteenth, t, lockVel(0.34, ev.vel));
+    else voice.chordSyn.triggerAttackRelease(ev.notes, durSeconds(ev.dur, sixteenth, barSeconds), t, lockVel(voice.trig?.velocity ?? 0.3, ev.vel));
   }
 }

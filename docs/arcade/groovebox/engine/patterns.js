@@ -134,8 +134,9 @@ export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = 
       const bars = grooveBars(g);
       const bar = fillPat || (bars ? bars[barInPattern % bars.length] : null) || {};
       // Slot-agnostic: keys are canonical GM numbers post-ingest (slotKey also
-      // tolerates raw name keys). Steps are numbers or [step, semi] pairs —
-      // any slot may be pitched. for-in: no per-step allocations.
+      // tolerates raw name keys). Steps are numbers, [step, semi] pairs, or
+      // lock-carrying [step, lock] / [step, semi, lock] (type-discriminated:
+      // number = semi, object = lock). for-in: no per-step allocations.
       for (const k in bar) {
         const steps = bar[k];
         if (!Array.isArray(steps)) continue;
@@ -147,7 +148,13 @@ export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = 
             if (s === step && drumVoiceAudible(lane, note))
               ev.push({ laneId: lane.id, type: 'drums', voice: note });
           } else if (Array.isArray(s) && s[0] === step && drumVoiceAudible(lane, note)) {
-            ev.push({ laneId: lane.id, type: 'drums', voice: note, semi: s[1] ?? 0 });
+            const a = s[1];
+            const lock = (a !== null && typeof a === 'object') ? a : s[2];
+            const e = (a !== null && typeof a === 'object')
+              ? { laneId: lane.id, type: 'drums', voice: note }
+              : { laneId: lane.id, type: 'drums', voice: note, semi: a ?? 0 };
+            if (lock && typeof lock.v === 'number') e.vel = lock.v;
+            ev.push(e);
           }
         }
       }
@@ -158,29 +165,35 @@ export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = 
     if (g && g.relative) {
       // Chord-relative: resolve each REF against the pattern's chord for this bar.
       // No chords on the pattern → the lane is silent (resolveRef → null).
-      for (const [s, ref, dur] of notes) {
+      for (const [s, ref, dur, lock] of notes) {
         if (s !== step) continue;
         const resolved = resolveRef(ref, chord);
         if (resolved == null) continue;
+        let e;
         if (Array.isArray(resolved)) {
-          ev.push({ laneId: lane.id, type: 'chords', mode: 'pad', notes: resolved.map(T), dur });
+          e = { laneId: lane.id, type: 'chords', mode: 'pad', notes: resolved.map(T), dur };
         } else if (lane.type === 'chords') {
-          ev.push({ laneId: lane.id, type: 'chords', mode: 'arp', note: T(resolved), dur });
+          e = { laneId: lane.id, type: 'chords', mode: 'arp', note: T(resolved), dur };
         } else {
-          ev.push({ laneId: lane.id, type: lane.type, note: T(resolved), dur });
+          e = { laneId: lane.id, type: lane.type, note: T(resolved), dur };
         }
+        if (lock && typeof lock.v === 'number') e.vel = lock.v;
+        ev.push(e);
       }
       continue;
     }
-    // Literal groove — untouched behaviour.
-    for (const [s, n, dur] of notes) {
+    // Literal groove — untouched behaviour (plus the optional 4th-element lock).
+    for (const [s, n, dur, lock] of notes) {
       if (s !== step) continue;
+      let e;
       if (lane.type === 'chords') {
-        if (Array.isArray(n)) ev.push({ laneId: lane.id, type: 'chords', mode: 'pad', notes: n.map(T), dur });
-        else ev.push({ laneId: lane.id, type: 'chords', mode: 'arp', note: T(n), dur });
+        if (Array.isArray(n)) e = { laneId: lane.id, type: 'chords', mode: 'pad', notes: n.map(T), dur };
+        else e = { laneId: lane.id, type: 'chords', mode: 'arp', note: T(n), dur };
       } else {
-        ev.push({ laneId: lane.id, type: lane.type, note: T(n), dur });
+        e = { laneId: lane.id, type: lane.type, note: T(n), dur };
       }
+      if (lock && typeof lock.v === 'number') e.vel = lock.v;
+      ev.push(e);
     }
   }
   return ev;
