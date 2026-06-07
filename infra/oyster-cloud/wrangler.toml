@@ -54,14 +54,13 @@ service = "oyster-publish"
 name = "RELAY"
 class_name = "RelayDO"
 
-# KV-backed (new_classes, not new_sqlite_classes): the DO's persisted
-# state is a handful of `disabled:<device_id>` flags + socket attachments,
-# and @cloudflare/vitest-pool-workers' isolated storage can't stack
-# SQLite-backed DO files (.sqlite-shm assertion). Revisit if the DO ever
-# needs real queries.
+# SQLite-backed: required on the free Workers plan (API error 10097 — KV-
+# backed namespaces are paid-only). The vitest-pool-workers .sqlite-shm
+# stacking assertion this would normally trip is already sidestepped: the
+# relay test project runs with isolatedStorage off (vitest.relay.config.ts).
 [[migrations]]
 tag = "v1"
-new_classes = ["RelayDO"]
+new_sqlite_classes = ["RelayDO"]
 
 # Cloud remote view SPA (web/ built with VITE_OYSTER_MODE=cloud, base /).
 # Run `npm run build:cloud` at the repo root before deploying.
