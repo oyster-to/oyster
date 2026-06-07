@@ -248,7 +248,7 @@ function renderViewTabs() {
   }
   const scope = document.createElement('button');
   scope.dataset.view = 'scope';
-  scope.textContent = '📈 Scope';
+  scope.textContent = 'Scope';
   scope.onclick = () => toggleScope(scope);
   bar.appendChild(scope);
   if (_songTabOpen) songTab.classList.add('on');
