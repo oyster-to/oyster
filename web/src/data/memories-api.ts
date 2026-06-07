@@ -27,6 +27,10 @@ export async function searchMemories(
   query: string,
   opts: { spaceId?: string | null; limit?: number; signal?: AbortSignal } = {},
 ): Promise<Memory[]> {
+  // No /api/memories/search on the cloud worker (synced memories are an
+  // event log, not an FTS index) — return empty rather than 404 per
+  // keystroke. Spotlight's memory section just stays absent in cloud.
+  if (caps.cloud) return [];
   const params = new URLSearchParams({ q: query });
   if (opts.spaceId) params.set("space_id", opts.spaceId);
   if (opts.limit !== undefined) params.set("limit", String(opts.limit));

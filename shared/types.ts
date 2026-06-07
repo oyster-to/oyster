@@ -65,6 +65,10 @@ export interface Artifact {
    *  chip — the artefact's content lives on that machine, not in the cloud.
    *  Never set in local builds. */
   originDeviceLabel?: string | null;
+  /** Cloud remote view only: the origin device's UUID — routes relayed
+   *  opens to the owning device (/api/relay/d/<id>/…). Never set in
+   *  local builds. */
+  originDeviceId?: string | null;
 }
 
 export interface ArtefactPublication {

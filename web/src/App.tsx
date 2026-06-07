@@ -117,9 +117,9 @@ export default function App() {
   // Global keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      // Spotlight is unmounted in cloud (caps.canChat false), so ⌘K would
-      // toggle dead state with nothing to render — keep the shortcut inert there.
-      if (caps.canChat && (e.metaKey || e.ctrlKey) && e.key === "k") {
+      // Spotlight works locally (full FTS + ask row) and in cloud (artefact
+      // filter + relayed transcript search against online devices).
+      if ((caps.canChat || caps.cloud) && (e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setSpotlightOpen((v) => !v);
       }
@@ -915,7 +915,7 @@ export default function App() {
         />
       )}
 
-      {caps.canChat && spotlightOpen && (
+      {(caps.canChat || caps.cloud) && spotlightOpen && (
         <SpotlightSearch
           artifacts={artifacts}
           spaces={spaces}

@@ -1801,6 +1801,20 @@ body {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* Cloud relay fan-out: which online device a transcript hit came from.
+   Same blue as the home-remote-chip so "lives on a device" reads
+   consistently across surfaces. */
+.spotlight-result-device {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.66rem;
+  color: #8fb6ff;
+  white-space: nowrap;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .spotlight-token-chip {
   display: inline-flex;

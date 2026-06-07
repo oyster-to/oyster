@@ -4,6 +4,7 @@ import { getJson, patchJson, postJson, postEmpty, del, apiPath } from "./http";
 import { caps } from "../caps";
 import { fetchCloudPublications } from "./cloud-publications";
 import { fetchCloudArtifacts } from "./cloud-artifacts";
+import { freshRelayState, relayPath, withRelayTimeout } from "./relay";
 
 export async function fetchArtifacts(signal?: AbortSignal): Promise<Artifact[]> {
   // Cloud Artefacts tab = the synced registry, plus orphan live publications
@@ -26,9 +27,62 @@ export async function fetchArtifacts(signal?: AbortSignal): Promise<Artifact[]> 
       return { ...a, url: pub.url, status: pub.status, publication: pub.publication };
     });
     // Orphans: live publications with no surviving registry row.
-    return [...merged, ...pubById.values()];
+    return enrichWithLiveDevices([...merged, ...pubById.values()], signal);
   }
   return getJson<Artifact[]>(apiPath("/api/artifacts"), signal);
+}
+
+/** Relay enrichment (spec 2026-06-07-device-relay-design): the registry
+ *  mirror deliberately carries no file URLs, so unpublished rows whose
+ *  origin device is ONLINE get their viewer URL from the device's live
+ *  /api/artifacts (relayed), rewritten through /api/relay/d/<id>/…. The
+ *  row then opens like any other. Strictly progressive: any failure —
+ *  no devices, device wedged, relay rolled back — returns the rows
+ *  untouched (today's inert mirror). */
+async function enrichWithLiveDevices(rows: Artifact[], signal?: AbortSignal): Promise<Artifact[]> {
+  try {
+    const online = (await freshRelayState(signal)).online.filter((d) => d.ready);
+    if (online.length === 0) return rows;
+    const lists = await Promise.all(online.map(async (d) => {
+      try {
+        // 3s budget per device: a wedged device degrades that device's
+        // rows to the mirror; without it, Promise.all would hold the
+        // whole artefact list hostage until the relay's 30s timeout.
+        const artifacts = await getJson<Artifact[]>(
+          relayPath(d.device_id, "/api/artifacts"),
+          withRelayTimeout(signal, 3_000),
+        );
+        return { deviceId: d.device_id, artifacts };
+      } catch {
+        return null; // slow or offline — this device's rows stay inert
+      }
+    }));
+    // artifact_id → live open target. Three cases from the device's own
+    // url field: redirect artefacts point at the public web (open as-is);
+    // /docs/ + /artifacts/ paths relay through the device; local_process
+    // localhost URLs are meaningless remotely (stay inert).
+    const liveById = new Map<string, string>();
+    for (const list of lists) {
+      if (!list) continue;
+      for (const a of list.artifacts) {
+        if (typeof a.url !== "string" || a.url.length === 0) continue;
+        if (a.runtimeKind === "redirect" && /^https?:\/\//.test(a.url)) {
+          liveById.set(a.id, a.url);
+        } else if (a.url.startsWith("/docs/") || a.url.startsWith("/artifacts/")) {
+          liveById.set(a.id, relayPath(list.deviceId, a.url));
+        }
+      }
+    }
+    if (liveById.size === 0) return rows;
+    return rows.map((row) => {
+      if (row.url) return row; // published — share page stays canonical
+      const liveUrl = liveById.get(row.id);
+      if (!liveUrl) return row;
+      return { ...row, url: liveUrl, status: "online" as const };
+    });
+  } catch {
+    return rows;
+  }
 }
 
 // startApp/stopApp keep their bespoke shape: server routes are GETs and the

@@ -6,6 +6,9 @@ All notable changes to Oyster are documented here. The format follows [Keep a Ch
 
 ### Added
 
+- **Open your files from anywhere** — while a device is running Oyster, app.oyster.to can open its artefacts live: notes, docs and diagrams render right in the remote view, no publishing needed. Offline devices fall back to the read-only listing.
+- **Search transcripts from anywhere** — Cmd+K at app.oyster.to now searches the sessions on your online devices, with each hit labelled by the device it came from.
+- **Device switch in the remote view** — a topbar chip shows which devices are live; disable or re-enable live access per device with one click (sync is unaffected).
 - **Your artefact library appears in the cloud remote view** — the Artefacts tab at app.oyster.to now lists everything in your registry (read-only), with a chip showing which device each artefact lives on. Published artefacts stay the openable ones.
 
 ### Changed

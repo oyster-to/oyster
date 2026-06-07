@@ -9,6 +9,7 @@ import { useMyDeviceId } from "../../hooks/useMyDeviceId";
 import { useSpaceProjects } from "../../hooks/useSpaceProjects";
 import { parseTimestamp } from "../../utils/parseTimestamp";
 import { AuthBadge } from "../AuthBadge";
+import { RelayDevicesChip } from "../RelayDevicesChip";
 import { Desktop } from "../Desktop";
 import { InspectorPanel, type ActivePanel } from "../InspectorPanel";
 import { SessionInspector } from "../SessionInspector";
@@ -859,6 +860,7 @@ export function Home({ activeSpace, spaces, desktopProps, onSpaceChange, onPromo
             <LayoutGroup id="home-breadcrumb">
             <div className="home-breadcrumb-inner">
             <AuthBadge />
+            {caps.cloud && <RelayDevicesChip />}
             {caps.hasSpaces && (<>
             <button
               type="button"
