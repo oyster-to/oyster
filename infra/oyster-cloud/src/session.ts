@@ -17,6 +17,9 @@ export interface Env {
   // on app.oyster.to forward over this (no public hop, cookie + Origin
   // pass through untouched). Spec 2026-06-05-app-oyster-to-migration.
   PUBLISH: Fetcher;
+  // Device relay rendezvous — one RelayDO per user (idFromName(user.id)).
+  // Spec 2026-06-07-device-relay-design.
+  RELAY: DurableObjectNamespace;
 }
 
 interface SessionUser {

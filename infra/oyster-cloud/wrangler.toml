@@ -47,6 +47,22 @@ custom_domain = true
 binding = "PUBLISH"
 service = "oyster-publish"
 
+# Device relay rendezvous (spec 2026-06-07-device-relay-design). One DO
+# per user; devices hold hibernatable WebSockets, the browser's relayed
+# requests are framed onto them. First Durable Object in this worker.
+[[durable_objects.bindings]]
+name = "RELAY"
+class_name = "RelayDO"
+
+# KV-backed (new_classes, not new_sqlite_classes): the DO's persisted
+# state is a handful of `disabled:<device_id>` flags + socket attachments,
+# and @cloudflare/vitest-pool-workers' isolated storage can't stack
+# SQLite-backed DO files (.sqlite-shm assertion). Revisit if the DO ever
+# needs real queries.
+[[migrations]]
+tag = "v1"
+new_classes = ["RelayDO"]
+
 # Cloud remote view SPA (web/ built with VITE_OYSTER_MODE=cloud, base /).
 # Run `npm run build:cloud` at the repo root before deploying.
 [assets]
