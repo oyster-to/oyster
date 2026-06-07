@@ -21,12 +21,14 @@
 <h1>hum lab <small>— mic → YIN → transcribe, every stage visible</small></h1>
 
 <div class="row">
+  <select id="mode"><option value="melody">MELODY</option><option value="beats">BEATS</option></select>
   <select id="mic"></select>
   <label><input type="checkbox" id="ec" checked> echoCancel</label>
   <label><input type="checkbox" id="ns" checked> noiseSuppress</label>
   <label><input type="checkbox" id="agc"> autoGain</label>
   <label>bpm <input type="number" id="bpm" value="110" min="60" max="200" style="width:55px"></label>
   <label>snap to key <select id="key"></select></label>
+  <label><input type="checkbox" id="fold" checked> fold repeats (beats)</label>
 </div>
 <div class="row">
   <button id="rec">● record</button>
@@ -44,6 +46,7 @@
 
 <script type="module">
 import { yinPitch, transcribe, fitBars, hzToNote } from './engine/hum.js';
+import { detectOnsets, classifyHit, hitFeatures, transcribeBeats, foldRepeats } from './engine/beats.js';
 
 const $ = (id) => document.getElementById(id);
 const ctx2 = (c) => c.getContext('2d');
@@ -190,6 +193,7 @@ function drawBand() {
 
 // ── analysis + roll ────────────────────────────────────────────────────────
 function analyse() {
+  if ($('mode').value === 'beats') return analyseBeats();
   const { pcm, sr } = take;
   const bpm = +$('bpm').value;
   const stepSec = 60 / bpm / 4, barSec = stepSec * 16;
@@ -220,6 +224,69 @@ function analyse() {
   $('status').textContent = 'done — ▶ buttons compare what you hummed vs what landed';
 }
 
+// ── beats analysis: drum grid + per-hit feature diagnostics ────────────────
+function analyseBeats() {
+  const { pcm, sr } = take;
+  const bpm = +$('bpm').value;
+  const stepSec = 60 / bpm / 4, barSec = stepSec * 16;
+  const bars = fitBars(Math.max(1, Math.ceil(pcm.length / sr / barSec)));
+  const raw = transcribeBeats(pcm, sr, { bpm, meter: METER, bars });
+  const drums = $('fold').checked ? foldRepeats(raw) : raw;
+  take.drums = drums; take.rawDrums = raw; take.bpm = bpm;
+  window.__lab = take;
+
+  // drum grid on the roll canvas: 3 rows × steps
+  const rc = ctx2($('roll')), W = $('roll').width, H = $('roll').height;
+  rc.fillStyle = '#0d0b0a'; rc.fillRect(0, 0, W, H);
+  const gridBars = drums.length;
+  const totalSteps = gridBars * 16, sw = W / totalSteps, rows = ['kick', 'snare', 'hat'], rh = H / 3;
+  rc.strokeStyle = '#332d27';
+  for (let s = 0; s <= totalSteps; s += 4) {
+    rc.lineWidth = s % 16 === 0 ? 2 : 1;
+    rc.beginPath(); rc.moveTo(s * sw, 0); rc.lineTo(s * sw, H); rc.stroke();
+  }
+  rc.font = '11px monospace'; rc.textBaseline = 'top';
+  const colors = { kick: '#e74', snare: '#6c6', hat: '#6ce' };
+  rows.forEach((v, r) => {
+    rc.fillStyle = '#8a7f72'; rc.fillText(v.toUpperCase(), 4, r * rh + 4);
+    rc.fillStyle = colors[v];
+    drums.forEach((bar, b) => bar[v].forEach(st => {
+      rc.fillRect((b * 16 + st) * sw + 2, r * rh + 18, sw - 4, rh - 26);
+    }));
+  });
+
+  // diagnostics: every onset with its classification features
+  const lines = detectOnsets(pcm, sr).map(t => {
+    const f = hitFeatures(pcm, sr, t), v = classifyHit(pcm, sr, t);
+    const step = Math.round(t / stepSec);
+    return `t=${t.toFixed(2)}s step ${String(step).padStart(2)}: ${v.padEnd(5)} centroid ${String(Math.round(f.centroid)).padStart(5)}Hz  low ${(f.lowRatio * 100).toFixed(0)}%  mid ${(f.midBody * 100).toFixed(0)}%`;
+  });
+  $('out').textContent = `${(pcm.length / sr).toFixed(1)}s · ${bars} bar(s) @ ${bpm}bpm · BEATS · ${lines.length} hits\n` + lines.join('\n');
+  $('playRaw').disabled = $('playNotes').disabled = $('save').disabled = false;
+  $('status').textContent = 'done — ▶ transcription plays your beat back';
+}
+
+// throwaway lab drum voices
+function playDrum(voice, at) {
+  const g = ac.createGain(); g.connect(ac.destination);
+  if (voice === 'kick') {
+    const o = ac.createOscillator();
+    o.frequency.setValueAtTime(120, at); o.frequency.exponentialRampToValueAtTime(45, at + 0.12);
+    g.gain.setValueAtTime(0.8, at); g.gain.setTargetAtTime(0, at + 0.02, 0.05);
+    o.connect(g); o.start(at); o.stop(at + 0.2);
+    return;
+  }
+  // snare/hat: noise burst through a biquad
+  const n = Math.round(0.12 * ac.sampleRate), buf = ac.createBuffer(1, n, ac.sampleRate);
+  const ch = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * Math.exp(-(voice === 'hat' ? 28 : 12) * i / n);
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const f = ac.createBiquadFilter();
+  if (voice === 'hat') { f.type = 'highpass'; f.frequency.value = 6000; g.gain.value = 0.5; }
+  else { f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 0.6; g.gain.value = 0.9; }
+  src.connect(f); f.connect(g); src.start(at);
+}
+
 // ── playback ───────────────────────────────────────────────────────────────
 $('playRaw').onclick = () => {
   const { pcm, sr } = take;
@@ -228,6 +295,15 @@ $('playRaw').onclick = () => {
   const s = ac.createBufferSource(); s.buffer = buf; s.connect(ac.destination); s.start();
 };
 $('playNotes').onclick = () => {
+  if (take.drums && $('mode').value === 'beats') {
+    const stepSec = 60 / take.bpm / 4, t0 = ac.currentTime + 0.05;
+    take.drums.forEach((bar, b) => {
+      for (const v of ['kick', 'snare', 'hat']) {
+        for (const st of bar[v]) playDrum(v, t0 + (b * 16 + st) * stepSec);
+      }
+    });
+    return;
+  }
   const { bars, bpm } = take, stepSec = 60 / bpm / 4, t0 = ac.currentTime + 0.05;
   const noteHz = (n) => { const m = n.match(/^([A-G]#?)(-?\d)$/); const pc = { C:0,'C#':1,D:2,'D#':3,E:4,F:5,'F#':6,G:7,'G#':8,A:9,'A#':10,B:11 }[m[1]]; return 440 * Math.pow(2, (pc + (+m[2] + 1) * 12 - 69) / 12); };
   bars.forEach((bar, b) => bar.forEach(([st, n, d]) => {
