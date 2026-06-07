@@ -385,7 +385,7 @@ function renderPicker() {
 
   // The social shelf rides high — right under the house carts.
   if (_sharedItems.length) {
-    sect('SHARED — FROM OTHER PLAYERS');
+    sect('SHARED — FROM OTHER GROOVERS');
     for (const it of _sharedItems) {
       host.appendChild(cartEl({
         cls: 'shared',
