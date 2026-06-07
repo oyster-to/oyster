@@ -2716,31 +2716,32 @@ body.gb-knob-values .knob-val { display: block; }
 [data-theme="spectrum"] .vc.hit { box-shadow: 0 0 6px rgba(24,200,200,0.4), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
 
 [data-theme="littleprof"] {
-  /* BODY — Little Professor: vermilion plastic, yellow keys, red LED face */
-  --bg:          #b53614;
-  --panel:       #e04e20;
-  --panel-2:     #d44619;
-  --panel-3:     #ee5c2c;
-  --line:        rgba(0,0,0,.25);
-  --line-dk:     rgba(0,0,0,.4);
-  --ink:         #fff4e0;
-  --dim:         #ffd0ae;
-  --faint:       #f0a478;
-  --acc:         #f8c818;   /* key yellow */
-  --acc-dim:     #b88e08;
-  --hot:         #8a1208;   /* deep burnt red */
-  --warn:        #f8c818;
+  /* BODY — Little Professor: chestnut-brown keypad face, yellow keys,
+     gold rim, red LED window */
+  --bg:          #4a2e16;
+  --panel:       #6e4220;
+  --panel-2:     #643c1c;
+  --panel-3:     #7c4c26;
+  --line:        rgba(0,0,0,.28);
+  --line-dk:     rgba(0,0,0,.45);
+  --ink:         #ffeec8;
+  --dim:         #e0c090;
+  --faint:       #b08c5c;
+  --acc:         #f0c020;   /* key yellow */
+  --acc-dim:     #b08c08;
+  --hot:         #ff5038;   /* LED red (bright enough to read on brown) */
+  --warn:        #f0c020;
   --ink-on-acc:  #3a2800;
   --tab-on-ink:  #ffe9a8;
-  --tab-bg:      #3a1404;
-  --meter-lo:    #f8c818;
+  --tab-bg:      #3a2008;
+  --meter-lo:    #f0c020;
   --meter-mid:   #ffe858;
-  --meter-hi:    #8a1208;
-  --chrome-hi:   #ee5c2c;
-  --chrome-mid:  #d44619;
-  --chrome-lo:   #b53614;
-  --bevel-hi:    rgba(255,255,255,0.25);
-  --bevel-lo:    rgba(0,0,0,0.3);
+  --meter-hi:    #ff5038;
+  --chrome-hi:   #c89a2e;   /* the gold rim */
+  --chrome-mid:  #a87c1e;
+  --chrome-lo:   #8a6414;
+  --bevel-hi:    rgba(255,240,180,0.3);
+  --bevel-lo:    rgba(0,0,0,0.35);
   /* SCREEN — the red LED display */
   --screen-bg:   #1c0604;
   --screen-glow: rgba(255,60,30,0.12);
