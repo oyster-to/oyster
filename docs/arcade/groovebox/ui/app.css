@@ -25,26 +25,32 @@
   --meter-hi:  #f87171;
 
   /* component tokens — themed per [data-theme].
-     The cabinet wears the brand (violet); the screen wears the SIGNAL (cyan) —
-     a different material, visibly backlit against the near-black cabinet. */
-  --cell:         #0a2538;   /* empty drum cell */
-  --cell-alt:     #0d2e45;   /* bar-alt cell */
-  --hit1:         #67d9ff;   /* groove hit gradient top — lit signal pixel */
-  --hit2:         #1d7fae;   /* groove hit gradient bottom */
-  --roll-bg:      #07202f;   /* piano-roll / bass lane (white key) */
-  --roll-bg-blk:  #051824;   /* piano-roll / bass lane (black key) */
+     Oyster's screen is a classic PEARL LCD: pale ice glass with deep-navy
+     pixels (Game Boy idiom, pearlescent colourway) — its own material against
+     the space-navy cabinet. */
+  --cell:         #bcd2de;   /* empty drum cell */
+  --cell-alt:     #b3c9d6;   /* bar-alt cell */
+  --hit1:         #2b4a7e;   /* groove hit gradient top — dark LCD pixel */
+  --hit2:         #18305a;   /* groove hit gradient bottom */
+  --roll-bg:      #c6d9e4;   /* piano-roll / bass lane (white key) */
+  --roll-bg-blk:  #b9cedb;   /* piano-roll / bass lane (black key) */
   /* out-of-scale rows: a dimmer wash of the roll bg. Derived from --roll-bg so
      it tracks every theme override (themes set --roll-bg on the same element). */
   --roll-bg-out:  color-mix(in srgb, var(--roll-bg) 78%, var(--bg));
   --roll-ctone:   color-mix(in srgb, var(--roll-bg) 80%, var(--acc)); /* chord-tone wash */
-  --roll-note:    #7be7ff;   /* note blocks + bass notes — signal cyan on the screen */
-  --grid-line:    #16455e;   /* roll / scope gridlines */
-  --scope:        #7be7ff;   /* scope trace */
-  --playhead:     #ffffff;   /* roll / scope playhead */
+  --roll-note:    #1d3766;   /* note blocks + bass notes — dark pixels */
+  --grid-line:    #9db5c4;   /* roll / scope gridlines */
+  --scope:        #1d4a7e;   /* scope trace */
+  --playhead:     #122441;   /* roll / scope playhead */
 
-  /* screen / glow — deep signal-cyan glass */
-  --screen-bg:   #041420;
-  --screen-glow: rgba(123,231,255,0.13);
+  /* screen / glow — pearl glass */
+  --screen-bg:   #cfe0ea;
+  --screen-glow: rgba(123,231,255,0.10);
+  /* screen-scoped text ink — the screen's polarity can differ from the
+     cabinet's (Oyster: light cabinet ink, DARK screen ink). Themes whose
+     screen matches their cabinet just alias these to --ink/--dim. */
+  --screen-ink:  #16243f;
+  --screen-dim:  #4d6787;
 
   /* cabinet chrome — kept for screws */
   --chrome-hi:  #3a3e57;
@@ -52,6 +58,13 @@
   --chrome-lo:  #12141f;
   --bevel-hi:   rgba(255,255,255,0.06);
   --bevel-lo:   rgba(0,0,0,0.45);
+}
+
+/* Every named theme's screen shares its cabinet polarity — alias the screen
+   inks back to the cabinet inks. (Only the default Oyster theme splits them.) */
+[data-theme] {
+  --screen-ink: var(--ink);
+  --screen-dim: var(--dim);
 }
 
 /* ─── MIDNIGHT — the former Dark theme: graphite cabinet, teal accent,
@@ -359,7 +372,7 @@ select {
   padding: 0;
   background: transparent;
   border: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--dim) 30%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--screen-ink) 25%, transparent);
   box-shadow: none;
 }
 .vtabs button {
@@ -369,7 +382,7 @@ select {
   border-radius: 0;
   border-bottom: 2px solid transparent;
   background: transparent;
-  color: var(--dim);
+  color: var(--screen-dim);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -379,7 +392,7 @@ select {
 }
 .vtabs button:hover {
   background: color-mix(in srgb, var(--acc) 8%, transparent);
-  color: var(--ink);
+  color: var(--screen-ink);
   border-color: transparent;
 }
 .vtabs button.on {
@@ -470,8 +483,8 @@ input[type=range] {
   padding: 6px 10px;
   /* mix from --ink so the band reads on BOTH screen polarities: light ink on a
      dark screen lifts it, dark ink on a lime screen shades it */
-  background: color-mix(in srgb, var(--ink) 8%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  background: color-mix(in srgb, var(--screen-ink) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--screen-ink) 22%, transparent);
   min-height: 28px;
 }
 #lcd-strip:empty { display: none; }
@@ -479,13 +492,13 @@ input[type=range] {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: var(--ink);
+  color: var(--screen-ink);
   white-space: nowrap;
 }
 .strip-credit {
   font-size: 9px;
   font-style: italic;
-  color: var(--faint);
+  color: var(--screen-dim);
   white-space: nowrap;
 }
 .strip-chain, .strip-chords {
@@ -498,8 +511,8 @@ input[type=range] {
   min-width: 16px;
   padding: 1px 5px;
   border-radius: 4px;
-  border: 1px solid color-mix(in srgb, var(--ink) 40%, transparent);
-  color: color-mix(in srgb, var(--ink) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--screen-ink) 40%, transparent);
+  color: color-mix(in srgb, var(--screen-ink) 80%, transparent);
   font-size: 9px;
   font-family: ui-monospace, Menlo, monospace;
   text-align: center;
@@ -516,7 +529,7 @@ input[type=range] {
 .strip-key, .strip-bpm {
   font-size: 9px;
   letter-spacing: 0.08em;
-  color: var(--dim);
+  color: var(--screen-dim);
   font-family: ui-monospace, Menlo, monospace;
   white-space: nowrap;
 }
@@ -530,10 +543,12 @@ input[type=range] {
 #lcd-song .chain-chip,
 #lcd-song .h-chip {
   background: transparent;
-  border-color: color-mix(in srgb, var(--dim) 45%, transparent);
-  color: var(--dim);
+  border-color: color-mix(in srgb, var(--screen-ink) 40%, transparent);
+  color: color-mix(in srgb, var(--screen-ink) 80%, transparent);
   box-shadow: none;
 }
+#lcd-song .pat-lbl { color: var(--screen-dim); }
+#lcd-song .h-chip.h-empty { color: var(--screen-dim); }
 #lcd-song .pat-slot.sel {
   background: var(--acc);
   border-color: var(--acc);
@@ -558,7 +573,7 @@ input[type=range] {
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--dim);
+  color: var(--screen-dim);
 }
 .lcd-song-foot #share-btn { margin-left: auto; }
 
@@ -612,7 +627,7 @@ input[type=range] {
   pointer-events: none;
 }
 .vhcell.beat {
-  color: var(--dim);
+  color: var(--screen-dim);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-shadow: 0 0 6px color-mix(in srgb, var(--acc) 40%, transparent);
@@ -628,7 +643,7 @@ input[type=range] {
 .vrow .vl {
   width: 46px;
   font-size: 10px;
-  color: var(--dim);
+  color: var(--screen-dim);
   text-align: right;
   padding-right: 4px;
   flex: 0 0 46px;
@@ -1358,7 +1373,7 @@ body.gb-knob-values .knob-val { display: block; }
 }
 
 /* ─── PATTERNS module (Song tab rows) ─── */
-.ed-lbl { font-size: 10px; color: var(--dim); letter-spacing: .1em; text-transform: uppercase; margin: 2px 0 4px; }
+.ed-lbl { font-size: 10px; color: var(--screen-dim); letter-spacing: .1em; text-transform: uppercase; margin: 2px 0 4px; }
 .pat-row, .chain-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0; transition: opacity .2s; }
 .pat-row.dimmed, .chain-row.dimmed { opacity: .45; }
 .pat-lbl { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-right: 4px; }
@@ -1975,7 +1990,7 @@ body.gb-knob-values .knob-val { display: block; }
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--screen-dim);
   padding-right: 4px;
   user-select: none;
 }
@@ -2061,8 +2076,8 @@ body.gb-knob-values .knob-val { display: block; }
   pointer-events: none;
 }
 /* Show label only on C rows (non-empty lbl text) */
-.bg-lbl:not(:empty) { color: var(--faint); }
-.bg-blk .bg-lbl:not(:empty) { color: var(--dim); }
+.bg-lbl:not(:empty) { color: var(--screen-dim); }
+.bg-blk .bg-lbl:not(:empty) { color: var(--screen-ink); }
 
 /* Step cells — compact height for pitch-density */
 .bg-grid .vc {
@@ -2355,7 +2370,7 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   font-size: 11px;
   color: var(--dim);
 }
-.barsel-lbl { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-right: 4px; }
+.barsel-lbl { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--screen-dim); margin-right: 4px; }
 .bsel {
   height: 26px;
   padding: 0 11px;
@@ -2379,7 +2394,7 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   box-shadow: 0 0 8px rgba(255,91,158,0.3);
 }
 .glen { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
-.glen-lbl { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-right: 2px; }
+.glen-lbl { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--screen-dim); margin-right: 2px; }
 .glen-btn {
   height: 26px;
   padding: 0 11px;

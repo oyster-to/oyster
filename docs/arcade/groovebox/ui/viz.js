@@ -21,9 +21,11 @@ function themeColors() {
     rollBlk: g('--roll-bg-blk'),
     rollOut: g('--roll-bg-out'),
     ctone:   g('--roll-ctone'),
-    ink:     g('--ink'),
-    dim:     g('--dim'),
-    faint:   g('--faint'),
+    // Canvas text draws ON the screen — use the screen-scoped inks (the
+    // screen's polarity can differ from the cabinet's, e.g. Oyster's pearl LCD).
+    ink:     g('--screen-ink'),
+    dim:     g('--screen-dim'),
+    faint:   g('--screen-dim'),
   };
   return _tc;
 }
