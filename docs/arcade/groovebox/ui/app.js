@@ -798,7 +798,15 @@ function renderMaster() {
     { label: 'vrb', value: 0, onChange: v => eng.setMasterFX('reverb', v), tip: knobTip('vrb'), k: 'vrb' },
     { label: 'cmp', value: 0, onChange: v => eng.setMasterFX('comp',   v), tip: knobTip('cmp'), k: 'cmp' },
   ]);
-  mwrap.appendChild(makeKnobrow([makeTempoGroup(), makeTransposeGroup(), mixGrp, toneGrp, fxGrp]));
+  // Tempo + transpose ride the header line (beside the label/meters) so they
+  // stay on the top row on mobile while the FX knobrow wraps below.
+  const songCtls = document.createElement('div');
+  songCtls.className = 'master-song-ctls';
+  songCtls.appendChild(makeTempoGroup());
+  songCtls.appendChild(makeTransposeGroup());
+  mwrap.appendChild(songCtls);
+
+  mwrap.appendChild(makeKnobrow([mixGrp, toneGrp, fxGrp]));
 
   masterHost.appendChild(mwrap);
   cacheMeterFills();  // re-cache master meter fill refs after DOM rebuild
@@ -1260,6 +1268,12 @@ eng.onStep(({ absStep, bar, stepInBar, fill, queue, target }) => {
 })();
 
 // ─── Help modal ───────────────────────────────────────────────────────────────
+document.querySelectorAll('#help-tabs .help-tab').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('#help-tabs .help-tab').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.help-section').forEach(s => s.classList.toggle('active', s.dataset.help === btn.dataset.help));
+  };
+});
 document.getElementById('help-btn').onclick = () => {
   document.getElementById('help-modal').hidden = false;
 };
