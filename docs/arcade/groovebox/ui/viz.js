@@ -41,6 +41,8 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 // the stringified GM numbers (bar[36] === bar['36'] — JS object keys are strings).
 const DROWS = DEFAULT_KIT.slots.map(s => [s.note, s.label, !!s.pitched]);
 const PITCHED_ROW = Object.fromEntries(DROWS.map(([k, , p]) => [k, p]));
+// Shape-tolerant: steps may be numbers or [step, semi] pairs (any slot).
+const hasStep = (steps, i) => Array.isArray(steps) && steps.some(s => Array.isArray(s) ? s[0] === i : s === i);
 
 // Piano-roll helpers (ported from prototype).
 const NMG = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
@@ -749,9 +751,7 @@ export function makeViz(host, song, eng) {
         const k = row.dataset.k;
         [...row.querySelectorAll('.vc')].forEach((c, i) => c.onclick = () => {
           const shown = laneBars(L)[primaryBar()] || {};
-          const on = PITCHED_ROW[k]
-            ? !(shown[k] && shown[k].some(x => x[0] === i))
-            : !(shown[k] && shown[k].includes(i));
+          const on = !hasStep(shown[k], i);
           for (const b of editBars) eng.setDrumStep(L.id, k, b, i, on, PITCHED_ROW[k]);
           paint(lastStepInBar);
         });
@@ -836,9 +836,7 @@ export function makeViz(host, song, eng) {
         if (mBtn) mBtn.classList.toggle('muted', !!(L.voiceMute || {})[k]);
         if (sBtn) sBtn.classList.toggle('soloed', !!(L.voiceSolo || {})[k]);
         row.querySelectorAll('.vc').forEach((c, i) => {
-          const on = PITCHED_ROW[k]
-            ? !!(pat[k] && pat[k].some(x => x[0] === i))
-            : !!(pat[k] && pat[k].includes(i));
+          const on = hasStep(pat[k], i);
           c.classList.toggle('hit', on);
           c.classList.toggle('now', nowHere && i === stepInBar);
         });

@@ -284,6 +284,7 @@ export function setDrumStep(song, laneId, grooveName, barIdx, voice, step, on, p
   if (!Array.isArray(groove)) return;        // missing or relative (read-only)
   const bar = groove[barIdx] || (groove[barIdx] = {});
   const k = slotKey(voice) ?? voice;         // canonical GM-number keys
+  if (bar[k] !== undefined && !Array.isArray(bar[k])) bar[k] = [];   // heal bad data
   // Pitched slots store [step, semi] pairs. Callers pass the kit slot's flag;
   // default preserves the legacy tom behaviour (GM 45).
   if (pitched ?? k === 45) {

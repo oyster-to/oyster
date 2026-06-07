@@ -120,13 +120,18 @@ export function validateKit(kit, instruments) {
 // ── groove normalization (the input boundary) ────────────────────────────────
 /** normalizeDrumBar(bar) → same bar shape with canonical numeric keys.
  *  Unrecognisable keys are DROPPED (bad data never crashes the engine).
- *  Step shapes pass through untouched (numbers or [step, semi] pairs). */
+ *  Values are sanitized: arrays only; elements must be a finite step number
+ *  or a [step, semi] pair — anything else is dropped. */
 export function normalizeDrumBar(bar) {
   if (!bar || typeof bar !== 'object' || Array.isArray(bar)) return {};
   const out = {};
   for (const [k, v] of Object.entries(bar)) {
     const note = slotKey(k);
-    if (note !== null) out[note] = v;
+    if (note === null || !Array.isArray(v)) continue;   // values must be arrays
+    const steps = v.filter(s =>
+      (typeof s === 'number' && Number.isFinite(s)) ||
+      (Array.isArray(s) && typeof s[0] === 'number' && Number.isFinite(s[0])));
+    out[note] = steps;
   }
   return out;
 }
