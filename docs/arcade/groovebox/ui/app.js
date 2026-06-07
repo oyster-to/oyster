@@ -1704,9 +1704,10 @@ const shareHooks = {
       opt = document.createElement('option');
       opt.id = 'songsel-shared';
       opt.hidden = true;
-      opt.textContent = '(shared)';
       sel.appendChild(opt);
     }
+    // The dropdown is the title surface — show the shared song's name, not a placeholder.
+    opt.textContent = rec?.name ? `♫ ${rec.name}` : '(shared)';
     opt.selected = true;
     // Shared songs: the credit line carries who made it + how it's doing.
     if (rec) {
