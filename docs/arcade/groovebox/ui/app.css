@@ -2746,6 +2746,35 @@ html:not([data-theme]) .vc.now:not(.hit),
   background: var(--panel-3);
   color: var(--ink);
 }
+
+/* Mobile: help is a bottom sheet — card slides up from the bottom edge. */
+@media (max-width: 900px) {
+  #help-modal { align-items: flex-end; }
+  #help-modal-box {
+    width: 100vw;
+    max-width: none;
+    max-height: 80vh;
+    border-radius: 16px 16px 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    padding: 14px 20px calc(24px + env(safe-area-inset-bottom));
+    animation: gbm-sheet-up 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  /* grabber bar — the bottom-sheet idiom */
+  #help-modal-box::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--line);
+    margin: 0 auto 14px;
+  }
+}
+@keyframes gbm-sheet-up {
+  from { transform: translateY(40px); opacity: 0.4; }
+}
 .help-sections {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
