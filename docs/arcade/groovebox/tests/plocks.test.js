@@ -201,6 +201,39 @@ test('a locked hit on an unfiltered slot still fires (volume-only, no crash)', (
   expect(lastVel(synth)).toBe(0.5);
 });
 
+// ── pitched lanes get brightness too: chords modulate their own lowpass
+//    (around its 4200 character), bass/melody an OPEN insert (transparent at
+//    rest; ghosts darken, accents stay bright). dir: lowpass opens on accent. ──
+test('chord accent raises the lowpass cutoff above its base', () => {
+  const synth = fakeSynth(), filter = fakeFilter('lowpass', 4200);
+  const voice = { chordSyn: synth, trig: { velocity: 0.3 }, toneFilter: filter, toneBase: 4200, toneType: 'lowpass' };
+  trigger(voice, { type: 'chords', mode: 'arp', note: 'E4', dur: 1, vel: 1.8 }, 3, 0.1, 1.6);
+  expect(lastFreq(filter)).toBeGreaterThan(4200);
+});
+
+test('melody ghost lowers the open insert cutoff below base; unlocked resets to base', () => {
+  const synth = fakeSynth(), filter = fakeFilter('lowpass', 18000);
+  const voice = { lead: synth, trig: { velocity: 0.82 }, toneFilter: filter, toneBase: 18000, toneType: 'lowpass' };
+  trigger(voice, { type: 'melody', note: 'C5', dur: 2, vel: 0.3 }, 3, 0.1, 1.6);
+  expect(lastFreq(filter)).toBeLessThan(18000);
+  trigger(voice, { type: 'melody', note: 'C5', dur: 2 }, 4, 0.1, 1.6);
+  expect(lastFreq(filter)).toBe(18000);
+});
+
+test('bass brightness is scheduled at the hit time t', () => {
+  const synth = fakeSynth(), filter = fakeFilter('lowpass', 18000);
+  const voice = { bass: synth, trig: { velocity: 0.85 }, toneFilter: filter, toneBase: 18000, toneType: 'lowpass' };
+  trigger(voice, { type: 'bass', note: 'C2', dur: 2, vel: 0.4 }, 7, 0.1, 1.6);
+  expect(filter.calls.at(-1)[1]).toBe(7);
+});
+
+test('pitched voices without a tone filter still fire (no crash)', () => {
+  const synth = fakeSynth();
+  const voice = { lead: synth, trig: { velocity: 0.82 } };
+  expect(() => trigger(voice, { type: 'melody', note: 'C5', dur: 2, vel: 0.5 }, 0, 0.1, 1.6)).not.toThrow();
+  expect(lastVel(synth)).toBeCloseTo(0.41);
+});
+
 // ── validator: the lock object is the strict contract surface ──
 const groove = bars => ({ laneType: 'melody', meter: meter44, relative: true, bars });
 
