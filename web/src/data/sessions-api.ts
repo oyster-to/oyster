@@ -17,6 +17,7 @@ import type {
 } from "../../../shared/types";
 import { ApiError, getJson, apiPath } from "./http";
 import { caps } from "../caps";
+import { freshRelayState, relayPath } from "./relay";
 import {
   fetchCloudSessions,
   fetchCloudSession,
@@ -128,17 +129,51 @@ export interface TranscriptHit {
    *  hyper-broad prefix queries. Drives the "+N more" affordance,
    *  which treats it as a hint. */
   match_count: number;
+  /** Cloud remote view only: which online device answered this hit
+   *  (relay fan-out). Never set in local builds. */
+  originDeviceLabel?: string | null;
 }
 
 export async function searchTranscripts(
   query: string,
   opts: { limit?: number; spaceId?: string | null; signal?: AbortSignal } = {},
 ): Promise<TranscriptHit[]> {
-  if (caps.cloud) return [];
   const params = new URLSearchParams({ q: query });
   if (opts.limit !== undefined) params.set("limit", String(opts.limit));
   if (opts.spaceId) params.set("space_id", opts.spaceId);
+
+  // Cloud: the mirror has no transcript FTS (chunks are encrypted at
+  // rest), so ⌘K fans out to each ONLINE device's local index through the
+  // relay and concatenates — sessions live on exactly one device, so
+  // there's nothing to dedup. Offline devices' transcripts simply don't
+  // appear; no devices online → empty, the pre-relay behaviour. Each
+  // device gets a 3s budget so one wedged machine can't stall the panel.
+  if (caps.cloud) {
+    const devices = (await freshRelayState(opts.signal)).online.filter((d) => d.ready);
+    if (devices.length === 0) return [];
+    const perDevice = await Promise.all(devices.map(async (d) => {
+      try {
+        const hits = await getJson<TranscriptHit[]>(
+          relayPath(d.device_id, `/api/sessions/search?${params.toString()}`),
+          withTimeout(opts.signal, 3_000),
+        );
+        return hits.map((h) => ({ ...h, originDeviceLabel: d.device_label }));
+      } catch {
+        return [];
+      }
+    }));
+    return perDevice.flat();
+  }
+
   return getJson<TranscriptHit[]>(apiPath(`/api/sessions/search?${params.toString()}`), opts.signal);
+}
+
+/** Combine the caller's signal with a per-request timeout. AbortSignal.any
+ *  is baseline in every browser the cloud build targets; the fallback just
+ *  drops the timeout rather than the caller's signal. */
+function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal | undefined {
+  if (typeof AbortSignal.any !== "function" || typeof AbortSignal.timeout !== "function") return signal;
+  return signal ? AbortSignal.any([signal, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms);
 }
 
 // The list endpoint strips `raw` from every event to keep the payload

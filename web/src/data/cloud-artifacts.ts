@@ -44,6 +44,9 @@ function toArtifact(r: CloudArtifactRow): Artifact {
     projectId: r.project_id,
     pinnedAt: r.pinned_at,
     originDeviceLabel: r.device_label,
+    // Routes relayed opens to the owning device when it's online
+    // (artifacts-api.ts does the live join).
+    originDeviceId: r.device_id,
   };
 }
 

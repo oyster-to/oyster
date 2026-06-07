@@ -7,6 +7,7 @@ import type { TranscriptHit } from "../data/sessions-api";
 import { searchMemories } from "../data/memories-api";
 import type { Memory } from "../data/memories-api";
 import { formatRelative } from "./Home/utils";
+import { caps } from "../caps";
 
 interface Props {
   artifacts: Artifact[];
@@ -239,8 +240,8 @@ export function SpotlightSearch({ artifacts, spaces, onOpen, onClose }: Props) {
 
   // Any non-empty query gets an "Ask Oyster" row as the final hit — ⌘K is
   // the keyboard path to the Ask panel. No row on the empty-query recent
-  // feed (nothing to ask).
-  const askHit: SpotlightHit[] = query.trim() ? [{ kind: "ask" }] : [];
+  // feed (nothing to ask), and none in cloud (no Ask panel to send to).
+  const askHit: SpotlightHit[] = caps.canChat && query.trim() ? [{ kind: "ask" }] : [];
 
   // Whichever list is on screen drives keyboard nav. The recent feed only
   // shows when searchHits is empty AND query/filter are empty, so the two
@@ -286,7 +287,11 @@ export function SpotlightSearch({ artifacts, spaces, onOpen, onClose }: Props) {
       window.dispatchEvent(new CustomEvent("oyster:open-session", {
         detail: {
           id: hit.hit.session_id,
-          eventId: hit.hit.event_id,
+          // Local FTS event_ids are sqlite rowids; the cloud transcript
+          // reader paginates by byte-offset cursor ids — a relayed hit's
+          // rowid means nothing there, so cloud opens the session without
+          // the deep-link (the query still pre-fills the find bar).
+          eventId: caps.cloud ? undefined : hit.hit.event_id,
           query: query.trim(),
         },
       }));
@@ -489,6 +494,11 @@ export function SpotlightSearch({ artifacts, spaces, onOpen, onClose }: Props) {
                     </div>
                   </div>
                   <div className="spotlight-result-session-meta">
+                    {h.originDeviceLabel && (
+                      <span className="spotlight-result-device" title={`Found on ${h.originDeviceLabel}`}>
+                        <span aria-hidden="true">⌂</span> {h.originDeviceLabel}
+                      </span>
+                    )}
                     {h.last_event_at && (
                       <span className="spotlight-result-session-date">{formatHitDate(h.last_event_at)}</span>
                     )}
