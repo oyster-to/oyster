@@ -2461,14 +2461,13 @@ body.gb-knob-values .knob-val { display: block; }
   --hit1:        #ff5a48;
   --hit2:        #c22414;
 }
-/* The Joy-Con sandwich: neon blue on top, the black tablet in the middle,
-   neon red at the bottom. Fixed to the viewport so the bands hold on scroll. */
-[data-theme="switch"] body {
+/* The Joy-Con sandwich, on the device chrome itself: solid neon-blue top,
+   black tablet middle, solid neon-red bottom — crisp plastic seams, no fade. */
+[data-theme="switch"] .cabinet {
   background: linear-gradient(180deg,
-    #0ab9e6 0%, #0ab9e6 10%,
-    #0b0b0d 24%, #0b0b0d 76%,
-    #ff3c28 90%, #ff3c28 100%);
-  background-attachment: fixed;
+    #0ab9e6 0%, #0ab9e6 16%,
+    #131316 16%, #131316 84%,
+    #ff3c28 84%, #ff3c28 100%);
 }
 [data-theme="switch"] .vc.hit { box-shadow: 0 0 6px rgba(255,60,40,0.35), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
 [data-theme="switch"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(10,185,230,0.35); background: rgba(10,185,230,0.08); }
