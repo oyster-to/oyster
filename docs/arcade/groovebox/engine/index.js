@@ -209,9 +209,9 @@ export function createEngine() {
     // Dispose voice node(s)
     const v = voices[id];
     if (v) {
-      for (const node of Object.values(v)) {
-        try { node.dispose?.(); } catch (_) {}
-      }
+      // New-style voices own their teardown; legacy flat shapes get the loop.
+      if (typeof v.dispose === 'function') { try { v.dispose(); } catch (_) {} }
+      else for (const node of Object.values(v)) { try { node.dispose?.(); } catch (_) {} }
       delete voices[id];
     }
     // Dispose FX chain (null lazy nodes are skipped safely)
