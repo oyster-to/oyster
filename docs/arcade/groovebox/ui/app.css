@@ -677,24 +677,62 @@ input[type=range] {
   cursor: pointer;
 }
 .ttile-plate {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   position: relative;
   width: 100%;
-  height: 84px;
+  height: 96px;
+  padding: 9px;
   border-radius: 8px;
   background: var(--bg);
   border: 1px solid rgba(0,0,0,0.45);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
 }
-.ttile-plate i { position: absolute; display: block; }
+/* the miniature screen: strip line + three rows of REAL .vc cells */
 .ttile-plate .tp-scr {
-  top: 10px; left: 10px; right: 10px; height: 42px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
   border-radius: 4px;
   background: var(--screen-bg);
   border: 1px solid rgba(0,0,0,0.3);
+  padding: 4px 5px;
+  overflow: hidden;
 }
-.ttile-plate .tp-acc { left: 10px; bottom: 10px; width: 26px; height: 11px; border-radius: 3px; background: var(--acc); }
-.ttile-plate .tp-hot { left: 42px; bottom: 10px; width: 11px; height: 11px; border-radius: 50%; background: var(--hot); }
+.ttile-plate .tp-strip {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--screen-ink) 30%, transparent);
+  margin-bottom: 1px;
+}
+/* dollhouse-scale overrides for the app's own cell classes — theme rules
+   (banded 808 steps, lit phosphor hits) keep applying */
+.ttile-plate .vrow { display: flex; gap: 2px; margin: 0; align-items: stretch; flex: 1; }
+.ttile-plate .vc {
+  flex: 1 1 0;
+  width: auto;
+  height: auto;
+  min-height: 5px;
+  border-radius: 1.5px;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+}
+.ttile-plate .tp-ctl { display: flex; gap: 5px; align-items: center; flex: 0 0 auto; }
+.ttile-plate .tp-acc { display: block; width: 24px; height: 10px; border-radius: 3px; background: var(--acc); }
+.ttile-plate .tp-hot { display: block; width: 10px; height: 10px; border-radius: 50%; background: var(--hot); }
+.ttile-plate .knob-dial {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  cursor: pointer;
+  margin-left: 1px;
+}
+.ttile-plate .knob-dial:first-of-type { margin-left: auto; }
 .ttile-nm {
   display: block;
   width: 100%;
@@ -741,10 +779,10 @@ input[type=range] {
   }
   .theme-grid { grid-template-columns: 1fr; gap: 9px; }
   .ttile { flex-direction: row; align-items: center; gap: 12px; }
-  .ttile-plate { width: 130px; flex: 0 0 130px; height: 56px; }
-  .ttile-plate .tp-scr { top: 7px; left: 7px; right: 7px; height: 28px; }
-  .ttile-plate .tp-acc { left: 7px; bottom: 7px; width: 20px; height: 9px; }
-  .ttile-plate .tp-hot { left: 33px; bottom: 7px; width: 9px; height: 9px; }
+  .ttile-plate { width: 150px; flex: 0 0 150px; height: 72px; padding: 6px; gap: 4px; }
+  .ttile-plate .tp-acc { width: 18px; height: 8px; }
+  .ttile-plate .tp-hot { width: 8px; height: 8px; }
+  .ttile-plate .knob-dial { width: 10px; height: 10px; flex: 0 0 10px; }
   .ttile-nm { text-align: left; font-size: 13px; }
 }
 

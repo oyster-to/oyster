@@ -1429,15 +1429,49 @@ function renderThemePicker() {
       b.className = 'ttile' + (value === cur ? ' sel' : '');
       b.title = name;
       // The plate carries data-theme, so the theme's OWN css block paints the
-      // mini machine: cabinet, screen, accent play-bar, hot dot.
+      // miniature: cabinet, screen with strip line and REAL drum cells
+      // (.vrow/.vc/.hit — theme-specific rules like the 808's banded steps
+      // apply for free), then a play bar, hot dot and three knob caps.
+      const cells = (hits) => Array.from({ length: 9 }, (_, i) =>
+        `<i class="vc${hits.includes(i) ? ' hit' : ''}"></i>`).join('');
       b.innerHTML = `<span class="ttile-plate" data-theme="${esc(value)}">`
-        + `<i class="tp-scr"></i><i class="tp-acc"></i><i class="tp-hot"></i></span>`
+        + `<span class="tp-scr">`
+        + `<i class="tp-strip"></i>`
+        + `<span class="vrow">${cells([0, 4, 8])}</span>`
+        + `<span class="vrow">${cells([2, 6])}</span>`
+        + `<span class="vrow">${cells([0, 2, 4, 6, 8])}</span>`
+        + `</span>`
+        + `<span class="tp-ctl"><i class="tp-acc"></i><i class="tp-hot"></i>`
+        + `<i class="knob-dial"></i><i class="knob-dial"></i><i class="knob-dial"></i></span>`
+        + `</span>`
         + `<span class="ttile-nm">${esc(name)}</span>`;
       b.onclick = () => { applyTheme(value); renderThemePicker(); };   // stay open — theme browsing is the fun part
+      // Hover = live preview: the whole machine repaints (the app IS the
+      // high-def preview); leaving reverts to the committed theme.
+      if (window.matchMedia('(hover: hover)').matches) {
+        b.onmouseenter = () => {
+          if (value === 'oyster') delete document.documentElement.dataset.theme;
+          else document.documentElement.dataset.theme = value;
+          viz?.invalidateThemeColors?.();
+        };
+        b.onmouseleave = () => {
+          const committed = currentSavedTheme();
+          if (committed === 'oyster') delete document.documentElement.dataset.theme;
+          else document.documentElement.dataset.theme = committed;
+          viz?.invalidateThemeColors?.();
+        };
+      }
       grid.appendChild(b);
     }
     host.appendChild(grid);
   }
+}
+
+// The committed (saved) theme — hover previews never touch storage.
+function currentSavedTheme() {
+  let t = localStorage.getItem('gb-theme') || 'oyster';
+  if (t === 'dark') t = 'midnight';
+  return t;
 }
 
 function openThemePicker() {
