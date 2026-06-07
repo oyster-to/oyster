@@ -86,9 +86,7 @@
         <div class="transport">
           <button id="play">▶ play</button>
           <div class="transport-song">
-            <div class="song-wrap">
-              <select id="songsel"><option value="press-start">★ Press Start (AI)</option><option value="scallywag">★ Scallywag (AI)</option><option value="boo-waltz">★ Boo Waltz (AI)</option><option value="first-roll">★ First Roll (AI)</option><option value="kids">Kids</option><option value="rising-sun">House of the Rising Sun</option><option value="electric-feel">Electric Feel</option><option value="heartbeats">Heartbeats</option><option value="digital-love">Digital Love</option><option value="memory-reboot">Memory Reboot</option><option value="take-on-me">Take On Me</option></select>
-            </div>
+            <button id="songbtn" title="Select a song" aria-haspopup="true"><span class="songbtn-t">★ Press Start</span><span class="songbtn-caret">▾</span></button>
           </div>
           <button id="share-btn" title="Publish this song or a groove">PUBLISH</button>
         </div>
@@ -192,6 +190,7 @@
         <div id="lcd-song" hidden>
           <div id="lcd-song-rows"></div>
         </div>
+        <div id="lcd-picker" hidden></div>
       </div>
       <div id="master"></div>
       <div id="punch"></div>

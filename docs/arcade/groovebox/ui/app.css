@@ -624,6 +624,109 @@ input[type=range] {
   white-space: nowrap;
 }
 
+/* ─── Song slot button — opens the cartridge picker on the screen ─────────── */
+#songbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+#songbtn .songbtn-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#songbtn .songbtn-caret { color: var(--dim); font-size: 10px; }
+#songbtn:hover { border-color: var(--acc-dim); background: var(--panel-3); }
+#songbtn.open { border-color: var(--acc); color: var(--acc); box-shadow: 0 0 6px color-mix(in srgb, var(--acc) 40%, transparent); }
+#songbtn.open .songbtn-caret { transform: rotate(180deg); color: var(--acc); }
+
+/* ─── SELECT SONG — cartridge picker pane on the LCD ─────────────────────────
+   Console game-select idiom: every song is a cartridge card drawn in screen
+   pixels. Notch colour = AI original (accent) / cover (dim) / shared (hot). */
+#lcd-picker { padding: 2px 2px 8px; }
+.picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--screen-ink);
+  padding: 4px 6px 6px;
+}
+.picker-close {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 11px;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--screen-ink) 35%, transparent);
+  background: transparent;
+  color: var(--screen-dim);
+  box-shadow: none;
+}
+.picker-close:hover { color: var(--screen-ink); border-color: var(--screen-ink); background: transparent; }
+.picker-sect {
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--screen-dim);
+  padding: 8px 6px 2px;
+}
+.kart {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  margin: 4px 0;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--screen-ink) 30%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--screen-ink) 5%, transparent);
+  color: var(--screen-ink);
+  box-shadow: none;
+  cursor: pointer;
+  height: auto;
+}
+.kart:hover { border-color: var(--screen-ink); background: color-mix(in srgb, var(--screen-ink) 10%, transparent); }
+.kart-notch {
+  width: 14px;
+  height: 19px;
+  flex: 0 0 14px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--screen-ink) 55%, transparent);
+  box-shadow: inset 0 -6px 0 rgba(0,0,0,0.25);
+}
+.kart.ai .kart-notch { background: var(--acc); }
+.kart.shared .kart-notch { background: var(--hot); }
+.kart-meta { display: flex; flex-direction: column; min-width: 0; }
+.kart-t { font-weight: 700; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kart-a { font-size: 10px; color: var(--screen-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kart-plays {
+  margin-left: auto;
+  font-size: 10px;
+  font-family: ui-monospace, Menlo, monospace;
+  color: var(--hot);
+  border: 1px solid color-mix(in srgb, var(--hot) 55%, transparent);
+  border-radius: 9px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+/* The cart in the machine — inverted, like a real LCD menu selection. */
+.kart.sel {
+  background: var(--screen-ink);
+  border-color: var(--screen-ink);
+  color: var(--screen-bg);
+}
+.kart.sel .kart-a { color: color-mix(in srgb, var(--screen-bg) 75%, transparent); }
+.kart.sel .kart-notch { background: var(--screen-bg); }
+
 /* Screen row — first row of the Settings popover */
 .vs-screen {
   display: flex;
@@ -1503,22 +1606,6 @@ body.gb-knob-values .knob-val { display: block; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-/* ─── song-wrap: selector + inline credit stacked ───────────────────────── */
-.song-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-/* ─── transport-bpm-unit: muted ─────────────────────────────────────────── */
-.transport-bpm-unit {
-  font-size: 9px;
-  color: var(--faint);
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
 }
 
 /* ─── colour themes — each block overrides design tokens only ────────────── */
@@ -3754,8 +3841,7 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   .transport { gap: 8px; }
   #play { flex: 0 0 auto; height: 38px; font-size: 14px; padding: 0 18px; }
   .transport-song { flex: 1 1 auto; margin-left: 0; min-width: 0; }
-  .transport-song .song-wrap { flex: 1; min-width: 0; }
-  .transport-song select { width: 100%; }
+  #songbtn { width: 100%; justify-content: space-between; }
 
   /* ── LCD strip: narrow → title, walking chain, the sounding chord, bpm ── */
   #lcd-strip { gap: 6px; }

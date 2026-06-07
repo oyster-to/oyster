@@ -256,12 +256,14 @@ function renderViewTabs() {
   else if (_editingLaneId) updateEditHighlight(_editingLaneId);
 }
 
-// The screen has two panes: #lcd-body (viz: lane editors / scope) and
-// #lcd-song (song structure). Display toggle only — the viz is never disposed
-// here, so switching tabs is free.
+// The screen has two tab panes — #lcd-body (viz: lane editors / scope) and
+// #lcd-song (song structure) — plus the SELECT SONG picker, which overlays
+// whichever pane is current and closes back to it. Display toggles only —
+// the viz is never disposed here, so switching is free.
 let _songTabOpen = false;
 function setLcdPane(songOpen) {
   _songTabOpen = songOpen;
+  closePicker();   // any tab/pane change dismisses the picker overlay
   const body = document.getElementById('lcd-body');
   const songPane = document.getElementById('lcd-song');
   if (body) body.hidden = songOpen;
@@ -306,6 +308,132 @@ function activateEditLane(id) {
   setLcdPane(false);
   viz.editLane(id);
   updateEditHighlight(id);
+}
+
+// ─── SELECT SONG — the cartridge picker, on the screen ───────────────────────
+// Tapping the song slot takes over the LCD (console game-select idiom): every
+// song is a cartridge card — notch colour says AI original / cover / shared,
+// shared carts carry a play-count badge. Picking loads + closes; ✕/Escape and
+// any tab change close back to the previous pane.
+const PRESET_ORDER = ['press-start', 'scallywag', 'boo-waltz', 'first-roll', 'kids',
+  'rising-sun', 'electric-feel', 'heartbeats', 'digital-love', 'memory-reboot', 'take-on-me'];
+const AI_PRESETS = new Set(['press-start', 'scallywag', 'boo-waltz', 'first-roll']);
+let _pickerOpen = false;
+let _sharedItems = [];          // registry shelf rows — refreshed on each open
+let _currentSongKey = 'press-start';   // preset key, or 's:<id>' for a shared song
+
+function songButtonLabel(text) {
+  const btn = document.getElementById('songbtn');
+  if (btn) btn.innerHTML = `<span class="songbtn-t">${esc(text)}</span><span class="songbtn-caret">▾</span>`;
+}
+
+function presetLabel(key) {
+  const s = SONGS[key];
+  if (!s) return key;
+  return `${AI_PRESETS.has(key) ? '★ ' : ''}${s.title || key}${s.artist ? ` — ${s.artist}` : ''}`;
+}
+
+function cartEl({ cls, title, author, plays, onPick, selected }) {
+  const b = document.createElement('button');
+  b.className = 'kart' + (cls ? ` ${cls}` : '') + (selected ? ' sel' : '');
+  const badge = typeof plays === 'number' && plays > 0
+    ? `<span class="kart-plays">▶ ${plays}</span>` : '';
+  b.innerHTML = `<span class="kart-notch"></span><span class="kart-meta">`
+    + `<span class="kart-t">${esc(title)}</span>`
+    + (author ? `<span class="kart-a">${esc(author)}</span>` : '')
+    + `</span>${badge}`;
+  b.onclick = onPick;
+  return b;
+}
+
+function renderPicker() {
+  const host = document.getElementById('lcd-picker');
+  if (!host) return;
+  host.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'picker-head';
+  head.innerHTML = `<span>SELECT SONG</span>`;
+  const close = document.createElement('button');
+  close.className = 'picker-close';
+  close.textContent = '✕';
+  close.setAttribute('aria-label', 'Close song picker');
+  close.onclick = () => closePicker();
+  head.appendChild(close);
+  host.appendChild(head);
+
+  const sect = (label) => {
+    const s = document.createElement('div');
+    s.className = 'picker-sect';
+    s.textContent = label;
+    host.appendChild(s);
+  };
+
+  sect('PRESETS');
+  for (const key of PRESET_ORDER) {
+    const s = SONGS[key];
+    if (!s) continue;
+    host.appendChild(cartEl({
+      cls: AI_PRESETS.has(key) ? 'ai' : 'cover',
+      title: s.title || key,
+      author: s.artist || '',
+      selected: _currentSongKey === key,
+      onPick: () => { closePicker(); loadSong(key); },
+    }));
+  }
+  if (_sharedItems.length) {
+    sect('SHARED — FROM OTHER PLAYERS');
+    for (const it of _sharedItems) {
+      host.appendChild(cartEl({
+        cls: 'shared',
+        title: it.name,
+        author: it.author || '',
+        plays: it.plays,
+        selected: _currentSongKey === `s:${it.id}`,
+        onPick: async () => {
+          closePicker();
+          eng.stop();
+          stopMeterLoop();
+          const play = document.getElementById('play');
+          play.classList.remove('on');
+          play.textContent = '▶ play';
+          try { await loadSharedSong(eng, shareHooks, it.id); }
+          catch (err) { gbNotice(`couldn't load (${err.message})`); }
+        },
+      }));
+    }
+  }
+}
+
+function openPicker() {
+  const host = document.getElementById('lcd-picker');
+  if (!host) return;
+  renderPicker();
+  _pickerOpen = true;
+  host.hidden = false;
+  const body = document.getElementById('lcd-body');
+  const songPane = document.getElementById('lcd-song');
+  if (body) body.hidden = true;
+  if (songPane) songPane.hidden = true;
+  document.getElementById('songbtn')?.classList.add('open');
+  // Refresh the shelf in the background; re-render if anything changed.
+  listItems('song', 25).then(({ items }) => {
+    if (!Array.isArray(items)) return;
+    _sharedItems = items;
+    if (_pickerOpen) renderPicker();
+  }).catch(() => {});
+}
+
+function closePicker() {
+  if (!_pickerOpen) return;
+  _pickerOpen = false;
+  const host = document.getElementById('lcd-picker');
+  if (host) host.hidden = true;
+  // Restore whichever tab pane was current.
+  const body = document.getElementById('lcd-body');
+  const songPane = document.getElementById('lcd-song');
+  if (body) body.hidden = _songTabOpen;
+  if (songPane) songPane.hidden = !_songTabOpen;
+  document.getElementById('songbtn')?.classList.remove('open');
 }
 
 function renderStrips() {
@@ -1203,6 +1331,8 @@ function loadSong(key) {
   play.textContent = '▶ play';
   eng.load(SONGS[key]);
   clearLoadedFrom();   // the registry item this session had loaded is gone
+  _currentSongKey = key;
+  songButtonLabel(presetLabel(key));
   afterSongLoad();
 }
 
@@ -1235,21 +1365,8 @@ document.getElementById('play').onclick = async function() {
 };
 // (Tempo + transpose controls live on MASTER — built in renderMaster().)
 
-document.getElementById('songsel').onchange = async e => {
-  const v = e.target.value;
-  if (v.startsWith('s:')) {
-    // Shelf entry — a published song from the registry. Stop first, like loadSong.
-    eng.stop();
-    stopMeterLoop();
-    const play = document.getElementById('play');
-    play.classList.remove('on');
-    play.textContent = '▶ play';
-    try { await loadSharedSong(eng, shareHooks, v.slice(2)); }
-    catch (err) { gbNotice(`couldn't load (${err.message})`); }
-    return;
-  }
-  loadSong(v);
-};
+// The song slot opens the cartridge picker on the screen.
+document.getElementById('songbtn').onclick = () => { _pickerOpen ? closePicker() : openPicker(); };
 document.getElementById('themesel').onchange = e => {
   const t = e.target.value;
   if (t === 'oyster') delete document.documentElement.dataset.theme;
@@ -1324,7 +1441,7 @@ document.getElementById('help-modal-backdrop').onclick = () => {
   document.getElementById('help-modal').hidden = true;
 };
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') document.getElementById('help-modal').hidden = true;
+  if (e.key === 'Escape') { document.getElementById('help-modal').hidden = true; closePicker(); }
 });
 
 // ─── View-settings popover ────────────────────────────────────────────────────
@@ -1688,22 +1805,10 @@ function initSectionWrappers() {
 }
 
 // ─── Initial load ─────────────────────────────────────────────────────────────
-// Song dropdown = the record shelf: every option shows "title — artist",
-// straight from the song data. ("(AI)" goes — the artist credit says it.)
-{
-  const sel = document.getElementById('songsel');
-  for (const opt of sel.options) {
-    const s = SONGS[opt.value];
-    if (s?.artist) opt.textContent = `${opt.textContent.replace(' (AI)', '')} — ${s.artist}`;
-  }
-}
-
 const BOOT_SONG = 'press-start';
 eng.load(SONGS[BOOT_SONG]);
-// Pin the dropdown to the boot song so the selector, the loaded song, and the
-// credit line (set in mount from the loaded song) always agree — don't rely on
-// the option's `selected` attribute matching the boot song by coincidence.
-document.getElementById('songsel').value = BOOT_SONG;
+_currentSongKey = BOOT_SONG;
+songButtonLabel(presetLabel(BOOT_SONG));
 const initialSong = eng.getSong();
 currentBpm = initialSong.bpm;
 eng.setTempo(initialSong.bpm);
@@ -1728,25 +1833,11 @@ const shareHooks = {
   notice: gbNotice,
   onSongLoaded: (rec) => {
     afterSongLoad();
-    const sel = document.getElementById('songsel');
-    // Loaded from the shelf? The dropdown already sits on the right entry.
-    if (rec && sel.value === `s:${rec.id}`) return;
-    // Otherwise (boot-time /s/<id> link) — park it on a hidden option.
-    let opt = document.getElementById('songsel-shared');
-    if (!opt) {
-      opt = document.createElement('option');
-      opt.id = 'songsel-shared';
-      opt.hidden = true;
-      sel.appendChild(opt);
+    // The slot is the title surface — shared songs read "♫ name — author".
+    if (rec) {
+      _currentSongKey = `s:${rec.id}`;
+      songButtonLabel(`♫ ${rec.name}${rec.author ? ` — ${rec.author}` : ''}`);
     }
-    // The dropdown is the title surface — name, author and play count all
-    // live in the option text. No second line.
-    const n = typeof rec?.plays === 'number' ? rec.plays + 1 : null;
-    opt.textContent = rec?.name
-      ? ['♫ ' + rec.name, rec.author ? `by ${rec.author}` : '', n ? `${n} play${n === 1 ? '' : 's'}` : '']
-          .filter(Boolean).join(' · ')
-      : '(shared)';
-    opt.selected = true;
   },
   onGroovesChanged: () => { renderStrips(); refreshVizPattern(); },
   // v1: import into the first matching lane (multi-lane-same-type songs are
@@ -1756,26 +1847,11 @@ const shareHooks = {
 initShare(eng, shareHooks);
 maybeLoadShared(eng, shareHooks);
 
-// ─── Discovery shelf — recent published songs in the song dropdown ───────────
+// ─── Discovery shelf — prefetch the registry list for the picker ─────────────
 // Fire-and-forget: no registry (vite dev / offline) → no shelf, app unaffected.
-(async () => {
-  try {
-    const { items } = await listItems('song', 25);
-    if (!Array.isArray(items) || !items.length) return;
-    const sel = document.getElementById('songsel');
-    const grp = document.createElement('optgroup');
-    grp.label = 'Shared';
-    for (const it of items) {
-      const o = document.createElement('option');
-      o.value = `s:${it.id}`;
-      const plays = typeof it.plays === 'number' && it.plays > 0
-        ? ` · ${it.plays} play${it.plays === 1 ? '' : 's'}` : '';
-      o.textContent = `♫ ${it.name}${it.author ? ` — ${it.author}` : ''}${plays}`;
-      grp.appendChild(o);
-    }
-    sel.appendChild(grp);
-  } catch { /* shelf is best-effort */ }
-})();
+listItems('song', 25)
+  .then(({ items }) => { if (Array.isArray(items)) _sharedItems = items; })
+  .catch(() => { /* shelf is best-effort */ });
 // Press-and-hold on a control must not open the browser context menu (Android
 // Chrome long-press → "more actions / translate"). Scoped to controls so
 // right-click elsewhere stays normal on desktop.
