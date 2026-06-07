@@ -2474,6 +2474,292 @@ body.gb-knob-values .knob-val { display: block; }
 [data-theme="switch"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(10,185,230,0.35); background: rgba(10,185,230,0.08); }
 [data-theme="switch"] .vc.hit.now { box-shadow: 0 0 10px rgba(10,185,230,0.55), inset 0 1px 0 rgba(255,255,255,0.25); }
 
+[data-theme="atari2600"] {
+  /* BODY — black console, woodgrain faceplate (cabinet band below),
+     Atari orange-red */
+  --bg:          #14110d;
+  --panel:       #201c16;
+  --panel-2:     #28231c;
+  --panel-3:     #342e24;
+  --line:        rgba(255,220,170,.10);
+  --line-dk:     rgba(0,0,0,.55);
+  --ink:         #ece2d2;
+  --dim:         #a89a82;
+  --faint:       #6e6452;
+  --acc:         #e06a18;   /* logo orange */
+  --acc-dim:     #9c4a0e;
+  --hot:         #d8362a;
+  --warn:        #d8a82a;
+  --ink-on-acc:  #241000;
+  --meter-lo:    #e06a18;
+  --meter-mid:   #d8a82a;
+  --meter-hi:    #d8362a;
+  --chrome-hi:   #3a322a;
+  --chrome-mid:  #28221a;
+  --chrome-lo:   #181410;
+  --bevel-hi:    rgba(255,235,200,0.08);
+  --bevel-lo:    rgba(0,0,0,0.55);
+  /* SCREEN — chunky 2600 brights on black */
+  --screen-bg:   #0b0907;
+  --screen-glow: rgba(224,106,24,0.08);
+  --roll-bg:     #100d0a;
+  --roll-bg-blk: #0b0907;
+  --roll-note:   #e8a020;
+  --grid-line:   #2c261e;
+  --scope:       #f0b048;
+  --playhead:    #ffffff;
+  --cell:        #131009;
+  --cell-alt:    #18140d;
+  --hit1:        #e87828;
+  --hit2:        #a8420c;
+}
+/* The woodgrain faceplate: vertical-grain band across the bottom of the
+   cabinet chrome (same chrome trick as the Switch Joy-Cons). */
+[data-theme="atari2600"] .cabinet {
+  background:
+    linear-gradient(180deg,
+      #1c1814 0%, #1c1814 82%, transparent 82%),
+    repeating-linear-gradient(90deg,
+      #6b4a2a 0px, #7a5632 4px, #5e3f22 7px, #71502e 11px, #654526 14px);
+}
+[data-theme="atari2600"] .vc.hit { box-shadow: 0 0 6px rgba(224,106,24,0.35), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+[data-theme="atari2600"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(224,106,24,0.3); background: rgba(224,106,24,0.07); }
+[data-theme="atari2600"] .vc.hit.now { box-shadow: 0 0 10px rgba(240,176,72,0.5), inset 0 1px 0 rgba(255,255,255,0.25); }
+
+[data-theme="famicom"] {
+  /* BODY — Famicom cream + crimson, gold badge accents */
+  --bg:          #9c9488;
+  --panel:       #e8e0d0;
+  --panel-2:     #ded6c6;
+  --panel-3:     #d0c8b8;
+  --line:        rgba(70,55,40,.18);
+  --line-dk:     rgba(70,55,40,.32);
+  --ink:         #3a322a;
+  --dim:         #6e6458;
+  --faint:       #968c7e;
+  --acc:         #b5342c;   /* crimson */
+  --acc-dim:     #d07a72;
+  --hot:         #b5342c;
+  --warn:        #a8842a;
+  --ink-on-acc:  #ffffff;
+  --meter-lo:    #6f8f5a;
+  --meter-mid:   #a8842a;
+  --meter-hi:    #b5342c;
+  --chrome-hi:   #c4bcac;
+  --chrome-mid:  #b4ac9c;
+  --chrome-lo:   #a49c8c;
+  --bevel-hi:    rgba(255,255,255,0.5);
+  --bevel-lo:    rgba(0,0,0,0.14);
+  /* SCREEN — warm dark CRT, maroon-lit hits, gold playhead */
+  --screen-bg:   #0c0a08;
+  --screen-glow: rgba(181,52,44,0.06);
+  --roll-bg:     #121009;
+  --roll-bg-blk: #0d0b07;
+  --roll-note:   #ece2d2;
+  --grid-line:   #2c2820;
+  --scope:       #ece2d2;
+  --playhead:    #d8a83a;   /* gold badge */
+  --cell:        #14110c;
+  --cell-alt:    #191610;
+  --hit1:        #c04038;
+  --hit2:        #8a221c;
+}
+/* Crimson wordmark, like the Family Computer logo */
+[data-theme="famicom"] h1 {
+  color: #b5342c;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+}
+[data-theme="famicom"] .vc.hit { box-shadow: 0 0 6px rgba(192,64,56,0.35), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+[data-theme="famicom"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(216,168,58,0.3); background: rgba(216,168,58,0.07); }
+[data-theme="famicom"] .vc.hit.now { box-shadow: 0 0 10px rgba(216,168,58,0.5), inset 0 1px 0 rgba(255,255,255,0.25); }
+
+[data-theme="dreamcast"] {
+  /* BODY — white console, PAL-blue swirl; A-red, X-yellow, Y-green on meters */
+  --bg:          #b4b4b8;
+  --panel:       #e8e8ea;
+  --panel-2:     #dededf;
+  --panel-3:     #d0d0d2;
+  --line:        rgba(40,40,50,.16);
+  --line-dk:     rgba(40,40,50,.3);
+  --ink:         #2a2a2e;
+  --dim:         #5c5c62;
+  --faint:       #8e8e94;
+  --acc:         #2858c8;   /* the swirl (PAL) */
+  --acc-dim:     #88a4e0;
+  --hot:         #d8402a;   /* A button */
+  --warn:        #c8a82a;   /* X button */
+  --ink-on-acc:  #ffffff;
+  --meter-lo:    #3aa54a;   /* Y green */
+  --meter-mid:   #c8a82a;
+  --meter-hi:    #d8402a;
+  --chrome-hi:   #d4d4d6;
+  --chrome-mid:  #c4c4c6;
+  --chrome-lo:   #b4b4b6;
+  --bevel-hi:    rgba(255,255,255,0.6);
+  --bevel-lo:    rgba(0,0,0,0.1);
+  /* SCREEN — dark CRT, swirl-blue hits, US-orange playhead easter egg */
+  --screen-bg:   #0b0b0e;
+  --screen-glow: rgba(40,88,200,0.07);
+  --roll-bg:     #101014;
+  --roll-bg-blk: #0b0b0f;
+  --roll-note:   #6a8ef0;
+  --grid-line:   #28282e;
+  --scope:       #88a8f8;
+  --playhead:    #e87830;   /* the US swirl is orange */
+  --cell:        #121216;
+  --cell-alt:    #17171b;
+  --hit1:        #4a72d8;
+  --hit2:        #2a4a9c;
+}
+[data-theme="dreamcast"] h1 { text-shadow: none; }
+[data-theme="dreamcast"] .vc.hit { box-shadow: 0 0 6px rgba(74,114,216,0.35), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+[data-theme="dreamcast"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(232,120,48,0.3); background: rgba(232,120,48,0.07); }
+[data-theme="dreamcast"] .vc.hit.now { box-shadow: 0 0 10px rgba(232,120,48,0.5), inset 0 1px 0 rgba(255,255,255,0.25); }
+
+[data-theme="xbox"] {
+  /* BODY — OG Xbox: black with a green cast, jewel lime-green everywhere */
+  --bg:          #0c0e0c;
+  --panel:       #161a16;
+  --panel-2:     #1e241e;
+  --panel-3:     #2a322a;
+  --line:        rgba(160,255,120,.09);
+  --line-dk:     rgba(0,0,0,.6);
+  --ink:         #e8f0e8;
+  --dim:         #94a08e;
+  --faint:       #5e6858;
+  --acc:         #7fba00;   /* jewel green */
+  --acc-dim:     #4f7a00;
+  --hot:         #d04a28;
+  --warn:        #c8b83a;
+  --ink-on-acc:  #0c1800;
+  --meter-lo:    #7fba00;
+  --meter-mid:   #c8b83a;
+  --meter-hi:    #d04a28;
+  --chrome-hi:   #2e362c;
+  --chrome-mid:  #20261e;
+  --chrome-lo:   #121612;
+  --bevel-hi:    rgba(180,255,140,0.07);
+  --bevel-lo:    rgba(0,0,0,0.6);
+  /* SCREEN — the OG dashboard: black with green glow */
+  --screen-bg:   #070a06;
+  --screen-glow: rgba(127,186,0,0.1);
+  --roll-bg:     #0c100a;
+  --roll-bg-blk: #080c07;
+  --roll-note:   #8fd820;
+  --grid-line:   #243020;
+  --scope:       #a8e848;
+  --playhead:    #ffffff;
+  --cell:        #0e120c;
+  --cell-alt:    #131811;
+  --hit1:        #7fba00;
+  --hit2:        #466e04;
+}
+/* Jewel-green wordmark */
+[data-theme="xbox"] h1 { color: #7fba00; }
+[data-theme="xbox"] .vc.hit { box-shadow: 0 0 6px rgba(127,186,0,0.4), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+[data-theme="xbox"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(127,186,0,0.35); background: rgba(127,186,0,0.08); }
+[data-theme="xbox"] .vc.hit.now { box-shadow: 0 0 10px rgba(168,232,72,0.55), inset 0 1px 0 rgba(255,255,255,0.25); }
+
+[data-theme="spectrum"] {
+  /* BODY — ZX Spectrum: black case, grey rubber keys, Sinclair rainbow */
+  --bg:          #111113;
+  --panel:       #1c1c1f;
+  --panel-2:     #242428;
+  --panel-3:     #2f2f34;
+  --line:        rgba(255,255,255,.09);
+  --line-dk:     rgba(0,0,0,.6);
+  --ink:         #ececec;
+  --dim:         #9a9aa0;
+  --faint:       #626268;
+  --acc:         #18c8c8;   /* bright cyan */
+  --acc-dim:     #0e8484;
+  --hot:         #d836d8;   /* bright magenta */
+  --warn:        #c8c83a;   /* bright yellow */
+  --ink-on-acc:  #042424;
+  --meter-lo:    #3ad83a;   /* bright green / yellow / red */
+  --meter-mid:   #c8c83a;
+  --meter-hi:    #d8362a;
+  --chrome-hi:   #2e2e33;
+  --chrome-mid:  #202024;
+  --chrome-lo:   #131316;
+  --bevel-hi:    rgba(255,255,255,0.07);
+  --bevel-lo:    rgba(0,0,0,0.6);
+  /* SCREEN — loading-screen black, cyan content */
+  --screen-bg:   #0a0a0c;
+  --screen-glow: rgba(24,200,200,0.08);
+  --roll-bg:     #101013;
+  --roll-bg-blk: #0b0b0e;
+  --roll-note:   #2ad8d8;
+  --grid-line:   #28282e;
+  --scope:       #5ae8e8;
+  --playhead:    #ffffff;
+  --cell:        #121215;
+  --cell-alt:    #17171a;
+  --hit1:        #22c8c8;
+  --hit2:        #108484;
+}
+/* The Sinclair rainbow: red/yellow/green/cyan slash after the wordmark */
+[data-theme="spectrum"] h1::after {
+  content: '';
+  display: inline-block;
+  width: 56px;
+  height: 0.9em;
+  margin-left: 12px;
+  vertical-align: -0.1em;
+  transform: skewX(-24deg);
+  background: linear-gradient(90deg,
+    #d8362a 0%, #d8362a 25%,
+    #d8c82a 25%, #d8c82a 50%,
+    #3ab83a 50%, #3ab83a 75%,
+    #2ab8c8 75%, #2ab8c8 100%);
+}
+[data-theme="spectrum"] .vc.hit { box-shadow: 0 0 6px rgba(24,200,200,0.4), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+
+[data-theme="littleprof"] {
+  /* BODY — Little Professor: vermilion plastic, yellow keys, red LED face */
+  --bg:          #b53614;
+  --panel:       #e04e20;
+  --panel-2:     #d44619;
+  --panel-3:     #ee5c2c;
+  --line:        rgba(0,0,0,.25);
+  --line-dk:     rgba(0,0,0,.4);
+  --ink:         #fff4e0;
+  --dim:         #ffd0ae;
+  --faint:       #f0a478;
+  --acc:         #f8c818;   /* key yellow */
+  --acc-dim:     #b88e08;
+  --hot:         #8a1208;   /* deep burnt red */
+  --warn:        #f8c818;
+  --ink-on-acc:  #3a2800;
+  --tab-on-ink:  #ffe9a8;
+  --tab-bg:      #3a1404;
+  --meter-lo:    #f8c818;
+  --meter-mid:   #ffe858;
+  --meter-hi:    #8a1208;
+  --chrome-hi:   #ee5c2c;
+  --chrome-mid:  #d44619;
+  --chrome-lo:   #b53614;
+  --bevel-hi:    rgba(255,255,255,0.25);
+  --bevel-lo:    rgba(0,0,0,0.3);
+  /* SCREEN — the red LED display */
+  --screen-bg:   #1c0604;
+  --screen-glow: rgba(255,60,30,0.12);
+  --roll-bg:     #220906;
+  --roll-bg-blk: #1a0604;
+  --roll-note:   #ff4030;
+  --grid-line:   #3a1410;
+  --scope:       #ff6048;
+  --playhead:    #ffd8b8;
+  --cell:        #240a06;
+  --cell-alt:    #2c0e08;
+  --hit1:        #ff5038;
+  --hit2:        #c02818;
+}
+[data-theme="littleprof"] h1 { text-shadow: none; color: #ffe9a8; }
+[data-theme="littleprof"] .vc.hit { box-shadow: 0 0 6px rgba(255,80,56,0.45), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+[data-theme="littleprof"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(255,216,184,0.3); background: rgba(255,216,184,0.08); }
+[data-theme="littleprof"] .vc.hit.now { box-shadow: 0 0 10px rgba(255,96,72,0.6), inset 0 1px 0 rgba(255,255,255,0.25); }
+
 /* ─── § 5 — lane actions: dup + remove buttons ────────────────────────────── */
 .lane-actions {
   display: flex;
