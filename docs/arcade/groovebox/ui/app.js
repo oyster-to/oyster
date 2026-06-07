@@ -1664,6 +1664,16 @@ function initSectionWrappers() {
 }
 
 // ─── Initial load ─────────────────────────────────────────────────────────────
+// Song dropdown = the record shelf: every option shows "title — artist",
+// straight from the song data. ("(AI)" goes — the artist credit says it.)
+{
+  const sel = document.getElementById('songsel');
+  for (const opt of sel.options) {
+    const s = SONGS[opt.value];
+    if (s?.artist) opt.textContent = `${opt.textContent.replace(' (AI)', '')} — ${s.artist}`;
+  }
+}
+
 const BOOT_SONG = 'press-start';
 eng.load(SONGS[BOOT_SONG]);
 // Pin the dropdown to the boot song so the selector, the loaded song, and the
