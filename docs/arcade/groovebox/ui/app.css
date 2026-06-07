@@ -2115,7 +2115,7 @@ body.gb-knob-values .knob-val { display: block; }
 
 [data-theme="ps1"] {
   /* BODY — PS1 warm console grey; the four shape colours:
-     △ green accent, ○ red, ✕ blue playhead, □ pink (meters) */
+     △ green accent/notes, ○ red hot, ✕ blue hits, □ pink (meters) */
   --bg:          #9b9b95;
   --panel:       #c7c6c0;
   --panel-2:     #bbbab4;
@@ -2138,7 +2138,8 @@ body.gb-knob-values .knob-val { display: block; }
   --chrome-lo:   #94938d;
   --bevel-hi:    rgba(255,255,255,0.5);
   --bevel-lo:    rgba(0,0,0,0.12);
-  /* SCREEN — dark CRT, green hits, ✕-blue playhead */
+  /* SCREEN — dark CRT: △-green melody notes, ✕-blue drum hits,
+     boot-screen-white playhead */
   --screen-bg:   #0c0c10;
   --screen-glow: rgba(125,164,221,0.08);
   --roll-bg:     #121218;
