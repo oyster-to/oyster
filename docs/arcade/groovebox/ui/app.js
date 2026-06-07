@@ -1204,7 +1204,7 @@ document.getElementById('play').onclick = async function() {
 document.getElementById('songsel').onchange = e => loadSong(e.target.value);
 document.getElementById('themesel').onchange = e => {
   const t = e.target.value;
-  if (t === 'dark') delete document.documentElement.dataset.theme;
+  if (t === 'oyster') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = t;
   localStorage.setItem('gb-theme', t);
   // Invalidate canvas colour cache + repaint active view with new colours.
@@ -1229,8 +1229,9 @@ eng.onStep(({ absStep, bar, stepInBar, fill, queue, target }) => {
 
 // ─── Restore saved theme ──────────────────────────────────────────────────────
 (function () {
-  const saved = localStorage.getItem('gb-theme');
-  if (saved && saved !== 'dark') {
+  let saved = localStorage.getItem('gb-theme');
+  if (saved === 'dark') saved = 'midnight';   // Dark was renamed; Oyster is the default now
+  if (saved && saved !== 'oyster') {
     document.documentElement.dataset.theme = saved;
     const sel = document.getElementById('themesel');
     if (sel) sel.value = saved;

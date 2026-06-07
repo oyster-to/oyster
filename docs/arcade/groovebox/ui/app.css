@@ -1,12 +1,67 @@
 /* ─── design tokens ─────────────────────────────────────────────────────── */
+/* Default theme: OYSTER — the oyster.to "Pearl in Orbit" palette
+   (docs/assets/oyster.css): space-navy cabinet, violet accent, plasma-pink
+   playing glow; the screen is signal-cyan backlit glass. */
 :root {
   /* § 1 — color system */
+  --bg:        #04060d;
+  --panel:     #0a0e1f;
+  --panel-2:   #10152e;
+  --panel-3:   #181f42;
+  --line:      rgba(243,244,255,0.08);
+  --line-dk:   rgba(0,0,0,0.45);
+  --ink:       #f3f4ff;
+  --dim:       #9197bd;
+  --faint:     #5c628a;
+  --acc:       #8b76ff;
+  --acc-dim:   #574a9e;
+  --hot:       #ff8de0;
+  --warn:      #ffd97a;
+  --ink-on-acc: #0c071f;  /* text colour on --acc background; override per theme */
+  --tab-on-ink: var(--acc); /* active-tab text colour; override when --panel-3 is dark */
+  --tab-bg:     var(--panel-3); /* active-tab pill fill; decoupled from hover surface */
+  --meter-lo:  #4ade80;
+  --meter-mid: #ffd97a;
+  --meter-hi:  #f87171;
+
+  /* component tokens — themed per [data-theme].
+     The cabinet wears the brand (violet); the screen wears the SIGNAL (cyan) —
+     a different material, visibly backlit against the near-black cabinet. */
+  --cell:         #0a2538;   /* empty drum cell */
+  --cell-alt:     #0d2e45;   /* bar-alt cell */
+  --hit1:         #67d9ff;   /* groove hit gradient top — lit signal pixel */
+  --hit2:         #1d7fae;   /* groove hit gradient bottom */
+  --roll-bg:      #07202f;   /* piano-roll / bass lane (white key) */
+  --roll-bg-blk:  #051824;   /* piano-roll / bass lane (black key) */
+  /* out-of-scale rows: a dimmer wash of the roll bg. Derived from --roll-bg so
+     it tracks every theme override (themes set --roll-bg on the same element). */
+  --roll-bg-out:  color-mix(in srgb, var(--roll-bg) 78%, var(--bg));
+  --roll-ctone:   color-mix(in srgb, var(--roll-bg) 80%, var(--acc)); /* chord-tone wash */
+  --roll-note:    #7be7ff;   /* note blocks + bass notes — signal cyan on the screen */
+  --grid-line:    #16455e;   /* roll / scope gridlines */
+  --scope:        #7be7ff;   /* scope trace */
+  --playhead:     #ffffff;   /* roll / scope playhead */
+
+  /* screen / glow — deep signal-cyan glass */
+  --screen-bg:   #041420;
+  --screen-glow: rgba(123,231,255,0.13);
+
+  /* cabinet chrome — kept for screws */
+  --chrome-hi:  #3a3e57;
+  --chrome-mid: #222538;
+  --chrome-lo:  #12141f;
+  --bevel-hi:   rgba(255,255,255,0.06);
+  --bevel-lo:   rgba(0,0,0,0.45);
+}
+
+/* ─── MIDNIGHT — the former Dark theme: graphite cabinet, teal accent,
+   teal-phosphor screen ───────────────────────────────────────────────────── */
+[data-theme="midnight"] {
   --bg:        #0a0b0f;
   --panel:     #13151c;
   --panel-2:   #1a1d26;
   --panel-3:   #232732;
   --line:      rgba(255,255,255,0.07);
-  --line-dk:   rgba(0,0,0,0.45);
   --ink:       #e6e8ee;
   --dim:       #8a90a0;
   --faint:     #5a6072;
@@ -14,41 +69,25 @@
   --acc-dim:   #2e8a74;
   --hot:       #ff5b9e;
   --warn:      #ffd24a;
-  --ink-on-acc: #04201a;  /* text colour on --acc background; override per theme */
-  --tab-on-ink: var(--acc); /* active-tab text colour; override when --panel-3 is dark */
-  --tab-bg:     var(--panel-3); /* active-tab pill fill; decoupled from hover surface */
+  --ink-on-acc: #04201a;
   --meter-lo:  #54f0c8;
   --meter-mid: #ffd24a;
   --meter-hi:  #ff5b6b;
-
-  /* component tokens — themed per [data-theme].
-     Dark's screen is a backlit teal-phosphor display (the cabinet is near-black,
-     so the screen must be a different MATERIAL, not just a darker shade). */
-  --cell:         #0a231d;   /* empty drum cell */
-  --cell-alt:     #0d2b23;   /* bar-alt cell */
-  --hit1:         #2fd6ab;   /* groove hit gradient top — lit phosphor */
-  --hit2:         #117a5f;   /* groove hit gradient bottom */
-  --roll-bg:      #081d17;   /* piano-roll / bass lane (white key) */
-  --roll-bg-blk:  #061710;   /* piano-roll / bass lane (black key) */
-  /* out-of-scale rows: a dimmer wash of the roll bg. Derived from --roll-bg so
-     it tracks every theme override (themes set --roll-bg on the same element). */
-  --roll-bg-out:  color-mix(in srgb, var(--roll-bg) 78%, var(--bg));
-  --roll-ctone:   color-mix(in srgb, var(--roll-bg) 80%, var(--acc)); /* chord-tone wash */
-  --roll-note:    var(--acc); /* note blocks + bass notes */
-  --grid-line:    #1b4438;   /* roll / scope gridlines */
-  --scope:        #7dffe0;   /* scope trace */
-  --playhead:     #ffffff;   /* roll / scope playhead */
-
-  /* screen / glow — deep teal glass, visibly backlit against the black cabinet */
+  --cell:         #0a231d;
+  --cell-alt:     #0d2b23;
+  --hit1:         #2fd6ab;   /* lit teal phosphor */
+  --hit2:         #117a5f;
+  --roll-bg:      #081d17;
+  --roll-bg-blk:  #061710;
+  --roll-note:    var(--acc);
+  --grid-line:    #1b4438;
+  --scope:        #7dffe0;
+  --playhead:     #ffffff;
   --screen-bg:   #051813;
   --screen-glow: rgba(84,240,200,0.14);
-
-  /* cabinet chrome — kept for screws */
   --chrome-hi:  #3a3e4e;
   --chrome-mid: #22252f;
   --chrome-lo:  #12141a;
-  --bevel-hi:   rgba(255,255,255,0.06);
-  --bevel-lo:   rgba(0,0,0,0.45);
 }
 
 /* ─── reset ─────────────────────────────────────────────────────────────── */
@@ -207,7 +246,7 @@ h1 {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--dim);
-  text-shadow: 0 0 12px rgba(84,240,200,0.3);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--acc) 30%, transparent);
 }
 
 /* ─── § 3 — unified control base ───────────────────────────────────────── */
@@ -576,7 +615,7 @@ input[type=range] {
   color: var(--dim);
   font-weight: 600;
   letter-spacing: 0.04em;
-  text-shadow: 0 0 6px rgba(84,240,200,0.4);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--acc) 40%, transparent);
 }
 
 /* ─── grid rows ──────────────────────────────────────────────────────────── */
@@ -622,7 +661,7 @@ input[type=range] {
 .dvs.soloed {
   color: #04201a; border-color: #2eaa8a;
   background: linear-gradient(180deg, #63f8d4, #3dd6b0);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 6px rgba(84,240,200,.5);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 6px color-mix(in srgb, var(--acc) 50%, transparent);
 }
 .vrow .vr .dvm, .vrow .vr .dvs { margin: 0; }
 
@@ -655,7 +694,7 @@ input[type=range] {
 
 /* § 6 — downbeat (step 0): even stronger marker */
 .vc.downbeat {
-  box-shadow: inset 2px 0 0 rgba(84,240,200,0.35);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--acc) 35%, transparent);
 }
 
 /* § 6 — hit cells: subtle vertical gradient + soft teal glow */
@@ -663,7 +702,7 @@ input[type=range] {
   background: linear-gradient(180deg, var(--hit1) 0%, color-mix(in srgb, var(--hit1) 60%, var(--hit2)) 60%, var(--hit2) 100%);
   color: #cfe0ff;
   box-shadow:
-    0 0 6px rgba(84,240,200,0.35),
+    0 0 6px color-mix(in srgb, var(--acc) 35%, transparent),
     inset 0 1px 0 rgba(100,180,255,0.25),
     inset 0 -1px 0 rgba(0,0,0,0.3);
 }
@@ -676,14 +715,14 @@ input[type=range] {
 .vc.now {
   outline: 2px solid var(--acc);
   outline-offset: -2px;
-  box-shadow: 0 0 8px rgba(84,240,200,0.30);
-  background: rgba(84,240,200,0.06);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--acc) 30%, transparent);
+  background: color-mix(in srgb, var(--acc) 6%, transparent);
 }
 .vc.hit.now {
   outline: 2px solid var(--acc);
   outline-offset: -2px;
   box-shadow:
-    0 0 10px rgba(84,240,200,0.55),
+    0 0 10px color-mix(in srgb, var(--acc) 55%, transparent),
     0 0 4px rgba(255,255,255,0.25),
     inset 0 1px 0 rgba(100,220,200,0.3);
 }
@@ -962,7 +1001,7 @@ body.gb-knob-values .knob-val { display: block; }
 .solo.soloed {
   color: #04201a; border-color: #2eaa8a;
   background: linear-gradient(180deg, #63f8d4, #3dd6b0);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 0 12px rgba(84,240,200,.6), 0 1px 2px rgba(0,0,0,.4);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 0 12px color-mix(in srgb, var(--acc) 60%, transparent), 0 1px 2px rgba(0,0,0,.4);
   text-shadow: 0 1px 0 rgba(255,255,255,.2);
 }
 
@@ -1191,7 +1230,7 @@ body.gb-knob-values .knob-val { display: block; }
 .fillchip.next {
   border-color: var(--acc);
   color: var(--acc);
-  box-shadow: 0 0 0 1px rgba(84,240,200,0.25), 0 0 6px rgba(84,240,200,0.2);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--acc) 25%, transparent), 0 0 6px color-mix(in srgb, var(--acc) 20%, transparent);
 }
 
 /* § 8 — clear button: subtle icon button */
@@ -1289,7 +1328,7 @@ body.gb-knob-values .knob-val { display: block; }
 }
 .snap-btn:hover { background: var(--panel-3); border-color: var(--acc-dim); color: var(--ink); }
 .snap-btn.on {
-  background: rgba(84,240,200,0.10);
+  background: color-mix(in srgb, var(--acc) 10%, transparent);
   border-color: var(--acc);
   color: var(--acc);
   box-shadow: inset 0 -2px 0 var(--acc);
@@ -1797,7 +1836,7 @@ body.gb-knob-values .knob-val { display: block; }
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.03),
     0 1px 2px rgba(0,0,0,0.3),
-    0 0 0 1px rgba(84,240,200,0.08);
+    0 0 0 1px color-mix(in srgb, var(--acc) 8%, transparent);
 }
 
 /* ─── § 5 — inline lane rename input ───────────────────────────────────────── */
@@ -1815,7 +1854,7 @@ body.gb-knob-values .knob-val { display: block; }
   height: 22px;
   width: 60px;
   outline: none;
-  box-shadow: 0 0 0 2px rgba(84,240,200,0.15);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc) 15%, transparent);
 }
 
 /* ─── § 5 — add-lane button + menu ─────────────────────────────────────────── */
@@ -1914,14 +1953,14 @@ body.gb-knob-values .knob-val { display: block; }
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.03),
     0 1px 2px rgba(0,0,0,0.3),
-    0 -2px 8px rgba(84,240,200,0.25);
+    0 -2px 8px color-mix(in srgb, var(--acc) 25%, transparent);
 }
 .lane.drop-below {
   border-bottom: 2px solid var(--acc);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.03),
     0 1px 2px rgba(0,0,0,0.3),
-    0 2px 8px rgba(84,240,200,0.25);
+    0 2px 8px color-mix(in srgb, var(--acc) 25%, transparent);
 }
 
 /* ─── Piano ⇄ Blocks roll-mode toggle ──────────────────────────────────────── */
@@ -1961,12 +2000,12 @@ body.gb-knob-values .knob-val { display: block; }
   color: var(--ink);
 }
 .roll-mode-btn.rm-on {
-  background: rgba(84,240,200,0.10);
+  background: color-mix(in srgb, var(--acc) 10%, transparent);
   border-color: var(--acc);
   color: var(--acc);
   box-shadow:
     inset 0 -2px 0 var(--acc),
-    inset 0 1px 0 rgba(84,240,200,0.08);
+    inset 0 1px 0 color-mix(in srgb, var(--acc) 8%, transparent);
 }
 
 /* ─── Blocks grid (pitch × step DOM grid) ───────────────────────────────────── */
@@ -2071,12 +2110,12 @@ body.gb-knob-values .knob-val { display: block; }
 .sec.sec-drop-above {
   outline: 2px solid var(--acc);
   outline-offset: 2px;
-  box-shadow: 0 -3px 10px rgba(84,240,200,0.25);
+  box-shadow: 0 -3px 10px color-mix(in srgb, var(--acc) 25%, transparent);
 }
 .sec.sec-drop-below {
   outline: 2px solid var(--acc);
   outline-offset: 2px;
-  box-shadow: 0 3px 10px rgba(84,240,200,0.25);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--acc) 25%, transparent);
 }
 
 /* ─── Transport actions group (View + Help) ──────────────────────────────────── */
@@ -2162,12 +2201,12 @@ body.gb-knob-values .knob-val { display: block; }
   color: var(--ink);
 }
 .vs-preset-btn.on {
-  background: rgba(84,240,200,0.10);
+  background: color-mix(in srgb, var(--acc) 10%, transparent);
   border-color: var(--acc);
   color: var(--acc);
   box-shadow:
     inset 0 -2px 0 var(--acc),
-    inset 0 1px 0 rgba(84,240,200,0.08);
+    inset 0 1px 0 color-mix(in srgb, var(--acc) 8%, transparent);
 }
 .vs-group-lbl {
   font-size: 10px;
@@ -2332,7 +2371,7 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   border-color: var(--acc);
   color: #04201a;
   font-weight: 700;
-  box-shadow: 0 0 8px rgba(84,240,200,0.35);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--acc) 35%, transparent);
 }
 .bsel.playing {
   outline: 2px solid var(--hot);
@@ -2356,7 +2395,7 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   border-color: var(--acc);
   color: #04201a;
   font-weight: 700;
-  box-shadow: 0 0 8px rgba(84,240,200,0.35);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--acc) 35%, transparent);
 }
 
 /* accordion expand button: hidden by default; the mobile layout shows it */
