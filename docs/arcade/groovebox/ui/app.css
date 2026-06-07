@@ -427,8 +427,10 @@ input[type=range] {
   flex-wrap: wrap;
   margin: -10px -10px 8px;            /* bleed to the screen edges (#viz pads 10px) */
   padding: 6px 10px;
-  background: color-mix(in srgb, var(--dim) 8%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--dim) 25%, transparent);
+  /* mix from --ink so the band reads on BOTH screen polarities: light ink on a
+     dark screen lifts it, dark ink on a lime screen shades it */
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
   min-height: 28px;
 }
 #lcd-strip:empty { display: none; }
@@ -455,8 +457,8 @@ input[type=range] {
   min-width: 16px;
   padding: 1px 5px;
   border-radius: 4px;
-  border: 1px solid color-mix(in srgb, var(--dim) 45%, transparent);
-  color: var(--dim);
+  border: 1px solid color-mix(in srgb, var(--ink) 40%, transparent);
+  color: color-mix(in srgb, var(--ink) 80%, transparent);
   font-size: 9px;
   font-family: ui-monospace, Menlo, monospace;
   text-align: center;
@@ -473,7 +475,7 @@ input[type=range] {
 .strip-key, .strip-bpm {
   font-size: 9px;
   letter-spacing: 0.08em;
-  color: var(--faint);
+  color: var(--dim);
   font-family: ui-monospace, Menlo, monospace;
   white-space: nowrap;
 }
@@ -1047,16 +1049,6 @@ body.gb-knob-values .knob-val { display: block; }
   vertical-align: -3px;
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--acc) 40%, transparent));
 }
-/* Theme row — first row of the Settings popover */
-.vs-theme {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-bottom: 8px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid var(--line);
-}
-.vs-theme select { flex: 1 1 auto; height: 26px; font-size: 11px; }
 
 /* ─── punch preset editor (v3.5 modal) ──────────────────────────────────── */
 .punchpad .punchedit { margin-left: 8px; opacity: 0.5; font-size: 11px; cursor: pointer; }
