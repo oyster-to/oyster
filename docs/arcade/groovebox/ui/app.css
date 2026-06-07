@@ -2714,6 +2714,8 @@ body.gb-knob-values .knob-val { display: block; }
     #2ab8c8 75%, #2ab8c8 100%);
 }
 [data-theme="spectrum"] .vc.hit { box-shadow: 0 0 6px rgba(24,200,200,0.4), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+[data-theme="spectrum"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(24,200,200,0.35); background: rgba(24,200,200,0.08); }
+[data-theme="spectrum"] .vc.hit.now { box-shadow: 0 0 10px rgba(90,232,232,0.55), inset 0 1px 0 rgba(255,255,255,0.25); }
 
 [data-theme="littleprof"] {
   /* BODY — Little Professor: chestnut-brown keypad face, yellow keys,
