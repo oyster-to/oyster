@@ -24,9 +24,11 @@ function themeColors() {
     rollBlk: g('--roll-bg-blk'),
     rollOut: g('--roll-bg-out'),
     ctone:   g('--roll-ctone'),
-    ink:     g('--ink'),
-    dim:     g('--dim'),
-    faint:   g('--faint'),
+    // Canvas text draws ON the screen — use the screen-scoped inks (the
+    // screen's polarity can differ from the cabinet's, e.g. Oyster's pearl LCD).
+    ink:     g('--screen-ink'),
+    dim:     g('--screen-dim'),
+    faint:   g('--screen-dim'),
   };
   return _tc;
 }
@@ -430,12 +432,13 @@ export function makeViz(host, song, eng) {
     }
   }
 
-  // "editing: <groove name>" label — names the groove the editor mutates and
-  // warns that shared grooves change everywhere. Empty when the lane has none.
+  // "editing: P<n> · <groove name>" label — names the pattern the editor is
+  // inside (same P<n> as the strip's ✎ marker and the Song tab) plus the groove
+  // it mutates. Empty when the lane has none.
   function edLabelHTML(L) {
     const G = editGroove(L);
     if (!G) return '';
-    return `<div class="ed-lbl">editing: ${esc(G.name)}</div>`;
+    return `<div class="ed-lbl">editing: P${eng.getEditPatternIndex() + 1} · ${esc(G.name)}</div>`;
   }
 
   // ─── Roll-mode toggle bar (melody + bass only) ───────────────────────────

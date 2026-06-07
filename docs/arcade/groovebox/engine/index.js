@@ -25,7 +25,6 @@ export function createEngine() {
   let target = { kind: 'chain', pos: 0, barInPattern: 0 };
   let pendingTarget = null;      // applied at the next bar boundary
   let editIdx = 0;               // pattern open in the editors
-  let keyQuantize = false, pendingTranspose = null;
   let masterComp = null, masterRev = null, masterVol = null, masterPan = null, masterWidth = null, masterEQ = null;
   let _widthOn = false;   // is the StereoWidener spliced into the master chain?
   // Punch v3: pre-wired neutral punch bus; presets are data (punch-presets.js)
@@ -353,7 +352,6 @@ export function createEngine() {
         const barSeconds = stepsPerBar(song.meter) * sixteenth;
         const spb = stepsPerBar(song.meter);
         if (step % spb === 0) {
-          if (pendingTranspose !== null) { song.transpose = pendingTranspose; pendingTranspose = null; }
           if (step === 0) {
             target = { ...target, barInPattern: 0 };       // play restarts the current target from its top bar
           } else if (pendingTarget) {
@@ -442,7 +440,7 @@ export function createEngine() {
     stop() {
       Tone.Transport.stop();
       if (repeatId !== null) { Tone.Transport.clear(repeatId); repeatId = null; }
-      step = 0; playing = false; pendingFill = null; activeFill = null; fillQueue = []; pendingTranspose = null; pendingTarget = null;
+      step = 0; playing = false; pendingFill = null; activeFill = null; fillQueue = []; pendingTarget = null;
       // Punch pads release with the transport. rampTo pins current values
       // (no cancel-then-revert clicks); delayTime snaps back after the brief
       // gate settle so any reverb tail doesn't doppler.
@@ -778,12 +776,8 @@ export function createEngine() {
     },
     setTranspose(semis) {
       if (!song) return;
-      const n = semis | 0;
-      if (keyQuantize && playing) { pendingTranspose = n; }
-      else { song.transpose = n; pendingTranspose = null; }
+      song.transpose = semis | 0;
     },
     getTranspose() { return song ? (song.transpose || 0) : 0; },
-    setKeyQuantize(on) { keyQuantize = !!on; },
-    getKeyQuantize() { return keyQuantize; },
   };
 }

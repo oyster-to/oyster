@@ -11,12 +11,11 @@
       </div>
       <!-- Tier 1 — title bar -->
       <div class="titlebar">
-        <h1><span class="brand-icon" title="Oyster Groovebox" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/><path d="M8 8v1"/><path d="M12 8v1"/><path d="M16 8v1"/><rect width="20" height="12" x="2" y="9" rx="2"/><circle cx="8" cy="15" r="2"/><circle cx="16" cy="15" r="2"/></svg></span>oyster groovebox</h1>
+        <h1><span class="brand-icon" title="Oyster Groovebox" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/><path d="M8 8v1"/><path d="M12 8v1"/><path d="M16 8v1"/><rect width="20" height="12" x="2" y="9" rx="2"/><circle cx="8" cy="15" r="2"/><circle cx="16" cy="15" r="2"/></svg></span><span class="brand-oyster">oyster </span>groovebox</h1>
         <div class="titlebar-tools">
-          <!-- Lucide "palette" (MIT, lucide.dev) — theme picker affordance -->
-          <span class="theme-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></span>
           <select id="themesel">
-            <option value="dark" selected>Dark</option>
+            <option value="oyster" selected>Oyster</option>
+            <option value="midnight">Midnight</option>
             <option value="light">Light</option>
             <option value="beige">Beige</option>
             <option value="purple">Purple</option>
@@ -59,8 +58,19 @@
             </optgroup>
           </select>
           <div class="vs-wrap">
-            <button id="viewsettings-btn" title="View settings">Settings</button>
+            <button id="viewsettings-btn" title="Settings">Settings</button>
             <div id="viewsettings" hidden>
+              <div class="vs-screen">
+                <span class="vs-title">Screen</span>
+                <select id="screensel">
+                  <option value="default" selected>Theme default</option>
+                  <option value="pearl">Pearl</option>
+                  <option value="phosphor">Phosphor</option>
+                  <option value="lime">Lime</option>
+                  <option value="amber">Amber</option>
+                  <option value="paper">Paper</option>
+                </select>
+              </div>
               <span class="vs-title">Active knobs</span>
               <div id="viewsettings-checks"></div>
             </div>
@@ -69,36 +79,19 @@
         </div>
       </div>
 
-      <!-- Tier 2 — SONG box: transport (performance controls) + arrangement,
-           pinned as one module above the draggable view sections. -->
+      <!-- Tier 2 — transport (the cabinet): play + the song slot. Everything
+           song-structural lives on the screen (Song tab); tempo/transpose are
+           hardware on MASTER. -->
       <div id="songbox">
         <div class="transport">
           <button id="play">▶ play</button>
-          <div class="transport-divider"></div>
-          <div class="transport-tempo">
-            <span class="transport-lbl">Tempo</span>
-            <input type="range" id="bpm" min="80" max="180" value="120">
-            <span id="bpmv" class="transport-bpm-val">120</span>
-            <span class="transport-bpm-unit">BPM</span>
-          </div>
-          <div class="transport-key">
-            <span class="transport-lbl">Key</span>
-            <div class="key-stepper">
-              <button id="key-dn">−</button><span id="keyv" class="mono">0</span><button id="key-up">＋</button>
-            </div>
-            <button id="key-q" class="key-q" title="Quantize key change to the bar" aria-pressed="false">⟳ bar</button>
-          </div>
-          <span id="song-status"><span class="pat-playing" id="pat-playing"></span><span class="pat-editing"></span></span>
           <div class="transport-song">
-            <span class="transport-lbl">Song</span>
             <div class="song-wrap">
               <select id="songsel"><option value="press-start">★ Press Start (AI)</option><option value="scallywag">★ Scallywag (AI)</option><option value="boo-waltz">★ Boo Waltz (AI)</option><option value="first-roll">★ First Roll (AI)</option><option value="kids">Kids</option><option value="rising-sun">House of the Rising Sun</option><option value="electric-feel">Electric Feel</option><option value="heartbeats">Heartbeats</option><option value="digital-love">Digital Love</option><option value="memory-reboot">Memory Reboot</option><option value="take-on-me">Take On Me</option></select>
-              <div id="credit"></div>
             </div>
           </div>
           <button id="share-btn" title="Publish this song or a groove">PUBLISH</button>
         </div>
-        <div id="arrange"></div>
       </div>
 
       <!-- Share modal -->
@@ -138,57 +131,68 @@
         <div id="help-modal-backdrop"></div>
         <div id="help-modal-box" role="dialog" aria-modal="true" aria-label="Groovebox help">
           <button id="help-modal-close" aria-label="Close help">✕</button>
-          <h2>Groovebox — Quick Reference</h2>
+          <h2>Quick Reference</h2>
+          <div id="help-tabs">
+            <button class="help-tab active" data-help="controls">Controls</button>
+            <button class="help-tab" data-help="mix">Mix</button>
+            <button class="help-tab" data-help="tone">Tone</button>
+            <button class="help-tab" data-help="fx">FX</button>
+          </div>
           <div class="help-sections">
-            <div class="help-section">
-              <h3>Mix</h3>
+            <div class="help-section active" data-help="controls">
               <dl>
-                <dt>Volume</dt><dd>Lane output level</dd>
-                <dt>Pan</dt><dd>Left / right placement</dd>
-                <dt>Balance</dt><dd>Master left / right</dd>
-                <dt>Width</dt><dd>Stereo width (mono ↔ wide)</dd>
-              </dl>
-            </div>
-            <div class="help-section">
-              <h3>Tone</h3>
-              <dl>
-                <dt>Cutoff</dt><dd>Filter sweep — left = low-pass (darker), right = high-pass (thinner), centre = open</dd>
-                <dt>Resonance</dt><dd>Emphasis at the filter cutoff (squelch)</dd>
-                <dt>Drive</dt><dd>Overdrive / distortion</dd>
-                <dt>Low EQ</dt><dd>Master bass shelf</dd>
-                <dt>High EQ</dt><dd>Master treble shelf</dd>
-              </dl>
-            </div>
-            <div class="help-section">
-              <h3>FX</h3>
-              <dl>
-                <dt>Delay</dt><dd>Echo send amount</dd>
-                <dt>Feedback</dt><dd>How many times the delay repeats (slap → wash)</dd>
-                <dt>Chorus</dt><dd>Shimmer / width</dd>
-                <dt>Wobble</dt><dd>LFO auto-filter movement</dd>
-                <dt>Crush</dt><dd>Bit-crusher (lo-fi)</dd>
-                <dt>Reverb</dt><dd>Space / room send</dd>
-                <dt>Comp</dt><dd>Compression — evens out dynamics</dd>
-              </dl>
-            </div>
-            <div class="help-section">
-              <h3>Controls</h3>
-              <dl>
+                <dt>SONG</dt><dd>The song's structure on the screen — click a pattern to edit it (it loops while playing), click a chain chip to play the song from there. ＋ adds, ⧉ duplicates.</dd>
                 <dt>M</dt><dd>Mute a lane (silences it; FX state preserved)</dd>
                 <dt>S</dt><dd>Solo a lane (silences all others)</dd>
                 <dt>VIEW</dt><dd>Open that lane in the step editor / piano roll</dd>
                 <dt>FILLS</dt><dd>Queue fill patterns — click a chip to remove it from the queue</dd>
-                <dt>PATTERNS</dt><dd>Click a pattern to edit it (it loops while playing). Click a chain chip to play the song from there. ＋ adds, ⧉ duplicates.</dd>
                 <dt>PUNCH</dt><dd>Hold a pad (or keys 1–5) for momentary FX — release to snap back clean</dd>
-                <dt>KEY ± </dt><dd>Transpose the whole song up or down in semitones</dd>
+                <dt>TEMPO</dt><dd>Song speed in BPM — on MASTER</dd>
+                <dt>TRANSPOSE ±</dt><dd>Shift the whole song up or down in semitones — on MASTER</dd>
+              </dl>
+            </div>
+            <div class="help-section" data-help="mix">
+              <dl>
+                <dt>VOL</dt><dd>How loud this instrument is</dd>
+                <dt>PAN</dt><dd>Push the sound towards the left or right speaker</dd>
+                <dt>BAL</dt><dd>Lean the whole mix left or right</dd>
+                <dt>WID</dt><dd>How wide the sound feels — narrow mono to extra-wide stereo</dd>
+              </dl>
+            </div>
+            <div class="help-section" data-help="tone">
+              <dl>
+                <dt>CUT</dt><dd>Brightness — left for dark and muffled, right for thin and crispy, middle is natural</dd>
+                <dt>RES</dt><dd>Adds a whistly squelch right where the brightness sits — great for acid bass</dd>
+                <dt>DRV</dt><dd>Crunch — pushes the sound like a guitar amp turned up too far</dd>
+                <dt>LO</dt><dd>More or less bass, for everything at once</dd>
+                <dt>HI</dt><dd>More or less sparkle, for everything at once</dd>
+              </dl>
+            </div>
+            <div class="help-section" data-help="fx">
+              <dl>
+                <dt>DLY</dt><dd>Echo — how much of the sound bounces back</dd>
+                <dt>FDBK</dt><dd>How long the echoes keep going — one quick slap to a long trailing wash</dd>
+                <dt>CHO</dt><dd>Shimmer — makes the sound thicker and dreamier</dd>
+                <dt>WOB</dt><dd>Makes the sound wobble in slow waves</dd>
+                <dt>CRU</dt><dd>Crunchy retro lo-fi, like an old game console</dd>
+                <dt>VRB</dt><dd>Room sound — from a small box to a huge hall</dd>
+                <dt>CMP</dt><dd>Squashes loud and quiet closer together so everything punches</dd>
               </dl>
             </div>
           </div>
         </div>
       </div>
-      <!-- Tier 3 — views (built by renderViewTabs) -->
-      <div class="vtabs"><span class="vtabs-lbl">VIEW</span><button data-view="scope">📈 Scope</button></div>
-      <div id="viz"></div>
+      <!-- Tier 3 — the screen: status strip + tabs (built by renderViewTabs)
+           + body. makeViz owns #lcd-body's innerHTML; the Song tab body
+           (#lcd-song) is a sibling so the two can swap via display toggle. -->
+      <div id="viz">
+        <div id="lcd-strip"></div>
+        <div class="vtabs"></div>
+        <div id="lcd-body"></div>
+        <div id="lcd-song" hidden>
+          <div id="lcd-song-rows"></div>
+        </div>
+      </div>
       <div id="master"></div>
       <div id="punch"></div>
       <div id="strips"></div>
