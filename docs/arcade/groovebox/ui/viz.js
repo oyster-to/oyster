@@ -429,12 +429,13 @@ export function makeViz(host, song, eng) {
     }
   }
 
-  // "editing: <groove name>" label — names the groove the editor mutates and
-  // warns that shared grooves change everywhere. Empty when the lane has none.
+  // "editing: P<n> · <groove name>" label — names the pattern the editor is
+  // inside (same P<n> as the strip's ✎ marker and the Song tab) plus the groove
+  // it mutates. Empty when the lane has none.
   function edLabelHTML(L) {
     const G = editGroove(L);
     if (!G) return '';
-    return `<div class="ed-lbl">editing: ${esc(G.name)}</div>`;
+    return `<div class="ed-lbl">editing: P${eng.getEditPatternIndex() + 1} · ${esc(G.name)}</div>`;
   }
 
   // ─── Roll-mode toggle bar (melody + bass only) ───────────────────────────

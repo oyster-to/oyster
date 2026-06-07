@@ -921,10 +921,6 @@ function renderPatterns() {
   crow.appendChild(append);
   host.appendChild(crow);
 
-  // Foot: key badge (the song's key, not the transpose control — that's on MASTER).
-  const keyEl = document.getElementById('lcd-song-key');
-  if (keyEl) keyEl.textContent = fmtKeyName(eng.getKey());
-
   renderStrip();        // chain/chords may have changed → rebuild the readout
   updatePatternsPlayback(eng.getPlaybackTarget());
   syncStripGrooves();   // edit pattern may have changed → resync strip dropdowns
@@ -961,6 +957,15 @@ function renderStrip() {
   loop.hidden = true;
   chainWrap.appendChild(loop);
   host.appendChild(chainWrap);
+  // Which pattern the editors are pointed at — visible from every view, in the
+  // editing colour (teal), not the sounding colour (pink).
+  const edit = document.createElement('span');
+  edit.className = 'strip-seg strip-edit';
+  edit.textContent = `✎ P${eng.getEditPatternIndex() + 1}`;
+  host.appendChild(edit);
+  // The strip is the door to the song's structure: tap it → Song tab.
+  host.title = 'Open the Song editor';
+  host.onclick = () => activateSongTab();
   const chordWrap = document.createElement('span');
   chordWrap.className = 'strip-chords';
   chordWrap.dataset.idx = -1;
@@ -1048,6 +1053,14 @@ function buildChordLine(idx) {
   }
   chips.onclick = () => beginChordEdit(idx);
   row.appendChild(chips);
+  // The song's key rides the chords row — it's harmony information.
+  const key = eng.getKey();
+  if (key) {
+    const badge = document.createElement('span');
+    badge.className = 'h-key';
+    badge.textContent = fmtKeyName(key);
+    row.appendChild(badge);
+  }
   return row;
 }
 

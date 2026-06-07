@@ -534,6 +534,14 @@ input[type=range] {
   text-align: center;
   line-height: 1.5;
 }
+/* The pattern the editors are pointed at — editing language (accent), and the
+   strip itself is tappable (→ Song tab). */
+#lcd-strip { cursor: pointer; }
+.strip-seg.strip-edit {
+  border-color: var(--acc);
+  color: var(--acc);
+  white-space: nowrap;
+}
 /* The sounding position/chord — same --hot language as every other "playing" glow. */
 .strip-seg.hot {
   background: var(--hot);
@@ -573,25 +581,30 @@ input[type=range] {
 #lcd-song .pat-slot.playing { border-color: var(--hot); box-shadow: 0 0 8px var(--hot); }
 #lcd-song .chain-chip.playing { border-color: var(--hot); color: var(--hot); box-shadow: 0 0 6px var(--hot); }
 #lcd-song .h-chip.sounding { border-color: var(--hot); color: var(--hot); box-shadow: 0 0 8px var(--hot); }
+/* Shared label spine: PATTERNS / CHAIN labels right-align in one column so the
+   chip rows read as a table. */
+#lcd-song .pat-row > .pat-lbl,
+#lcd-song .chain-row > .pat-lbl {
+  flex: 0 0 64px;
+  width: 64px;
+  text-align: right;
+  margin-right: 4px;
+}
 /* Chords nest under their pattern: indent + accent spine = "this pattern's chords". */
 #lcd-song .chord-row {
-  margin-left: 30px;
+  margin-left: 68px;
   padding-left: 10px;
   border-left: 2px solid color-mix(in srgb, var(--acc) 40%, transparent);
 }
-.lcd-song-foot {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-}
-#lcd-song-key {
+/* The song's key, riding the chords row. */
+#lcd-song .h-key {
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--screen-dim);
+  margin-left: 10px;
+  white-space: nowrap;
 }
-.lcd-song-foot #share-btn { margin-left: auto; }
 
 /* Screen row — first row of the Settings popover */
 .vs-screen {
