@@ -1748,8 +1748,8 @@ body.gb-knob-values .knob-val { display: block; }
   --grid-line:   #a3ac94;
   --scope:       #2a3226;
   --playhead:    #e0483c;
-  --cell:        #c8d1ba;
-  --cell-alt:    #ced7c0;
+  --cell:        #b5bea6;
+  --cell-alt:    #bbc4ac;
   --hit1:        #3a4234;
   --hit2:        #1c2418;
 }
@@ -1765,8 +1765,8 @@ body.gb-knob-values .knob-val { display: block; }
   --ink:         #e2e7f5;
   --dim:         #939db8;
   --faint:       #5d6480;
-  --acc:         #6b96f0;   /* 2nd-key blue */
-  --acc-dim:     #3d5cad;
+  --acc:         #7da6ff;   /* 2nd-key blue */
+  --acc-dim:     #4a69c0;
   --hot:         #cf5548;
   --warn:        #d8c44a;
   --ink-on-acc:  #0c1430;
@@ -1786,9 +1786,9 @@ body.gb-knob-values .knob-val { display: block; }
   --roll-note:   #1e2424;
   --grid-line:   #87917e;
   --scope:       #1e2424;
-  --playhead:    #3d5cad;
-  --cell:        #a9b3a2;
-  --cell-alt:    #aeb8a7;
+  --playhead:    #2c4490;
+  --cell:        #97a190;
+  --cell-alt:    #9da796;
   --hit1:        #2c3434;
   --hit2:        #161c1c;
 }
@@ -1826,8 +1826,8 @@ body.gb-knob-values .knob-val { display: block; }
   --grid-line:   #969a8c;
   --scope:       #2a2e26;
   --playhead:    #cc3a30;
-  --cell:        #b4b8ac;
-  --cell-alt:    #bcc0b4;
+  --cell:        #a7ab9f;
+  --cell-alt:    #adb1a5;
   --hit1:        #3a3e34;
   --hit2:        #1a1e16;
 }
@@ -1872,10 +1872,15 @@ body.gb-knob-values .knob-val { display: block; }
   --grid-line:   #94968a;
   --scope:       #2a2c24;
   --playhead:    #5a87c0;
-  --cell:        #b2b4aa;
-  --cell-alt:    #babcb2;
+  --cell:        #a5a79d;
+  --cell-alt:    #abada3;
   --hit1:        #3a3c32;
   --hit2:        #1a1c14;
+}
+/* The HP fascia's signature gold band, as a stripe under the title row */
+[data-theme="hp12c"] .titlebar {
+  border-bottom: 2px solid #b87b22;
+  padding-bottom: 8px;
 }
 
 [data-theme="et66"] {
@@ -2014,10 +2019,10 @@ body.gb-knob-values .knob-val { display: block; }
 
 [data-theme="dx7"] {
   /* BODY — dark brown fascia, teal membrane buttons, magenta stripe */
-  --bg:          #1d1916;
-  --panel:       #2a2522;
-  --panel-2:     #332d29;
-  --panel-3:     #403833;
+  --bg:          #1f1812;
+  --panel:       #322a21;
+  --panel-2:     #3b3128;
+  --panel-3:     #4a3d30;
   --line:        rgba(255,240,220,.09);
   --line-dk:     rgba(0,0,0,.55);
   --ink:         #ece5da;
@@ -2031,9 +2036,9 @@ body.gb-knob-values .knob-val { display: block; }
   --meter-lo:    #2fc4ac;
   --meter-mid:   #d8b84a;
   --meter-hi:    #e03f8c;
-  --chrome-hi:   #443b34;
-  --chrome-mid:  #322b25;
-  --chrome-lo:   #211c18;
+  --chrome-hi:   #4a3e32;
+  --chrome-mid:  #382e24;
+  --chrome-lo:   #251e16;
   --bevel-hi:    rgba(255,255,255,0.07);
   --bevel-lo:    rgba(0,0,0,0.55);
   /* SCREEN — teal-green backlit LCD */
@@ -2050,6 +2055,16 @@ body.gb-knob-values .knob-val { display: block; }
   --hit1:        #2fc4ac;
   --hit2:        #157a64;
 }
+/* The DX7 fascia's magenta pinstripe, under the title row */
+[data-theme="dx7"] .titlebar {
+  border-bottom: 2px solid #e03f8c;
+  padding-bottom: 8px;
+}
+/* Playhead glows in the device's own light, not the default theme's teal */
+[data-theme="et66"] .vc.now { box-shadow: 0 0 8px rgba(245,198,26,0.35); background: rgba(245,198,26,0.06); }
+[data-theme="et66"] .vc.hit.now { box-shadow: 0 0 10px rgba(245,198,26,0.5); }
+[data-theme="tr808"] .vc.now { box-shadow: 0 0 8px rgba(255,139,42,0.35); background: rgba(255,139,42,0.08); }
+[data-theme="tr808"] .vc.hit.now { box-shadow: 0 0 10px rgba(255,255,255,0.4); }
 
 /* Pale-LCD screens: swap the deep CRT inset for a soft reflective-LCD inset
    (same treatment as playdate) so the screen reads as glass, not a cave. */
