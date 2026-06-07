@@ -1168,10 +1168,7 @@ function resetFX() {
 // ─── Mount: (re)build all per-song UI ────────────────────────────────────────
 function mount() {
   song = eng.getSong();
-  // Credit = artist only — the dropdown already says the title (and the strip
-  // says it again); repeating it three times was noise.
-  const creditEl = document.getElementById('credit');
-  if (creditEl) creditEl.textContent = song.artist ? `by ${song.artist}` : '';
+  // No credit line — the strip carries title + artist; the dropdown carries the title.
   renderStrips();
   renderFills();
   renderPunch();
@@ -1706,20 +1703,14 @@ const shareHooks = {
       opt.hidden = true;
       sel.appendChild(opt);
     }
-    // The dropdown is the title surface — show the shared song's name, not a placeholder.
-    opt.textContent = rec?.name ? `♫ ${rec.name}` : '(shared)';
+    // The dropdown is the title surface — name, author and play count all
+    // live in the option text. No second line.
+    const n = typeof rec?.plays === 'number' ? rec.plays + 1 : null;
+    opt.textContent = rec?.name
+      ? ['♫ ' + rec.name, rec.author ? `by ${rec.author}` : '', n ? `${n} play${n === 1 ? '' : 's'}` : '']
+          .filter(Boolean).join(' · ')
+      : '(shared)';
     opt.selected = true;
-    // Shared songs: the credit line carries who made it + how it's doing.
-    if (rec) {
-      const n = typeof rec.plays === 'number' ? rec.plays + 1 : null;
-      const credit = document.getElementById('credit');
-      if (credit) {
-        credit.textContent = [
-          rec.author ? `by ${rec.author}` : '',
-          n ? `${n} play${n === 1 ? '' : 's'}` : '',
-        ].filter(Boolean).join(' · ');
-      }
-    }
   },
   onGroovesChanged: () => { renderStrips(); refreshVizPattern(); },
   // v1: import into the first matching lane (multi-lane-same-type songs are

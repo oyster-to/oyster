@@ -367,16 +367,6 @@ select {
 }
 
 /* ─── § 3 — segmented tab control ──────────────────────────────────────── */
-/* song credit — inline subtitle below the song selector */
-#credit {
-  font-size: 10px;
-  color: var(--faint);
-  min-height: 12px;
-  letter-spacing: 0.02em;
-  font-style: italic;
-  line-height: 1.2;
-}
-#credit:not(:empty)::before { content: '♪ '; font-style: normal; opacity: 0.7; }
 
 /* ─── screen tabs — software modes ON the LCD, styled as screen furniture
    (no cabinet-button chrome: flat, ink-on-screen, active = lit underline) ── */
