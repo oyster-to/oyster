@@ -1736,6 +1736,22 @@ const shareHooks = {
   // rare; the groove still lands correctly, just without a picker).
   pickLane: lanes => Promise.resolve(lanes[0].id),
 };
+// localStorage 'gb-instruments' / 'gb-kit' override the stock sounds when
+// valid (engine validates; invalid → defaults kept — same contract as punch).
+function loadInstruments() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('gb-instruments') || 'null');
+    if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+      eng.setInstruments({ ...eng.getInstruments(), ...saved });
+    }
+  } catch (_) { /* corrupt JSON → defaults */ }
+  try {
+    const kit = JSON.parse(localStorage.getItem('gb-kit') || 'null');
+    if (kit) eng.setKit(kit);
+  } catch (_) { /* corrupt JSON → defaults */ }
+}
+loadInstruments();
+
 initShare(eng, shareHooks);
 maybeLoadShared(eng, shareHooks);
 // Press-and-hold on a control must not open the browser context menu (Android
