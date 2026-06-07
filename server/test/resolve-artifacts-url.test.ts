@@ -133,8 +133,10 @@ describe("resolveArtifactsUrl", () => {
     });
 
     it("rejects absolute-path injection", () => {
-      // join() makes these relative to the roots, so they can only
-      // resolve inside — assert they don't accidentally hit /etc.
+      // node:path join() CONCATENATES — join(root, "/etc/hosts") is
+      // "<root>/etc/hosts", not "/etc/hosts" (that would be resolve()).
+      // So an absolute injection can only ever point inside the roots;
+      // this asserts it 404s rather than accidentally matching anything.
       expect(resolveArtifactsUrl("/etc/hosts", layout)).toBeNull();
       expect(resolveArtifactsUrl("//etc/hosts", layout)).toBeNull();
     });

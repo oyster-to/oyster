@@ -70,14 +70,15 @@ export function resolveArtifactsUrl(
   try { realRoot = realpathSync(root); }
   catch { return null; /* OYSTER_HOME missing — nothing can resolve */ }
 
-  const isContained = (candidate: string): boolean => {
-    // Lexical first (cheap, also catches raw ".." in the URL path).
-    const r = resolve(candidate);
-    if (r !== root && !r.startsWith(root + sep)) return false;
-    // Physical second: follow symlinks all the way and re-check. Throws
-    // on missing paths — those are rejected by the isFile check anyway.
+  // Check order matters: lexical containment FIRST (pure string work — a
+  // raw "../" path is rejected without ever touching the filesystem), then
+  // the isFile stat, then the realpath gate (only worth doing on a file
+  // that exists and is lexically plausible).
+  const isLexicallyInside = (resolved: string): boolean =>
+    resolved === root || resolved.startsWith(root + sep);
+  const isPhysicallyInside = (resolved: string): boolean => {
     try {
-      const real = realpathSync(r);
+      const real = realpathSync(resolved);
       return real === realRoot || real.startsWith(realRoot + sep);
     } catch {
       return false;
@@ -89,20 +90,24 @@ export function resolveArtifactsUrl(
   const isFile = (p: string): boolean => {
     try { return statSync(p).isFile(); } catch { return false; }
   };
+  const passes = (candidate: string): boolean => {
+    const r = resolve(candidate);
+    return isLexicallyInside(r) && isFile(r) && isPhysicallyInside(r);
+  };
   const fixedCandidates = [
     join(layout.oysterHome, relativePath),
     join(layout.appsDir, relativePath),
     join(layout.spacesDir, relativePath),
   ];
   for (const candidate of fixedCandidates) {
-    if (isFile(candidate) && isContained(candidate)) return candidate;
+    if (passes(candidate)) return candidate;
   }
   const firstSegment = relativePath.split("/")[0];
   if (!firstSegment || firstSegment === "icons") return null;
   try {
     for (const spaceName of readdirSync(layout.spacesDir)) {
       const candidate = join(layout.spacesDir, spaceName, relativePath);
-      if (isFile(candidate) && isContained(candidate)) return candidate;
+      if (passes(candidate)) return candidate;
     }
   } catch { /* SPACES_DIR might not exist on a fresh install */ }
   return null;
