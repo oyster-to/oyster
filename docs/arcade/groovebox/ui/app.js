@@ -641,7 +641,7 @@ function renderPunch() {
     edit.textContent = '✎';
     edit.addEventListener('pointerdown', e => {
       e.preventDefault(); e.stopPropagation();
-      for (let s = 0; s < 5; s++) setPunch(s, false);
+      for (let s = 0; s < presets.length; s++) setPunch(s, false);
       openPunchEditor({ slot, eng, onSaved: renderPunch });
     });
     pad.appendChild(edit);

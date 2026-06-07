@@ -16,6 +16,9 @@ export const PARAM_UI = {
   'transport.tapeStop': { label: 'Tape stop',     fmt: v => v.toFixed(2) },
 };
 
+// Touch devices have no number keys — keyboard hints are noise there.
+const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+
 const UNITS = ['steps', 'beats', 'bars'];
 const UNIT_MAX = { steps: 8, beats: 8, bars: 4 };
 const QUANTIZE = [['immediate', 'instant'], ['bar', 'next bar'], ['pattern', 'pattern start']];
@@ -128,10 +131,10 @@ export function openPunchEditor({ slot, eng, onSaved }) {
     name.oninput = () => { draft.name = name.value; };
     const badge = document.createElement('span');
     badge.className = 'pe-badge';
-    badge.textContent = `key ${draft.key} · slot ${slot + 1} of ${eng.getPunchPresets().length}`;
+    badge.textContent = (COARSE ? '' : `key ${draft.key} · `) + `slot ${slot + 1} of ${eng.getPunchPresets().length}`;
     const test = document.createElement('button');
     test.className = 'pe-test' + (playing ? '' : ' idle');
-    test.innerHTML = `TEST<small>hold · or key ${draft.key}</small>`;
+    test.innerHTML = COARSE ? 'TEST<small>hold to hear</small>' : `TEST<small>hold · or key ${draft.key}</small>`;
     test.addEventListener('pointerdown', e => {
       e.preventDefault(); test.setPointerCapture(e.pointerId);
       if (!eng.isPlaying()) {            // live check — not the render-time snapshot
@@ -237,7 +240,7 @@ export function openPunchEditor({ slot, eng, onSaved }) {
     // active-on lane mask (omitted = all lanes)
     const LANE_TYPES = ['drums', 'bass', 'chords', 'melody'];
     const laneRow = document.createElement('div');
-    laneRow.className = 'pe-row';
+    laneRow.className = 'pe-row pe-lanes';
     const ll = label('active on');
     ll.title = 'Which lanes this pad affects; holding multiple pads unions their lanes';
     laneRow.appendChild(ll);
@@ -260,14 +263,20 @@ export function openPunchEditor({ slot, eng, onSaved }) {
     // quantize
     const q = document.createElement('div');
     q.className = 'pe-row pe-q';
-    const sl = label('snap · press');
-    sl.title = 'WHEN the effect fires after pressing: instantly, on the next bar, or at pattern start (bar 1)';
-    q.appendChild(sl);
-    q.appendChild(select(QUANTIZE, draft.engageQuantize, v => { draft.engageQuantize = v; }));
-    const rl2 = label('snap · release');
-    rl2.title = 'WHEN the release takes effect after letting go';
-    q.appendChild(rl2);
-    q.appendChild(select(QUANTIZE, draft.releaseQuantize, v => { draft.releaseQuantize = v; }));
+    const pair = (lbl, title, sel_) => {
+      const p = document.createElement('span');
+      p.className = 'pe-qpair';
+      const l = label(lbl);
+      l.title = title;
+      p.append(l, sel_);
+      return p;
+    };
+    q.appendChild(pair('snap · press',
+      'WHEN the effect fires after pressing: instantly, on the next bar, or at pattern start (bar 1)',
+      select(QUANTIZE, draft.engageQuantize, v => { draft.engageQuantize = v; })));
+    q.appendChild(pair('snap · release',
+      'WHEN the release takes effect after letting go',
+      select(QUANTIZE, draft.releaseQuantize, v => { draft.releaseQuantize = v; })));
     modal.appendChild(q);
 
     // footer
