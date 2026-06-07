@@ -2322,13 +2322,56 @@ body.gb-knob-values .knob-val { display: block; }
   --playhead:    #d8b43a;
   --cell:        #16141e;
   --cell-alt:    #1b1924;
+  --hit1:        #4ab44a;   /* Y-green drum hits */
+  --hit2:        #2a7a30;
+}
+[data-theme="snes"] h1 { text-shadow: none; }
+[data-theme="snes"] .vc.hit { box-shadow: 0 0 6px rgba(74,180,74,0.35), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+[data-theme="snes"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(216,180,58,0.3); background: rgba(216,180,58,0.07); }
+[data-theme="snes"] .vc.hit.now { box-shadow: 0 0 10px rgba(216,180,58,0.5), inset 0 1px 0 rgba(255,255,255,0.25); }
+
+[data-theme="snesus"] {
+  /* BODY — US SNES: light grey with the two purples (lavender + grape) */
+  --bg:          #9a9a96;
+  --panel:       #cac9c4;
+  --panel-2:     #bdbcb7;
+  --panel-3:     #b0afaa;
+  --line:        rgba(40,40,36,.18);
+  --line-dk:     rgba(40,40,36,.32);
+  --ink:         #2e2e2c;
+  --dim:         #5e5e5a;
+  --faint:       #8a8a86;
+  --acc:         #5a4fc8;   /* grape */
+  --acc-dim:     #a193c8;   /* lavender */
+  --hot:         #c8403a;   /* power LED */
+  --warn:        #b8962a;
+  --ink-on-acc:  #ffffff;
+  --meter-lo:    #a193c8;
+  --meter-mid:   #b8962a;
+  --meter-hi:    #c8403a;
+  --chrome-hi:   #b8b7b2;
+  --chrome-mid:  #a8a7a2;
+  --chrome-lo:   #989792;
+  --bevel-hi:    rgba(255,255,255,0.5);
+  --bevel-lo:    rgba(0,0,0,0.12);
+  /* SCREEN — dark CRT, grape hits, lavender trace */
+  --screen-bg:   #0c0b10;
+  --screen-glow: rgba(90,79,200,0.08);
+  --roll-bg:     #14121c;
+  --roll-bg-blk: #0e0c16;
+  --roll-note:   #e8e6f0;
+  --grid-line:   #2c2a38;
+  --scope:       #b8a8e8;
+  --playhead:    #a193c8;
+  --cell:        #16141e;
+  --cell-alt:    #1b1924;
   --hit1:        #7a6ad0;
   --hit2:        #4a3e92;
 }
-[data-theme="snes"] h1 { text-shadow: none; }
-[data-theme="snes"] .vc.hit { box-shadow: 0 0 6px rgba(122,108,210,0.4), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
-[data-theme="snes"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(216,180,58,0.3); background: rgba(216,180,58,0.07); }
-[data-theme="snes"] .vc.hit.now { box-shadow: 0 0 10px rgba(216,180,58,0.5), inset 0 1px 0 rgba(255,255,255,0.25); }
+[data-theme="snesus"] h1 { text-shadow: none; }
+[data-theme="snesus"] .vc.hit { box-shadow: 0 0 6px rgba(122,108,210,0.4), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+[data-theme="snesus"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(161,147,200,0.35); background: rgba(161,147,200,0.08); }
+[data-theme="snesus"] .vc.hit.now { box-shadow: 0 0 10px rgba(161,147,200,0.55), inset 0 1px 0 rgba(255,255,255,0.25); }
 
 [data-theme="megadrive"] {
   /* BODY — black console, Sega blue, 16-BIT gold, red power LED */
