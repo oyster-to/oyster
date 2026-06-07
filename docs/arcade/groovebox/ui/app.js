@@ -263,7 +263,6 @@ function renderViewTabs() {
 let _songTabOpen = false;
 function setLcdPane(songOpen) {
   _songTabOpen = songOpen;
-  closePicker();   // any tab/pane change dismisses the picker overlay
   const body = document.getElementById('lcd-body');
   const songPane = document.getElementById('lcd-song');
   if (body) body.hidden = songOpen;
@@ -310,11 +309,12 @@ function activateEditLane(id) {
   updateEditHighlight(id);
 }
 
-// ─── SELECT SONG — the cartridge picker, on the screen ───────────────────────
-// Tapping the song slot takes over the LCD (console game-select idiom): every
-// song is a cartridge card — notch colour says AI original / cover / shared,
-// shared carts carry a play-count badge. Picking loads + closes; ✕/Escape and
-// any tab change close back to the previous pane.
+// ─── SELECT SONG — the cartridge drawer ──────────────────────────────────────
+// Cartridges are hardware: tapping the song slot opens a rack panel anchored
+// under it (bottom sheet on mobile — the Help/Settings idiom). Every song is
+// a cartridge card — notch colour says AI original / cover / shared, shared
+// carts carry a play-count badge. Picking loads + closes; outside click,
+// ✕ and Escape close.
 const PRESET_ORDER = ['press-start', 'scallywag', 'boo-waltz', 'first-roll', 'kids',
   'rising-sun', 'electric-feel', 'heartbeats', 'digital-love', 'memory-reboot', 'take-on-me'];
 const AI_PRESETS = new Set(['press-start', 'scallywag', 'boo-waltz', 'first-roll']);
@@ -347,7 +347,7 @@ function cartEl({ cls, title, author, plays, onPick, selected }) {
 }
 
 function renderPicker() {
-  const host = document.getElementById('lcd-picker');
+  const host = document.getElementById('song-picker');
   if (!host) return;
   host.innerHTML = '';
   const head = document.createElement('div');
@@ -405,15 +405,11 @@ function renderPicker() {
 }
 
 function openPicker() {
-  const host = document.getElementById('lcd-picker');
+  const host = document.getElementById('song-picker');
   if (!host) return;
   renderPicker();
   _pickerOpen = true;
   host.hidden = false;
-  const body = document.getElementById('lcd-body');
-  const songPane = document.getElementById('lcd-song');
-  if (body) body.hidden = true;
-  if (songPane) songPane.hidden = true;
   document.getElementById('songbtn')?.classList.add('open');
   // Refresh the shelf in the background; re-render if anything changed.
   listItems('song', 25).then(({ items }) => {
@@ -426,15 +422,18 @@ function openPicker() {
 function closePicker() {
   if (!_pickerOpen) return;
   _pickerOpen = false;
-  const host = document.getElementById('lcd-picker');
+  const host = document.getElementById('song-picker');
   if (host) host.hidden = true;
-  // Restore whichever tab pane was current.
-  const body = document.getElementById('lcd-body');
-  const songPane = document.getElementById('lcd-song');
-  if (body) body.hidden = _songTabOpen;
-  if (songPane) songPane.hidden = !_songTabOpen;
   document.getElementById('songbtn')?.classList.remove('open');
 }
+
+// Outside click closes the drawer (same manners as the Settings popover).
+document.addEventListener('click', e => {
+  if (!_pickerOpen) return;
+  const host = document.getElementById('song-picker');
+  const btn = document.getElementById('songbtn');
+  if (host && !host.contains(e.target) && e.target !== btn && !btn?.contains(e.target)) closePicker();
+});
 
 function renderStrips() {
   const host = document.getElementById('strips');

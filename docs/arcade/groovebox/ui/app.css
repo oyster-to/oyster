@@ -645,10 +645,26 @@ input[type=range] {
 #songbtn.open { border-color: var(--acc); color: var(--acc); box-shadow: 0 0 6px color-mix(in srgb, var(--acc) 40%, transparent); }
 #songbtn.open .songbtn-caret { transform: rotate(180deg); color: var(--acc); }
 
-/* ─── SELECT SONG — cartridge picker pane on the LCD ─────────────────────────
-   Console game-select idiom: every song is a cartridge card drawn in screen
-   pixels. Notch colour = AI original (accent) / cover (dim) / shared (hot). */
-#lcd-picker { padding: 2px 2px 8px; }
+/* ─── SELECT SONG — the cartridge drawer ─────────────────────────────────────
+   Cartridges are hardware: a rack panel anchored under the song slot (bottom
+   sheet on mobile). Notch colour = AI original (accent) / cover (dim) /
+   shared (hot); the loaded cart fills in the accent. */
+.transport-song { position: relative; }
+#song-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 200;
+  width: min(380px, calc(100vw - 32px));
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+#song-picker[hidden] { display: none; }
 .picker-head {
   display: flex;
   align-items: center;
@@ -656,8 +672,8 @@ input[type=range] {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.12em;
-  color: var(--screen-ink);
-  padding: 4px 6px 6px;
+  color: var(--dim);
+  padding: 0 0 4px;
 }
 .picker-close {
   width: 24px;
@@ -665,18 +681,18 @@ input[type=range] {
   padding: 0;
   font-size: 11px;
   border-radius: 5px;
-  border: 1px solid color-mix(in srgb, var(--screen-ink) 35%, transparent);
+  border: 1px solid var(--line);
   background: transparent;
-  color: var(--screen-dim);
+  color: var(--faint);
   box-shadow: none;
 }
-.picker-close:hover { color: var(--screen-ink); border-color: var(--screen-ink); background: transparent; }
+.picker-close:hover { color: var(--ink); border-color: var(--dim); background: var(--panel-3); }
 .picker-sect {
   font-size: 8px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--screen-dim);
-  padding: 8px 6px 2px;
+  color: var(--faint);
+  padding: 8px 0 2px;
 }
 .kart {
   display: flex;
@@ -686,28 +702,28 @@ input[type=range] {
   text-align: left;
   margin: 4px 0;
   padding: 6px 9px;
-  border: 1px solid color-mix(in srgb, var(--screen-ink) 30%, transparent);
+  border: 1px solid var(--line);
   border-radius: 7px;
-  background: color-mix(in srgb, var(--screen-ink) 5%, transparent);
-  color: var(--screen-ink);
-  box-shadow: none;
+  background: var(--panel-2);
+  color: var(--ink);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.25);
   cursor: pointer;
   height: auto;
 }
-.kart:hover { border-color: var(--screen-ink); background: color-mix(in srgb, var(--screen-ink) 10%, transparent); }
+.kart:hover { border-color: var(--acc-dim); background: var(--panel-3); }
 .kart-notch {
   width: 14px;
   height: 19px;
   flex: 0 0 14px;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--screen-ink) 55%, transparent);
-  box-shadow: inset 0 -6px 0 rgba(0,0,0,0.25);
+  background: color-mix(in srgb, var(--dim) 60%, transparent);
+  box-shadow: inset 0 -6px 0 rgba(0,0,0,0.3);
 }
 .kart.ai .kart-notch { background: var(--acc); }
 .kart.shared .kart-notch { background: var(--hot); }
 .kart-meta { display: flex; flex-direction: column; min-width: 0; }
 .kart-t { font-weight: 700; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kart-a { font-size: 10px; color: var(--screen-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kart-a { font-size: 10px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kart-plays {
   margin-left: auto;
   font-size: 10px;
@@ -718,14 +734,42 @@ input[type=range] {
   padding: 1px 7px;
   white-space: nowrap;
 }
-/* The cart in the machine — inverted, like a real LCD menu selection. */
+/* The cart in the machine. */
 .kart.sel {
-  background: var(--screen-ink);
-  border-color: var(--screen-ink);
-  color: var(--screen-bg);
+  background: color-mix(in srgb, var(--acc) 14%, var(--panel-2));
+  border-color: var(--acc);
 }
-.kart.sel .kart-a { color: color-mix(in srgb, var(--screen-bg) 75%, transparent); }
-.kart.sel .kart-notch { background: var(--screen-bg); }
+.kart.sel .kart-t { color: var(--acc); }
+
+/* Mobile: the drawer is a bottom sheet, like Help and Settings. */
+@media (max-width: 900px) {
+  #song-picker {
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    max-height: 75vh;
+    border-radius: 16px 16px 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    padding: 14px 20px calc(24px + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 40px rgba(0,0,0,0.45);
+    animation: gbm-sheet-up 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+    z-index: 210;
+  }
+  #song-picker::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--line);
+    margin: 0 auto 12px;
+  }
+}
 
 /* Screen row — first row of the Settings popover */
 .vs-screen {
