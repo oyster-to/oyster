@@ -96,6 +96,7 @@ device → DO   {type:"res_err", id, code}              // e.g. "not_allowed", "
    - `/artifacts/<path>` — artefact file content (the file viewer)
 
    - `/api/artifacts` — live registry from the owning device. Reinstated during implementation: the mirror deliberately doesn't sync artefact file *URLs*, so the cloud client must ask the live device for them before it can open anything via `/artifacts/<path>`. The one list-shaped route, for exactly that reason.
+   - `/docs/:name` — the registry's actual viewer route for filesystem artefacts (added during implementation). Resolved server-side from the artefact's registered path (id-keyed `getDocFile`), never computed from the URL — no traversal surface.
 
    Matching rules: percent-decode and normalise the pathname *before* pattern matching (so `..%2F` can't slip past a `:id` pattern), match on pathname only, and pass the query string through untouched (⌘K needs `?q=`).
 
