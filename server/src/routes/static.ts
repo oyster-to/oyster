@@ -13,7 +13,7 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type Database from "better-sqlite3";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, realpathSync } from "node:fs";
 import { extname, join, resolve, sep } from "node:path";
 import type { ArtifactService } from "../artifact-service.js";
 import type { SqliteSpaceStore } from "../space-store.js";
@@ -52,16 +52,36 @@ export interface StaticRouteDeps {
  *    SPACES_DIR/<space>/<rel>   AI-generated bundles whose URL is just
  *                               /artifacts/<bundle>/icon.png with no hint
  *
- *  Containment guard uses resolve()+sep — a raw startsWith would let
- *  "/Users/me/OysterX/..." pass when OYSTER_HOME is "/Users/me/Oyster". */
+ *  Containment guard is two-layered (relay spec
+ *  2026-06-07-device-relay-design — this route is now reachable through
+ *  the device relay, not just loopback):
+ *    1. lexical: resolve()+sep — a raw startsWith would let
+ *       "/Users/me/OysterX/..." pass when OYSTER_HOME is "/Users/me/Oyster";
+ *    2. physical: realpathSync on both the candidate AND the root — a
+ *       symlink inside ~/Oyster pointing outside it must not serve the
+ *       link target. Roots are realpath'd too so a macOS /var → /private/var
+ *       style root doesn't false-negative every file. */
 export function resolveArtifactsUrl(
   relativePath: string,
   layout: { oysterHome: string; appsDir: string; spacesDir: string },
 ): string | null {
   const root = resolve(layout.oysterHome);
-  const isInsideRoot = (candidate: string): boolean => {
+  let realRoot: string | null = null;
+  try { realRoot = realpathSync(root); }
+  catch { return null; /* OYSTER_HOME missing — nothing can resolve */ }
+
+  const isContained = (candidate: string): boolean => {
+    // Lexical first (cheap, also catches raw ".." in the URL path).
     const r = resolve(candidate);
-    return r === root || r.startsWith(root + sep);
+    if (r !== root && !r.startsWith(root + sep)) return false;
+    // Physical second: follow symlinks all the way and re-check. Throws
+    // on missing paths — those are rejected by the isFile check anyway.
+    try {
+      const real = realpathSync(r);
+      return real === realRoot || real.startsWith(realRoot + sep);
+    } catch {
+      return false;
+    }
   };
   // Only return regular files — a directory match would propagate
   // through to readFileSync upstream and crash with EISDIR. statSync
@@ -75,15 +95,14 @@ export function resolveArtifactsUrl(
     join(layout.spacesDir, relativePath),
   ];
   for (const candidate of fixedCandidates) {
-    if (!isInsideRoot(candidate)) continue;
-    if (isFile(candidate)) return candidate;
+    if (isFile(candidate) && isContained(candidate)) return candidate;
   }
   const firstSegment = relativePath.split("/")[0];
   if (!firstSegment || firstSegment === "icons") return null;
   try {
     for (const spaceName of readdirSync(layout.spacesDir)) {
       const candidate = join(layout.spacesDir, spaceName, relativePath);
-      if (isInsideRoot(candidate) && isFile(candidate)) return candidate;
+      if (isFile(candidate) && isContained(candidate)) return candidate;
     }
   } catch { /* SPACES_DIR might not exist on a fresh install */ }
   return null;

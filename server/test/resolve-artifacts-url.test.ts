@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveArtifactsUrl } from "../src/routes/static.js";
@@ -84,6 +84,65 @@ describe("resolveArtifactsUrl", () => {
       // Edge: relativePath=""  → join produces oysterHome itself (a directory).
       // Should return null because directories aren't served.
       expect(resolveArtifactsUrl("", layout)).toBeNull();
+    });
+  });
+
+  // Relay merge gate (spec 2026-06-07-device-relay-design §security):
+  // /artifacts/<path> is reachable through the device relay now, not just
+  // loopback. Lexical checks are not containment — these pin the
+  // realpath layer. Note the tmp dir itself sits behind a symlink on
+  // macOS (/var → /private/var), so every happy-path test above also
+  // proves the root is realpath'd (a lexical-root comparison would fail
+  // them all).
+  describe("symlink containment (relay merge gate)", () => {
+    it("rejects a symlinked FILE inside ~/Oyster pointing outside it", () => {
+      const target = join(tmp, "outside-secret.txt");
+      writeFileSync(target, "leak");
+      mkdirSync(join(layout.spacesDir, "home"), { recursive: true });
+      symlinkSync(target, join(layout.spacesDir, "home", "innocent.md"));
+      expect(resolveArtifactsUrl("home/innocent.md", layout)).toBeNull();
+    });
+
+    it("rejects files under a symlinked DIRECTORY pointing outside ~/Oyster", () => {
+      const outsideDir = join(tmp, "outside-dir");
+      mkdirSync(outsideDir, { recursive: true });
+      writeFileSync(join(outsideDir, "creds.json"), "leak");
+      symlinkSync(outsideDir, join(layout.spacesDir, "linked"));
+      expect(resolveArtifactsUrl("linked/creds.json", layout)).toBeNull();
+    });
+
+    it("still serves a symlink whose target stays INSIDE ~/Oyster", () => {
+      mkdirSync(join(layout.spacesDir, "home"), { recursive: true });
+      const real = join(layout.spacesDir, "home", "real.md");
+      writeFileSync(real, "# fine");
+      symlinkSync(real, join(layout.spacesDir, "home", "alias.md"));
+      expect(resolveArtifactsUrl("home/alias.md", layout)).toBe(
+        join(layout.spacesDir, "home", "alias.md"),
+      );
+    });
+  });
+
+  describe("encoded / injected paths (relay merge gate)", () => {
+    it("does not decode percent-encoding — %2e%2e is a literal filename, not a traversal", () => {
+      const escape = join(tmp, "outside.txt");
+      writeFileSync(escape, "leak");
+      // No decode layer exists in this resolver (req.url arrives raw and
+      // is passed through) — the encoded form must not escape.
+      expect(resolveArtifactsUrl("%2e%2e/outside.txt", layout)).toBeNull();
+      expect(resolveArtifactsUrl("%252e%252e/outside.txt", layout)).toBeNull();
+    });
+
+    it("rejects absolute-path injection", () => {
+      // join() makes these relative to the roots, so they can only
+      // resolve inside — assert they don't accidentally hit /etc.
+      expect(resolveArtifactsUrl("/etc/hosts", layout)).toBeNull();
+      expect(resolveArtifactsUrl("//etc/hosts", layout)).toBeNull();
+    });
+
+    it("treats backslash sequences as literal file names, not separators", () => {
+      const escape = join(tmp, "outside.txt");
+      writeFileSync(escape, "leak");
+      expect(resolveArtifactsUrl("..\\outside.txt", layout)).toBeNull();
     });
   });
 

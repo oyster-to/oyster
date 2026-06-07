@@ -43,6 +43,7 @@ import { createSpaceSyncService } from "./space-sync-service.js";
 import { createMemorySyncService, type MemorySyncService } from "./memory-sync-service.js";
 import { createSessionSyncService, encodeCwd, projectsRoot, type SessionSyncService } from "./session-sync-service.js";
 import { createArtifactSyncService, type ArtifactSyncService } from "./artifact-sync-service.js";
+import { createRelayClient } from "./relay-client.js";
 import { createProfileBindingService } from "./profile-binding-service.js";
 import { hashPassword } from "./password-hash.js";
 import { tryHandleOAuthMcpRoute } from "./routes/oauth-mcp.js";
@@ -495,6 +496,26 @@ const artifactSync: ArtifactSyncService = createArtifactSyncService({
   fetch: globalThis.fetch,
 });
 
+// Device relay client (spec 2026-06-07-device-relay-design): outbound
+// WebSocket to the cloud worker's per-user RelayDO so the remote view can
+// open artefact files / list live sessions / search while this device is
+// online. Read-only v1; relay-client.ts holds the authoritative route
+// allowlist. boundRelayPort is set in the listen() callback below — the
+// client stays disconnected until the HTTP server is actually serving.
+let boundRelayPort: number | null = null;
+const relayClient = createRelayClient({
+  db,
+  currentUser: () => {
+    const u = authService.getState().user;
+    return u ? { id: u.id, email: u.email, tier: u.tier } : null;
+  },
+  sessionToken: () => authService.getState().sessionToken,
+  canRun: canRunCloudSync,
+  workerBase: CLOUD_WORKER_BASE,
+  localPort: () => boundRelayPort,
+  fetch: globalThis.fetch,
+});
+
 // Periodic pull. Pull-only triggers (auth-changed and app-startup) leave a
 // running server stale until the next reconcile event. A modest 30s tick
 // keeps cross-device memory updates fresh without burning excessive
@@ -693,6 +714,9 @@ async function syncOnAuth(label: string): Promise<void> {
   // sign-out, broadcasts artifact_changed unconditionally via logBackfill).
   const pr = await publishService.backfillPublications();
   logBackfill(label, pr);
+  // Relay follows the same gate: connects when Pro + bound, disconnects on
+  // sign-out / tier lapse. Cheap no-op when nothing changed.
+  relayClient.refresh();
 }
 
 authService.onAuthChanged(() => { void syncOnAuth("auth"); });
@@ -1175,6 +1199,10 @@ httpServer.listen(port, "127.0.0.1", () => {
   console.log(`  WebSocket: ws://127.0.0.1:${port}`);
   console.log(`  API:       http://127.0.0.1:${port}/api/artifacts`);
   try { writeFileSync(DEV_PORT_FILE, String(port)); } catch { /* best effort */ }
+
+  // The relay client can only loopback-fetch once we're listening.
+  boundRelayPort = port;
+  relayClient.refresh();
 
   // Deferred DB work. Runs after the listening socket is up so any
   // multi-second operation (one-shot upgrade backfills, FTS rebuilds) can
