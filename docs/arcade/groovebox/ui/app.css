@@ -3241,13 +3241,14 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   #punch-editor-backdrop { align-items: flex-end; }
   #punch-editor {
     width: 100vw;
+    max-height: calc(100vh - 32px);    /* fallback where dvh is unsupported */
     max-height: calc(100dvh - 32px);
     border-radius: 14px 14px 0 0;
     border-left: 0; border-right: 0; border-bottom: 0;
     padding: 14px 12px calc(16px + env(safe-area-inset-bottom));
   }
   .pe-hd { flex-wrap: wrap; row-gap: 8px; }
-  .pe-name { flex: 1 1 120px; min-width: 0; }
+  .pe-name { flex: 1 1 120px; min-width: 0; font-size: 16px; }  /* ≥16px = no iOS focus-zoom */
   .pe-badge { display: none; }   /* the editable name is right there; keys don't exist on phones */
   .pe-test { padding: 10px 20px; }
   .pe-row { gap: 6px; }
