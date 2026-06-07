@@ -652,41 +652,57 @@ input[type=range] {
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
 }
 #theme-picker[hidden] { display: none; }
-.trow {
+/* Mini-machine tiles, 3-up. Each plate carries data-theme, so the theme's own
+   CSS block paints it: cabinet (--panel over --bg), screen, accent, hot. */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+  margin: 2px 0 6px;
+}
+.ttile {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-  text-align: left;
-  margin: 3px 0;
-  padding: 6px 9px;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0;
   height: auto;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--panel-2);
-  color: var(--ink);
-  font-size: 12px;
+  border: none;
+  background: transparent;
   box-shadow: none;
   cursor: pointer;
 }
-.trow:hover { border-color: var(--acc-dim); background: var(--panel-3); }
-.trow.sel { border-color: var(--acc); }
-.trow.sel .trow-t { color: var(--acc); font-weight: 700; }
-/* The swatches: each strip carries the theme's data-theme attribute, so its
-   own CSS block resolves the chips — cabinet · screen · accent · hot. */
-.swatches { display: inline-flex; gap: 3px; flex: 0 0 auto; }
-.swatches i {
-  width: 13px;
-  height: 13px;
-  border-radius: 3px;
-  border: 1px solid rgba(0,0,0,0.35);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
+.ttile-plate {
+  display: block;
+  position: relative;
+  height: 44px;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px solid rgba(0,0,0,0.45);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
 }
-.swatches i:nth-child(1) { background: var(--bg); }
-.swatches i:nth-child(2) { background: var(--screen-bg); }
-.swatches i:nth-child(3) { background: var(--acc); }
-.swatches i:nth-child(4) { background: var(--hot); }
+.ttile-plate i { position: absolute; display: block; }
+.ttile-plate .tp-scr {
+  top: 6px; left: 6px; right: 6px; height: 20px;
+  border-radius: 3px;
+  background: var(--screen-bg);
+  border: 1px solid rgba(0,0,0,0.3);
+}
+.ttile-plate .tp-acc { left: 6px; bottom: 6px; width: 16px; height: 7px; border-radius: 2px; background: var(--acc); }
+.ttile-plate .tp-hot { left: 26px; bottom: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--hot); }
+.ttile-nm {
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  color: var(--dim);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.ttile:hover .ttile-plate { outline: 1px solid var(--acc-dim); }
+.ttile:hover .ttile-nm { color: var(--ink); }
+.ttile.sel .ttile-plate { outline: 2px solid var(--acc); outline-offset: 1px; box-shadow: 0 0 8px color-mix(in srgb, var(--acc) 45%, transparent); }
+.ttile.sel .ttile-nm { color: var(--acc); font-weight: 700; }
 
 /* Mobile: bottom sheet, like the song drawer. */
 @media (max-width: 900px) {

@@ -1422,14 +1422,21 @@ function renderThemePicker() {
       s.textContent = label;
       host.appendChild(s);
     }
+    const grid = document.createElement('div');
+    grid.className = 'theme-grid';
     for (const [value, name] of themes) {
       const b = document.createElement('button');
-      b.className = 'trow' + (value === cur ? ' sel' : '');
-      b.innerHTML = `<span class="trow-t">${esc(name)}</span>`
-        + `<span class="swatches" data-theme="${esc(value)}"><i></i><i></i><i></i><i></i></span>`;
+      b.className = 'ttile' + (value === cur ? ' sel' : '');
+      b.title = name;
+      // The plate carries data-theme, so the theme's OWN css block paints the
+      // mini machine: cabinet, screen, accent play-bar, hot dot.
+      b.innerHTML = `<span class="ttile-plate" data-theme="${esc(value)}">`
+        + `<i class="tp-scr"></i><i class="tp-acc"></i><i class="tp-hot"></i></span>`
+        + `<span class="ttile-nm">${esc(name)}</span>`;
       b.onclick = () => { applyTheme(value); renderThemePicker(); };   // stay open — theme browsing is the fun part
-      host.appendChild(b);
+      grid.appendChild(b);
     }
+    host.appendChild(grid);
   }
 }
 
