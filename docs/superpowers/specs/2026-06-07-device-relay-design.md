@@ -95,7 +95,7 @@ device → DO   {type:"res_err", id, code}              // e.g. "not_allowed", "
    - `/api/sessions/search` — FTS, powers ⌘K
    - `/artifacts/<path>` — artefact file content (the file viewer)
 
-   Deliberately *not* in v1: `/api/artifacts` (the mirror already has the registry — relay is for opening content, not re-fetching list state; add later only if mirror freshness actually pinches).
+   - `/api/artifacts` — live registry from the owning device. Reinstated during implementation: the mirror deliberately doesn't sync artefact file *URLs*, so the cloud client must ask the live device for them before it can open anything via `/artifacts/<path>`. The one list-shaped route, for exactly that reason.
 
    Matching rules: percent-decode and normalise the pathname *before* pattern matching (so `..%2F` can't slip past a `:id` pattern), match on pathname only, and pass the query string through untouched (⌘K needs `?q=`).
 
@@ -112,6 +112,8 @@ device → DO   {type:"res_err", id, code}              // e.g. "not_allowed", "
 7. **Read-only is not "safe", and we say so.** Relay v1 exposes the same private local read surface (session metadata, transcript search hits, artefact file contents — local paths, project names, command output included) to the **authenticated owner**, remotely. That is the product. It is not public, but it is a meaningful expansion of where that data can be read from, and it's why the allowlist is minimal, GET-only, and dual-enforced.
 
 8. **Visibility.** The relay client logs one line per relayed request (`[relay] GET /artifacts/... 200 34ms`) via the existing offline logger — the device owner can see exactly what the remote view touched.
+
+9. **Relayed responses are origin-hardened** (added during implementation, #657). Device-controlled response headers are stripped to `content-type`; the DO forces `Content-Security-Policy: sandbox` + `X-Content-Type-Options: nosniff` + `Cache-Control: private, no-store`. Relayed artefact HTML therefore renders with an opaque origin and cannot act with app.oyster.to's authority (the auth cookie lives there) — the same problem share.oyster.to solves with a separate hostname, solved here with a header.
 
 ## Web UI behaviour (v1)
 
