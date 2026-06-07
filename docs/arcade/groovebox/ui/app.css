@@ -2111,6 +2111,274 @@ body.gb-knob-values .knob-val { display: block; }
 [data-theme="casiofx"] h1,
 [data-theme="ti83"] h1 { text-shadow: none; }
 
+/* ─── hardware homage skins — consoles ────────────────────────────────────── */
+
+[data-theme="ps1"] {
+  /* BODY — PS1 warm console grey; the four shape colours:
+     △ green accent, ○ red, ✕ blue playhead, □ pink (meters) */
+  --bg:          #9b9b95;
+  --panel:       #c7c6c0;
+  --panel-2:     #bbbab4;
+  --panel-3:     #aeada7;
+  --line:        rgba(40,40,36,.18);
+  --line-dk:     rgba(40,40,36,.32);
+  --ink:         #2b2b28;
+  --dim:         #5d5d58;
+  --faint:       #8a8a84;
+  --acc:         #2ea35c;   /* △ */
+  --acc-dim:     #7cc89a;
+  --hot:         #d8344c;   /* ○ */
+  --warn:        #b8862a;
+  --ink-on-acc:  #ffffff;
+  --meter-lo:    #2ea35c;
+  --meter-mid:   #d863a8;   /* □ */
+  --meter-hi:    #d8344c;
+  --chrome-hi:   #b4b3ad;
+  --chrome-mid:  #a4a39d;
+  --chrome-lo:   #94938d;
+  --bevel-hi:    rgba(255,255,255,0.5);
+  --bevel-lo:    rgba(0,0,0,0.12);
+  /* SCREEN — dark CRT, green hits, ✕-blue playhead */
+  --screen-bg:   #0c0c10;
+  --screen-glow: rgba(125,164,221,0.08);
+  --roll-bg:     #121218;
+  --roll-bg-blk: #0d0d12;
+  --roll-note:   #4ab474;   /* △-green melody notes */
+  --grid-line:   #2a2a34;
+  --scope:       #9ab8e8;
+  --playhead:    #ffffff;   /* boot-screen white */
+  --cell:        #14141a;
+  --cell-alt:    #1a1a20;
+  --hit1:        #5a82c8;   /* ✕-blue drum hits */
+  --hit2:        #2e4e94;
+}
+[data-theme="ps1"] h1 { text-shadow: none; }
+[data-theme="ps1"] .vc.hit { box-shadow: 0 0 6px rgba(125,164,221,0.35), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+[data-theme="ps1"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(125,164,221,0.35); background: rgba(125,164,221,0.08); }
+[data-theme="ps1"] .vc.hit.now { box-shadow: 0 0 10px rgba(125,164,221,0.5), inset 0 1px 0 rgba(255,255,255,0.25); }
+
+[data-theme="gamecube"] {
+  /* BODY — the indigo cube itself; A-button green, B-red, C-stick yellow */
+  --bg:          #3d3478;
+  --panel:       #5b4d9e;
+  --panel-2:     #544692;
+  --panel-3:     #6a5cb0;
+  --line:        rgba(0,0,0,.25);
+  --line-dk:     rgba(0,0,0,.4);
+  --ink:         #f0eefa;
+  --dim:         #c2bce0;
+  --faint:       #968fc0;
+  --acc:         #3cb878;   /* A */
+  --acc-dim:     #2a8456;
+  --hot:         #e04848;   /* B */
+  --warn:        #e8c83a;   /* C */
+  --ink-on-acc:  #06281a;
+  --meter-lo:    #3cb878;
+  --meter-mid:   #e8c83a;
+  --meter-hi:    #e04848;
+  --chrome-hi:   #6a5cb0;
+  --chrome-mid:  #544692;
+  --chrome-lo:   #43377c;
+  --bevel-hi:    rgba(255,255,255,0.22);
+  --bevel-lo:    rgba(0,0,0,0.35);
+  /* SCREEN — near-black purple CRT, A-green content */
+  --screen-bg:   #0d0a18;
+  --screen-glow: rgba(60,184,120,0.08);
+  --roll-bg:     #131024;
+  --roll-bg-blk: #0e0b1c;
+  --roll-note:   #3cb878;
+  --grid-line:   #2c2648;
+  --scope:       #7ee8b0;
+  --playhead:    #ffffff;
+  --cell:        #161230;
+  --cell-alt:    #1b1738;
+  --hit1:        #44c884;
+  --hit2:        #268652;
+}
+[data-theme="gamecube"] .vc.hit { box-shadow: 0 0 6px rgba(60,184,120,0.35), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+
+[data-theme="n64"] {
+  /* BODY — matte charcoal; controller colours: A-blue, B-green via meters,
+     C-yellow playhead, logo red */
+  --bg:          #1b1b1d;
+  --panel:       #2a2a2d;
+  --panel-2:     #333337;
+  --panel-3:     #404045;
+  --line:        rgba(255,255,255,.08);
+  --line-dk:     rgba(0,0,0,.5);
+  --ink:         #ececee;
+  --dim:         #9c9ca2;
+  --faint:       #646468;
+  --acc:         #4a7ae8;   /* A button */
+  --acc-dim:     #2e51a8;
+  --hot:         #e03c30;
+  --warn:        #e8c020;
+  --ink-on-acc:  #ffffff;
+  --meter-lo:    #3aa53a;
+  --meter-mid:   #e8c020;
+  --meter-hi:    #e03c30;
+  --chrome-hi:   #404045;
+  --chrome-mid:  #2e2e32;
+  --chrome-lo:   #1e1e20;
+  --bevel-hi:    rgba(255,255,255,0.07);
+  --bevel-lo:    rgba(0,0,0,0.5);
+  /* SCREEN — dark CRT, A-blue notes, C-yellow playhead */
+  --screen-bg:   #0b0b0d;
+  --screen-glow: rgba(74,122,232,0.07);
+  --roll-bg:     #111114;
+  --roll-bg-blk: #0c0c0f;
+  --roll-note:   #6a96f0;   /* A-blue melody notes */
+  --grid-line:   #2a2a30;
+  --scope:       #8ab0f8;
+  --playhead:    #e8c020;   /* C-yellow */
+  --cell:        #131316;
+  --cell-alt:    #18181c;
+  --hit1:        #4aab4a;   /* B-green drum hits */
+  --hit2:        #2a7a2a;
+}
+[data-theme="n64"] .vc.hit { box-shadow: 0 0 6px rgba(74,171,74,0.35), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+[data-theme="n64"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(232,192,32,0.3); background: rgba(232,192,32,0.07); }
+[data-theme="n64"] .vc.hit.now { box-shadow: 0 0 10px rgba(232,192,32,0.5), inset 0 1px 0 rgba(255,255,255,0.25); }
+
+[data-theme="nes"] {
+  /* BODY — cool two-tone console grey + NES red */
+  --bg:          #94928c;
+  --panel:       #c4c2ba;
+  --panel-2:     #b6b4ac;
+  --panel-3:     #a8a69e;
+  --line:        rgba(40,40,36,.18);
+  --line-dk:     rgba(40,40,36,.32);
+  --ink:         #2c2b28;
+  --dim:         #5c5b56;
+  --faint:       #888780;
+  --acc:         #c8201c;   /* logo red */
+  --acc-dim:     #da6a64;
+  --hot:         #c8201c;
+  --warn:        #8a7212;
+  --ink-on-acc:  #ffffff;
+  --meter-lo:    #6f8f5a;
+  --meter-mid:   #8a7212;
+  --meter-hi:    #c8201c;
+  --chrome-hi:   #b0aea6;
+  --chrome-mid:  #a09e96;
+  --chrome-lo:   #908e86;
+  --bevel-hi:    rgba(255,255,255,0.45);
+  --bevel-lo:    rgba(0,0,0,0.15);
+  /* SCREEN — near-black CRT, white pixels, red-lit hits */
+  --screen-bg:   #0a0a0c;
+  --screen-glow: rgba(200,32,28,0.06);
+  --roll-bg:     #101013;
+  --roll-bg-blk: #0b0b0e;
+  --roll-note:   #e8e6e0;
+  --grid-line:   #28282c;
+  --scope:       #e8e6e0;
+  --playhead:    #e8312a;
+  --cell:        #121215;
+  --cell-alt:    #17171a;
+  --hit1:        #d8423c;
+  --hit2:        #962420;
+}
+/* Red plastic-stamped wordmark, like the logo on the front loader */
+[data-theme="nes"] h1 {
+  color: #c8201c;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+}
+[data-theme="nes"] .vc.hit { box-shadow: 0 0 6px rgba(200,32,28,0.35), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+[data-theme="nes"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(232,49,42,0.3); background: rgba(232,49,42,0.07); }
+[data-theme="nes"] .vc.hit.now { box-shadow: 0 0 10px rgba(232,49,42,0.55), inset 0 1px 0 rgba(255,255,255,0.25); }
+
+[data-theme="snes"] {
+  /* BODY — PAL light grey; ABXY red/yellow/green/blue, mode-7 purple screen */
+  --bg:          #9a9a96;
+  --panel:       #cac9c4;
+  --panel-2:     #bdbcb7;
+  --panel-3:     #b0afaa;
+  --line:        rgba(40,40,36,.18);
+  --line-dk:     rgba(40,40,36,.32);
+  --ink:         #2e2e2c;
+  --dim:         #5e5e5a;
+  --faint:       #8a8a86;
+  --acc:         #3a6ee0;   /* X/A blue */
+  --acc-dim:     #8aa6e8;
+  --hot:         #d8403a;   /* B red */
+  --warn:        #b8962a;
+  --ink-on-acc:  #ffffff;
+  --meter-lo:    #3aa54a;   /* Y green / X yellow / B red */
+  --meter-mid:   #d8b43a;
+  --meter-hi:    #d8403a;
+  --chrome-hi:   #b8b7b2;
+  --chrome-mid:  #a8a7a2;
+  --chrome-lo:   #989792;
+  --bevel-hi:    rgba(255,255,255,0.5);
+  --bevel-lo:    rgba(0,0,0,0.12);
+  /* SCREEN — dark CRT with a mode-7 lavender cast */
+  --screen-bg:   #0c0b10;
+  --screen-glow: rgba(122,98,200,0.08);
+  --roll-bg:     #14121c;
+  --roll-bg-blk: #0e0c16;
+  --roll-note:   #e8e6f0;
+  --grid-line:   #2c2a38;
+  --scope:       #b8a8e8;
+  --playhead:    #d8b43a;
+  --cell:        #16141e;
+  --cell-alt:    #1b1924;
+  --hit1:        #7a6ad0;
+  --hit2:        #4a3e92;
+}
+[data-theme="snes"] h1 { text-shadow: none; }
+[data-theme="snes"] .vc.hit { box-shadow: 0 0 6px rgba(122,108,210,0.4), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+[data-theme="snes"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(216,180,58,0.3); background: rgba(216,180,58,0.07); }
+[data-theme="snes"] .vc.hit.now { box-shadow: 0 0 10px rgba(216,180,58,0.5), inset 0 1px 0 rgba(255,255,255,0.25); }
+
+[data-theme="megadrive"] {
+  /* BODY — black console, Sega blue, 16-BIT gold, red power LED */
+  --bg:          #0e0e10;
+  --panel:       #1a1a1d;
+  --panel-2:     #222226;
+  --panel-3:     #2d2d32;
+  --line:        rgba(255,255,255,.08);
+  --line-dk:     rgba(0,0,0,.6);
+  --ink:         #ececee;
+  --dim:         #95959c;
+  --faint:       #5e5e64;
+  --acc:         #3d6fe8;   /* Sega blue */
+  --acc-dim:     #2a4ba0;
+  --hot:         #e0312e;   /* power LED */
+  --warn:        #c8a23a;   /* 16-BIT gold */
+  --ink-on-acc:  #ffffff;
+  --meter-lo:    #3d6fe8;
+  --meter-mid:   #c8a23a;
+  --meter-hi:    #e0312e;
+  --chrome-hi:   #303034;
+  --chrome-mid:  #222226;
+  --chrome-lo:   #151518;
+  --bevel-hi:    rgba(255,255,255,0.07);
+  --bevel-lo:    rgba(0,0,0,0.6);
+  /* SCREEN — dark CRT, blue content, gold playhead */
+  --screen-bg:   #0a0a0c;
+  --screen-glow: rgba(61,111,232,0.08);
+  --roll-bg:     #0f0f12;
+  --roll-bg-blk: #0a0a0d;
+  --roll-note:   #4a86f0;
+  --grid-line:   #26262a;
+  --scope:       #6a9ef8;
+  --playhead:    #d8b44a;
+  --cell:        #111114;
+  --cell-alt:    #16161a;
+  --hit1:        #4a7ae8;
+  --hit2:        #2a4ba0;
+}
+/* Gold italic wordmark, like the 16-BIT badge on the fascia */
+[data-theme="megadrive"] h1 {
+  color: #c8a23a;
+  font-style: italic;
+  font-weight: 800;
+  text-shadow: none;
+}
+[data-theme="megadrive"] .vc.hit { box-shadow: 0 0 6px rgba(61,111,232,0.35), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+[data-theme="megadrive"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(216,180,74,0.3); background: rgba(216,180,74,0.07); }
+[data-theme="megadrive"] .vc.hit.now { box-shadow: 0 0 10px rgba(216,180,74,0.5), inset 0 1px 0 rgba(255,255,255,0.25); }
+
 /* ─── § 5 — lane actions: dup + remove buttons ────────────────────────────── */
 .lane-actions {
   display: flex;
