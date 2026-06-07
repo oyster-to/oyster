@@ -9,7 +9,10 @@ import { laneByType } from '../engine/lanes.js';
 let _tc = null;
 function themeColors() {
   if (_tc) return _tc;
-  const cs = getComputedStyle(document.documentElement);
+  // Sample at #viz (not the root): custom properties inherit, so values match
+  // the root for every theme EXCEPT where a theme re-scopes in-screen ink on
+  // #viz (amiga, the pale-LCD calculators) — canvas text must honour those.
+  const cs = getComputedStyle(document.getElementById('viz') || document.documentElement);
   const g = n => cs.getPropertyValue(n).trim() || '#888';
   _tc = {
     acc:     g('--acc'),
