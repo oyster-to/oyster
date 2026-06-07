@@ -635,7 +635,6 @@ input[type=range] {
 }
 
 /* ─── Theme picker — drawer with live swatches under the titlebar button ──── */
-.theme-wrap { position: relative; }
 #themebtn.open { border-color: var(--acc); color: var(--acc); }
 /* Desktop: a full gallery — 32 machines deserve real estate, not a keyhole. */
 #theme-picker {

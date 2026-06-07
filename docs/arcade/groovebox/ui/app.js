@@ -1948,3 +1948,7 @@ document.addEventListener('contextmenu', e => {
     e.preventDefault();
   }
 });
+// Dev hook: ?devopen=theme|song auto-opens a picker — lets headless-browser
+// screenshots verify the drawers without a click. Inert in normal use.
+if (location.search.includes('devopen=theme')) setTimeout(() => openThemePicker(), 300);
+if (location.search.includes('devopen=song')) setTimeout(() => openPicker(), 300);
