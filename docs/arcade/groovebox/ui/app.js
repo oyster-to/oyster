@@ -226,12 +226,17 @@ function updateEditHighlight(id) {
   }
 }
 
-// Quick-edit tabs in the VIEW bar: one per editable lane (emoji + name) + Scope.
+// Screen tabs in the LCD: Song first, then one per editable lane, then Scope.
 // Rebuilt on every renderStrips() so it tracks add/dup/remove/rename.
 function renderViewTabs() {
   const bar = document.querySelector('.vtabs');
   if (!bar) return;
-  bar.innerHTML = '<span class="vtabs-lbl">VIEW</span>';
+  bar.innerHTML = '';
+  const songTab = document.createElement('button');
+  songTab.dataset.view = 'song';
+  songTab.textContent = 'Song';
+  songTab.onclick = () => activateSongTab();
+  bar.appendChild(songTab);
   for (const lane of eng.getLanes()) {
     if (lane.type === 'chords') continue;   // chords has no grid/roll editor
     const b = document.createElement('button');
@@ -246,7 +251,35 @@ function renderViewTabs() {
   scope.textContent = '📈 Scope';
   scope.onclick = () => toggleScope(scope);
   bar.appendChild(scope);
-  if (_editingLaneId) updateEditHighlight(_editingLaneId);
+  if (_songTabOpen) songTab.classList.add('on');
+  else if (_editingLaneId) updateEditHighlight(_editingLaneId);
+}
+
+// The screen has two panes: #lcd-body (viz: lane editors / scope) and
+// #lcd-song (song structure). Display toggle only — the viz is never disposed
+// here, so switching tabs is free.
+let _songTabOpen = false;
+function setLcdPane(songOpen) {
+  _songTabOpen = songOpen;
+  const body = document.getElementById('lcd-body');
+  const songPane = document.getElementById('lcd-song');
+  if (body) body.hidden = songOpen;
+  if (songPane) songPane.hidden = !songOpen;
+}
+
+// Song tab: show the song structure pane, clear lane-editing highlights.
+function activateSongTab() {
+  const bar = document.querySelector('.vtabs');
+  if (bar) {
+    bar.querySelectorAll('button').forEach(x => x.classList.remove('on'));
+    bar.querySelector('[data-view="song"]')?.classList.add('on');
+  }
+  const host = document.getElementById('strips');
+  if (host) {
+    host.querySelectorAll('.lane').forEach(row => row.classList.remove('editing'));
+    host.querySelectorAll('.lane-edit').forEach(b => b.classList.remove('editing'));
+  }
+  setLcdPane(true);
 }
 
 // Scope toggle: on → show oscilloscope; off (click again) → back to last lane editor.
@@ -262,12 +295,14 @@ function toggleScope(btn) {
       host.querySelectorAll('.lane').forEach(row => row.classList.remove('editing'));
       host.querySelectorAll('.lane-edit').forEach(b => b.classList.remove('editing'));
     }
+    setLcdPane(false);
     viz.setView('scope');
   }
 }
 
 // Open a lane editor in the viz + update highlight.
 function activateEditLane(id) {
+  setLcdPane(false);
   viz.editLane(id);
   updateEditHighlight(id);
 }
@@ -673,6 +708,61 @@ document.addEventListener('keyup', e => {
 window.addEventListener('blur', () => { for (let s = 0; s < eng.getPunchPresets().length; s++) setPunch(s, false); });
 
 // ─── Master FX ───────────────────────────────────────────────────────────────
+// Tempo + transpose are hardware on MASTER (the screen strip carries the
+// readouts; the controls live where the knobs are).
+let currentBpm = 120;
+let transpose = 0;
+function fmtKey(n) { return n > 0 ? '+' + n : String(n); }
+
+function makeTempoGroup() {
+  const grp = document.createElement('div');
+  grp.className = 'kgroup';
+  const lbl = document.createElement('span');
+  lbl.className = 'kgroup-lbl';
+  lbl.textContent = `TEMPO · ${currentBpm}`;
+  grp.appendChild(lbl);
+  const row = document.createElement('div');
+  row.className = 'kgroup-knobs';
+  row.appendChild(makeKnob({
+    label: 'bpm',
+    value: (currentBpm - 80) / 100,
+    fmt: v => Math.round(80 + v * 100),
+    onChange: v => {
+      currentBpm = Math.round(80 + v * 100);
+      eng.setTempo(currentBpm);
+      lbl.textContent = `TEMPO · ${currentBpm}`;
+      const sb = document.getElementById('strip-bpm');
+      if (sb) sb.textContent = `${currentBpm} BPM`;
+    },
+    tip: 'Tempo (BPM) — drag up / down',
+  }));
+  grp.appendChild(row);
+  return grp;
+}
+
+function makeTransposeGroup() {
+  const grp = document.createElement('div');
+  grp.className = 'kgroup';
+  const lbl = document.createElement('span');
+  lbl.className = 'kgroup-lbl';
+  lbl.textContent = 'TRANSPOSE';
+  grp.appendChild(lbl);
+  const row = document.createElement('div');
+  row.className = 'kgroup-knobs';
+  const stepper = document.createElement('div');
+  stepper.className = 'key-stepper';
+  const dn = document.createElement('button'); dn.textContent = '−';
+  const val = document.createElement('span'); val.className = 'mono'; val.textContent = fmtKey(transpose);
+  const up = document.createElement('button'); up.textContent = '＋';
+  dn.onclick = () => { transpose = Math.max(-12, transpose - 1); eng.setTranspose(transpose); val.textContent = fmtKey(transpose); };
+  up.onclick = () => { transpose = Math.min(12, transpose + 1); eng.setTranspose(transpose); val.textContent = fmtKey(transpose); };
+  stepper.appendChild(dn); stepper.appendChild(val); stepper.appendChild(up);
+  stepper.title = 'Shift the whole song up / down in semitones';
+  row.appendChild(stepper);
+  grp.appendChild(row);
+  return grp;
+}
+
 function renderMaster() {
   const masterHost = document.getElementById('master');
   masterHost.innerHTML = '';
@@ -708,14 +798,14 @@ function renderMaster() {
     { label: 'vrb', value: 0, onChange: v => eng.setMasterFX('reverb', v), tip: knobTip('vrb'), k: 'vrb' },
     { label: 'cmp', value: 0, onChange: v => eng.setMasterFX('comp',   v), tip: knobTip('cmp'), k: 'cmp' },
   ]);
-  mwrap.appendChild(makeKnobrow([mixGrp, toneGrp, fxGrp]));
+  mwrap.appendChild(makeKnobrow([makeTempoGroup(), makeTransposeGroup(), mixGrp, toneGrp, fxGrp]));
 
   masterHost.appendChild(mwrap);
   cacheMeterFills();  // re-cache master meter fill refs after DOM rebuild
   updateEmptyGroups(); // hide master kgroups where all knobs are hidden
 }
 
-// ─── PATTERNS module (patterns row + chain row + chord line + playback label) ─
+// ─── SONG tab (patterns row + nested chord line + chain row, on the screen) ──
 function fmtKeyName(key) {
   return key ? `${key.root} ${key.mode}` : '';
 }
@@ -723,7 +813,7 @@ function fmtKeyName(key) {
 let _chainDragFrom = null;
 
 function renderPatterns() {
-  const host = document.getElementById('arrange');   // id kept for saved section order
+  const host = document.getElementById('lcd-song-rows');
   if (!host) return;
   host.innerHTML = '';
   const patterns = eng.getPatterns();
@@ -742,7 +832,7 @@ function renderPatterns() {
     const b = document.createElement('button');
     b.className = 'pat-slot' + (i === editIdx ? ' sel' : '');
     b.dataset.idx = i;
-    b.textContent = i + 1;
+    b.textContent = i === editIdx ? `${i + 1} ✎` : `${i + 1}`;
     b.title = 'click: edit this pattern — play will loop it';
     b.onclick = () => { eng.selectPattern(i); renderPatterns(); refreshVizPattern(); };
     prow.appendChild(b);
@@ -774,9 +864,11 @@ function renderPatterns() {
   prow.appendChild(del);
   host.appendChild(prow);
 
-  // Chord line for the SELECTED pattern: "chords" label + chord-name chips +
-  // key badge. Chords belong to the pattern (one per bar, cycling). Click
-  // anywhere → text input to edit (parser-backed); empty → a "＋ chords" affordance.
+  // Chord line for the SELECTED pattern, nested under the patterns row (the
+  // indent + spine say "this pattern's chords"). Chords belong to the pattern
+  // (one per bar, cycling). Click anywhere → text input to edit (parser-backed);
+  // empty → a "＋ chords" affordance. The status strip carries the SOUNDING
+  // pattern's chords — this row is purely the edit pattern's.
   host.appendChild(buildChordLine(editIdx));
 
   // Chain row: chips (click = play chain from there; hover-✕ removes; drag reorders) + append.
@@ -817,15 +909,105 @@ function renderPatterns() {
   crow.appendChild(append);
   host.appendChild(crow);
 
+  // Foot: key badge (the song's key, not the transpose control — that's on MASTER).
+  const keyEl = document.getElementById('lcd-song-key');
+  if (keyEl) keyEl.textContent = fmtKeyName(eng.getKey());
+
+  renderStrip();        // chain/chords may have changed → rebuild the readout
   updatePatternsPlayback(eng.getPlaybackTarget());
   syncStripGrooves();   // edit pattern may have changed → resync strip dropdowns
 }
 
-// Build the chord line for pattern `idx`: "chords" label + a P<n> marker + chord
-// chips (or a "＋ chords" affordance when empty) + the key badge. The chip area is
-// clickable → beginChordEdit swaps in the text input. During playback the row
-// FOLLOWS THE SOUNDING PATTERN (updatePatternsPlayback rebuilds it on pattern
-// change) — watching is the default, editing is the explicit click.
+// ─── LCD status strip (read-only narrator: title · chain · chords · key · bpm) ─
+function renderStrip() {
+  const host = document.getElementById('lcd-strip');
+  if (!host) return;
+  host.innerHTML = '';
+  const s = eng.getSong();
+  if (!s) return;
+  const title = document.createElement('span');
+  title.className = 'strip-title';
+  title.textContent = (s.title || '').toUpperCase();
+  host.appendChild(title);
+  if (s.artist) {
+    const credit = document.createElement('span');
+    credit.className = 'strip-credit';
+    credit.textContent = s.artist;
+    host.appendChild(credit);
+  }
+  const chainWrap = document.createElement('span');
+  chainWrap.className = 'strip-chain';
+  eng.getChain().forEach((pi, pos) => {
+    const seg = document.createElement('span');
+    seg.className = 'strip-seg';
+    seg.dataset.pos = pos;
+    seg.textContent = pi + 1;
+    chainWrap.appendChild(seg);
+  });
+  const loop = document.createElement('span');
+  loop.className = 'strip-seg strip-loop hot';
+  loop.hidden = true;
+  chainWrap.appendChild(loop);
+  host.appendChild(chainWrap);
+  const chordWrap = document.createElement('span');
+  chordWrap.className = 'strip-chords';
+  chordWrap.dataset.idx = -1;
+  host.appendChild(chordWrap);
+  const key = eng.getKey();
+  if (key) {
+    const keyEl = document.createElement('span');
+    keyEl.className = 'strip-key';
+    keyEl.textContent = fmtKeyName(key).toUpperCase();
+    host.appendChild(keyEl);
+  }
+  const bpmEl = document.createElement('span');
+  bpmEl.className = 'strip-bpm';
+  bpmEl.id = 'strip-bpm';
+  bpmEl.textContent = `${currentBpm} BPM`;
+  host.appendChild(bpmEl);
+  updateStrip(eng.getPlaybackTarget());
+}
+
+// Per-step strip update: hot-class moves only — chord segs rebuild only when
+// the sounding pattern changes (a handful of nodes, on a bar boundary).
+function updateStrip(target) {
+  const host = document.getElementById('lcd-strip');
+  if (!host || !target) return;
+  const isPattern = target.kind === 'pattern';
+  host.querySelectorAll('.strip-chain .strip-seg:not(.strip-loop)').forEach(seg => {
+    seg.classList.toggle('hot', !isPattern && +seg.dataset.pos === target.chainPos);
+  });
+  const loop = host.querySelector('.strip-loop');
+  if (loop) {
+    loop.hidden = !isPattern;
+    if (isPattern) loop.textContent = `LOOP P${target.patternIdx + 1}`;
+  }
+  const wrap = host.querySelector('.strip-chords');
+  if (wrap) {
+    if (+wrap.dataset.idx !== target.patternIdx) {
+      wrap.dataset.idx = target.patternIdx;
+      wrap.innerHTML = '';
+      (eng.getPatternChords(target.patternIdx) || []).forEach((c, i) => {
+        const seg = document.createElement('span');
+        seg.className = 'strip-seg';
+        seg.dataset.i = i;
+        seg.textContent = c.name;
+        wrap.appendChild(seg);
+      });
+    }
+    const segs = wrap.querySelectorAll('.strip-seg');
+    if (segs.length) {
+      const hot = target.barInPattern % segs.length;
+      segs.forEach(seg => seg.classList.toggle('hot', +seg.dataset.i === hot));
+    }
+  }
+}
+
+// Build the chord line for pattern `idx`: "chords" label + chord chips (or a
+// "＋ chords" affordance when empty). Nested under the patterns row — the
+// indent says whose chords they are, so no P-marker. The chip area is
+// clickable → beginChordEdit swaps in the text input. Watching the sounding
+// pattern's chords is the strip's job; this row is the edit pattern's.
 function buildChordLine(idx) {
   const row = document.createElement('div');
   row.className = 'chord-row';
@@ -834,10 +1016,6 @@ function buildChordLine(idx) {
   lbl.className = 'pat-lbl';
   lbl.textContent = 'chords';
   row.appendChild(lbl);
-  const pmark = document.createElement('span');
-  pmark.className = 'h-pat';
-  pmark.textContent = 'P' + (idx + 1);
-  row.appendChild(pmark);
 
   const chips = document.createElement('div');
   chips.className = 'h-chips';
@@ -858,14 +1036,6 @@ function buildChordLine(idx) {
   }
   chips.onclick = () => beginChordEdit(idx);
   row.appendChild(chips);
-
-  const key = eng.getKey();
-  if (key) {
-    const badge = document.createElement('span');
-    badge.className = 'pat-lbl h-key';
-    badge.textContent = fmtKeyName(key);
-    row.appendChild(badge);
-  }
   return row;
 }
 
@@ -873,7 +1043,7 @@ function buildChordLine(idx) {
 // Enter / blur commit (parse → setPatternChords); Escape cancels; invalid input
 // keeps a red border and stays editing.
 function beginChordEdit(idx) {
-  const host = document.getElementById('arrange');
+  const host = document.getElementById('lcd-song-rows');
   const chips = host?.querySelector('.chord-row .h-chips');
   if (!chips) return;
   const chords = eng.getPatternChords(idx) || [];
@@ -913,9 +1083,9 @@ function beginChordEdit(idx) {
   input.onblur = commit;
 }
 
-// Glow + label + row dimming — called from renderPatterns and every step.
+// Glow + row dimming — called from renderPatterns and every step.
 function updatePatternsPlayback(target) {
-  const host = document.getElementById('arrange');
+  const host = document.getElementById('lcd-song-rows');
   if (!host || !target) return;
   const isPattern = target.kind === 'pattern';
   const prow = host.querySelector('.pat-row');
@@ -928,29 +1098,16 @@ function updatePatternsPlayback(target) {
   host.querySelectorAll('.chain-chip').forEach(c => {
     c.classList.toggle('playing', !isPattern && +c.dataset.pos === target.chainPos);
   });
-  // Chord line follows the SOUNDING pattern (unless the user is mid-edit):
-  // rebuild it when the sounding pattern changes, then light the live chord.
-  const row = host.querySelector('.chord-row');
-  if (row && !host.querySelector('.h-edit') && +row.dataset.idx !== target.patternIdx) {
-    row.replaceWith(buildChordLine(target.patternIdx));
-  }
+  // The chord row shows the EDIT pattern's chords; light the live chord only
+  // when the edit pattern happens to be the one sounding. (The strip narrates
+  // the sounding pattern; no prose status — the chips ARE the status.)
   const liveRow = host.querySelector('.chord-row');
   const chordChips = liveRow ? liveRow.querySelectorAll('.h-chip:not(.h-empty)') : [];
-  if (chordChips.length && +liveRow.dataset.idx === target.patternIdx) {
+  if (chordChips.length) {
+    const isSounding = +liveRow.dataset.idx === target.patternIdx;
     const sounding = target.barInPattern % chordChips.length;
-    chordChips.forEach(chip => chip.classList.toggle('sounding', +chip.dataset.idx === sounding));
+    chordChips.forEach(chip => chip.classList.toggle('sounding', isSounding && +chip.dataset.idx === sounding));
   }
-  // Status spans now live in the transport row (#song-status), not in #arrange.
-  const lbl = document.getElementById('pat-playing');
-  if (lbl) {
-    const chain = eng.getChain();
-    const verb = eng.isPlaying() ? 'Playing' : 'Will play';
-    lbl.textContent = isPattern
-      ? `▶ ${verb}: Pattern ${target.patternIdx + 1} (loop)`
-      : `▶ ${verb}: Chain · ${chain.map((pi, i) => (i === target.chainPos ? '▸' : '') + (pi + 1)).join(' ')}`;
-  }
-  const ed = document.querySelector('#song-status .pat-editing');
-  if (ed) ed.textContent = `✎ Pattern ${eng.getEditPatternIndex() + 1}`;
 }
 
 // Tell the viz the edit pattern changed (rebuilds the open editor).
@@ -992,10 +1149,10 @@ function mount() {
   renderFills();
   renderPunch();
   renderMaster();
-  renderPatterns();
+  renderPatterns();   // also rebuilds the LCD status strip
   viz?.dispose?.();   // stop the outgoing viz's rAF loops before replacing it
-  viz = makeViz(document.getElementById('viz'), song, eng);
-  // Scope tab off — lane editor takes over.
+  viz = makeViz(document.getElementById('lcd-body'), song, eng);
+  // Scope/Song tabs off — lane editor takes over.
   document.querySelectorAll('[data-view]').forEach(x => x.classList.remove('on'));
   // Auto-open the first editable lane (drums or first non-chords lane).
   const lanes = eng.getLanes();
@@ -1016,16 +1173,14 @@ function loadSong(key) {
 }
 
 // Shared post-load path (preset switch + shared-song load): bpm/key sync, FX
-// reset, full UI remount. Caller has already eng.load()ed the new song.
+// reset, full UI remount (mount → renderMaster rebuilds the TEMPO/TRANSPOSE
+// controls from the synced state). Caller has already eng.load()ed the new song.
 function afterSongLoad() {
   const s = eng.getSong();
-  const bpm = document.getElementById('bpm');
-  bpm.value = s.bpm;
-  document.getElementById('bpmv').textContent = s.bpm;
+  currentBpm = s.bpm;
   eng.setTempo(s.bpm);
   transpose = 0;
   eng.setTranspose(0);
-  updateKeyDisplay();
   resetFX();
   mount();
 }
@@ -1036,43 +1191,15 @@ document.getElementById('play').onclick = async function() {
     eng.stop(); this.classList.remove('on'); this.textContent='▶ play';
     stopMeterLoop();
     updatePatternsPlayback(eng.getPlaybackTarget());
+    updateStrip(eng.getPlaybackTarget());
   } else {
     await eng.play(); this.classList.add('on'); this.textContent='⏹ stop';
     startMeterLoop();
     updatePatternsPlayback(eng.getPlaybackTarget());
+    updateStrip(eng.getPlaybackTarget());
   }
 };
-document.getElementById('bpm').oninput = e => { eng.setTempo(+e.target.value); document.getElementById('bpmv').textContent = e.target.value; };
-
-// ─── KEY / transpose ─────────────────────────────────────────────────────────
-let transpose = 0;
-let keyQuantizeOn = localStorage.getItem('gb-key-quantize') === '1';
-function fmtKey(n) { return n > 0 ? '+' + n : String(n); }
-function updateKeyDisplay() { document.getElementById('keyv').textContent = fmtKey(transpose); }
-document.getElementById('key-dn').onclick = () => {
-  transpose = Math.max(-12, transpose - 1);
-  eng.setTranspose(transpose);
-  updateKeyDisplay();
-};
-document.getElementById('key-up').onclick = () => {
-  transpose = Math.min(12, transpose + 1);
-  eng.setTranspose(transpose);
-  updateKeyDisplay();
-};
-const _keyQBtn = document.getElementById('key-q');
-function applyKeyQuantizeState() {
-  _keyQBtn.setAttribute('aria-pressed', String(keyQuantizeOn));
-  _keyQBtn.classList.toggle('on', keyQuantizeOn);
-}
-_keyQBtn.onclick = () => {
-  keyQuantizeOn = !keyQuantizeOn;
-  eng.setKeyQuantize(keyQuantizeOn);
-  localStorage.setItem('gb-key-quantize', keyQuantizeOn ? '1' : '0');
-  applyKeyQuantizeState();
-};
-// Restore persisted state
-eng.setKeyQuantize(keyQuantizeOn);
-applyKeyQuantizeState();
+// (Tempo + transpose controls live on MASTER — built in renderMaster().)
 
 document.getElementById('songsel').onchange = e => loadSong(e.target.value);
 document.getElementById('themesel').onchange = e => {
@@ -1097,6 +1224,7 @@ eng.onStep(({ absStep, bar, stepInBar, fill, queue, target }) => {
     renderChain(queue);
   }
   updatePatternsPlayback(target);
+  updateStrip(target);
 });
 
 // ─── Restore saved theme ──────────────────────────────────────────────────────
@@ -1498,8 +1626,7 @@ eng.load(SONGS[BOOT_SONG]);
 // the option's `selected` attribute matching the boot song by coincidence.
 document.getElementById('songsel').value = BOOT_SONG;
 const initialSong = eng.getSong();
-document.getElementById('bpm').value = initialSong.bpm;
-document.getElementById('bpmv').textContent = initialSong.bpm;
+currentBpm = initialSong.bpm;
 eng.setTempo(initialSong.bpm);
 mount();
 // Wrap sections and wire section drag-reorder once, after first mount.

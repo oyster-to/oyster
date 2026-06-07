@@ -20,9 +20,9 @@ function getBubble() {
 }
 let _bubbleHideTimer = null;
 
-const fmt = v => Math.round(v * 100);
+const defaultFmt = v => Math.round(v * 100);
 
-export function makeKnob({ label, value = 0, onChange, tip, k }) {
+export function makeKnob({ label, value = 0, onChange, tip, k, fmt = defaultFmt }) {
   const initial = value;
   let current = value;
 

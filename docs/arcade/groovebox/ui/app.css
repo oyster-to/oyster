@@ -308,60 +308,47 @@ select {
 }
 #credit:not(:empty)::before { content: '♪ '; font-style: normal; opacity: 0.7; }
 
+/* ─── screen tabs — software modes ON the LCD, styled as screen furniture
+   (no cabinet-button chrome: flat, ink-on-screen, active = lit underline) ── */
 .vtabs {
   display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-bottom: 12px;
+  gap: 2px;
+  align-items: stretch;
+  margin: 0 0 8px;
   padding: 0;
   background: transparent;
   border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--dim) 30%, transparent);
   box-shadow: none;
 }
-/* "VIEW" label to the left of the Scope toggle */
-.vtabs-lbl {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--faint);
-  padding-right: 2px;
-  user-select: none;
-}
-/* Scope is now a standalone toggle button, not a full-width pill strip */
 .vtabs button {
   flex: 0 0 auto;
-  height: 28px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: var(--panel-2);
+  height: 26px;
+  border: none;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
   color: var(--dim);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.04),
-    inset 0 -1px 0 rgba(0,0,0,0.25),
-    0 1px 3px rgba(0,0,0,0.35);
-  padding: 0 14px;
-  transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s;
+  box-shadow: none;
+  padding: 0 12px;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
 }
 .vtabs button:hover {
-  background: var(--panel-3);
-  border-color: var(--acc-dim);
+  background: color-mix(in srgb, var(--acc) 8%, transparent);
   color: var(--ink);
+  border-color: transparent;
 }
 .vtabs button.on {
-  background: rgba(84,240,200,0.10);
-  border-color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 10%, transparent);
+  border-bottom-color: var(--acc);
   color: var(--acc);
-  box-shadow:
-    inset 0 -2px 0 var(--acc),
-    inset 0 1px 0 rgba(84,240,200,0.08);
 }
 .vtabs button:focus-visible {
   outline: 2px solid var(--acc);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 .vtab-lane { font-size: 11px; text-transform: capitalize; }
 
@@ -375,21 +362,8 @@ input[type=range] {
 /* ─── § 8 — transport bar ───────────────────────────────────────────────── */
 .transport {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
-  margin-bottom: 16px;
-}
-.transport-tempo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.transport-bpm-val {
-  font-size: 13px;
-  font-family: ui-monospace, Menlo, monospace;
-  color: var(--ink);
-  min-width: 3ch;
-  text-align: right;
 }
 .transport-song {
   display: flex;
@@ -420,13 +394,9 @@ input[type=range] {
   margin-bottom: 12px;
 }
 
-/* SONG box — one pinned module wrapping the transport + arrangement. The
-   transport and #arrange inside it are not separate cards; they share the box. */
+/* Transport box — the cabinet top: play + the song slot, nothing else. */
 #songbox {
   padding: 12px 16px;
-}
-#songbox .transport {
-  margin-bottom: 12px;
 }
 
 /* ─── CRT screen / viz area ──────────────────────────────────────────────── */
@@ -448,6 +418,106 @@ input[type=range] {
   outline: 1px solid rgba(0,0,0,0.30);
   outline-offset: -2px;
 }
+
+/* ─── LCD status strip — the screen's read-only narrator ─────────────────── */
+#lcd-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: -10px -10px 8px;            /* bleed to the screen edges (#viz pads 10px) */
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--dim) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--dim) 25%, transparent);
+  min-height: 28px;
+}
+#lcd-strip:empty { display: none; }
+.strip-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.strip-credit {
+  font-size: 9px;
+  font-style: italic;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.strip-chain, .strip-chords {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+.strip-chain { margin-left: 4px; }
+.strip-seg {
+  min-width: 16px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--dim) 45%, transparent);
+  color: var(--dim);
+  font-size: 9px;
+  font-family: ui-monospace, Menlo, monospace;
+  text-align: center;
+  line-height: 1.5;
+}
+/* The sounding position/chord — same --hot language as every other "playing" glow. */
+.strip-seg.hot {
+  background: var(--hot);
+  border-color: var(--hot);
+  color: var(--screen-bg);
+  font-weight: 700;
+  box-shadow: 0 0 6px var(--hot);
+}
+.strip-key, .strip-bpm {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+  font-family: ui-monospace, Menlo, monospace;
+  white-space: nowrap;
+}
+.strip-bpm { margin-left: auto; }
+
+/* ─── SONG tab pane — song structure in screen-language (flat segs, not
+   cabinet buttons) ───────────────────────────────────────────────────────── */
+#lcd-song { padding: 2px 2px 6px; }
+#lcd-song .pat-slot,
+#lcd-song .pat-act,
+#lcd-song .chain-chip,
+#lcd-song .h-chip {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--dim) 45%, transparent);
+  color: var(--dim);
+  box-shadow: none;
+}
+#lcd-song .pat-slot.sel {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: var(--screen-bg);
+}
+#lcd-song .pat-slot.playing { border-color: var(--hot); box-shadow: 0 0 8px var(--hot); }
+#lcd-song .chain-chip.playing { border-color: var(--hot); color: var(--hot); box-shadow: 0 0 6px var(--hot); }
+#lcd-song .h-chip.sounding { border-color: var(--hot); color: var(--hot); box-shadow: 0 0 8px var(--hot); }
+/* Chords nest under their pattern: indent + accent spine = "this pattern's chords". */
+#lcd-song .chord-row {
+  margin-left: 30px;
+  padding-left: 10px;
+  border-left: 2px solid color-mix(in srgb, var(--acc) 40%, transparent);
+}
+.lcd-song-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+#lcd-song-key {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.lcd-song-foot #share-btn { margin-left: auto; }
 
 /* ─── lane strips panel ──────────────────────────────────────────────────── */
 #strips {
@@ -977,12 +1047,16 @@ body.gb-knob-values .knob-val { display: block; }
   vertical-align: -3px;
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--acc) 40%, transparent));
 }
-.theme-icon {
-  display: inline-flex; align-items: center;
-  color: var(--faint);
-  margin-right: 5px;
-  vertical-align: middle;
+/* Theme row — first row of the Settings popover */
+.vs-theme {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--line);
 }
+.vs-theme select { flex: 1 1 auto; height: 26px; font-size: 11px; }
 
 /* ─── punch preset editor (v3.5 modal) ──────────────────────────────────── */
 .punchpad .punchedit { margin-left: 8px; opacity: 0.5; font-size: 11px; cursor: pointer; }
@@ -1186,9 +1260,6 @@ body.gb-knob-values .knob-val { display: block; }
   color: var(--hot);
   box-shadow: 0 0 8px var(--hot);
 }
-/* Key badge — reuse .pat-lbl look. */
-.h-key { margin-left: auto; }
-.h-pat { font-size: 10px; color: var(--hot); opacity: .8; min-width: 22px; }
 /* Inline edit input. */
 .h-edit {
   flex: 1 1 auto;
@@ -1253,25 +1324,7 @@ body.gb-knob-values .knob-val { display: block; }
   text-transform: uppercase;
 }
 
-/* ─── PATTERNS module ─── */
-/* Consolidated song status: lives in the transport row (#song-status), playing
-   state (pink) then a hairline separator then editing state (green). */
-#song-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.pat-playing { font-size: 11px; color: var(--hot); opacity: .9; }
-.pat-editing { font-size: 11px; color: var(--acc); opacity: .9; }
-.pat-playing:not(:empty) + .pat-editing:not(:empty)::before {
-  content: '│';
-  color: var(--line);
-  margin-right: 8px;
-}
+/* ─── PATTERNS module (Song tab rows) ─── */
 .ed-lbl { font-size: 10px; color: var(--dim); letter-spacing: .1em; text-transform: uppercase; margin: 2px 0 4px; }
 .pat-row, .chain-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0; transition: opacity .2s; }
 .pat-row.dimmed, .chain-row.dimmed { opacity: .45; }
@@ -1289,50 +1342,8 @@ body.gb-knob-values .knob-val { display: block; }
 .chain-add { opacity: .6; }
 .pat-slot:disabled, .pat-act:disabled, .chain-chip:disabled { opacity: .35; cursor: default; }
 
-/* ─── transport key group ────────────────────────────────────────────────── */
-.transport-key {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* KEY quantize toggle */
-.key-q {
-  width: auto;
-  padding: 0 7px;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: var(--dim);
-  border-color: var(--line);
-}
-.key-q.on {
-  background: rgba(84,240,200,0.12);
-  border-color: var(--acc);
-  color: var(--acc);
-  box-shadow:
-    inset 0 -1px 0 var(--acc),
-    inset 0 1px 0 rgba(84,240,200,0.06);
-}
-
-/* ─── transport: shared label style (muted) ──────────────────────────────── */
-.transport-lbl {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-
-/* ─── transport: vertical dividers between chunks ───────────────────────── */
-.transport-divider {
-  width: 1px;
-  align-self: stretch;
-  background: var(--line);
-  margin: 0 4px;
-  flex-shrink: 0;
-}
-
-/* ─── key stepper: tight unit wrapping − value + ───────────────────────── */
+/* ─── key stepper (TRANSPOSE, on MASTER): tight unit wrapping − value + ── */
+.kgroup-knobs .key-stepper { align-self: center; }
 .key-stepper {
   display: inline-flex;
   align-items: center;
@@ -1360,7 +1371,7 @@ body.gb-knob-values .knob-val { display: block; }
 }
 .key-stepper button:hover { background: var(--panel-2); border-color: transparent; }
 .key-stepper button:active { background: var(--acc-dim); }
-.key-stepper #keyv {
+.key-stepper span {
   font-size: 12px;
   font-family: ui-monospace, Menlo, monospace;
   color: var(--ink);
@@ -1632,8 +1643,7 @@ body.gb-knob-values .knob-val { display: block; }
 [data-theme="gameboy"] .lane .name,
 [data-theme="gameboy"] .kgroup-lbl,
 [data-theme="gameboy"] .fillsrow .flbl,
-[data-theme="gameboy"] .masterfx .mlbl,
-[data-theme="gameboy"] .transport-lbl {
+[data-theme="gameboy"] .masterfx .mlbl {
   color: #2a2a78;
   font-weight: 800;
 }
@@ -2380,34 +2390,17 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   .titlebar { margin-bottom: 8px; }
   h1 { font-size: 13px; letter-spacing: 0.1em; white-space: nowrap; }
 
-  /* ── transport: explicit grid — play+key / tempo / song, no orphan rows ── */
-  .transport {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-      "play   key"
-      "tempo  tempo"
-      "status status"
-      "song   song";
-    row-gap: 10px;
-    column-gap: 10px;
-  }
-  .transport-divider { display: none; }
-  #play { grid-area: play; height: 38px; font-size: 14px; }
-  .transport-key { grid-area: key; display: flex; align-items: center; gap: 8px; }
-  .transport-tempo { grid-area: tempo; min-width: 0; }
-  #bpm { flex: 1; min-width: 50px; }
-  #song-status { grid-area: status; min-width: 0; }
-  .transport-song { grid-area: song; margin-left: 0; min-width: 0; }
+  /* ── transport: one row — play + the song slot ── */
+  .transport { gap: 8px; }
+  #play { flex: 0 0 auto; height: 38px; font-size: 14px; padding: 0 18px; }
+  .transport-song { flex: 1 1 auto; margin-left: 0; min-width: 0; }
   .transport-song .song-wrap { flex: 1; min-width: 0; }
   .transport-song select { width: 100%; }
-  /* drop labels that repeat what the control already says ("120 BPM" labels
-     the slider, "♪ Kids" labels the dropdown, tabs label themselves); KEY
-     stays — a bare stepper is ambiguous */
-  .transport-tempo .transport-lbl,
-  .transport-song .transport-lbl,
-  .vtabs-lbl { display: none; }
-  .vtabs { margin-bottom: 8px; }
+
+  /* ── LCD strip: narrow → title, walking chain, the sounding chord, bpm ── */
+  #lcd-strip { gap: 6px; }
+  .strip-credit, .strip-key { display: none; }
+  #lcd-strip .strip-chords .strip-seg:not(.hot) { display: none; }
 
   /* ── lane accordion: header / select+expand / knobs (when open) ── */
   .lane {
