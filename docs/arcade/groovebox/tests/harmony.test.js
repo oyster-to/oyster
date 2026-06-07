@@ -151,3 +151,11 @@ test('chordAt cycles and wraps negative bars; empty → undefined', () => {
   expect(chordAt(prog, -1)).toBe(prog[1]);
   expect(chordAt([], 0)).toBeUndefined();
 });
+
+// The original symptom (Mother of Pearl authoring, 2026-06-07): a flat-spelled
+// voicing left ±N refs unshifted — V1+12 over Eb3 played Eb3, not Eb4.
+test('resolveRef: ±N over a flat-spelled chord shifts (sharp-canonical out)', () => {
+  const Cm = { name: 'Cm', root: 'C2', voicing: ['C3', 'Eb3', 'G3'] };
+  expect(resolveRef('V1+12', Cm)).toBe('D#4');
+  expect(resolveRef('R+10', { ...Cm, root: 'Bb1' })).toBe('G#2');
+});
