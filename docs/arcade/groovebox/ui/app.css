@@ -2874,6 +2874,7 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   .sec-drag { display: none; }   /* mouse-only affordance */
   .titlebar { margin-bottom: 8px; }
   h1 { font-size: 13px; letter-spacing: 0.1em; white-space: nowrap; }
+  .brand-oyster { display: none; }   /* "GROOVEBOX" alone — buys room for theme + Settings + Help */
 
   /* ── transport: one row — play + the song slot ── */
   .transport { gap: 8px; }
