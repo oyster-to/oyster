@@ -5,6 +5,16 @@ import { encryptChunk, decryptChunk, sha256Hex, type ChunkAad } from "./encrypti
 import { handleSessionEventsGet } from "./transcript-events.js";
 import { handleAppShell } from "./app-shell.js";
 import { handleAppCallback, handleAppSignOut } from "./app-auth.js";
+import {
+  handleRelayConnect,
+  handleRelayStatus,
+  handleRelayForward,
+  handleRelayDeviceToggle,
+} from "./relay.js";
+
+// Durable Object class — must be exported from the worker entry module so
+// the runtime can instantiate it (wrangler.toml [[migrations]] v1).
+export { RelayDO } from "./relay-do.js";
 
 // Safe decode helper used by all bytes routes. decodeURIComponent throws
 // URIError on malformed percent-encoding (e.g. "%G"); we'd rather a 400 than
@@ -76,6 +86,29 @@ export default {
       const user = await resolveSession(req, env);
       if (!user) return jsonError(401, "sign_in_required");
       return jsonOk({ email: user.email, tier: user.tier });
+    }
+
+    // Device relay (spec 2026-06-07-device-relay-design). connect is the
+    // device's outbound WS dial; status/d/devices are browser-side.
+    if (url.pathname === "/api/relay/connect" && req.method === "GET") {
+      return handleRelayConnect(req, env, url);
+    }
+    if (url.pathname === "/api/relay/status" && req.method === "GET") {
+      return handleRelayStatus(req, env);
+    }
+    const relayToggleMatch = url.pathname.match(/^\/api\/relay\/devices\/([^/]+)\/(disable|enable)$/);
+    if (relayToggleMatch && relayToggleMatch[1] && relayToggleMatch[2] && req.method === "POST") {
+      return handleRelayDeviceToggle(
+        req, env, relayToggleMatch[1], relayToggleMatch[2] as "disable" | "enable",
+      );
+    }
+    const relayForwardMatch = url.pathname.match(/^\/api\/relay\/d\/([^/]+)(\/.*)$/);
+    if (relayForwardMatch && relayForwardMatch[1] && relayForwardMatch[2] && req.method === "GET") {
+      // Forward the raw (still-encoded) path + query; allowlist matching
+      // decodes its own copy, the device receives the original.
+      return handleRelayForward(
+        req, env, relayForwardMatch[1], relayForwardMatch[2] + url.search,
+      );
     }
 
     if (url.pathname === "/api/memories/events" && req.method === "POST") {
