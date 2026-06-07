@@ -1389,7 +1389,8 @@ let _themePickerOpen = false;
 
 function currentTheme() { return document.documentElement.dataset.theme || 'oyster'; }
 
-const SCREEN_OPTIONS = [['default', 'Theme glass'], ['pearl', 'Pearl'], ['phosphor', 'Phosphor'], ['lime', 'Lime'], ['amber', 'Amber'], ['paper', 'Paper']];
+const SCREEN_OPTIONS = [['default', 'Theme default'], ['pearl', 'Pearl'], ['phosphor', 'Phosphor'], ['signal', 'Signal'], ['lime', 'Lime'], ['backlit', 'Backlit'], ['amber', 'Amber'], ['workbench', 'Workbench'], ['sage', 'Sage'], ['paper', 'Paper']];
+let _themePickerTab = 'chrome';   // 'chrome' (cabinets) | 'lcd' (glass)
 
 function applyScreen(v) {
   if (v === 'default') delete document.documentElement.dataset.screen;
@@ -1420,6 +1421,21 @@ function renderThemePicker() {
   done.onclick = () => closeThemePicker();
   head.appendChild(done);
   host.appendChild(head);
+
+  // Chrome (the cabinet) and LCD (the glass) are separate choices — tabs.
+  const tabs = document.createElement('div');
+  tabs.id = 'theme-picker-tabs';
+  for (const [key, label] of [['chrome', 'Chrome'], ['lcd', 'LCD']]) {
+    const t = document.createElement('button');
+    t.className = 'help-tab' + (_themePickerTab === key ? ' active' : '');
+    t.textContent = label;
+    t.onclick = () => { _themePickerTab = key; renderThemePicker(); };
+    tabs.appendChild(t);
+  }
+  host.appendChild(tabs);
+
+  if (_themePickerTab === 'lcd') { renderGlassGrid(host); return; }
+
   const cur = currentTheme();
   for (const [label, themes] of THEME_GROUPS) {
     if (label) {
@@ -1449,12 +1465,10 @@ function renderThemePicker() {
     }
     host.appendChild(grid);
   }
+}
 
-  // The glass: swap any theme's LCD for another bundle (theme A, screen B).
-  const gs = document.createElement('div');
-  gs.className = 'picker-sect';
-  gs.textContent = 'Glass — swap the LCD';
-  host.appendChild(gs);
+// The LCD tab: theme default first, then the glass overrides (theme A, screen B).
+function renderGlassGrid(host) {
   const curScreen = document.documentElement.dataset.screen || 'default';
   const ggrid = document.createElement('div');
   ggrid.className = 'theme-grid';
@@ -1982,6 +1996,7 @@ document.addEventListener('contextmenu', e => {
 // force a cabinet/glass combo — lets headless-browser screenshots verify
 // visuals without clicks. Inert in normal use.
 if (location.search.includes('devopen=theme')) setTimeout(() => openThemePicker(), 300);
+if (location.search.includes('devopen=lcd')) setTimeout(() => { _themePickerTab = 'lcd'; openThemePicker(); }, 300);
 if (location.search.includes('devopen=song')) setTimeout(() => openPicker(), 300);
 {
   const q = new URLSearchParams(location.search);
