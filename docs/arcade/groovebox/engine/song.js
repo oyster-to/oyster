@@ -1,3 +1,5 @@
+import { slotKey } from './instruments.js';
+
 const DRUM_KEYS = ['kick', 'snare', 'hat', 'crash'];
 export const DRUM_VOICES = ['kick', 'snare', 'hat', 'tom', 'crash'];
 
@@ -16,8 +18,9 @@ export function laneAudible(lanes, lane) {
  * drumsLane — the drums-type lane object
  */
 export function drumVoiceAudible(drumsLane, voice) {
+  const k = slotKey(voice) ?? voice;     // state keys are canonical GM numbers
   const anySolo = Object.values(drumsLane.voiceSolo || {}).some(Boolean);
-  return !(drumsLane.voiceMute || {})[voice] && (!anySolo || !!(drumsLane.voiceSolo || {})[voice]);
+  return !(drumsLane.voiceMute || {})[k] && (!anySolo || !!(drumsLane.voiceSolo || {})[k]);
 }
 
 export { DRUM_KEYS };

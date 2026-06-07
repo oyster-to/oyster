@@ -1,55 +1,145 @@
 import * as Tone from 'tone';
+import { DEFAULT_INSTRUMENTS, DEFAULT_KIT, validateInstrument, slotKey } from './instruments.js';
 
 /**
- * createVoiceForType(type, bus)
- * Returns the voice object(s) for one lane, wired to `bus`.
- * - 'drums'  → { kick, snare, hat, tom, crash } (full kit)
- * - 'bass'   → { bass }
- * - 'chords' → { chordSyn }
- * - 'melody' → { lead }
+ * voices.js — instrument data → sounding Tone nodes.
+ *
+ * The synthesis recipes live in engine/instruments.js as neutral patch JSON
+ * (DEFAULT_INSTRUMENTS / DEFAULT_KIT). This file owns the ONE adapter from
+ * that vocabulary to Tone:
+ *   compileSynthPatch(inst)  — pure: patch → build plan (parity-testable)
+ *   createVoiceForType(...)  — plan → connected Tone nodes
+ *   trigger(...)             — scheduler events → triggerAttackRelease calls
+ *
+ * Voice shapes:
+ *   drums  → { byNote: { [gmNote]: { synth, trig } }, dispose() }
+ *   bass   → { bass, trig, dispose() }
+ *   chords → { chordSyn, chordFilter, trig, dispose() }
+ *   melody → { lead, trig, dispose() }
+ * (Pitched lanes keep their legacy named props — index.js sets melody tone
+ * via voice.lead. disposeLane prefers voice.dispose().)
  */
-export function createVoiceForType(type, bus) {
-  if (type === 'drums') {
-    const kick  = new Tone.MembraneSynth({ volume: -5 }).connect(bus);
-    const snare = new Tone.NoiseSynth({ volume: -11, envelope: { attack: 0.001, decay: 0.16, sustain: 0 } }).connect(bus);
-    const hatFilter = new Tone.Filter(7000, 'highpass').connect(bus);
-    const hat   = new Tone.NoiseSynth({ volume: -20, envelope: { attack: 0.001, decay: 0.03, sustain: 0 } }).connect(hatFilter);
-    const tom   = new Tone.MembraneSynth({ volume: -6, pitchDecay: 0.06, octaves: 2 }).connect(bus);
-    const crashFilter = new Tone.Filter(3500, 'highpass').connect(bus);
-    const crash = new Tone.NoiseSynth({ volume: -12, envelope: { attack: 0.001, decay: 1.1, sustain: 0, release: 0.3 } }).connect(crashFilter);
-    return { kick, snare, hat, tom, crash, hatFilter, crashFilter };
+
+const CTOR_BY_ARCHETYPE = {
+  membrane: 'MembraneSynth',
+  noise:    'NoiseSynth',
+  mono:     'MonoSynth',
+  poly:     'PolySynth',
+};
+
+/**
+ * compileSynthPatch(inst) → pure build plan:
+ * { ctor, options, postVolume, filter, trig }
+ * - options: constructor/set() options (volume folded in where the legacy code
+ *   passed it to the constructor; postVolume where it assigned .volume.value)
+ * - trig: { sig: 'note'|'noise', note?, dur?, velocity? } — how trigger() fires it
+ */
+export function compileSynthPatch(inst) {
+  const p = inst.patch;
+  const plan = {
+    ctor: CTOR_BY_ARCHETYPE[p.archetype],
+    options: {},
+    postVolume: undefined,
+    filter: p.filter ? { type: p.filter.type, freq: p.filter.freq } : null,
+    trig: {
+      sig: p.archetype === 'noise' ? 'noise' : 'note',
+      note: p.trigger?.note,
+      dur: p.trigger?.dur,
+      velocity: p.trigger?.velocity,
+    },
+  };
+  const osc = p.oscillator
+    ? { type: p.oscillator.shape, ...(p.oscillator.width !== undefined ? { width: p.oscillator.width } : {}) }
+    : null;
+
+  if (p.archetype === 'membrane') {
+    plan.options = {
+      ...(p.volume !== undefined ? { volume: p.volume } : {}),
+      ...(p.pitch ? { pitchDecay: p.pitch.pitchDecay, octaves: p.pitch.octaves } : {}),
+    };
+  } else if (p.archetype === 'noise') {
+    plan.options = {
+      ...(p.volume !== undefined ? { volume: p.volume } : {}),
+      ...(p.envelope ? { envelope: { ...p.envelope } } : {}),
+    };
+  } else if (p.archetype === 'mono') {
+    plan.options = {
+      ...(osc ? { oscillator: osc } : {}),
+      ...(p.envelope ? { envelope: { ...p.envelope } } : {}),
+      ...(p.filterEnvelope ? { filterEnvelope: { ...p.filterEnvelope } } : {}),
+    };
+    plan.postVolume = p.volume;          // legacy assigned bass volume after construction
+  } else if (p.archetype === 'poly') {
+    plan.options = {                      // applied via synth.set()
+      ...(osc ? { oscillator: osc } : {}),
+      ...(p.envelope ? { envelope: { ...p.envelope } } : {}),
+    };
+    plan.postVolume = p.volume;          // legacy assigned poly volume after construction
   }
-  if (type === 'bass') {
-    const bass = new Tone.MonoSynth({
-      oscillator: { type: 'triangle' },
-      envelope: { attack: 0.005, decay: 0.18, sustain: 0.35, release: 0.18 },
-      filterEnvelope: { attack: 0.005, decay: 0.12, sustain: 0.4, baseFrequency: 120, octaves: 3 },
-    }).connect(bus);
-    bass.volume.value = -7;
-    return { bass };
-  }
-  if (type === 'chords') {
-    const chordFilter = new Tone.Filter(4200, 'lowpass').connect(bus);
-    const chordSyn = new Tone.PolySynth(Tone.Synth).connect(chordFilter);
-    chordSyn.set({ oscillator: { type: 'triangle' }, envelope: { attack: 0.05, decay: 0.3, sustain: 0.6, release: 0.5 } });
-    chordSyn.volume.value = -17;
-    return { chordSyn, chordFilter };
-  }
-  if (type === 'melody') {
-    const lead = new Tone.PolySynth(Tone.Synth).connect(bus);
-    lead.set({ oscillator: { type: 'pulse', width: 0.3 }, envelope: { attack: 0.004, decay: 0.18, sustain: 0.2, release: 0.2 } });
-    lead.volume.value = -11;
-    return { lead };
-  }
-  return {};
+  return plan;
 }
 
+// Build one connected voice from a plan. Returns { synth, filter }.
+function buildFromPlan(plan, bus) {
+  let out = bus, filter = null;
+  if (plan.filter) {
+    filter = new Tone.Filter(plan.filter.freq, plan.filter.type).connect(bus);
+    out = filter;
+  }
+  let synth;
+  if (plan.ctor === 'PolySynth') {
+    synth = new Tone.PolySynth(Tone.Synth).connect(out);
+    synth.set(plan.options);
+  } else {
+    synth = new Tone[plan.ctor](plan.options).connect(out);
+  }
+  if (plan.postVolume !== undefined) synth.volume.value = plan.postVolume;
+  return { synth, filter };
+}
+
+// Resolve + validate an instrument ref; bad data falls back (never crashes).
+function resolveInstrument(id, instruments, fallbackId) {
+  const inst = instruments?.[id];
+  if (validateInstrument(inst)) return inst;
+  return DEFAULT_INSTRUMENTS[fallbackId];
+}
+
+const PITCHED_DEFAULT = { bass: 'gb-bass', chords: 'gb-chords', melody: 'gb-lead' };
+
 /**
- * trigger(voice, ev, t, sixteenth, barSeconds)
- * Fires one scheduler event at audio time `t`.
- * voice — the voice object for ev.laneId (from voices[ev.laneId])
- * ev    — { laneId, type, ... }
+ * createVoiceForType(type, bus, opts?)
+ * opts: { instruments, kit, instrumentId } — defaults to the stock set.
  */
+export function createVoiceForType(type, bus, opts = {}) {
+  const instruments = opts.instruments ?? DEFAULT_INSTRUMENTS;
+  if (type === 'drums') {
+    const kit = opts.kit ?? DEFAULT_KIT;
+    const byNote = {};
+    const nodes = [];
+    const fallbackByNote = Object.fromEntries(DEFAULT_KIT.slots.map(s => [s.note, s.instrument]));
+    for (const slot of (kit.slots ?? [])) {
+      const note = slotKey(slot.note);
+      if (note === null) continue;
+      const inst = resolveInstrument(slot.instrument, instruments, fallbackByNote[note] ?? 'gb-kick');
+      if (!inst) continue;
+      const plan = compileSynthPatch(inst);
+      const v = buildFromPlan(plan, bus);
+      byNote[note] = { synth: v.synth, trig: plan.trig };
+      nodes.push(v.synth, v.filter);
+    }
+    return { byNote, dispose() { for (const n of nodes) { try { n?.dispose?.(); } catch (_) {} } } };
+  }
+  const fallback = PITCHED_DEFAULT[type];
+  if (!fallback) return {};
+  const inst = resolveInstrument(opts.instrumentId ?? fallback, instruments, fallback);
+  const plan = compileSynthPatch(inst);
+  const v = buildFromPlan(plan, bus);
+  const dispose = () => { try { v.synth.dispose?.(); } catch (_) {} try { v.filter?.dispose?.(); } catch (_) {} };
+  if (type === 'bass')   return { bass: v.synth, trig: plan.trig, dispose };
+  if (type === 'chords') return { chordSyn: v.synth, chordFilter: v.filter, trig: plan.trig, dispose };
+  return { lead: v.synth, trig: plan.trig, dispose };
+}
+
 // Note duration → seconds. DATA-MODEL allows durSteps|'bar' on ANY note lane;
 // 'bar' previously NaN-crashed bass/melody (killing the whole step scheduler —
 // a shared song could freeze playback). Anything non-numeric falls back to 2
@@ -59,32 +149,33 @@ function durSeconds(dur, sixteenth, barSeconds) {
   return (typeof dur === 'number' && Number.isFinite(dur) && dur > 0 ? dur : 2) * sixteenth;
 }
 
+/**
+ * trigger(voice, ev, t, sixteenth, barSeconds)
+ * Fires one scheduler event at audio time `t`.
+ * Drum events route by GM note: ev.voice is canonical numeric after ingest
+ * normalization, but slotKey() also accepts legacy names (engine edge stays
+ * permissive — bad data never crashes; unknown slots are silently skipped).
+ */
 export function trigger(voice, ev, t, sixteenth, barSeconds) {
   if (ev.type === 'drums') {
-    if (ev.voice === 'kick')  voice.kick.triggerAttackRelease('C1', '8n', t);
-    if (ev.voice === 'snare') voice.snare.triggerAttackRelease('16n', t);
-    if (ev.voice === 'hat')   voice.hat.triggerAttackRelease('32n', t, 0.6);
-    if (ev.voice === 'crash') voice.crash.triggerAttackRelease('8n', t, 0.8);
-    if (ev.voice === 'tom')   voice.tom.triggerAttackRelease(Tone.Frequency('A2').transpose(ev.semi), '8n', t);
+    const note = slotKey(ev.voice);
+    const slot = note === null ? undefined : voice.byNote?.[note];
+    if (!slot) return;
+    const { synth, trig } = slot;
+    if (trig.sig === 'noise') {
+      synth.triggerAttackRelease(trig.dur ?? '16n', t, trig.velocity);
+    } else {
+      const base = trig.note ?? 'C3';
+      const pitch = ev.semi ? Tone.Frequency(base).transpose(ev.semi) : base;
+      synth.triggerAttackRelease(pitch, trig.dur ?? '8n', t, trig.velocity);
+    }
   } else if (ev.type === 'bass') {
-    voice.bass.triggerAttackRelease(ev.note, durSeconds(ev.dur, sixteenth, barSeconds), t, 0.85);
+    voice.bass.triggerAttackRelease(ev.note, durSeconds(ev.dur, sixteenth, barSeconds), t, voice.trig?.velocity ?? 0.85);
   } else if (ev.type === 'melody') {
-    voice.lead.triggerAttackRelease(ev.note, durSeconds(ev.dur, sixteenth, barSeconds), t, 0.82);
+    voice.lead.triggerAttackRelease(ev.note, durSeconds(ev.dur, sixteenth, barSeconds), t, voice.trig?.velocity ?? 0.82);
   } else if (ev.type === 'chords') {
+    // Arp hits ride slightly hotter than sustained voicings (legacy 0.34 vs 0.30).
     if (ev.mode === 'arp') voice.chordSyn.triggerAttackRelease(ev.note, sixteenth, t, 0.34);
-    else voice.chordSyn.triggerAttackRelease(ev.notes, durSeconds(ev.dur, sixteenth, barSeconds), t, 0.3);
+    else voice.chordSyn.triggerAttackRelease(ev.notes, durSeconds(ev.dur, sixteenth, barSeconds), t, voice.trig?.velocity ?? 0.3);
   }
-}
-
-/**
- * createVoices(buses) — kept for compatibility; builds one voice per type.
- * buses: { drums, bass, chords, melody } — each a Tone input node.
- */
-export function createVoices(buses) {
-  const drums  = createVoiceForType('drums',  buses.drums);
-  const bass   = createVoiceForType('bass',   buses.bass);
-  const chords = createVoiceForType('chords', buses.chords);
-  const melody = createVoiceForType('melody', buses.melody);
-  // Flatten to the legacy named shape so any remaining callers still work.
-  return { ...drums, ...bass, ...chords, ...melody };
 }

@@ -1,6 +1,7 @@
 import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
 import { createVoiceForType, trigger } from './voices.js';
+import { normalizeSongDrums } from './instruments.js';
 import { laneByType, toggleMute as _toggleMute, soloExclusive as _soloExclusive, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane, moveLane as _moveLane } from './lanes.js';
 import { deriveKey } from './song.js';
 import { flattenSong } from './flatten.js';
@@ -209,9 +210,9 @@ export function createEngine() {
     // Dispose voice node(s)
     const v = voices[id];
     if (v) {
-      for (const node of Object.values(v)) {
-        try { node.dispose?.(); } catch (_) {}
-      }
+      // New-style voices own their teardown; legacy flat shapes get the loop.
+      if (typeof v.dispose === 'function') { try { v.dispose(); } catch (_) {} }
+      else for (const node of Object.values(v)) { try { node.dispose?.(); } catch (_) {} }
       delete voices[id];
     }
     // Dispose FX chain (null lazy nodes are skipped safely)
@@ -304,6 +305,7 @@ export function createEngine() {
   return {
     load(s) {
       const v2 = (s.patterns && s.chain) ? s : flattenSong(s);
+      normalizeSongDrums(v2);                 // ingest boundary: GM numbers past here
       song = v2;
       editIdx = 0; pendingTarget = null;
       target = { kind: 'chain', pos: 0, barInPattern: 0 };
@@ -612,10 +614,10 @@ export function createEngine() {
       return true;
     },
     moveChain(from, to)     { if (song) _moveChain(song, from, to); },
-    setDrumStep(laneId, voice, barIdx, stepIdx, on) {
+    setDrumStep(laneId, voice, barIdx, stepIdx, on, pitched) {
       if (!song) return;
       const g = grooveFor(song, editIdx, laneId);
-      if (g) _setDrumStep(song, laneId, g.name, barIdx, voice, stepIdx, on);
+      if (g) _setDrumStep(song, laneId, g.name, barIdx, voice, stepIdx, on, pitched);
     },
     toggleNote(laneId, barIdx, stepIdx, note, dur) {
       if (!song) return;
