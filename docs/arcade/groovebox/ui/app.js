@@ -1168,8 +1168,10 @@ function resetFX() {
 // ─── Mount: (re)build all per-song UI ────────────────────────────────────────
 function mount() {
   song = eng.getSong();
+  // Credit = artist only — the dropdown already says the title (and the strip
+  // says it again); repeating it three times was noise.
   const creditEl = document.getElementById('credit');
-  if (creditEl) creditEl.textContent = song.artist ? `${song.title || ''} — ${song.artist}` : '';
+  if (creditEl) creditEl.textContent = song.artist ? `by ${song.artist}` : '';
   renderStrips();
   renderFills();
   renderPunch();
@@ -1693,7 +1695,7 @@ function gbNotice(msg) {
 }
 const shareHooks = {
   notice: gbNotice,
-  onSongLoaded: () => {
+  onSongLoaded: (rec) => {
     afterSongLoad();
     // songsel no longer matches a preset — park it on a hidden "(shared)" option.
     const sel = document.getElementById('songsel');
@@ -1706,6 +1708,17 @@ const shareHooks = {
       sel.appendChild(opt);
     }
     opt.selected = true;
+    // Shared songs: the credit line carries who made it + how it's doing.
+    if (rec) {
+      const n = typeof rec.plays === 'number' ? rec.plays + 1 : null;
+      const credit = document.getElementById('credit');
+      if (credit) {
+        credit.textContent = [
+          rec.author ? `by ${rec.author}` : '',
+          n ? `${n} play${n === 1 ? '' : 's'}` : '',
+        ].filter(Boolean).join(' · ');
+      }
+    }
   },
   onGroovesChanged: () => { renderStrips(); refreshVizPattern(); },
   // v1: import into the first matching lane (multi-lane-same-type songs are
