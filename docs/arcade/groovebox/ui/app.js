@@ -1759,6 +1759,8 @@ function loadInstruments() {
     }
   } catch (_) { /* corrupt JSON → defaults */ }
   try {
+    // No UI writes 'gb-kit' yet (kit editor = next PR) — but the engine honors
+    // a hand-authored kit JSON here today (e.g. a 7-piece kit with two toms).
     const kit = JSON.parse(localStorage.getItem('gb-kit') || 'null');
     if (kit) eng.setKit(kit);
   } catch (_) { /* corrupt JSON → defaults */ }

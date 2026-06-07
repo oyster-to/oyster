@@ -59,8 +59,9 @@ export const isInstrumentEditorOpen = () => _open;
  */
 export function openInstrumentEditor({ id, eng, onSaved }) {
   if (_open) return;
-  _open = true;
   const stash = eng.getInstruments();
+  if (!stash[id]) return;                   // stale/unknown id — never open broken
+  _open = true;
   let draft = JSON.parse(JSON.stringify(stash[id]));
   let previewing = false;
   let _tweakTimer = null, _tweakLast = 0;
