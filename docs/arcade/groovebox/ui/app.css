@@ -637,35 +637,41 @@ input[type=range] {
 /* ─── Theme picker — drawer with live swatches under the titlebar button ──── */
 .theme-wrap { position: relative; }
 #themebtn.open { border-color: var(--acc); color: var(--acc); }
+/* Desktop: a full gallery — 32 machines deserve real estate, not a keyhole. */
 #theme-picker {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
+  position: fixed;
+  top: 6vh;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 200;
-  width: min(300px, calc(100vw - 32px));
-  max-height: min(480px, 70vh);
+  width: min(960px, calc(100vw - 48px));
+  max-height: 86vh;
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 10px 12px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  border-radius: 14px;
+  padding: 16px 20px 20px;
+  box-shadow: 0 16px 60px rgba(0,0,0,0.65);
 }
 #theme-picker[hidden] { display: none; }
-/* Mini-machine tiles, 3-up. Each plate carries data-theme, so the theme's own
-   CSS block paints it: cabinet (--panel over --bg), screen, accent, hot. */
+/* Mini-machine tiles. Each plate carries data-theme, so the theme's own CSS
+   block paints it: cabinet, screen, accent play-bar, hot dot. Explicit widths/
+   heights everywhere — the global button base otherwise collapses the plates. */
 .theme-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 7px;
-  margin: 2px 0 6px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 4px 0 12px;
 }
 .ttile {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  align-items: stretch;
+  gap: 5px;
+  width: 100%;
   padding: 0;
   height: auto;
+  min-height: 0;
   border: none;
   background: transparent;
   box-shadow: none;
@@ -674,46 +680,48 @@ input[type=range] {
 .ttile-plate {
   display: block;
   position: relative;
-  height: 44px;
-  border-radius: 6px;
+  width: 100%;
+  height: 84px;
+  border-radius: 8px;
   background: var(--bg);
   border: 1px solid rgba(0,0,0,0.45);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
 }
 .ttile-plate i { position: absolute; display: block; }
 .ttile-plate .tp-scr {
-  top: 6px; left: 6px; right: 6px; height: 20px;
-  border-radius: 3px;
+  top: 10px; left: 10px; right: 10px; height: 42px;
+  border-radius: 4px;
   background: var(--screen-bg);
   border: 1px solid rgba(0,0,0,0.3);
 }
-.ttile-plate .tp-acc { left: 6px; bottom: 6px; width: 16px; height: 7px; border-radius: 2px; background: var(--acc); }
-.ttile-plate .tp-hot { left: 26px; bottom: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--hot); }
+.ttile-plate .tp-acc { left: 10px; bottom: 10px; width: 26px; height: 11px; border-radius: 3px; background: var(--acc); }
+.ttile-plate .tp-hot { left: 42px; bottom: 10px; width: 11px; height: 11px; border-radius: 50%; background: var(--hot); }
 .ttile-nm {
-  font-size: 9px;
+  display: block;
+  width: 100%;
+  font-size: 11px;
   letter-spacing: 0.02em;
   color: var(--dim);
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100%;
 }
 .ttile:hover .ttile-plate { outline: 1px solid var(--acc-dim); }
 .ttile:hover .ttile-nm { color: var(--ink); }
-.ttile.sel .ttile-plate { outline: 2px solid var(--acc); outline-offset: 1px; box-shadow: 0 0 8px color-mix(in srgb, var(--acc) 45%, transparent); }
+.ttile.sel .ttile-plate { outline: 2px solid var(--acc); outline-offset: 1px; box-shadow: 0 0 10px color-mix(in srgb, var(--acc) 45%, transparent); }
 .ttile.sel .ttile-nm { color: var(--acc); font-weight: 700; }
 
-/* Mobile: bottom sheet, like the song drawer. */
+/* Mobile: bottom sheet, single column — one big machine per row. */
 @media (max-width: 900px) {
   #theme-picker {
-    position: fixed;
     top: auto;
     left: 0;
     right: 0;
     bottom: 0;
+    transform: none;
     width: 100vw;
-    max-height: 75vh;
+    max-height: 80vh;
     border-radius: 16px 16px 0 0;
     border-left: none;
     border-right: none;
@@ -732,6 +740,13 @@ input[type=range] {
     background: var(--line);
     margin: 0 auto 12px;
   }
+  .theme-grid { grid-template-columns: 1fr; gap: 9px; }
+  .ttile { flex-direction: row; align-items: center; gap: 12px; }
+  .ttile-plate { width: 130px; flex: 0 0 130px; height: 56px; }
+  .ttile-plate .tp-scr { top: 7px; left: 7px; right: 7px; height: 28px; }
+  .ttile-plate .tp-acc { left: 7px; bottom: 7px; width: 20px; height: 9px; }
+  .ttile-plate .tp-hot { left: 33px; bottom: 7px; width: 9px; height: 9px; }
+  .ttile-nm { text-align: left; font-size: 13px; }
 }
 
 /* ─── Song slot button — opens the cartridge picker on the screen ─────────── */
