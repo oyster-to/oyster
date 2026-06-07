@@ -1435,34 +1435,15 @@ function renderThemePicker() {
         + `<span class="tp-scr"><span class="tp-nm">${esc(name)}</span></span>`
         + `<i class="tp-led"></i>`
         + `</span>`;
-      b.onclick = () => { applyTheme(value); renderThemePicker(); };   // stay open — theme browsing is the fun part
-      // Hover = live preview: the whole machine repaints (the app IS the
-      // high-def preview); leaving reverts to the committed theme.
-      if (window.matchMedia('(hover: hover)').matches) {
-        b.onmouseenter = () => {
-          if (value === 'oyster') delete document.documentElement.dataset.theme;
-          else document.documentElement.dataset.theme = value;
-          viz?.invalidateThemeColors?.();
-        };
-        b.onmouseleave = () => {
-          const committed = currentSavedTheme();
-          if (committed === 'oyster') delete document.documentElement.dataset.theme;
-          else document.documentElement.dataset.theme = committed;
-          viz?.invalidateThemeColors?.();
-        };
-      }
+      // One gesture, one meaning: click tries the theme (and trying is
+      // having it — the app repaints live). Close the drawer when happy.
+      b.onclick = () => { applyTheme(value); renderThemePicker(); };
       grid.appendChild(b);
     }
     host.appendChild(grid);
   }
 }
 
-// The committed (saved) theme — hover previews never touch storage.
-function currentSavedTheme() {
-  let t = localStorage.getItem('gb-theme') || 'oyster';
-  if (t === 'dark') t = 'midnight';
-  return t;
-}
 
 function openThemePicker() {
   renderThemePicker();
