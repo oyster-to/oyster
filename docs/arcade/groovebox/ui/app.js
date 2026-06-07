@@ -1385,7 +1385,6 @@ const THEME_GROUPS = [
   ['Calculators', [['casiofx', 'Casio fx'], ['ti83', 'TI-83'], ['vl1', 'VL-Tone'], ['hp12c', 'HP-12C'], ['et66', 'Braun ET66'], ['littleprof', 'Little Professor']]],
   ['Studio', [['tr808', 'TR-808'], ['mpc', 'MPC'], ['dx7', 'DX7']]],
 ];
-const THEME_LABELS = new Map(THEME_GROUPS.flatMap(([, ts]) => ts));
 let _themePickerOpen = false;
 
 function currentTheme() { return document.documentElement.dataset.theme || 'oyster'; }
@@ -1394,8 +1393,6 @@ function applyTheme(t) {
   if (t === 'oyster') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = t;
   localStorage.setItem('gb-theme', t);
-  const btn = document.getElementById('themebtn');
-  if (btn) btn.textContent = THEME_LABELS.get(t) || t;
   // Invalidate canvas colour cache + repaint active view with new colours.
   viz?.invalidateThemeColors?.();
 }
@@ -1407,12 +1404,12 @@ function renderThemePicker() {
   const head = document.createElement('div');
   head.className = 'picker-head';
   head.innerHTML = '<span>SELECT THEME</span>';
-  const close = document.createElement('button');
-  close.className = 'picker-close';
-  close.textContent = '✕';
-  close.setAttribute('aria-label', 'Close theme picker');
-  close.onclick = () => closeThemePicker();
-  head.appendChild(close);
+  const done = document.createElement('button');
+  done.className = 'picker-done';
+  done.textContent = 'Done';
+  done.setAttribute('aria-label', 'Close theme picker');
+  done.onclick = () => closeThemePicker();
+  head.appendChild(done);
   host.appendChild(head);
   const cur = currentTheme();
   for (const [label, themes] of THEME_GROUPS) {
@@ -1431,8 +1428,9 @@ function renderThemePicker() {
       // Calm tile: cabinet plate + screen, with the theme's NAME shown on its
       // own screen in its own ink — a boot screen. One accent LED. Detail at
       // thumbnail scale is noise; the hover live-preview is the real preview.
+      const isCur = value === cur;
       b.innerHTML = `<span class="ttile-plate" data-theme="${esc(value)}">`
-        + `<span class="tp-scr"><span class="tp-nm">${esc(name)}</span></span>`
+        + `<span class="tp-scr"><span class="tp-nm">${isCur ? '✓ ' : ''}${esc(name)}</span></span>`
         + `<i class="tp-led"></i>`
         + `</span>`;
       // One gesture, one meaning: click tries the theme (and trying is
@@ -1497,8 +1495,6 @@ eng.onStep(({ absStep, bar, stepInBar, fill, queue, target }) => {
   if (saved === 'dark') saved = 'midnight';   // Dark was renamed; Oyster is the default now
   if (saved && saved !== 'oyster') {
     document.documentElement.dataset.theme = saved;
-    const btn = document.getElementById('themebtn');
-    if (btn) btn.textContent = THEME_LABELS.get(saved) || saved;
   }
   const screen = localStorage.getItem('gb-screen');
   if (screen && screen !== 'default') {
