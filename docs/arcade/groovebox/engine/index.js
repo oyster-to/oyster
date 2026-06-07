@@ -17,7 +17,7 @@ import { PUNCH_NEUTRAL, MODULE_PARAMS, scaleValue, durationToSeconds, gateEvents
 import { DEFAULT_PRESETS, validatePreset } from './punch-presets.js';
 
 export function createEngine() {
-  let song = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, pendingFill = null, activeFill = null, fillQueue = [];
+  let song = null, step = 0, started = false, repeatId = null, tempo = 120, playing = false, onStepCb = null, onBarCb = null, pendingFill = null, activeFill = null, fillQueue = [];
   // Playback target — what is driving sound. Follows the LAST CLICK even while
   // stopped (spec): clicking sets `target` directly when stopped, or queues
   // `pendingTarget` for the next bar boundary when playing. play() starts the
@@ -368,6 +368,11 @@ export function createEngine() {
             const drumsVoice = voices[laneByType(song.lanes, 'drums')?.id];
             if (drumsVoice) drumsVoice.crash.triggerAttackRelease('8n', t, 0.9);
           }
+          // Bar clock for recording (hum): fired at SCHEDULE time with the
+          // bar line's audio-clock time — onStep goes via Tone.Draw and is
+          // too late/jittery to slice PCM against. barInPattern lets the
+          // recorder arm at PATTERN starts so groove bar 0 = pattern bar 0.
+          if (onBarCb) onBarCb(t, target.barInPattern);
         }
         const patternIdx = targetPattern(target, song);
         const fillPat = activeFill ? (song.fills?.[activeFill] ?? null) : null;
@@ -473,6 +478,7 @@ export function createEngine() {
     },
     setTempo(bpm) { if (typeof bpm === 'number' && isFinite(bpm)) { tempo = bpm; Tone.Transport.bpm.value = bpm; } },
     onStep(cb) { onStepCb = cb; },
+    onBarClock(cb) { onBarCb = cb; },
     isPlaying()  { return playing; },
     getSong() { return song; },
     getLanes() { return song ? song.lanes : []; },

@@ -17,8 +17,29 @@ import { makeKnob } from './knob.js';
 import { initShare, maybeLoadShared, clearLoadedFrom } from './share.js';
 import { openPunchEditor, isPunchEditorOpen } from './punch-editor.js';
 import { DEFAULT_PRESETS } from '../engine/punch-presets.js';
+import { createHumRecorder } from './hum.js';
 
 const eng = createEngine();
+
+// Hum-to-melody recorder — HUM on a melody lane records your voice over the
+// playing song and lands it as a groove in that lane's dropdown.
+function paintHumBtn(btn, state, note) {
+  btn.classList.toggle('arming', state === 'arming');
+  btn.classList.toggle('rec', state === 'recording');
+  btn.classList.toggle('err', state === 'denied' || state === 'empty');
+  btn.textContent =
+    state === 'recording' ? (note || '● REC') :
+    state === 'arming'    ? '● …' :
+    state === 'denied'    ? 'MIC?' :
+    state === 'empty'     ? '— —' : 'HUM';
+}
+const humRec = createHumRecorder(eng, {
+  onState: (laneId, state, note) => {
+    const btn = laneId && document.querySelector(`.lane-hum[data-lane="${laneId}"]`);
+    if (btn) paintHumBtn(btn, state, note);
+  },
+  onLanded: () => { renderStrips(); refreshVizPattern(); },
+});
 const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
 
 // ─── Knob info map (single source of truth) ───────────────────────────────────
@@ -293,6 +314,10 @@ function renderStrips() {
     const editBtn = hasEditor
       ? `<button class="lane-edit" data-lane="${lane.id}" title="View/edit ${esc(lane.name)} in the screen">VIEW</button>`
       : `<button class="lane-edit" data-lane="${lane.id}" title="No editor for ${esc(lane.name)}" disabled>VIEW</button>`;
+    // Hum button — melody lanes record your voice as a new groove.
+    const humBtn = lane.type === 'melody'
+      ? `<button class="lane-hum" data-lane="${lane.id}" title="Hum a melody into ${esc(lane.name)} — records over the playing song">HUM</button>`
+      : '';
     // Grid columns: drag | name | mctl | meter | MIX | TONE | FX | M/S | actions
     return `<div class="lane" data-lane="${lane.id}" data-type="${lane.type}">
       <span class="lane-drag" title="Drag to reorder">⠿</span>
@@ -304,7 +329,7 @@ function renderStrips() {
         <button class="solo" data-lane="${lane.id}" aria-label="solo ${esc(lane.name)}" title="Solo">S</button>
       </div>
       <div class="lane-actions">
-        ${editBtn}
+        ${humBtn}${editBtn}
         <button class="lane-dup" data-lane="${lane.id}" title="Duplicate lane">⧉</button>
         <button class="lane-rm" data-lane="${lane.id}" title="Remove lane"${isLast ? ' disabled' : ''}>✕</button>
       </div>
@@ -356,6 +381,10 @@ function renderStrips() {
   host.querySelectorAll('select[data-groove]').forEach(s => s.onchange = () => {
     eng.setLaneGroove(s.dataset.lane, s.value);
     refreshVizPattern();   // editor must re-target the new groove
+  });
+  host.querySelectorAll('.lane-hum').forEach(b => {
+    b.onclick = () => humRec.toggle(b.dataset.lane);
+    paintHumBtn(b, humRec.stateFor(b.dataset.lane));   // survive re-renders mid-take
   });
   host.querySelectorAll('.mute').forEach(b => b.onclick = () => {
     eng.toggleMute(b.dataset.lane);
@@ -1005,6 +1034,7 @@ function mount() {
 
 // ─── Load a different song ────────────────────────────────────────────────────
 function loadSong(key) {
+  humRec.cancel();   // a mid-take song switch discards the take — never land it in the wrong song
   eng.stop();
   stopMeterLoop();
   const play = document.getElementById('play');
@@ -1033,6 +1063,7 @@ function afterSongLoad() {
 // ─── Transport ───────────────────────────────────────────────────────────────
 document.getElementById('play').onclick = async function() {
   if (this.classList.contains('on')) {
+    humRec.transportStopped();   // a live take lands before the clock dies
     eng.stop(); this.classList.remove('on'); this.textContent='▶ play';
     stopMeterLoop();
     updatePatternsPlayback(eng.getPlaybackTarget());

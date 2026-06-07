@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<!-- hum-lab: debugging harness for hum-to-melody. No engine, no Tone, no song —
+     just mic → pitch trace → transcribe → playback, with every stage visible.
+     Dev tool; not linked from the app. -->
+<html><head><meta charset="utf-8"><title>hum lab</title>
+<style>
+  body { background: #14110f; color: #e8e0d8; font: 13px/1.5 monospace; margin: 20px; }
+  h1 { font-size: 16px; } h1 small { color: #8a7f72; font-weight: normal; }
+  .row { margin: 8px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  button { background: #2a241f; color: #e8e0d8; border: 1px solid #4a4138; border-radius: 6px;
+           padding: 8px 16px; font: inherit; cursor: pointer; }
+  button:hover { border-color: #c96; }
+  button.rec { background: #a33; border-color: #e66; animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: 0.7; } }
+  select, input[type=number] { background: #2a241f; color: inherit; border: 1px solid #4a4138; padding: 5px; font: inherit; }
+  canvas { display: block; background: #0d0b0a; border: 1px solid #332d27; border-radius: 6px; margin: 6px 0; }
+  #out { white-space: pre; color: #9c8; }
+  .hint { color: #8a7f72; }
+  label { user-select: none; }
+</style></head><body>
+<h1>hum lab <small>— mic → YIN → transcribe, every stage visible</small></h1>
+
+<div class="row">
+  <select id="mic"></select>
+  <label><input type="checkbox" id="ec" checked> echoCancel</label>
+  <label><input type="checkbox" id="ns" checked> noiseSuppress</label>
+  <label><input type="checkbox" id="agc"> autoGain</label>
+  <label>bpm <input type="number" id="bpm" value="110" min="60" max="200" style="width:55px"></label>
+  <label>snap to key <select id="key"></select></label>
+</div>
+<div class="row">
+  <button id="rec">● record</button>
+  <button id="playRaw" disabled>▶ raw audio</button>
+  <button id="playNotes" disabled>▶ transcription</button>
+  <button id="save" disabled>save .wav</button>
+  <span id="status" class="hint">pick a mic, hit record, hum a tune you know</span>
+</div>
+
+<canvas id="trace" width="1100" height="260"></canvas>
+<div class="hint">live pitch trace — green dots = detected pitch, grey band = hum-friendly range (C3–C5), red line = level</div>
+<canvas id="roll" width="1100" height="200"></canvas>
+<div class="hint">transcription piano roll (after stop)</div>
+<div id="out"></div>
+
+<script type="module">
+import { yinPitch, transcribe, fitBars, hzToNote } from './engine/hum.js';
+
+const $ = (id) => document.getElementById(id);
+const ctx2 = (c) => c.getContext('2d');
+const METER = { beatsPerBar: 4, beatUnit: 4, stepsPerBeat: 4 };
+
+// key selector: chromatic (no snap) + all 24 major/minor keys
+$('key').innerHTML = '<option value="">chromatic (no snap)</option>' +
+  ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'].flatMap(r =>
+    ['major', 'minor'].map(m => `<option value="${r}|${m}">${r} ${m}</option>`)).join('');
+$('key').value = 'A|major';   // kids — tonight's test key
+const pickedKey = () => {
+  const v = $('key').value;
+  if (!v) return null;
+  const [root, mode] = v.split('|');
+  return { root, mode };
+};
+const NOTE_LO = 36, NOTE_HI = 84;                       // C2..C6 on both canvases
+const midiY = (m, h) => h - ((m - NOTE_LO) / (NOTE_HI - NOTE_LO)) * h;
+
+// ── devices ────────────────────────────────────────────────────────────────
+async function listMics() {
+  await navigator.mediaDevices.getUserMedia({ audio: true }).then(s => s.getTracks().forEach(t => t.stop()));
+  const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+  $('mic').innerHTML = devs.map(d => `<option value="${d.deviceId}">${d.label || d.deviceId.slice(0, 8)}</option>`).join('');
+}
+listMics();
+
+// ── capture ────────────────────────────────────────────────────────────────
+const WORKLET = `registerProcessor('cap', class extends AudioWorkletProcessor {
+  process(inputs) { const ch = inputs[0] && inputs[0][0]; if (ch) this.port.postMessage({ t: currentTime, d: ch.slice(0) }); return true; }
+});`;
+
+let ac = null, recording = false, chunks = [], stream = null, node = null, src = null;
+let take = null;          // { pcm, sr, bars, bpm }
+let t0 = -1, beatOneT = 0, clickTimer = null;
+
+// Metronome click at audio-time `at` — accented on bar starts.
+function click(at, accent) {
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.frequency.value = accent ? 1500 : 1000;
+  g.gain.setValueAtTime(accent ? 0.5 : 0.3, at);
+  g.gain.setTargetAtTime(0, at + 0.02, 0.012);
+  o.connect(g); g.connect(ac.destination); o.start(at); o.stop(at + 0.1);
+}
+
+async function startRec() {
+  ac = ac || new AudioContext();
+  await ac.resume();
+  if (!ac.__capLoaded) {
+    await ac.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' })));
+    ac.__capLoaded = true;
+  }
+  stream = await navigator.mediaDevices.getUserMedia({ audio: {
+    deviceId: { exact: $('mic').value },
+    echoCancellation: $('ec').checked, noiseSuppression: $('ns').checked, autoGainControl: $('agc').checked,
+  } });
+  src = ac.createMediaStreamSource(stream);
+  node = new AudioWorkletNode(ac, 'cap');
+  src.connect(node); node.connect(ac.destination);
+  chunks = []; t0 = -1;
+  node.port.onmessage = (e) => { if (recording) { if (t0 < 0) t0 = e.data.t; chunks.push(e.data.d); } };
+  recording = true;
+
+  // 4-beat count-in, then a click on every beat (accent each bar) until stop.
+  // Capture is sliced at beatOneT, so the take's bar 1 starts ON the grid.
+  const beat = 60 / +$('bpm').value;
+  const base = ac.currentTime + 0.25;
+  beatOneT = base + 4 * beat;
+  for (let k = 0; k < 4; k++) click(base + k * beat, k === 0);
+  let nextBeat = 4;
+  clickTimer = setInterval(() => {
+    while (base + nextBeat * beat < ac.currentTime + 1.2) {
+      click(base + nextBeat * beat, nextBeat % 4 === 0);
+      nextBeat++;
+    }
+    const inCount = ac.currentTime < beatOneT;
+    $('status').textContent = inCount
+      ? `count-in… ${Math.max(1, Math.ceil((beatOneT - ac.currentTime) / beat))}`
+      : 'recording — hum with the click!';
+  }, 200);
+
+  $('rec').textContent = '■ stop'; $('rec').classList.add('rec');
+  $('status').textContent = 'count-in…';
+  drawLive();
+}
+
+function stopRec() {
+  recording = false;
+  clearInterval(clickTimer); clickTimer = null;
+  node.port.onmessage = null;
+  try { src.disconnect(); node.disconnect(); } catch {}
+  stream.getTracks().forEach(t => t.stop());
+  $('rec').textContent = '● record'; $('rec').classList.remove('rec');
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  const all = new Float32Array(total);
+  let off = 0; for (const c of chunks) { all.set(c, off); off += c.length; }
+  // slice from beat 1 after count-in — grid-aligned like recording over a song
+  const startOff = Math.max(0, Math.round((beatOneT - t0) * ac.sampleRate));
+  const pcm = all.subarray(Math.min(startOff, all.length));
+  if (!pcm.length) { $('status').textContent = 'stopped during count-in — nothing captured'; return; }
+  take = { pcm, sr: ac.sampleRate };
+  analyse();
+}
+
+$('rec').onclick = () => recording ? stopRec() : startRec();
+
+// ── live trace: pitch dot + level, scrolling ───────────────────────────────
+const trace = $('trace'), tc = ctx2(trace);
+let traceX = 0;
+function drawLive() {
+  if (!recording) return;
+  // freshest 2048 samples from the chunk tail
+  const need = 2048, frame = new Float32Array(need);
+  let fill = need;
+  for (let i = chunks.length - 1; i >= 0 && fill > 0; i--) {
+    const c = chunks[i], take_ = Math.min(fill, c.length);
+    frame.set(c.subarray(c.length - take_), fill - take_);
+    fill -= take_;
+  }
+  if (fill === 0) {
+    let rms = 0; for (const v of frame) rms += v * v;
+    rms = Math.sqrt(rms / need);
+    const hz = yinPitch(frame, ac.sampleRate);
+    if (traceX === 0) { tc.fillStyle = '#0d0b0a'; tc.fillRect(0, 0, trace.width, trace.height); drawBand(); }
+    // level line (red, bottom-anchored)
+    tc.fillStyle = '#a33';
+    tc.fillRect(traceX, trace.height - rms * 300, 2, 2);
+    if (hz) {
+      const m = 69 + 12 * Math.log2(hz / 440);
+      tc.fillStyle = '#6c6';
+      tc.fillRect(traceX, midiY(m, trace.height), 3, 3);
+      $('status').textContent = `hearing ${hzToNote(hz)} (${hz.toFixed(0)}Hz)  level ${rms.toFixed(3)}`;
+    }
+    traceX = (traceX + 2) % trace.width;
+    if (traceX === 0) { tc.fillStyle = '#0d0b0a'; tc.fillRect(0, 0, trace.width, trace.height); drawBand(); }
+  }
+  requestAnimationFrame(drawLive);
+}
+function drawBand() {
+  tc.fillStyle = 'rgba(255,255,255,0.05)';
+  const y1 = midiY(72, trace.height), y2 = midiY(48, trace.height);   // C5..C3
+  tc.fillRect(0, y1, trace.width, y2 - y1);
+}
+
+// ── analysis + roll ────────────────────────────────────────────────────────
+function analyse() {
+  const { pcm, sr } = take;
+  const bpm = +$('bpm').value;
+  const stepSec = 60 / bpm / 4, barSec = stepSec * 16;
+  const bars = fitBars(Math.max(1, Math.ceil(pcm.length / sr / barSec)));
+  const out = transcribe(pcm, sr, { bpm, meter: METER, bars, key: pickedKey() });
+  take.bars = out; take.bpm = bpm; take.key = pickedKey();
+  window.__lab = take;
+
+  // piano roll
+  const rc = ctx2($('roll')), W = $('roll').width, H = $('roll').height;
+  rc.fillStyle = '#0d0b0a'; rc.fillRect(0, 0, W, H);
+  const totalSteps = bars * 16, sw = W / totalSteps;
+  rc.strokeStyle = '#332d27';
+  for (let s = 0; s <= totalSteps; s += 4) {
+    rc.lineWidth = s % 16 === 0 ? 2 : 1;
+    rc.beginPath(); rc.moveTo(s * sw, 0); rc.lineTo(s * sw, H); rc.stroke();
+  }
+  const noteMidi = (n) => { const m = n.match(/^([A-G]#?)(-?\d)$/); return { C:0,'C#':1,D:2,'D#':3,E:4,F:5,'F#':6,G:7,'G#':8,A:9,'A#':10,B:11 }[m[1]] + (+m[2] + 1) * 12; };
+  rc.fillStyle = '#6c6';
+  const lines = [];
+  out.forEach((bar, b) => bar.forEach(([st, n, d]) => {
+    rc.fillRect((b * 16 + st) * sw + 1, midiY(noteMidi(n), H) - 4, d * sw - 2, 8);
+    lines.push(`bar ${b + 1} step ${String(st).padStart(2)}: ${n.padEnd(3)} ×${d}`);
+  }));
+  const k = pickedKey();
+  $('out').textContent = `${(pcm.length / sr).toFixed(1)}s · ${bars} bar(s) @ ${bpm}bpm · ${k ? `snapped to ${k.root} ${k.mode}` : 'chromatic'} · ${lines.length} notes\n` + lines.join('\n');
+  $('playRaw').disabled = $('playNotes').disabled = $('save').disabled = false;
+  $('status').textContent = 'done — ▶ buttons compare what you hummed vs what landed';
+}
+
+// ── playback ───────────────────────────────────────────────────────────────
+$('playRaw').onclick = () => {
+  const { pcm, sr } = take;
+  const buf = ac.createBuffer(1, pcm.length, sr);
+  buf.copyToChannel(pcm, 0);
+  const s = ac.createBufferSource(); s.buffer = buf; s.connect(ac.destination); s.start();
+};
+$('playNotes').onclick = () => {
+  const { bars, bpm } = take, stepSec = 60 / bpm / 4, t0 = ac.currentTime + 0.05;
+  const noteHz = (n) => { const m = n.match(/^([A-G]#?)(-?\d)$/); const pc = { C:0,'C#':1,D:2,'D#':3,E:4,F:5,'F#':6,G:7,'G#':8,A:9,'A#':10,B:11 }[m[1]]; return 440 * Math.pow(2, (pc + (+m[2] + 1) * 12 - 69) / 12); };
+  bars.forEach((bar, b) => bar.forEach(([st, n, d]) => {
+    const at = t0 + (b * 16 + st) * stepSec, dur = d * stepSec;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'triangle'; o.frequency.value = noteHz(n);
+    g.gain.setValueAtTime(0.25, at); g.gain.setTargetAtTime(0, at + dur - 0.03, 0.01);
+    o.connect(g); g.connect(ac.destination); o.start(at); o.stop(at + dur + 0.1);
+  }));
+};
+
+// ── wav save (16-bit mono) — user-initiated download ──────────────────────
+$('save').onclick = () => {
+  const { pcm, sr } = take;
+  const buf = new ArrayBuffer(44 + pcm.length * 2), v = new DataView(buf);
+  const ws = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  ws(0, 'RIFF'); v.setUint32(4, 36 + pcm.length * 2, true); ws(8, 'WAVEfmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true); ws(36, 'data'); v.setUint32(40, pcm.length * 2, true);
+  for (let i = 0; i < pcm.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i])) * 32767, true);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+  a.download = `hum-take-${Date.now()}.wav`;
+  a.click();
+};
+</script></body></html>
