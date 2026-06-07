@@ -1389,6 +1389,15 @@ let _themePickerOpen = false;
 
 function currentTheme() { return document.documentElement.dataset.theme || 'oyster'; }
 
+const SCREEN_OPTIONS = [['default', 'Theme glass'], ['pearl', 'Pearl'], ['phosphor', 'Phosphor'], ['lime', 'Lime'], ['amber', 'Amber'], ['paper', 'Paper']];
+
+function applyScreen(v) {
+  if (v === 'default') delete document.documentElement.dataset.screen;
+  else document.documentElement.dataset.screen = v;
+  localStorage.setItem('gb-screen', v);
+  viz?.invalidateThemeColors?.();
+}
+
 function applyTheme(t) {
   if (t === 'oyster') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = t;
@@ -1440,6 +1449,31 @@ function renderThemePicker() {
     }
     host.appendChild(grid);
   }
+
+  // The glass: swap any theme's LCD for another bundle (theme A, screen B).
+  const gs = document.createElement('div');
+  gs.className = 'picker-sect';
+  gs.textContent = 'Glass — swap the LCD';
+  host.appendChild(gs);
+  const curScreen = document.documentElement.dataset.screen || 'default';
+  const ggrid = document.createElement('div');
+  ggrid.className = 'theme-grid';
+  for (const [value, name] of SCREEN_OPTIONS) {
+    const b = document.createElement('button');
+    b.className = 'ttile' + (value === curScreen ? ' sel' : '');
+    b.title = name;
+    // data-screen paints the glass tile from its own bundle; the default tile
+    // carries the CURRENT theme instead, so it previews that theme's own LCD.
+    const attr = value === 'default'
+      ? `data-theme="${esc(currentTheme())}"`
+      : `data-screen="${esc(value)}"`;
+    b.innerHTML = `<span class="ttile-plate gtile" ${attr}>`
+      + `<span class="tp-scr"><span class="tp-nm">${value === curScreen ? '✓ ' : ''}${esc(name)}</span></span>`
+      + `</span>`;
+    b.onclick = () => { applyScreen(value); renderThemePicker(); };
+    ggrid.appendChild(b);
+  }
+  host.appendChild(ggrid);
 }
 
 
@@ -1469,13 +1503,6 @@ document.addEventListener('click', e => {
   if (host && !host.contains(e.target) && e.target !== btn && !btn?.contains(e.target)) closeThemePicker();
 });
 // Screen picker (Settings) — override the theme's glass with a chosen LCD.
-document.getElementById('screensel').onchange = e => {
-  const v = e.target.value;
-  if (v === 'default') delete document.documentElement.dataset.screen;
-  else document.documentElement.dataset.screen = v;
-  localStorage.setItem('gb-screen', v);
-  viz.invalidateThemeColors?.();
-};
 
 // (Scope + quick-edit lane tabs are built and wired in renderViewTabs().)
 
@@ -1503,8 +1530,6 @@ eng.onStep(({ absStep, bar, stepInBar, fill, queue, target }) => {
   const screen = localStorage.getItem('gb-screen');
   if (screen && screen !== 'default') {
     document.documentElement.dataset.screen = screen;
-    const ssel = document.getElementById('screensel');
-    if (ssel) ssel.value = screen;
   }
 })();
 
@@ -1953,7 +1978,14 @@ document.addEventListener('contextmenu', e => {
     e.preventDefault();
   }
 });
-// Dev hook: ?devopen=theme|song auto-opens a picker — lets headless-browser
-// screenshots verify the drawers without a click. Inert in normal use.
+// Dev hooks: ?devopen=theme|song auto-opens a picker; ?devtheme= / ?devscreen=
+// force a cabinet/glass combo — lets headless-browser screenshots verify
+// visuals without clicks. Inert in normal use.
 if (location.search.includes('devopen=theme')) setTimeout(() => openThemePicker(), 300);
 if (location.search.includes('devopen=song')) setTimeout(() => openPicker(), 300);
+{
+  const q = new URLSearchParams(location.search);
+  const dt = q.get('devtheme'), ds = q.get('devscreen');
+  if (dt) { document.documentElement.dataset.theme = dt; viz?.invalidateThemeColors?.(); }
+  if (ds) { document.documentElement.dataset.screen = ds; viz?.invalidateThemeColors?.(); }
+}
