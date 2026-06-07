@@ -187,7 +187,10 @@ describe("GET /api/relay/d/:deviceId/<path>", () => {
     await connectDevice(token, deviceId, {
       respond: () => ({
         status: 200,
-        headers: { "content-type": "text/markdown", "x-device-secret": "must-not-pass" },
+        // Mixed casing on purpose — the DO must match content-type
+        // case-insensitively (devices serialise whatever their HTTP
+        // stack produced).
+        headers: { "Content-Type": "text/markdown", "X-Device-Secret": "must-not-pass" },
         chunks: ["# hello from the laptop"],
       }),
     });

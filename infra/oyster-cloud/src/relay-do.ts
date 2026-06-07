@@ -429,8 +429,13 @@ export class RelayDO {
 function filterRelayedHeaders(raw: unknown): Headers {
   const out = new Headers();
   if (raw && typeof raw === "object") {
-    const ct = (raw as Record<string, unknown>)["content-type"];
-    if (typeof ct === "string" && ct.length <= 256) out.set("content-type", ct);
+    // Case-insensitive lookup — the device serialises whatever casing its
+    // local HTTP stack produced ("Content-Type" is as likely as not).
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (key.toLowerCase() !== "content-type") continue;
+      if (typeof value === "string" && value.length <= 256) out.set("content-type", value);
+      break;
+    }
   }
   out.set("cache-control", "private, no-store");
   out.set("x-content-type-options", "nosniff");

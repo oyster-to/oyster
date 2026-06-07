@@ -2,7 +2,10 @@
 // vitest.relay.config.ts — see vitest.workspace.ts for why there are two).
 
 export const sharedMiniflareOptions = {
-  // Use isolated in-memory D1 per test file.
+  // In-memory D1. Isolation depends on the project: the "cloud" project
+  // stacks storage per test file; the "relay" project runs with
+  // isolatedStorage off, so its tests share one D1 (they mint unique
+  // users per test instead).
   d1Databases: ["DB"],
   // In-memory R2 bucket for session bytes tests.
   r2Buckets: ["SESSIONS_BUCKET"],
