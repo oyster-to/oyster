@@ -19,7 +19,10 @@ function memDb(rows = {}) {
     async list(kind, limit) {
       return Object.values(rows)
         .filter(r => r.kind === kind)
-        .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+        // newest first, id tie-break — mirrors the D1 adapter's ORDER BY
+        .sort((a, b) => (a.created_at !== b.created_at
+          ? (a.created_at < b.created_at ? 1 : -1)
+          : (a.id < b.id ? -1 : 1)))
         .slice(0, limit);
     },
   };

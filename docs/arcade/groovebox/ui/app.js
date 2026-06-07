@@ -439,6 +439,9 @@ function closePicker() {
 // outside — the bug class that closed the drawer on tile/tab clicks).
 document.addEventListener('pointerdown', e => {
   if (!_pickerOpen) return;
+  // Punch pads are performance, not navigation — auditioning while browsing
+  // the drawer is legitimate; don't dismiss on a pad press.
+  if (e.target.closest?.('.punchpad')) return;
   const host = document.getElementById('song-picker');
   const btn = document.getElementById('songbtn');
   if (host && !host.contains(e.target) && e.target !== btn && !btn?.contains(e.target)) closePicker();
@@ -1510,6 +1513,7 @@ function closeThemePicker() {
 document.getElementById('themebtn').onclick = () => { _themePickerOpen ? closeThemePicker() : openThemePicker(); };
 document.addEventListener('pointerdown', e => {
   if (!_themePickerOpen) return;
+  if (e.target.closest?.('.punchpad')) return;   // pads are performance, not dismissal
   const host = document.getElementById('theme-picker');
   const btn = document.getElementById('themebtn');
   // Picking a tile re-renders the drawer (to move the ✓), detaching the

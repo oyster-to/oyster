@@ -53,7 +53,7 @@ function d1Db(d1: D1Database) {
     async list(kind: string, limit: number) {
       const { results } = await d1.prepare(
         `SELECT id, kind, name, author, plays, remix_of, created_at FROM ${T}
-         WHERE kind = ? ORDER BY created_at DESC LIMIT ?`)
+         WHERE kind = ? ORDER BY created_at DESC, id ASC LIMIT ?`)
         .bind(kind, limit).all();
       return results;
     },
