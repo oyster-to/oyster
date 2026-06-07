@@ -6,7 +6,8 @@
 // A groove owns its length (its array); at pattern bar b it plays
 // groove[b % groove.length]. A pattern's loop length is DERIVED — the longest
 // picked groove (see patternBars); shorter grooves cycle underneath.
-import { laneAudible, drumVoiceAudible, transposeNote, DRUM_KEYS } from './song.js';
+import { laneAudible, drumVoiceAudible, transposeNote } from './song.js';
+import { slotKey } from './instruments.js';
 
 export const MAX_PATTERNS = 16;
 
@@ -132,14 +133,22 @@ export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = 
     if (lane.type === 'drums') {
       const bars = grooveBars(g);
       const bar = fillPat || (bars ? bars[barInPattern % bars.length] : null) || {};
-      for (const k of DRUM_KEYS) {
-        if (bar[k] && bar[k].includes(step) && drumVoiceAudible(lane, k))
-          ev.push({ laneId: lane.id, type: 'drums', voice: k });
-      }
-      if (bar.tom) {
-        for (const [s, semi] of bar.tom) {
-          if (s === step && drumVoiceAudible(lane, 'tom'))
-            ev.push({ laneId: lane.id, type: 'drums', voice: 'tom', semi: semi ?? 0 });
+      // Slot-agnostic: keys are canonical GM numbers post-ingest (slotKey also
+      // tolerates raw name keys). Steps are numbers or [step, semi] pairs —
+      // any slot may be pitched. for-in: no per-step allocations.
+      for (const k in bar) {
+        const steps = bar[k];
+        if (!Array.isArray(steps)) continue;
+        const note = slotKey(k);
+        if (note === null) continue;
+        for (let i = 0; i < steps.length; i++) {
+          const s = steps[i];
+          if (typeof s === 'number') {
+            if (s === step && drumVoiceAudible(lane, note))
+              ev.push({ laneId: lane.id, type: 'drums', voice: note });
+          } else if (Array.isArray(s) && s[0] === step && drumVoiceAudible(lane, note)) {
+            ev.push({ laneId: lane.id, type: 'drums', voice: note, semi: s[1] ?? 0 });
+          }
         }
       }
       continue;
@@ -270,20 +279,23 @@ export function moveChain(song, from, to) {
 
 // ── step edits (used by the editors) — write into GROOVES ─────────────────────
 // barIdx is within the referenced groove's own length; the caller guarantees range.
-export function setDrumStep(song, laneId, grooveName, barIdx, voice, step, on) {
+export function setDrumStep(song, laneId, grooveName, barIdx, voice, step, on, pitched) {
   const groove = song.grooves[laneId]?.[grooveName];
   if (!Array.isArray(groove)) return;        // missing or relative (read-only)
   const bar = groove[barIdx] || (groove[barIdx] = {});
-  if (voice === 'tom') {
-    bar.tom = bar.tom || [];
-    const i = bar.tom.findIndex(x => x[0] === step);
-    if (on) { if (i < 0) bar.tom.push([step, 3]); }
-    else if (i >= 0) bar.tom.splice(i, 1);
+  const k = slotKey(voice) ?? voice;         // canonical GM-number keys
+  // Pitched slots store [step, semi] pairs. Callers pass the kit slot's flag;
+  // default preserves the legacy tom behaviour (GM 45).
+  if (pitched ?? k === 45) {
+    bar[k] = bar[k] || [];
+    const i = bar[k].findIndex(x => x[0] === step);
+    if (on) { if (i < 0) bar[k].push([step, 3]); }
+    else if (i >= 0) bar[k].splice(i, 1);
   } else {
-    bar[voice] = bar[voice] || [];
-    const i = bar[voice].indexOf(step);
-    if (on) { if (i < 0) bar[voice].push(step); }
-    else if (i >= 0) bar[voice].splice(i, 1);
+    bar[k] = bar[k] || [];
+    const i = bar[k].indexOf(step);
+    if (on) { if (i < 0) bar[k].push(step); }
+    else if (i >= 0) bar[k].splice(i, 1);
   }
 }
 

@@ -141,6 +141,34 @@ export function normalizeDrumGrooves(grooves) {
   return out;
 }
 
+/** normalizeVoiceMap(map) → { [gmNote]: bool } — voiceMute/voiceSolo keys. */
+export function normalizeVoiceMap(map) {
+  if (!map || typeof map !== 'object') return map;
+  const out = {};
+  for (const [k, v] of Object.entries(map)) {
+    const note = slotKey(k);
+    if (note !== null) out[note] = v;
+  }
+  return out;
+}
+
+/** normalizeSongDrums(song) — the ingest boundary, in place: every drum lane's
+ *  grooves, fills, and per-voice mute/solo state goes canonical numeric.
+ *  Input syntax (GM names) is welcome anywhere upstream of this call. */
+export function normalizeSongDrums(song) {
+  if (!song || typeof song !== 'object') return song;
+  for (const lane of song.lanes || []) {
+    if (lane.type !== 'drums') continue;
+    if (song.grooves?.[lane.id]) song.grooves[lane.id] = normalizeDrumGrooves(song.grooves[lane.id]);
+    if (lane.voiceMute) lane.voiceMute = normalizeVoiceMap(lane.voiceMute);
+    if (lane.voiceSolo) lane.voiceSolo = normalizeVoiceMap(lane.voiceSolo);
+  }
+  if (song.fills && typeof song.fills === 'object') {
+    for (const [name, bar] of Object.entries(song.fills)) song.fills[name] = normalizeDrumBar(bar);
+  }
+  return song;
+}
+
 // ── defaults: today's hardcoded voices, ported byte-for-byte ────────────────
 // Values mirror engine/voices.js createVoiceForType EXACTLY (parity-tested).
 export const DEFAULT_INSTRUMENTS = {
@@ -205,7 +233,7 @@ export const DEFAULT_KIT = {
     { note: 36, label: 'Kick',  instrument: 'gb-kick' },
     { note: 38, label: 'Snare', instrument: 'gb-snare' },
     { note: 42, label: 'HH',    instrument: 'gb-hat' },
-    { note: 45, label: 'Tom',   instrument: 'gb-tom' },
+    { note: 45, label: 'Tom',   instrument: 'gb-tom', pitched: true },   // steps carry [step, semi]
     { note: 49, label: 'Crash', instrument: 'gb-crash' },
   ],
 };

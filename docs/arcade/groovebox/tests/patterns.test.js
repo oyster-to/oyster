@@ -18,8 +18,8 @@ function makeSong() {
     ],
     grooves: {
       drums: {
-        groove2: [{ kick: [0, 8] }, { kick: [0], snare: [12] }],   // 2-bar
-        hats:   [{ hat: [0, 4, 8, 12] }],                          // 1-bar
+        groove2: [{ 36: [0, 8] }, { 36: [0], 38: [12] }],          // 2-bar (GM-numeric: post-ingest state)
+        hats:   [{ 42: [0, 4, 8, 12] }],                           // 1-bar
       },
       melody: {
         riff:  [[[0, 'C4', 2]], []],                               // 2-bar
@@ -52,11 +52,11 @@ test('chainBarAt maps song bars to (chainPos, patternIdx, barInPattern) and wrap
 test('eventsForStepV2 emits drum + melody events resolved through grooves', () => {
   const s = makeSong();
   expect(eventsForStepV2(s, 0, 0, 0, null, 0)).toEqual([
-    { laneId: 'drums', type: 'drums', voice: 'kick' },
+    { laneId: 'drums', type: 'drums', voice: 36 },
     { laneId: 'melody', type: 'melody', note: 'C4', dur: 2 },
   ]);
   expect(eventsForStepV2(s, 0, 1, 12, null, 0)).toEqual([
-    { laneId: 'drums', type: 'drums', voice: 'snare' },
+    { laneId: 'drums', type: 'drums', voice: 38 },
   ]);
 });
 
@@ -76,7 +76,7 @@ test('eventsForStepV2 honours transpose, fill override, and mute', () => {
   expect(eventsForStepV2(s, 0, 0, 0, null, 2)[1].note).toBe('D4');
   // fill replaces the drum bar entirely
   const ev = eventsForStepV2(s, 0, 0, 0, { snare: [0] }, 0);
-  expect(ev.filter(e => e.type === 'drums')).toEqual([{ laneId: 'drums', type: 'drums', voice: 'snare' }]);
+  expect(ev.filter(e => e.type === 'drums')).toEqual([{ laneId: 'drums', type: 'drums', voice: 38 }]);
   s.lanes[0].muted = true;
   expect(eventsForStepV2(s, 0, 0, 0, null, 0).some(e => e.type === 'drums')).toBe(false);
 });
@@ -90,7 +90,7 @@ test('eventsForStepV2: a 1-bar groove under a longer (derived) pattern cycles (b
   expect(patternBars(s, 1)).toBe(4);
   for (const barInPattern of [0, 1, 2, 3]) {
     const ev = eventsForStepV2(s, 1, barInPattern, 4, null, 0);
-    expect(ev).toContainEqual({ laneId: 'drums', type: 'drums', voice: 'hat' });
+    expect(ev).toContainEqual({ laneId: 'drums', type: 'drums', voice: 42 });
   }
 });
 
@@ -102,8 +102,8 @@ test('eventsForStepV2: a 2-bar groove under a 4-bar (derived) pattern alternates
   s.patterns[0].lanes.melody = 'long';
   expect(patternBars(s, 0)).toBe(4);
   // bar 0 ≡ bar 2 (groove bar 0: kick at 0); bar 1 ≡ bar 3 (groove bar 1: snare at 12)
-  expect(eventsForStepV2(s, 0, 2, 0, null, 0)).toContainEqual({ laneId: 'drums', type: 'drums', voice: 'kick' });
-  expect(eventsForStepV2(s, 0, 3, 12, null, 0)).toContainEqual({ laneId: 'drums', type: 'drums', voice: 'snare' });
+  expect(eventsForStepV2(s, 0, 2, 0, null, 0)).toContainEqual({ laneId: 'drums', type: 'drums', voice: 36 });
+  expect(eventsForStepV2(s, 0, 3, 12, null, 0)).toContainEqual({ laneId: 'drums', type: 'drums', voice: 38 });
 });
 
 test('eventsForStepV2: missing or empty groove → silent lane', () => {
@@ -229,24 +229,24 @@ test('appendToChain / removeChainAt (last-chip blocked) / moveChain', () => {
 test('setDrumStep writes into the named groove; on idempotent, off removes', () => {
   const s = makeSong();
   setDrumStep(s, 'drums', 'groove2', 0, 'kick', 0, true);     // already present
-  expect(s.grooves.drums.groove2[0].kick).toEqual([0, 8]);    // idempotent on
+  expect(s.grooves.drums.groove2[0][36]).toEqual([0, 8]);    // idempotent on
   setDrumStep(s, 'drums', 'groove2', 0, 'kick', 4, true);     // add new
-  expect(s.grooves.drums.groove2[0].kick).toEqual([0, 8, 4]);
+  expect(s.grooves.drums.groove2[0][36]).toEqual([0, 8, 4]);
   setDrumStep(s, 'drums', 'groove2', 0, 'kick', 8, false);    // remove
-  expect(s.grooves.drums.groove2[0].kick).toEqual([0, 4]);
+  expect(s.grooves.drums.groove2[0][36]).toEqual([0, 4]);
   setDrumStep(s, 'drums', 'groove2', 0, 'kick', 13, false);   // off when absent: no-op
-  expect(s.grooves.drums.groove2[0].kick).toEqual([0, 4]);
+  expect(s.grooves.drums.groove2[0][36]).toEqual([0, 4]);
 });
 
 test('setDrumStep tom: on preserves existing semi, adds [step,3] if absent, off removes', () => {
   const s = makeSong();
-  s.grooves.drums.groove2[0].tom = [[5, 1]];
+  s.grooves.drums.groove2[0][45] = [[5, 1]];
   setDrumStep(s, 'drums', 'groove2', 0, 'tom', 5, true);      // already present — keep semi 1
-  expect(s.grooves.drums.groove2[0].tom).toEqual([[5, 1]]);
+  expect(s.grooves.drums.groove2[0][45]).toEqual([[5, 1]]);
   setDrumStep(s, 'drums', 'groove2', 0, 'tom', 9, true);      // absent — default semi 3
-  expect(s.grooves.drums.groove2[0].tom).toEqual([[5, 1], [9, 3]]);
+  expect(s.grooves.drums.groove2[0][45]).toEqual([[5, 1], [9, 3]]);
   setDrumStep(s, 'drums', 'groove2', 0, 'tom', 5, false);     // off — remove
-  expect(s.grooves.drums.groove2[0].tom).toEqual([[9, 3]]);
+  expect(s.grooves.drums.groove2[0][45]).toEqual([[9, 3]]);
 });
 
 test('setDrumStep on a missing groove is a no-op', () => {
@@ -274,7 +274,7 @@ test('editing a groove changes every pattern that references it', () => {
   const s = makeSong();
   // both pattern 0 (chain pos 0,1) reference drums groove 'groove2'
   setDrumStep(s, 'drums', 'groove2', 0, 'snare', 4, true);
-  expect(eventsForStepV2(s, 0, 0, 4, null, 0)).toContainEqual({ laneId: 'drums', type: 'drums', voice: 'snare' });
+  expect(eventsForStepV2(s, 0, 0, 4, null, 0)).toContainEqual({ laneId: 'drums', type: 'drums', voice: 38 });
 });
 
 test('emptyBarFor returns {} for drums lanes and [] for others', () => {
@@ -303,8 +303,8 @@ test('setGrooveBars deep-copies filled bars; mutating one leaves the original in
   const s = makeSong();
   expect(setGrooveBars(s, 'drums', 'groove2', 4)).toBe(4); // 2 → 4 (1,2,1,2)
   const g = s.grooves.drums.groove2;
-  g[2].kick.push(7);                                       // mutate the copy
-  expect(g[0].kick).toEqual([0, 8]);                       // original bar 0 unchanged
+  g[2][36].push(7);                                       // mutate the copy
+  expect(g[0][36]).toEqual([0, 8]);                       // original bar 0 unchanged
   // melodic arrays deep-copied too
   expect(setGrooveBars(s, 'melody', 'riff', 4)).toBe(4);
   const m = s.grooves.melody.riff;

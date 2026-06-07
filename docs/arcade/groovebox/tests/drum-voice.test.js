@@ -25,7 +25,7 @@ test('drumVoiceAudible: missing voiceMute/voiceSolo props → all audible', () =
 });
 
 test('drumVoiceAudible: mute hat → hat inaudible, others audible', () => {
-  const lane = makeDrumsLane({ hat: true });
+  const lane = makeDrumsLane({ 42: true });
   expect(drumVoiceAudible(lane, 'hat')).toBe(false);
   expect(drumVoiceAudible(lane, 'kick')).toBe(true);
   expect(drumVoiceAudible(lane, 'snare')).toBe(true);
@@ -34,7 +34,7 @@ test('drumVoiceAudible: mute hat → hat inaudible, others audible', () => {
 });
 
 test('drumVoiceAudible: solo kick → only kick audible', () => {
-  const lane = makeDrumsLane({}, { kick: true });
+  const lane = makeDrumsLane({}, { 36: true });
   expect(drumVoiceAudible(lane, 'kick')).toBe(true);
   expect(drumVoiceAudible(lane, 'snare')).toBe(false);
   expect(drumVoiceAudible(lane, 'hat')).toBe(false);
@@ -43,7 +43,7 @@ test('drumVoiceAudible: solo kick → only kick audible', () => {
 });
 
 test('drumVoiceAudible: multiple soloed voices → all soloed audible, others not', () => {
-  const lane = makeDrumsLane({}, { kick: true, snare: true });
+  const lane = makeDrumsLane({}, { 36: true, 38: true });
   expect(drumVoiceAudible(lane, 'kick')).toBe(true);
   expect(drumVoiceAudible(lane, 'snare')).toBe(true);
   expect(drumVoiceAudible(lane, 'hat')).toBe(false);
@@ -60,9 +60,9 @@ function makeDrumsLaneForToggle() {
 test('toggleDrumMute: flips muted state and returns new value', () => {
   const lane = makeDrumsLaneForToggle();
   expect(toggleDrumMute(lane, 'hat')).toBe(true);
-  expect(lane.voiceMute.hat).toBe(true);
+  expect(lane.voiceMute[42]).toBe(true);
   expect(toggleDrumMute(lane, 'hat')).toBe(false);
-  expect(lane.voiceMute.hat).toBe(false);
+  expect(lane.voiceMute[42]).toBe(false);
 });
 
 test('toggleDrumMute: lazily initialises voiceMute', () => {
@@ -70,23 +70,23 @@ test('toggleDrumMute: lazily initialises voiceMute', () => {
   expect(lane.voiceMute).toBeUndefined();
   toggleDrumMute(lane, 'kick');
   expect(lane.voiceMute).toBeDefined();
-  expect(lane.voiceMute.kick).toBe(true);
+  expect(lane.voiceMute[36]).toBe(true);
 });
 
 test('toggleDrumSolo: flips solo state and returns new value', () => {
   const lane = makeDrumsLaneForToggle();
   expect(toggleDrumSolo(lane, 'kick')).toBe(true);
-  expect(lane.voiceSolo.kick).toBe(true);
+  expect(lane.voiceSolo[36]).toBe(true);
   expect(toggleDrumSolo(lane, 'kick')).toBe(false);
-  expect(lane.voiceSolo.kick).toBe(false);
+  expect(lane.voiceSolo[36]).toBe(false);
 });
 
 test('toggleDrumSolo: exclusive — soloing snare clears kick (one at a time)', () => {
   const lane = makeDrumsLaneForToggle();
   toggleDrumSolo(lane, 'kick');
   toggleDrumSolo(lane, 'snare');
-  expect(lane.voiceSolo.kick).toBe(false);
-  expect(lane.voiceSolo.snare).toBe(true);
+  expect(lane.voiceSolo[36]).toBe(false);
+  expect(lane.voiceSolo[38]).toBe(true);
 });
 
 // 'bar' durations are legal on ANY note lane (DATA-MODEL: durSteps|'bar').

@@ -1,5 +1,6 @@
 import { stepsPerBar, beatStarts } from '../engine/meter.js';
 import { drumVoiceAudible, laneAudible, snapMidi, inScale, scalePitchClasses } from '../engine/song.js';
+import { DEFAULT_KIT } from '../engine/instruments.js';
 import { laneByType } from '../engine/lanes.js';
 
 // ─── Canvas theme colour cache ────────────────────────────────────────────────
@@ -36,7 +37,10 @@ export function invalidateThemeColors() { _tc = null; }
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-const DROWS = [['kick','Kick'],['snare','Snare'],['hat','HH'],['tom','Tom'],['crash','Crash']];
+// Drum grid rows derive from the kit: [gmNote, label, pitched]. dataset keys are
+// the stringified GM numbers (bar[36] === bar['36'] — JS object keys are strings).
+const DROWS = DEFAULT_KIT.slots.map(s => [s.note, s.label, !!s.pitched]);
+const PITCHED_ROW = Object.fromEntries(DROWS.map(([k, , p]) => [k, p]));
 
 // Piano-roll helpers (ported from prototype).
 const NMG = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
@@ -745,10 +749,10 @@ export function makeViz(host, song, eng) {
         const k = row.dataset.k;
         [...row.querySelectorAll('.vc')].forEach((c, i) => c.onclick = () => {
           const shown = laneBars(L)[primaryBar()] || {};
-          const on = k === 'tom'
-            ? !(shown.tom && shown.tom.some(x => x[0] === i))
+          const on = PITCHED_ROW[k]
+            ? !(shown[k] && shown[k].some(x => x[0] === i))
             : !(shown[k] && shown[k].includes(i));
-          for (const b of editBars) eng.setDrumStep(L.id, k, b, i, on);
+          for (const b of editBars) eng.setDrumStep(L.id, k, b, i, on, PITCHED_ROW[k]);
           paint(lastStepInBar);
         });
       });
@@ -832,8 +836,8 @@ export function makeViz(host, song, eng) {
         if (mBtn) mBtn.classList.toggle('muted', !!(L.voiceMute || {})[k]);
         if (sBtn) sBtn.classList.toggle('soloed', !!(L.voiceSolo || {})[k]);
         row.querySelectorAll('.vc').forEach((c, i) => {
-          const on = k === 'tom'
-            ? !!(pat.tom && pat.tom.some(x => x[0] === i))
+          const on = PITCHED_ROW[k]
+            ? !!(pat[k] && pat[k].some(x => x[0] === i))
             : !!(pat[k] && pat[k].includes(i));
           c.classList.toggle('hit', on);
           c.classList.toggle('now', nowHere && i === stepInBar);

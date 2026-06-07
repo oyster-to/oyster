@@ -21,7 +21,7 @@ for (const [name, song] of Object.entries(SONGS)) {
 
 test('kids steady state contains the post-fill crash flourish at bar 0', () => {
   const stream = renderLegacyStream(kids);
-  expect(stream.some(k => k.startsWith('[0,0,') && k.includes('"crash"'))).toBe(true);
+  expect(stream.some(k => k.startsWith('[0,0,') && k.includes('"drums",49,'))).toBe(true);   // crash = GM 49
 });
 
 // Content-lock: trips if anyone edits the frozen reference's behaviour (eventKey shape, resolution logic, etc.)

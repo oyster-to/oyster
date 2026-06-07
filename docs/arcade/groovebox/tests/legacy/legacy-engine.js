@@ -1,3 +1,4 @@
+import { slotKey } from '../../engine/instruments.js';
 // tests/legacy/legacy-engine.js
 // FROZEN copy of the pre-patterns-redesign engine resolution logic.
 // Deliberately duplicated — this is the parity reference; it must stay
@@ -115,7 +116,10 @@ function laneList(song) {
 // Stable, deduped per-step event key. `mode` is intentionally excluded
 // (pad vs stab produce identical trigger behaviour for the same notes/dur).
 export function eventKey(bar, step, e) {
-  return JSON.stringify([bar, step, e.laneId, e.type, e.voice ?? null, e.semi ?? null,
+  // Drum voices compare by canonical GM number: the legacy reference emits
+  // names ('kick'), the live engine emits numbers (36) — same identity.
+  const voice = e.voice == null ? null : (slotKey(e.voice) ?? e.voice);
+  return JSON.stringify([bar, step, e.laneId, e.type, voice, e.semi ?? null,
     e.note ?? null, e.notes ?? null, e.dur ?? null]);
 }
 

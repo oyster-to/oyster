@@ -1,5 +1,6 @@
 // ─── Lane mutation helpers (Tone-free, unit-tested) ──────────────────────────
 import { emptyBarFor } from './patterns.js';
+import { slotKey } from './instruments.js';
 
 
 /**
@@ -139,14 +140,16 @@ export function moveLane(song, fromId, toIndex) {
 // ─── Per-drum-voice mute/solo (reads the drums-type lane object directly) ─────
 
 export function toggleDrumMute(drumsLane, voice) {
+  const k = slotKey(voice) ?? voice;     // canonical GM-number keys
   drumsLane.voiceMute ||= {};
-  return (drumsLane.voiceMute[voice] = !drumsLane.voiceMute[voice]);
+  return (drumsLane.voiceMute[k] = !drumsLane.voiceMute[k]);
 }
 
 export function toggleDrumSolo(drumsLane, voice) {
+  const k = slotKey(voice) ?? voice;     // canonical GM-number keys
   drumsLane.voiceSolo ||= {};
-  const turningOn = !drumsLane.voiceSolo[voice];
+  const turningOn = !drumsLane.voiceSolo[k];
   for (const v in drumsLane.voiceSolo) drumsLane.voiceSolo[v] = false;
-  drumsLane.voiceSolo[voice] = turningOn;
+  drumsLane.voiceSolo[k] = turningOn;
   return turningOn;
 }
