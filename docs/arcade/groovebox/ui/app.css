@@ -65,6 +65,22 @@
 [data-theme] {
   --screen-ink: var(--ink);
   --screen-dim: var(--dim);
+  /* Legacy dark screen defaults: themes that don't override a screen token
+     used to inherit these from the old dark :root — they must not inherit
+     Oyster's pearl values instead. Explicit theme blocks win (later, equal
+     specificity). */
+  --cell:         #0d1020;
+  --cell-alt:     #111828;
+  --hit1:         #3a5890;
+  --hit2:         #1c2f54;
+  --roll-bg:      #0f121a;
+  --roll-bg-blk:  #0c0e14;
+  --roll-note:    var(--acc);
+  --grid-line:    #2a2e3a;
+  --scope:        #7dffe0;
+  --playhead:     #ffffff;
+  --screen-bg:    #07080d;
+  --screen-glow:  color-mix(in srgb, var(--acc) 6%, transparent);
 }
 
 /* ─── MIDNIGHT — the former Dark theme: graphite cabinet, teal accent,
@@ -2126,6 +2142,7 @@ body.gb-knob-values .knob-val { display: block; }
 
 /* Pale-LCD screens: swap the deep CRT inset for a soft reflective-LCD inset
    (same treatment as playdate) so the screen reads as glass, not a cave. */
+html:not([data-theme]) #viz,
 [data-theme="casiofx"] #viz,
 [data-theme="ti83"] #viz,
 [data-theme="vl1"] #viz,
@@ -2138,11 +2155,13 @@ body.gb-knob-values .knob-val { display: block; }
 }
 /* …and the teal cell glows / title shadow don't belong on pale LCDs
    or light plastic bodies. */
+html:not([data-theme]) .vc.hit,
 [data-theme="casiofx"] .vc.hit,
 [data-theme="ti83"] .vc.hit,
 [data-theme="vl1"] .vc.hit,
 [data-theme="hp12c"] .vc.hit,
 [data-theme="mpc"] .vc.hit { box-shadow: none; }
+html:not([data-theme]) .vc.now,
 [data-theme="casiofx"] .vc.now,
 [data-theme="ti83"] .vc.now,
 [data-theme="vl1"] .vc.now,
@@ -2153,6 +2172,7 @@ body.gb-knob-values .knob-val { display: block; }
 [data-theme="vl1"] .vc.hit.now,
 [data-theme="hp12c"] .vc.hit.now,
 [data-theme="mpc"] .vc.hit.now { box-shadow: none; }
+html:not([data-theme]) .vc.now:not(.hit),
 [data-theme="casiofx"] .vc.now:not(.hit),
 [data-theme="ti83"] .vc.now:not(.hit),
 [data-theme="vl1"] .vc.now:not(.hit),
@@ -2168,6 +2188,13 @@ body.gb-knob-values .knob-val { display: block; }
 [data-theme="hp12c"] h1,
 [data-theme="casiofx"] h1,
 [data-theme="ti83"] h1 { text-shadow: none; }
+
+/* Root-level screen inks for the dark-cabinet + pale-LCD skins: the status
+   strip, screen tabs, Song pane and canvas text read --screen-ink from :root,
+   so they need the same dark-on-pale flip the #viz rebinding gives DOM labels. */
+[data-theme="casiofx"] { --screen-ink: #232a20; --screen-dim: #46503e; }
+[data-theme="ti83"]    { --screen-ink: #1e2424; --screen-dim: #424c46; }
+[data-theme="hp12c"]   { --screen-ink: #22241e; --screen-dim: #45483c; }
 
 /* ─── § 5 — lane actions: dup + remove buttons ────────────────────────────── */
 .lane-actions {
