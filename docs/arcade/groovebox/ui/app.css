@@ -1712,6 +1712,405 @@ body.gb-knob-values .knob-val { display: block; }
   --hit2:        #d64800;
 }
 
+/* ─── hardware homage skins — calculators ─────────────────────────────────── */
+
+[data-theme="casiofx"] {
+  /* BODY — school scientific calc: near-black blue-grey slab,
+     SHIFT-gold + ALPHA-red legends */
+  --bg:          #10141a;
+  --panel:       #1c222b;
+  --panel-2:     #232a35;
+  --panel-3:     #2e3744;
+  --line:        rgba(255,255,255,.08);
+  --line-dk:     rgba(0,0,0,.5);
+  --ink:         #e7ebf2;
+  --dim:         #97a0ae;
+  --faint:       #5e6675;
+  --acc:         #f0b428;   /* SHIFT gold */
+  --acc-dim:     #a87a14;
+  --hot:         #e0483c;   /* ALPHA red */
+  --warn:        #e8c84a;
+  --ink-on-acc:  #221a02;
+  --meter-lo:    #f0b428;
+  --meter-mid:   #e8c84a;
+  --meter-hi:    #e0483c;
+  --chrome-hi:   #2e3744;
+  --chrome-mid:  #232a35;
+  --chrome-lo:   #181d25;
+  --bevel-hi:    rgba(255,255,255,0.07);
+  --bevel-lo:    rgba(0,0,0,0.5);
+  /* SCREEN — reflective pale green-grey LCD, near-black segments */
+  --screen-bg:   #c2cbb4;
+  --screen-glow: transparent;
+  --roll-bg:     #c8d1ba;
+  --roll-bg-blk: #bcc5ae;
+  --roll-note:   #232a20;
+  --grid-line:   #a3ac94;
+  --scope:       #2a3226;
+  --playhead:    #e0483c;
+  --cell:        #b5bea6;
+  --cell-alt:    #bbc4ac;
+  --hit1:        #3a4234;
+  --hit2:        #1c2418;
+}
+
+[data-theme="ti83"] {
+  /* BODY — graphing-calc navy slab: 2nd-key BLUE + alpha-key GREEN */
+  --bg:          #161b29;
+  --panel:       #222940;
+  --panel-2:     #2a3250;
+  --panel-3:     #364066;
+  --line:        rgba(255,255,255,.09);
+  --line-dk:     rgba(0,0,0,.5);
+  --ink:         #e2e7f5;
+  --dim:         #939db8;
+  --faint:       #5d6480;
+  --acc:         #7da6ff;   /* 2nd-key blue */
+  --acc-dim:     #4a69c0;
+  --hot:         #cf5548;
+  --warn:        #d8c44a;
+  --ink-on-acc:  #0c1430;
+  --meter-lo:    #57b85e;   /* alpha-key green */
+  --meter-mid:   #d8c44a;
+  --meter-hi:    #cf5548;
+  --chrome-hi:   #364066;
+  --chrome-mid:  #2a3250;
+  --chrome-lo:   #1d2336;
+  --bevel-hi:    rgba(255,255,255,0.07);
+  --bevel-lo:    rgba(0,0,0,0.5);
+  /* SCREEN — cool grey-sage pixel LCD, near-black pixels */
+  --screen-bg:   #a3ad9c;
+  --screen-glow: transparent;
+  --roll-bg:     #a9b3a2;
+  --roll-bg-blk: #9da796;
+  --roll-note:   #1e2424;
+  --grid-line:   #87917e;
+  --scope:       #1e2424;
+  --playhead:    #2c4490;
+  --cell:        #97a190;
+  --cell-alt:    #9da796;
+  --hit1:        #2c3434;
+  --hit2:        #161c1c;
+}
+
+[data-theme="vl1"] {
+  /* BODY — Casio VL-Tone: ivory plastic + silver face, blue/red logo accents */
+  --bg:          #b5b2a9;
+  --panel:       #eceade;
+  --panel-2:     #e2dfd2;
+  --panel-3:     #d3d0c2;
+  --line:        rgba(60,55,40,.18);
+  --line-dk:     rgba(60,55,40,.32);
+  --ink:         #34322c;
+  --dim:         #6e6b60;
+  --faint:       #989486;
+  --acc:         #2f63c4;   /* VL-Tone blue */
+  --acc-dim:     #6e93d6;
+  --hot:         #cc3a30;   /* VL-Tone red */
+  --warn:        #8a7212;
+  --ink-on-acc:  #ffffff;
+  --meter-lo:    #2f63c4;
+  --meter-mid:   #8a7212;
+  --meter-hi:    #cc3a30;
+  --chrome-hi:   #c5c2b8;
+  --chrome-mid:  #b5b2a8;
+  --chrome-lo:   #a5a298;
+  --bevel-hi:    rgba(255,255,255,0.55);
+  --bevel-lo:    rgba(0,0,0,0.12);
+  /* SCREEN — plain grey calculator LCD, dark segments, red playhead */
+  --screen-bg:   #b4b8ac;
+  --screen-glow: transparent;
+  --roll-bg:     #babeb2;
+  --roll-bg-blk: #aeb2a6;
+  --roll-note:   #20241e;
+  --grid-line:   #969a8c;
+  --scope:       #2a2e26;
+  --playhead:    #cc3a30;
+  --cell:        #a7ab9f;
+  --cell-alt:    #adb1a5;
+  --hit1:        #3a3e34;
+  --hit2:        #1a1e16;
+}
+/* VL-Tone wordmark: blue italic, in the spirit of the casio VL-1 logo */
+[data-theme="vl1"] h1 {
+  color: #2f63c4;
+  font-style: italic;
+  font-weight: 800;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.5);
+}
+
+[data-theme="hp12c"] {
+  /* BODY — RPN financial calc: brown-black slab, gold f-key + blue g-key */
+  --bg:          #120d08;
+  --panel:       #2c2014;
+  --panel-2:     #372a1b;
+  --panel-3:     #463625;
+  --line:        rgba(255,220,160,.12);
+  --line-dk:     rgba(0,0,0,.55);
+  --ink:         #f0e3c6;
+  --dim:         #a8937a;
+  --faint:       #6e5e4c;
+  --acc:         #e09a32;   /* f-key gold-orange */
+  --acc-dim:     #9a6a1a;
+  --hot:         #cf5530;
+  --warn:        #d8b84a;
+  --ink-on-acc:  #221604;
+  --meter-lo:    #5a87c0;   /* g-key blue */
+  --meter-mid:   #e09a32;
+  --meter-hi:    #cf5530;
+  --chrome-hi:   #4a3c28;
+  --chrome-mid:  #382d1e;
+  --chrome-lo:   #251c12;
+  --bevel-hi:    rgba(255,235,190,0.12);
+  --bevel-lo:    rgba(0,0,0,0.55);
+  /* SCREEN — pale grey LCD, dark segments, g-key blue playhead */
+  --screen-bg:   #b2b4aa;
+  --screen-glow: transparent;
+  --roll-bg:     #b8bab0;
+  --roll-bg-blk: #acaea4;
+  --roll-note:   #22241e;
+  --grid-line:   #94968a;
+  --scope:       #2a2c24;
+  --playhead:    #5a87c0;
+  --cell:        #a5a79d;
+  --cell-alt:    #abada3;
+  --hit1:        #3a3c32;
+  --hit2:        #1a1c14;
+}
+/* The HP fascia's signature gold band, as a stripe under the title row */
+[data-theme="hp12c"] .titlebar {
+  border-bottom: 2px solid #b87b22;
+  padding-bottom: 8px;
+}
+
+[data-theme="et66"] {
+  /* BODY — Rams matte black, round keys, the single egg-yolk yellow accent */
+  --bg:          #0d0d0d;
+  --panel:       #181818;
+  --panel-2:     #202020;
+  --panel-3:     #2a2a2a;
+  --line:        rgba(255,255,255,.08);
+  --line-dk:     rgba(0,0,0,.6);
+  --ink:         #efeee8;
+  --dim:         #9b9a92;
+  --faint:       #62615a;
+  --acc:         #f5c61a;   /* the = key */
+  --acc-dim:     #a8860e;
+  --hot:         #de4a2e;
+  --warn:        #d8c44a;
+  --ink-on-acc:  #1c1600;
+  --meter-lo:    #57a85e;   /* green / yellow / red indicator dots */
+  --meter-mid:   #f5c61a;
+  --meter-hi:    #de4a2e;
+  --chrome-hi:   #303030;
+  --chrome-mid:  #222222;
+  --chrome-lo:   #161616;
+  --bevel-hi:    rgba(255,255,255,0.08);
+  --bevel-lo:    rgba(0,0,0,0.6);
+  /* SCREEN — near-black, white trace, yellow notes (the = key lights up) */
+  --screen-bg:   #0a0a0a;
+  --screen-glow: rgba(245,198,26,0.05);
+  --roll-bg:     #111111;
+  --roll-bg-blk: #0c0c0c;
+  --roll-note:   #f5c61a;
+  --grid-line:   #262626;
+  --scope:       #efeee8;
+  --playhead:    #ffffff;
+  --cell:        #121212;
+  --cell-alt:    #181818;
+  --hit1:        #f0c020;
+  --hit2:        #a8820a;
+}
+
+/* ─── hardware homage skins — studio ──────────────────────────────────────── */
+
+[data-theme="tr808"] {
+  /* BODY — charcoal Rhythm Composer: orange wordmark, red LEDs */
+  --bg:          #17171a;
+  --panel:       #232326;
+  --panel-2:     #2b2b2f;
+  --panel-3:     #37373c;
+  --line:        rgba(255,255,255,.08);
+  --line-dk:     rgba(0,0,0,.55);
+  --ink:         #f0ece2;
+  --dim:         #a09a8c;
+  --faint:       #66625a;
+  --acc:         #ff8b2a;   /* 808 orange */
+  --acc-dim:     #b85c12;
+  --hot:         #ff4438;   /* LED red */
+  --warn:        #ffd23a;
+  --ink-on-acc:  #261200;
+  --meter-lo:    #ff8b2a;
+  --meter-mid:   #ffd23a;
+  --meter-hi:    #ff4438;
+  --chrome-hi:   #3c3c42;
+  --chrome-mid:  #2a2a2e;
+  --chrome-lo:   #19191c;
+  --bevel-hi:    rgba(255,255,255,0.07);
+  --bevel-lo:    rgba(0,0,0,0.55);
+  /* SCREEN — dark, warm orange content */
+  --screen-bg:   #0c0a08;
+  --screen-glow: rgba(255,80,40,0.07);
+  --roll-bg:     #120e0a;
+  --roll-bg-blk: #0d0a07;
+  --roll-note:   #ff8b2a;
+  --grid-line:   #2e2620;
+  --scope:       #ffb066;
+  --playhead:    #ffffff;
+  --cell:        #14100c;
+  --cell-alt:    #1a1510;
+  --hit1:        #ff7a3a;
+  --hit2:        #c2400e;
+}
+/* The 808 signature: step buttons banded red / orange / yellow / white in
+   groups of four. Drum rows are <.vl><16 × .vc><.vr>, so cells sit at
+   nth-child 2…17; rests get a dark wash of the band colour, hits go full
+   button colour (LED on). Scoped to .vrow so the piano rolls keep --roll-*. */
+[data-theme="tr808"] .vrow > .vc:nth-child(n+2):nth-child(-n+5)   { background: #41201b; }
+[data-theme="tr808"] .vrow > .vc:nth-child(n+6):nth-child(-n+9)   { background: #41291a; }
+[data-theme="tr808"] .vrow > .vc:nth-child(n+10):nth-child(-n+13) { background: #403818; }
+[data-theme="tr808"] .vrow > .vc:nth-child(n+14):nth-child(-n+17) { background: #3a3a36; }
+[data-theme="tr808"] .vrow > .vc.hit:nth-child(n+2):nth-child(-n+5)   { background: linear-gradient(180deg, #ff5546, #c61f12); }
+[data-theme="tr808"] .vrow > .vc.hit:nth-child(n+6):nth-child(-n+9)   { background: linear-gradient(180deg, #ff8b2a, #cc5708); }
+[data-theme="tr808"] .vrow > .vc.hit:nth-child(n+10):nth-child(-n+13) { background: linear-gradient(180deg, #ffd23a, #cfa008); }
+[data-theme="tr808"] .vrow > .vc.hit:nth-child(n+14):nth-child(-n+17) { background: linear-gradient(180deg, #f2efe4, #bdb8a6); color: #1c1c1c; }
+/* Orange wordmark, like the silkscreen on the fascia */
+[data-theme="tr808"] h1 { color: #ff8b2a; }
+
+[data-theme="mpc"] {
+  /* BODY — two-tone warm grey, dark rubber pads, Akai red */
+  --bg:          #a9a59b;
+  --panel:       #cdc9bf;
+  --panel-2:     #c1bdb3;
+  --panel-3:     #b2aea4;
+  --line:        rgba(50,46,38,.18);
+  --line-dk:     rgba(50,46,38,.32);
+  --ink:         #2e2c26;
+  --dim:         #5f5d54;
+  --faint:       #8b887c;
+  --acc:         #c33a32;   /* Akai red */
+  --acc-dim:     #d4847c;
+  --hot:         #c33a32;
+  --warn:        #8a7212;
+  --ink-on-acc:  #ffffff;
+  --meter-lo:    #6f8f3a;
+  --meter-mid:   #8a7212;
+  --meter-hi:    #c33a32;
+  --chrome-hi:   #b8b4aa;
+  --chrome-mid:  #a8a49a;
+  --chrome-lo:   #98948a;
+  --bevel-hi:    rgba(255,255,255,0.4);
+  --bevel-lo:    rgba(0,0,0,0.15);
+  /* SCREEN — muted grey-sage backlit LCD, dark content */
+  --screen-bg:   #a4b09c;
+  --screen-glow: transparent;
+  --roll-bg:     #aab6a2;
+  --roll-bg-blk: #9eaa96;
+  --roll-note:   #1c2418;
+  --grid-line:   #828e7a;
+  --scope:       #243020;
+  --playhead:    #c33a32;
+  /* PADS — dark rubber squares on the grey body; hits light up red */
+  --cell:        #4a4844;
+  --cell-alt:    #52504c;
+  --hit1:        #d44a3e;
+  --hit2:        #962a20;
+}
+
+[data-theme="dx7"] {
+  /* BODY — dark brown fascia, teal membrane buttons, magenta stripe */
+  --bg:          #1f1812;
+  --panel:       #322a21;
+  --panel-2:     #3b3128;
+  --panel-3:     #4a3d30;
+  --line:        rgba(255,240,220,.09);
+  --line-dk:     rgba(0,0,0,.55);
+  --ink:         #ece5da;
+  --dim:         #a3988a;
+  --faint:       #6a6055;
+  --acc:         #2fc4ac;   /* membrane teal */
+  --acc-dim:     #1e8472;
+  --hot:         #e03f8c;   /* fascia magenta stripe */
+  --warn:        #d8b84a;
+  --ink-on-acc:  #04201a;
+  --meter-lo:    #2fc4ac;
+  --meter-mid:   #d8b84a;
+  --meter-hi:    #e03f8c;
+  --chrome-hi:   #4a3e32;
+  --chrome-mid:  #382e24;
+  --chrome-lo:   #251e16;
+  --bevel-hi:    rgba(255,255,255,0.07);
+  --bevel-lo:    rgba(0,0,0,0.55);
+  /* SCREEN — teal-green backlit LCD */
+  --screen-bg:   #0a2018;
+  --screen-glow: rgba(47,196,172,0.10);
+  --roll-bg:     #0d2820;
+  --roll-bg-blk: #0a221b;
+  --roll-note:   #5ff0d4;
+  --grid-line:   #1c4438;
+  --scope:       #7df5dc;
+  --playhead:    #ffffff;
+  --cell:        #0d2820;
+  --cell-alt:    #113026;
+  --hit1:        #2fc4ac;
+  --hit2:        #157a64;
+}
+/* The DX7 fascia's magenta pinstripe, under the title row */
+[data-theme="dx7"] .titlebar {
+  border-bottom: 2px solid #e03f8c;
+  padding-bottom: 8px;
+}
+/* Playhead glows in the device's own light, not the default theme's teal */
+[data-theme="et66"] .vc.now { box-shadow: 0 0 8px rgba(245,198,26,0.35); background: rgba(245,198,26,0.06); }
+[data-theme="et66"] .vc.hit.now { box-shadow: 0 0 10px rgba(245,198,26,0.5); }
+[data-theme="tr808"] .vc.now { box-shadow: 0 0 8px rgba(255,139,42,0.35); background: rgba(255,139,42,0.08); }
+[data-theme="tr808"] .vc.hit.now { box-shadow: 0 0 10px rgba(255,255,255,0.4); }
+
+/* Pale-LCD screens: swap the deep CRT inset for a soft reflective-LCD inset
+   (same treatment as playdate) so the screen reads as glass, not a cave. */
+[data-theme="casiofx"] #viz,
+[data-theme="ti83"] #viz,
+[data-theme="vl1"] #viz,
+[data-theme="hp12c"] #viz,
+[data-theme="mpc"] #viz {
+  box-shadow:
+    inset 0 0 0 1px rgba(0,0,0,0.15),
+    inset 0 2px 8px rgba(0,0,0,0.18),
+    0 0 0 1px rgba(0,0,0,0.3);
+}
+/* …and the teal cell glows / title shadow don't belong on pale LCDs
+   or light plastic bodies. */
+[data-theme="casiofx"] .vc.hit,
+[data-theme="ti83"] .vc.hit,
+[data-theme="vl1"] .vc.hit,
+[data-theme="hp12c"] .vc.hit,
+[data-theme="mpc"] .vc.hit { box-shadow: none; }
+[data-theme="casiofx"] .vc.now,
+[data-theme="ti83"] .vc.now,
+[data-theme="vl1"] .vc.now,
+[data-theme="hp12c"] .vc.now,
+[data-theme="mpc"] .vc.now,
+[data-theme="casiofx"] .vc.hit.now,
+[data-theme="ti83"] .vc.hit.now,
+[data-theme="vl1"] .vc.hit.now,
+[data-theme="hp12c"] .vc.hit.now,
+[data-theme="mpc"] .vc.hit.now { box-shadow: none; }
+[data-theme="casiofx"] .vc.now:not(.hit),
+[data-theme="ti83"] .vc.now:not(.hit),
+[data-theme="vl1"] .vc.now:not(.hit),
+[data-theme="hp12c"] .vc.now:not(.hit),
+[data-theme="mpc"] .vc.now:not(.hit) { background: rgba(0,0,0,0.08); }
+/* Dark-body + pale-LCD themes: text INSIDE the screen must flip to dark ink —
+   the body's pale --ink/--dim/--faint wash out on the LCD. Custom properties
+   cascade, so re-scoping them on #viz retints every in-screen label. */
+[data-theme="casiofx"] #viz { --ink: #232a20; --dim: #46503e; --faint: #6a7460; }
+[data-theme="ti83"]    #viz { --ink: #1e2424; --dim: #424c46; --faint: #66706a; }
+[data-theme="hp12c"]   #viz { --ink: #22241e; --dim: #45483c; --faint: #6a6d60; }
+[data-theme="mpc"] h1,
+[data-theme="hp12c"] h1,
+[data-theme="casiofx"] h1,
+[data-theme="ti83"] h1 { text-shadow: none; }
+
 /* ─── § 5 — lane actions: dup + remove buttons ────────────────────────────── */
 .lane-actions {
   display: flex;
