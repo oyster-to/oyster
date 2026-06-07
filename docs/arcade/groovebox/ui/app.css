@@ -593,6 +593,17 @@ input[type=range] {
 }
 .lcd-song-foot #share-btn { margin-left: auto; }
 
+/* Screen row — first row of the Settings popover */
+.vs-screen {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.vs-screen select { flex: 1 1 auto; height: 26px; font-size: 11px; }
+
 /* ─── lane strips panel ──────────────────────────────────────────────────── */
 #strips {
   display: flex;
@@ -3066,3 +3077,70 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
 }
 #share-mine-list a { color: var(--ink); text-decoration: none; }
 #share-mine-list a:hover { text-decoration: underline; }
+
+/* ─── SCREEN PICKER — swap the theme's glass for a chosen LCD ──────────────
+   Settings → Screen. Each bundle is the full screen token set + a #viz ink
+   rebinding, so any glass works on any cabinet. Placed last so it outranks
+   theme blocks and theme #viz rules at equal specificity. */
+[data-screen="pearl"] {
+  --screen-bg: #cfe0ea; --screen-glow: rgba(123,231,255,0.10);
+  --screen-ink: #16243f; --screen-dim: #4d6787;
+  --cell: #bcd2de; --cell-alt: #b3c9d6; --hit1: #2b4a7e; --hit2: #18305a;
+  --roll-bg: #c6d9e4; --roll-bg-blk: #b9cedb; --roll-note: #1d3766;
+  --grid-line: #9db5c4; --scope: #1d4a7e; --playhead: #122441;
+}
+[data-screen="phosphor"] {
+  --screen-bg: #051813; --screen-glow: rgba(84,240,200,0.14);
+  --screen-ink: #d9efe8; --screen-dim: #79a597;
+  --cell: #0a231d; --cell-alt: #0d2b23; --hit1: #2fd6ab; --hit2: #117a5f;
+  --roll-bg: #081d17; --roll-bg-blk: #061710; --roll-note: #54f0c8;
+  --grid-line: #1b4438; --scope: #7dffe0; --playhead: #ffffff;
+}
+[data-screen="lime"] {
+  --screen-bg: #9bbc0f; --screen-glow: rgba(155,188,15,0.12);
+  --screen-ink: #0f380f; --screen-dim: #306230;
+  --cell: #8bac0f; --cell-alt: #93b412; --hit1: #306230; --hit2: #0f380f;
+  --roll-bg: #8bac0f; --roll-bg-blk: #7e9d0d; --roll-note: #0f380f;
+  --grid-line: #6f8f0d; --scope: #0f380f; --playhead: #0f380f;
+}
+[data-screen="amber"] {
+  --screen-bg: #050300; --screen-glow: rgba(255,176,0,0.08);
+  --screen-ink: #ffcf7a; --screen-dim: #b87f20;
+  --cell: #140d02; --cell-alt: #1e1506; --hit1: #b87f20; --hit2: #7a5410;
+  --roll-bg: #140d02; --roll-bg-blk: #0d0800; --roll-note: #ffd24a;
+  --grid-line: #3a2c0e; --scope: #ffd24a; --playhead: #ffcf7a;
+}
+[data-screen="paper"] {
+  --screen-bg: #b6b8ac; --screen-glow: rgba(0,0,0,0.05);
+  --screen-ink: #1a1a12; --screen-dim: #50503f;
+  --cell: #b6b8ac; --cell-alt: #bec0b4; --hit1: #3a3a2e; --hit2: #1a1a12;
+  --roll-bg: #bcbeb2; --roll-bg-blk: #b0b2a6; --roll-note: #1a1a12;
+  --grid-line: #989a8c; --scope: #2a2a1e; --playhead: #6a2ce0;
+}
+/* In-screen DOM ink rebinding per glass (matches the theme #viz treatment). */
+[data-screen="pearl"] #viz    { --ink: #16243f; --dim: #4d6787; --faint: #6d83a0; }
+[data-screen="lime"] #viz     { --ink: #0f380f; --dim: #306230; --faint: #4a7a3a; }
+[data-screen="paper"] #viz    { --ink: #1a1a12; --dim: #50503f; --faint: #6e6e5c; }
+[data-screen="phosphor"] #viz { --ink: #d9efe8; --dim: #79a597; --faint: #587e72; }
+[data-screen="amber"] #viz    { --ink: #ffcf7a; --dim: #b87f20; --faint: #8a5f16; }
+/* Pale glass gets the reflective-LCD inset; dark glass gets the CRT cave. */
+[data-screen="pearl"] #viz,
+[data-screen="lime"] #viz,
+[data-screen="paper"] #viz {
+  box-shadow:
+    inset 0 0 0 1px rgba(0,0,0,0.15),
+    inset 0 2px 8px rgba(0,0,0,0.18),
+    0 0 0 1px rgba(0,0,0,0.3);
+}
+[data-screen="pearl"] .vc.hit,
+[data-screen="lime"] .vc.hit,
+[data-screen="paper"] .vc.hit { box-shadow: none; }
+[data-screen="phosphor"] #viz,
+[data-screen="amber"] #viz {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    inset 0 2px 14px rgba(0,0,0,0.85),
+    inset 0 0 40px rgba(0,0,0,0.5),
+    0 0 0 1px var(--line),
+    0 0 24px var(--screen-glow);
+}

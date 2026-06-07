@@ -1210,6 +1210,14 @@ document.getElementById('themesel').onchange = e => {
   // Invalidate canvas colour cache + repaint active view with new colours.
   viz.invalidateThemeColors?.();
 };
+// Screen picker (Settings) — override the theme's glass with a chosen LCD.
+document.getElementById('screensel').onchange = e => {
+  const v = e.target.value;
+  if (v === 'default') delete document.documentElement.dataset.screen;
+  else document.documentElement.dataset.screen = v;
+  localStorage.setItem('gb-screen', v);
+  viz.invalidateThemeColors?.();
+};
 
 // (Scope + quick-edit lane tabs are built and wired in renderViewTabs().)
 
@@ -1235,6 +1243,12 @@ eng.onStep(({ absStep, bar, stepInBar, fill, queue, target }) => {
     document.documentElement.dataset.theme = saved;
     const sel = document.getElementById('themesel');
     if (sel) sel.value = saved;
+  }
+  const screen = localStorage.getItem('gb-screen');
+  if (screen && screen !== 'default') {
+    document.documentElement.dataset.screen = screen;
+    const ssel = document.getElementById('screensel');
+    if (ssel) ssel.value = screen;
   }
 })();
 
