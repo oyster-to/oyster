@@ -1,6 +1,7 @@
 import { stepsPerBar, beatStarts } from '../engine/meter.js';
 import { drumVoiceAudible, laneAudible, snapMidi, inScale, scalePitchClasses } from '../engine/song.js';
 import { DEFAULT_KIT } from '../engine/instruments.js';
+import { openInstrumentEditor } from './instrument-editor.js';
 import { laneByType } from '../engine/lanes.js';
 
 // ─── Canvas theme colour cache ────────────────────────────────────────────────
@@ -729,7 +730,7 @@ export function makeViz(host, song, eng) {
       // ONE bar tall: 5 voice rows for the shown (primary) bar.
       html += DROWS.map(([k, l]) =>
         `<div class="vrow" data-k="${k}"><span class="vl"><span class="vl-lbl">${l}</span></span>${cells(spb)}` +
-        `<span class="vr"><button class="dvm" data-voice="${k}" title="mute ${l}">M</button><button class="dvs" data-voice="${k}" title="solo ${l}">S</button></span>`
+        `<span class="vr"><button class="dvm" data-voice="${k}" title="mute ${l}">M</button><button class="dvs" data-voice="${k}" title="solo ${l}">S</button><button class="dve" data-voice="${k}" title="edit ${l} sound">✎</button></span>`
         + `</div>`).join('');
       host.innerHTML = html;
 
@@ -762,6 +763,15 @@ export function makeViz(host, song, eng) {
       });
       host.querySelectorAll('.dvs').forEach(btn => {
         btn.onclick = e => { e.stopPropagation(); eng.toggleDrumSolo(btn.dataset.voice); paint(lastStepInBar); };
+      });
+      // ✎ — edit this slot's instrument (design your own kick).
+      host.querySelectorAll('.dve').forEach(btn => {
+        btn.onclick = e => {
+          e.stopPropagation();
+          const note = Number(btn.dataset.voice);
+          const slot = (eng.getKit?.()?.slots ?? []).find(s => Number(s.note) === note);
+          if (slot) openInstrumentEditor({ id: slot.instrument, eng, onSaved: () => paint(lastStepInBar) });
+        };
       });
 
       // Cache: _drumVcCache[voice] = [cells] for the fast playhead path.

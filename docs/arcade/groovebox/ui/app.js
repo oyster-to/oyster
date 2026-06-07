@@ -16,6 +16,11 @@ import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
 import { initShare, maybeLoadShared, clearLoadedFrom } from './share.js';
 import { openPunchEditor, isPunchEditorOpen } from './punch-editor.js';
+import { openInstrumentEditor, isInstrumentEditorOpen } from './instrument-editor.js';
+
+// Lane type → instrument id in the engine set (PR2 v1: one per type; per-lane
+// refs ride lane.instrument when the picker lands).
+const LANE_INSTRUMENT = { bass: 'gb-bass', chords: 'gb-chords', melody: 'gb-lead' };
 import { DEFAULT_PRESETS } from '../engine/punch-presets.js';
 
 const eng = createEngine();
@@ -322,6 +327,9 @@ function renderStrips() {
     // Groove dropdown — picks the groove the EDIT pattern plays for this lane.
     const laneGrooves = grooves[lane.id] || {};
     const picked = editPat?.lanes?.[lane.id];
+    const soundBtn = lane.type !== 'drums'
+      ? `<button class="lane-sound" data-lane="${lane.id}" data-type="${lane.type}" title="Edit ${esc(lane.name)} sound">SOUND</button>`
+      : '';
     const grooveSel = `<select data-groove data-lane="${lane.id}">${Object.keys(laneGrooves).map(n=>`<option value="${esc(n)}"${n===picked?' selected':''}>${esc(n)}</option>`).join('')}</select>`;
     // Edit button — present for types with an editor (drums, melody, bass); skip chords.
     const hasEditor = lane.type !== 'chords';
@@ -332,7 +340,7 @@ function renderStrips() {
     return `<div class="lane" data-lane="${lane.id}" data-type="${lane.type}">
       <span class="lane-drag" title="Drag to reorder">⠿</span>
       <span class="name" title="double-click to rename">${esc(lane.name)}</span>
-      <div class="mctl">${grooveSel}${tone}</div>
+      <div class="mctl">${grooveSel}${tone}${soundBtn}</div>
       <div class="lvl"><div class="lvl-fill"></div></div>
       <div class="msgroup">
         <button class="mute" data-lane="${lane.id}" aria-label="mute ${esc(lane.name)}" title="Mute">M</button>
@@ -388,6 +396,11 @@ function renderStrips() {
   });
 
   host.querySelectorAll('select[data-tone]').forEach(s => s.onchange = e => eng.setTone(s.dataset.lane, e.target.value));
+  host.querySelectorAll('.lane-sound').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const id = LANE_INSTRUMENT[b.dataset.type];
+    if (id) openInstrumentEditor({ id, eng, onSaved: renderStrips });
+  });
   host.querySelectorAll('select[data-groove]').forEach(s => s.onchange = () => {
     eng.setLaneGroove(s.dataset.lane, s.value);
     refreshVizPattern();   // editor must re-target the new groove
@@ -696,7 +709,7 @@ function isTypingTarget(el) {
 }
 document.addEventListener('keydown', e => {
   const slot = PUNCH_BY_KEY[e.key];
-  if (slot === undefined || e.repeat || isTypingTarget(document.activeElement) || isPunchEditorOpen()) return;
+  if (slot === undefined || e.repeat || isTypingTarget(document.activeElement) || isPunchEditorOpen() || isInstrumentEditorOpen()) return;
   e.preventDefault();
   setPunch(slot, true);
 });
