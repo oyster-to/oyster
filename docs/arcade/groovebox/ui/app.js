@@ -719,23 +719,27 @@ function makeTempoGroup() {
   grp.className = 'kgroup';
   const lbl = document.createElement('span');
   lbl.className = 'kgroup-lbl';
-  lbl.textContent = `TEMPO · ${currentBpm}`;
+  lbl.textContent = 'TEMPO';
   grp.appendChild(lbl);
   const row = document.createElement('div');
   row.className = 'kgroup-knobs';
-  row.appendChild(makeKnob({
-    label: 'bpm',
+  // One label per control: the group label names it, the knob's sublabel slot
+  // (where MIX knobs say vol/bal/wid) carries the live BPM value.
+  const knob = makeKnob({
+    label: String(currentBpm),
     value: (currentBpm - 80) / 100,
     fmt: v => Math.round(80 + v * 100),
     onChange: v => {
       currentBpm = Math.round(80 + v * 100);
       eng.setTempo(currentBpm);
-      lbl.textContent = `TEMPO · ${currentBpm}`;
+      const kl = knob.querySelector('.knob-lbl');
+      if (kl) kl.textContent = String(currentBpm);
       const sb = document.getElementById('strip-bpm');
       if (sb) sb.textContent = `${currentBpm} BPM`;
     },
     tip: 'Tempo (BPM) — drag up / down',
-  }));
+  });
+  row.appendChild(knob);
   grp.appendChild(row);
   return grp;
 }

@@ -1390,11 +1390,16 @@ body.gb-knob-values .knob-val { display: block; }
   align-items: center;
   gap: 14px;
 }
-/* tempo + transpose — header-line controls, not part of the FX knobrow */
+/* tempo + transpose — header-line controls, not part of the FX knobrow.
+   Same anatomy as the knob groups: label top, control on a shared dial axis. */
 .master-song-ctls {
   display: flex;
   gap: 14px;
-  align-items: flex-end;
+  align-items: flex-start;
+}
+.master-song-ctls .kgroup-knobs {
+  min-height: 36px;
+  align-items: center;
 }
 /* § 2 — section header */
 .masterfx .mlbl {
@@ -2601,6 +2606,38 @@ html:not([data-theme]) .vc.now:not(.hit),
   min-width: 210px;
 }
 #viewsettings[hidden] { display: none; }
+
+/* Mobile: settings is a bottom sheet, like help — slides up, grabber, scroll. */
+@media (max-width: 900px) {
+  #viewsettings {
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    min-width: 0;
+    max-height: 75vh;
+    overflow-y: auto;
+    border-radius: 16px 16px 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    padding: 14px 20px calc(24px + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 40px rgba(0,0,0,0.45);
+    animation: gbm-sheet-up 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+    z-index: 210;
+  }
+  #viewsettings::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--line);
+    margin: 0 auto 14px;
+  }
+}
 .vs-title {
   display: block;
   font-size: 9px;
@@ -2838,6 +2875,35 @@ html:not([data-theme]) .vc.now:not(.hit),
   color: var(--dim);
   margin: 0;
   padding-top: 3px;
+}
+/* Mix / Tone / FX terms are knobs, not buttons — swap the keycap chrome for a
+   mini dial (same gradient + accent tick as the real knob component). */
+.help-section[data-help="mix"] dt,
+.help-section[data-help="tone"] dt,
+.help-section[data-help="fx"] dt {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 2px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.help-section[data-help="mix"] dt::before,
+.help-section[data-help="tone"] dt::before,
+.help-section[data-help="fx"] dt::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border-radius: 50%;
+  background:
+    linear-gradient(var(--acc), var(--acc)) no-repeat 50% 2px / 2px 5px,
+    radial-gradient(circle at 38% 32%, #3a3e4e, #15171f 70%);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,0.15),
+    inset 0 -2px 3px rgba(0,0,0,0.6),
+    0 1px 2px rgba(0,0,0,0.5);
 }
 
 /* ─── Global hide-knob rules ─────────────────────────────────────────────────── */
