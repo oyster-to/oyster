@@ -730,7 +730,7 @@ export function makeViz(host, song, eng) {
       // ONE bar tall: 5 voice rows for the shown (primary) bar.
       html += DROWS.map(([k, l]) =>
         `<div class="vrow" data-k="${k}"><span class="vl"><span class="vl-lbl">${l}</span></span>${cells(spb)}` +
-        `<span class="vr"><button class="dvm" data-voice="${k}" title="mute ${l}">M</button><button class="dvs" data-voice="${k}" title="solo ${l}">S</button><button class="dve" data-voice="${k}" title="edit ${l} sound">✎</button></span>`
+        `<span class="vr"><button class="dvm" data-voice="${k}" title="mute ${l}">M</button><button class="dvs" data-voice="${k}" title="solo ${l}">S</button><button class="dve" data-voice="${k}" title="edit ${l} sound"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg></button></span>`
         + `</div>`).join('');
       host.innerHTML = html;
 

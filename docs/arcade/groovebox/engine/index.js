@@ -561,6 +561,26 @@ export function createEngine() {
       return _kit;
     },
     getKit() { return _kit; },
+    // One-shot audition: fire a single hit of an instrument (no transport
+    // needed — TEST in the editor must work before pressing play). Builds a
+    // throwaway voice on the master input and disposes it after the tail.
+    async auditionInstrument(inst) {
+      if (!validateInstrument(inst)) return;
+      await Tone.start(); ensure();
+      const v = createVoiceForType(
+        inst.type === 'drum' ? 'drums' : inst.type,
+        _masterIn,
+        inst.type === 'drum'
+          ? { instruments: { _a: inst }, kit: { name: 'A', slots: [{ note: 36, label: 'A', instrument: '_a' }] } }
+          : { instruments: { _a: inst }, instrumentId: '_a' });
+      const now = Tone.now() + 0.02;
+      const ev = inst.type === 'drum' ? { type: 'drums', voice: 36 }
+        : inst.type === 'bass' ? { type: 'bass', note: 'C2', dur: 4 }
+        : inst.type === 'chords' ? { type: 'chords', notes: ['C3', 'E3', 'G3'], dur: 4 }
+        : { type: 'melody', note: 'C4', dur: 4 };
+      trigger(v, ev, now, 0.12, 1.9);
+      setTimeout(() => { try { v.dispose?.(); } catch (_) {} }, 2500);
+    },
     // v3.5 editor TEST pad: audition an UNSAVED draft preset momentarily.
     // Same runner path as punch(); no slot state. UI gates on isPlaying().
     punchPreview(preset, on) {

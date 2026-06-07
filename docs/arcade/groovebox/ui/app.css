@@ -1222,8 +1222,14 @@ body.gb-knob-values .knob-val { display: block; }
 
 /* ─── instrument editor (PR2) — same family as the punch editor ─────────── */
 .lane-sound { font-size: 9px; letter-spacing: 0.06em; padding: 2px 8px; }
-.vr .dve { opacity: 0.55; }
-.vr .dve:hover { opacity: 1; color: var(--acc); }
+.vr .dve {
+  width: 14px; height: 14px; flex: 0 0 14px; padding: 0; border-radius: 3px;
+  color: var(--dim); border: 1px solid var(--line); cursor: pointer; transition: .12s;
+  background: linear-gradient(180deg, #22252f, #15171f);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 1px 2px rgba(0,0,0,.4);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.vr .dve:hover { border-color: var(--acc-dim); color: var(--acc); }
 #inst-editor-backdrop {
   position: fixed; inset: 0; z-index: 60;
   background: rgba(0,0,0,0.55); backdrop-filter: blur(2px);

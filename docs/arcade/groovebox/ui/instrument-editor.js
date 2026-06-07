@@ -118,12 +118,12 @@ export function openInstrumentEditor({ id, eng, onSaved }) {
     name.value = draft.name;
     name.oninput = () => { draft.name = name.value; refreshSave(); };
     const test = document.createElement('button');
-    test.className = 'ie-test' + (eng.isPlaying() ? '' : ' idle');
-    test.innerHTML = 'TEST<small>hold to hear</small>';
+    test.className = 'ie-test';
+    test.innerHTML = eng.isPlaying() ? 'TEST<small>hold to hear</small>' : 'TEST<small>tap to hear</small>';
     test.addEventListener('pointerdown', e => {
       e.preventDefault(); test.setPointerCapture(e.pointerId);
-      if (!eng.isPlaying()) { test.innerHTML = 'TEST<small>press ▶ first</small>'; return; }
       if (!validateInstrument(draft)) return;
+      if (!eng.isPlaying()) { eng.auditionInstrument(draft); return; }   // one-shot, no transport needed
       previewing = true;
       eng.setInstruments({ ...stash, [id]: draft });   // draft is live while held
     });
