@@ -123,6 +123,7 @@ afterEach(async () => {
 describe("matchRelayPath (authoritative allowlist)", () => {
   it("matches the v1 routes and carries the query through", () => {
     expect(matchRelayPath("GET", "/api/sessions")).toBe("/api/sessions");
+    expect(matchRelayPath("GET", "/api/artifacts")).toBe("/api/artifacts");
     expect(matchRelayPath("GET", "/api/sessions/search?q=x%20y")).toBe("/api/sessions/search");
     expect(matchRelayPath("GET", "/api/sessions/abc-123")).toBe("/api/sessions/:id");
     expect(matchRelayPath("GET", "/artifacts/space/notes.md")).toBe("/artifacts/*");
@@ -131,7 +132,7 @@ describe("matchRelayPath (authoritative allowlist)", () => {
   it("rejects everything else", () => {
     expect(matchRelayPath("POST", "/api/sessions")).toBeNull();
     expect(matchRelayPath("GET", "/api/memories")).toBeNull();
-    expect(matchRelayPath("GET", "/api/artifacts")).toBeNull();
+    expect(matchRelayPath("GET", "/api/chat/session")).toBeNull();
     expect(matchRelayPath("GET", "/artifacts/../etc/passwd")).toBeNull();
     expect(matchRelayPath("GET", "/artifacts/%2e%2e/x")).toBeNull();
     expect(matchRelayPath("GET", "/artifacts/%252e%252e/x")).toBeNull();
@@ -222,7 +223,7 @@ describe("createRelayClient", () => {
     const conn = await harness.nextConnection();
     await onceMessage(conn.socket);
 
-    for (const path of ["/api/memories", "/artifacts/../etc/passwd", "/api/artifacts"]) {
+    for (const path of ["/api/memories", "/artifacts/../etc/passwd", "/api/chat/session"]) {
       const framesP = collectResponse(conn.socket);
       conn.socket.send(JSON.stringify({ type: "req", id: `r-${path}`, method: "GET", path }));
       const frames = await framesP;

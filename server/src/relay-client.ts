@@ -27,6 +27,10 @@ export const RELAY_ROUTES: ReadonlyArray<string> = [
   "/api/sessions",
   "/api/sessions/search",
   "/api/sessions/:id",
+  // The registry mirror deliberately does NOT sync artefact file URLs —
+  // the cloud client asks the live device for them before opening
+  // anything via /artifacts/*. The one list-shaped route, for that reason.
+  "/api/artifacts",
   "/artifacts/*",
 ];
 
