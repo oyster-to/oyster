@@ -127,6 +127,7 @@ describe("matchRelayPath (authoritative allowlist)", () => {
     expect(matchRelayPath("GET", "/api/sessions/search?q=x%20y")).toBe("/api/sessions/search");
     expect(matchRelayPath("GET", "/api/sessions/abc-123")).toBe("/api/sessions/:id");
     expect(matchRelayPath("GET", "/artifacts/space/notes.md")).toBe("/artifacts/*");
+    expect(matchRelayPath("GET", "/docs/art-123")).toBe("/docs/:name");
   });
 
   it("rejects everything else", () => {

@@ -32,6 +32,11 @@ export const RELAY_ROUTES: ReadonlyArray<string> = [
   // anything via /artifacts/*. The one list-shaped route, for that reason.
   "/api/artifacts",
   "/artifacts/*",
+  // The registry's viewer URL for filesystem artefacts is /docs/<id> —
+  // resolved server-side from the artefact's own registered path
+  // (artifact-service getDocFile), never computed from the URL, so it has
+  // no traversal surface.
+  "/docs/:name",
 ];
 
 const MAX_PATH_CHARS = 2048;
