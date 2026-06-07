@@ -92,15 +92,25 @@ async function update(id, req, db, secret) {
   return json(200, { revision });
 }
 
+// POST /:id/play — anonymous play beacon. Fire-and-forget from the app; counts
+// are approximate by design (self-plays and reloads count; stakes are low).
+async function play(id, db) {
+  const row = await db.get(id);
+  if (!row) return json(404, { error: 'not found' });
+  await db.bumpPlays(id);
+  return new Response(null, { status: 204 });
+}
+
 export async function handleRegistry(req, db, secret) {
   const url = new URL(req.url);
-  const m = url.pathname.match(/^\/api\/registry(?:\/([a-z0-9]{8}))?$/);
+  const m = url.pathname.match(/^\/api\/registry(?:\/([a-z0-9]{8})(\/play)?)?$/);
   if (!m) return json(404, { error: 'not found' });
-  const id = m[1];
+  const id = m[1], isPlay = !!m[2];
   try {
+    if (req.method === 'POST' && id && isPlay) return await play(id, db);
     if (req.method === 'POST' && !id) return await create(req, db, secret);
-    if (req.method === 'GET' && id) return await get(id, db);
-    if (req.method === 'PUT' && id) return await update(id, req, db, secret);
+    if (req.method === 'GET' && id && !isPlay) return await get(id, db);
+    if (req.method === 'PUT' && id && !isPlay) return await update(id, req, db, secret);
   } catch {
     return json(500, { error: 'internal error' });
   }

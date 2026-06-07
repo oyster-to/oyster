@@ -2,7 +2,7 @@
 // Pure helpers up top (unit-tested, no DOM). initShare()/maybeLoadShared() at
 // the bottom own all DOM and are only called from app.js in the browser.
 
-import { createItem, getItem, updateItem, getEditKey, storeEditKey, listMine, getAuthor, setAuthor,
+import { createItem, getItem, updateItem, pingPlay, getEditKey, storeEditKey, listMine, getAuthor, setAuthor,
          shareUrl, parseShareParam } from '../registry/client.js';
 import { KIND_VERSIONS } from '../registry/validate.js';
 
@@ -177,10 +177,12 @@ export async function maybeLoadShared(eng, hooks) {
   try {
     const rec = await getItem(id);
     loadedFrom = { id: rec.id, kind: rec.kind };
+    pingPlay(rec.id);
+    const plays = typeof rec.plays === 'number' ? ` · ${rec.plays + 1} plays` : '';
     if (rec.kind === 'song') {
       eng.load(rec.payload);
       hooks.onSongLoaded(rec);
-      hooks.notice(`loaded "${rec.name}"${rec.author ? ` by ${rec.author}` : ''}`);
+      hooks.notice(`loaded "${rec.name}"${rec.author ? ` by ${rec.author}` : ''}${plays}`);
     } else {
       const lanes = pickHostLanes(eng.getLanes(), rec.payload.laneType);
       const laneId = lanes.length === 0 ? eng.addLane(rec.payload.laneType).id
