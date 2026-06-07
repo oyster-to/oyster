@@ -1,7 +1,7 @@
 import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
 import { createVoiceForType, trigger } from './voices.js';
-import { normalizeSongDrums } from './instruments.js';
+import { normalizeSongDrums, DEFAULT_INSTRUMENTS, DEFAULT_KIT, validateInstrument, validateKit } from './instruments.js';
 import { laneByType, toggleMute as _toggleMute, soloExclusive as _soloExclusive, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane, moveLane as _moveLane } from './lanes.js';
 import { deriveKey } from './song.js';
 import { flattenSong } from './flatten.js';
@@ -33,6 +33,10 @@ export function createEngine() {
   let punchGate = null, punchCrush = null, punchFilter = null, punchThrow = null, punchTape = null;
   const _punchCaptures = new Map();              // 'laneId|paramId' → { value: knob value at first engage, count }
   let punchPresets = DEFAULT_PRESETS;            // replaced via setPunchPresets (validated)
+  // Instruments layer (PR2): user instruments/kit override the stock set.
+  // Same contract as punch presets: validated on set, defaults on bad data.
+  let _instruments = DEFAULT_INSTRUMENTS;
+  let _kit = DEFAULT_KIT;
   const _slotHeld = new Array(DEFAULT_PRESETS.length).fill(false);
   const _gates = new Map();                      // slot → { depth, division, laneIds } (preview uses 'preview')
   let _tapeActive = false;                       // transport.tapeStop engaged (owns the BUS punchGate; lane-fader gate is independent)
@@ -188,7 +192,8 @@ export function createEngine() {
 
   function buildLane(lane) {
     fx[lane.id]     = _makeFX(_masterIn);
-    voices[lane.id] = createVoiceForType(lane.type, fx[lane.id].input);
+    voices[lane.id] = createVoiceForType(lane.type, fx[lane.id].input,
+      { instruments: _instruments, kit: _kit, instrumentId: lane.instrument });
     // Apply saved tone to melody lanes
     if (lane.type === 'melody' && lane.tone) {
       voices[lane.id].lead?.set({ oscillator: { type: lane.tone, width: 0.3 } });
@@ -204,6 +209,22 @@ export function createEngine() {
 
   function buildLaneGraph(lanes) {
     for (const lane of lanes) buildLane(lane);
+  }
+
+  // Rebuild voices only (FX chains, meters, captures untouched) — used when
+  // the instrument set or kit changes. Safe while playing: voices swap at
+  // graph time; the next scheduled step triggers the new nodes.
+  function _rebuildVoices() {
+    if (!started || !song) return;
+    for (const lane of song.lanes) {
+      const v = voices[lane.id];
+      if (v?.dispose) { try { v.dispose(); } catch (_) {} }
+      voices[lane.id] = createVoiceForType(lane.type, fx[lane.id].input,
+        { instruments: _instruments, kit: _kit, instrumentId: lane.instrument });
+      if (lane.type === 'melody' && lane.tone) {
+        voices[lane.id].lead?.set({ oscillator: { type: lane.tone, width: 0.3 } });
+      }
+    }
   }
 
   function disposeLane(id) {
@@ -520,6 +541,46 @@ export function createEngine() {
       return punchPresets;
     },
     getPunchPresets() { return punchPresets; },
+    // ── instruments layer (PR2) ──────────────────────────────────────────
+    // Replace the instrument set / kit. Validated; live voices rebuild so
+    // edits are audible immediately (graph-time work, never per-step).
+    setInstruments(insts) {
+      if (insts && typeof insts === 'object'
+          && Object.values(insts).every(validateInstrument)) {
+        _instruments = insts;
+        _rebuildVoices();
+      }
+      return _instruments;
+    },
+    getInstruments() { return _instruments; },
+    setKit(kit) {
+      if (validateKit(kit, _instruments)) {
+        _kit = kit;
+        _rebuildVoices();
+      }
+      return _kit;
+    },
+    getKit() { return _kit; },
+    // One-shot audition: fire a single hit of an instrument (no transport
+    // needed — TEST in the editor must work before pressing play). Builds a
+    // throwaway voice on the master input and disposes it after the tail.
+    async auditionInstrument(inst) {
+      if (!validateInstrument(inst)) return;
+      await Tone.start(); ensure();
+      const v = createVoiceForType(
+        inst.type === 'drum' ? 'drums' : inst.type,
+        _masterIn,
+        inst.type === 'drum'
+          ? { instruments: { _a: inst }, kit: { name: 'A', slots: [{ note: 36, label: 'A', instrument: '_a' }] } }
+          : { instruments: { _a: inst }, instrumentId: '_a' });
+      const now = Tone.now() + 0.02;
+      const ev = inst.type === 'drum' ? { type: 'drums', voice: 36 }
+        : inst.type === 'bass' ? { type: 'bass', note: 'C2', dur: 4 }
+        : inst.type === 'chords' ? { type: 'chords', notes: ['C3', 'E3', 'G3'], dur: 4 }
+        : { type: 'melody', note: 'C4', dur: 4 };
+      trigger(v, ev, now, 0.12, 1.9);
+      setTimeout(() => { try { v.dispose?.(); } catch (_) {} }, 2500);
+    },
     // v3.5 editor TEST pad: audition an UNSAVED draft preset momentarily.
     // Same runner path as punch(); no slot state. UI gates on isPlaying().
     punchPreview(preset, on) {
