@@ -101,6 +101,20 @@ async function play(id, db) {
   return new Response(null, { status: 204 });
 }
 
+// GET /api/registry?kind=song&limit=25 — the discovery shelf. Light rows only
+// (no payload, no edit_key_hash), newest first.
+async function list(url, db) {
+  const kind = url.searchParams.get('kind') ?? 'song';
+  if (kind !== 'song' && kind !== 'groove') return json(400, { error: 'bad kind' });
+  const raw = parseInt(url.searchParams.get('limit') ?? '', 10);
+  const limit = Math.min(50, Math.max(1, Number.isNaN(raw) ? 25 : raw));
+  const rows = await db.list(kind, limit);
+  return json(200, {
+    items: rows.map(({ id, kind: k, name, author, plays, remix_of, created_at }) =>
+      ({ id, kind: k, name, author, plays, remix_of, created_at })),
+  });
+}
+
 export async function handleRegistry(req, db, secret) {
   const url = new URL(req.url);
   const m = url.pathname.match(/^\/api\/registry(?:\/([a-z0-9]{8})(\/play)?)?$/);
@@ -109,6 +123,7 @@ export async function handleRegistry(req, db, secret) {
   try {
     if (req.method === 'POST' && id && isPlay) return await play(id, db);
     if (req.method === 'POST' && !id) return await create(req, db, secret);
+    if (req.method === 'GET' && !id) return await list(url, db);
     if (req.method === 'GET' && id && !isPlay) return await get(id, db);
     if (req.method === 'PUT' && id && !isPlay) return await update(id, req, db, secret);
   } catch {

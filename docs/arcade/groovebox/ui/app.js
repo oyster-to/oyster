@@ -14,7 +14,8 @@ import { scallywag } from '../songs/scallywag.js';
 import { booWaltz } from '../songs/boo-waltz.js';
 import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
-import { initShare, maybeLoadShared, clearLoadedFrom } from './share.js';
+import { initShare, maybeLoadShared, loadSharedSong, clearLoadedFrom } from './share.js';
+import { listItems } from '../registry/client.js';
 import { openPunchEditor, isPunchEditorOpen } from './punch-editor.js';
 import { openInstrumentEditor, isInstrumentEditorOpen } from './instrument-editor.js';
 
@@ -260,9 +261,10 @@ function renderViewTabs() {
   else if (_editingLaneId) updateEditHighlight(_editingLaneId);
 }
 
-// The screen has two panes: #lcd-body (viz: lane editors / scope) and
-// #lcd-song (song structure). Display toggle only — the viz is never disposed
-// here, so switching tabs is free.
+// The screen has two tab panes — #lcd-body (viz: lane editors / scope) and
+// #lcd-song (song structure) — plus the SELECT SONG picker, which overlays
+// whichever pane is current and closes back to it. Display toggles only —
+// the viz is never disposed here, so switching is free.
 let _songTabOpen = false;
 function setLcdPane(songOpen) {
   _songTabOpen = songOpen;
@@ -311,6 +313,144 @@ function activateEditLane(id) {
   viz.editLane(id);
   updateEditHighlight(id);
 }
+
+// ─── SELECT SONG — the cartridge drawer ──────────────────────────────────────
+// Cartridges are hardware: tapping the song slot opens a rack panel anchored
+// under it (bottom sheet on mobile — the Help/Settings idiom). Every song is
+// a cartridge card — notch colour says AI original / cover / shared, shared
+// carts carry a play-count badge. Picking loads + closes; outside click,
+// ✕ and Escape close.
+const PRESET_ORDER = ['press-start', 'scallywag', 'boo-waltz', 'first-roll', 'kids',
+  'rising-sun', 'electric-feel', 'heartbeats', 'digital-love', 'memory-reboot', 'take-on-me'];
+const AI_PRESETS = new Set(['press-start', 'scallywag', 'boo-waltz', 'first-roll']);
+let _pickerOpen = false;
+let _sharedItems = [];          // registry shelf rows — refreshed on each open
+let _currentSongKey = 'press-start';   // preset key, or 's:<id>' for a shared song
+
+function songButtonLabel(text) {
+  const btn = document.getElementById('songbtn');
+  if (btn) btn.innerHTML = `<span class="songbtn-t">${esc(text)}</span><span class="songbtn-caret">▾</span>`;
+}
+
+function presetLabel(key) {
+  const s = SONGS[key];
+  if (!s) return key;
+  return `${AI_PRESETS.has(key) ? '★ ' : ''}${s.title || key}${s.artist ? ` — ${s.artist}` : ''}`;
+}
+
+function cartEl({ cls, title, author, plays, onPick, selected }) {
+  const b = document.createElement('button');
+  b.className = 'kart' + (cls ? ` ${cls}` : '') + (selected ? ' sel' : '');
+  const badge = typeof plays === 'number' && plays > 0
+    ? `<span class="kart-plays">▶ ${plays}</span>` : '';
+  b.innerHTML = `<span class="kart-notch"></span><span class="kart-meta">`
+    + `<span class="kart-t">${esc(title)}</span>`
+    + (author ? `<span class="kart-a">${esc(author)}</span>` : '')
+    + `</span>${badge}`;
+  b.onclick = onPick;
+  return b;
+}
+
+function renderPicker() {
+  const host = document.getElementById('song-picker');
+  if (!host) return;
+  host.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'picker-head';
+  head.innerHTML = `<span>SELECT SONG</span>`;
+  const close = document.createElement('button');
+  close.className = 'picker-close';
+  close.textContent = '✕';
+  close.setAttribute('aria-label', 'Close song picker');
+  close.onclick = () => closePicker();
+  head.appendChild(close);
+  host.appendChild(head);
+
+  const sect = (label) => {
+    const s = document.createElement('div');
+    s.className = 'picker-sect';
+    s.textContent = label;
+    host.appendChild(s);
+  };
+
+  const presetCart = (key) => {
+    const s = SONGS[key];
+    if (!s) return;
+    host.appendChild(cartEl({
+      cls: AI_PRESETS.has(key) ? 'ai' : 'cover',
+      title: s.title || key,
+      author: s.artist || '',
+      selected: _currentSongKey === key,
+      onPick: () => { closePicker(); loadSong(key); },
+    }));
+  };
+
+  sect('BUILT-IN');
+  for (const key of PRESET_ORDER) if (AI_PRESETS.has(key)) presetCart(key);
+
+  // The social shelf rides high — right under the house carts.
+  if (_sharedItems.length) {
+    sect('SHARED — FROM OTHER GROOVERS');
+    for (const it of _sharedItems) {
+      host.appendChild(cartEl({
+        cls: 'shared',
+        title: it.name,
+        author: it.author || '',
+        plays: it.plays,
+        selected: _currentSongKey === `s:${it.id}`,
+        onPick: async () => {
+          closePicker();
+          eng.stop();
+          stopMeterLoop();
+          const play = document.getElementById('play');
+          play.classList.remove('on');
+          play.textContent = '▶ play';
+          try { await loadSharedSong(eng, shareHooks, it.id); }
+          catch (err) { gbNotice(`couldn't load (${err.message})`); }
+        },
+      }));
+    }
+  }
+
+  sect('JUKEBOX — COVERS');
+  for (const key of PRESET_ORDER) if (!AI_PRESETS.has(key)) presetCart(key);
+}
+
+function openPicker() {
+  const host = document.getElementById('song-picker');
+  if (!host) return;
+  renderPicker();
+  _pickerOpen = true;
+  host.hidden = false;
+  document.getElementById('songbtn')?.classList.add('open');
+  // Refresh the shelf in the background; re-render if anything changed.
+  listItems('song', 25).then(({ items }) => {
+    if (!Array.isArray(items)) return;
+    _sharedItems = items;
+    if (_pickerOpen) renderPicker();
+  }).catch(() => {});
+}
+
+function closePicker() {
+  if (!_pickerOpen) return;
+  _pickerOpen = false;
+  const host = document.getElementById('song-picker');
+  if (host) host.hidden = true;
+  document.getElementById('songbtn')?.classList.remove('open');
+}
+
+// Outside press closes the drawer (pointerdown: fires before any re-render
+// can detach the pressed element, so in-drawer clicks can never read as
+// outside — the bug class that closed the drawer on tile/tab clicks).
+document.addEventListener('pointerdown', e => {
+  if (!_pickerOpen) return;
+  // Punch pads are performance, not navigation — auditioning while browsing
+  // the drawer is legitimate; don't dismiss on a pad press.
+  if (e.target.closest?.('.punchpad')) return;
+  const host = document.getElementById('song-picker');
+  const btn = document.getElementById('songbtn');
+  if (host && !host.contains(e.target) && e.target !== btn && !btn?.contains(e.target)) closePicker();
+});
 
 function renderStrips() {
   const host = document.getElementById('strips');
@@ -1215,6 +1355,8 @@ function loadSong(key) {
   play.textContent = '▶ play';
   eng.load(SONGS[key]);
   clearLoadedFrom();   // the registry item this session had loaded is gone
+  _currentSongKey = key;
+  songButtonLabel(presetLabel(key));
   afterSongLoad();
 }
 
@@ -1247,23 +1389,153 @@ document.getElementById('play').onclick = async function() {
 };
 // (Tempo + transpose controls live on MASTER — built in renderMaster().)
 
-document.getElementById('songsel').onchange = e => loadSong(e.target.value);
-document.getElementById('themesel').onchange = e => {
-  const t = e.target.value;
+// The song slot opens the cartridge drawer.
+document.getElementById('songbtn').onclick = () => { _pickerOpen ? closePicker() : openPicker(); };
+
+// ─── Theme picker — drawer with live swatches (Henry's request) ──────────────
+// Each row's swatches carry data-theme, so the theme's OWN css block resolves
+// the chip colours locally: cabinet · screen · accent · hot, never hardcoded.
+const THEME_GROUPS = [
+  ['', [['oyster', 'Oyster'], ['midnight', 'Midnight'], ['light', 'Light'], ['beige', 'Beige'], ['purple', 'Purple'], ['amber', 'Amber']]],
+  ['Handhelds', [['playdate', 'Playdate'], ['gameboy', 'Game Boy'], ['r1', 'Rabbit'], ['switch', 'Switch']]],
+  ['Consoles', [['atari2600', 'Atari 2600'], ['famicom', 'Famicom'], ['nes', 'NES'], ['snes', 'SNES'], ['snesus', 'SNES US'], ['megadrive', 'Sega'], ['ps1', 'PlayStation'], ['n64', 'N64'], ['dreamcast', 'Dreamcast'], ['gamecube', 'GameCube'], ['xbox', 'Xbox']]],
+  ['Computers', [['spectrum', 'ZX Spectrum'], ['amiga', 'Amiga']]],
+  ['Calculators', [['casiofx', 'Casio fx'], ['ti83', 'TI-83'], ['vl1', 'VL-Tone'], ['hp12c', 'HP-12C'], ['et66', 'Braun ET66'], ['littleprof', 'Little Professor']]],
+  ['Studio', [['tr808', 'TR-808'], ['mpc', 'MPC'], ['dx7', 'DX7']]],
+];
+let _themePickerOpen = false;
+
+function currentTheme() { return document.documentElement.dataset.theme || 'oyster'; }
+
+const SCREEN_OPTIONS = [['default', 'Theme default'], ['pearl', 'Pearl'], ['phosphor', 'Phosphor'], ['signal', 'Signal'], ['lime', 'Lime'], ['backlit', 'Backlit'], ['amber', 'Amber'], ['workbench', 'Workbench'], ['sage', 'Sage'], ['paper', 'Paper']];
+let _themePickerTab = 'chrome';   // 'chrome' (cabinets) | 'lcd' (glass)
+
+function applyScreen(v) {
+  if (v === 'default') delete document.documentElement.dataset.screen;
+  else document.documentElement.dataset.screen = v;
+  localStorage.setItem('gb-screen', v);
+  viz?.invalidateThemeColors?.();
+}
+
+function applyTheme(t) {
   if (t === 'oyster') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = t;
   localStorage.setItem('gb-theme', t);
   // Invalidate canvas colour cache + repaint active view with new colours.
-  viz.invalidateThemeColors?.();
-};
+  viz?.invalidateThemeColors?.();
+}
+
+function renderThemePicker() {
+  const host = document.getElementById('theme-picker');
+  if (!host) return;
+  host.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'picker-head';
+  head.innerHTML = '<span>SELECT THEME</span>';
+  const done = document.createElement('button');
+  done.className = 'picker-done';
+  done.textContent = 'Done';
+  done.setAttribute('aria-label', 'Close theme picker');
+  done.onclick = () => closeThemePicker();
+  head.appendChild(done);
+  host.appendChild(head);
+
+  // Chrome (the cabinet) and LCD (the glass) are separate choices — tabs.
+  const tabs = document.createElement('div');
+  tabs.id = 'theme-picker-tabs';
+  for (const [key, label] of [['chrome', 'Chrome'], ['lcd', 'LCD']]) {
+    const t = document.createElement('button');
+    t.className = 'help-tab' + (_themePickerTab === key ? ' active' : '');
+    t.textContent = label;
+    t.onclick = () => { _themePickerTab = key; renderThemePicker(); };
+    tabs.appendChild(t);
+  }
+  host.appendChild(tabs);
+
+  if (_themePickerTab === 'lcd') { renderGlassGrid(host); return; }
+
+  const cur = currentTheme();
+  for (const [label, themes] of THEME_GROUPS) {
+    if (label) {
+      const s = document.createElement('div');
+      s.className = 'picker-sect';
+      s.textContent = label;
+      host.appendChild(s);
+    }
+    const grid = document.createElement('div');
+    grid.className = 'theme-grid';
+    for (const [value, name] of themes) {
+      const b = document.createElement('button');
+      b.className = 'ttile' + (value === cur ? ' sel' : '');
+      b.title = name;
+      // Calm tile: cabinet plate + screen, with the theme's NAME shown on its
+      // own screen in its own ink — a boot screen. One accent LED. Detail at
+      // thumbnail scale is noise; the hover live-preview is the real preview.
+      const isCur = value === cur;
+      b.innerHTML = `<span class="ttile-plate" data-theme="${esc(value)}">`
+        + `<span class="tp-scr"><span class="tp-nm">${isCur ? '✓ ' : ''}${esc(name)}</span></span>`
+        + `<i class="tp-led"></i>`
+        + `</span>`;
+      // One gesture, one meaning: click tries the theme (and trying is
+      // having it — the app repaints live). Close the drawer when happy.
+      b.onclick = () => { applyTheme(value); renderThemePicker(); };
+      grid.appendChild(b);
+    }
+    host.appendChild(grid);
+  }
+}
+
+// The LCD tab: theme default first, then the glass overrides (theme A, screen B).
+function renderGlassGrid(host) {
+  const curScreen = document.documentElement.dataset.screen || 'default';
+  const ggrid = document.createElement('div');
+  ggrid.className = 'theme-grid';
+  for (const [value, name] of SCREEN_OPTIONS) {
+    const b = document.createElement('button');
+    b.className = 'ttile' + (value === curScreen ? ' sel' : '');
+    b.title = name;
+    // data-screen paints the glass tile from its own bundle; the default tile
+    // carries the CURRENT theme instead, so it previews that theme's own LCD.
+    const attr = value === 'default'
+      ? `data-theme="${esc(currentTheme())}"`
+      : `data-screen="${esc(value)}"`;
+    b.innerHTML = `<span class="ttile-plate gtile" ${attr}>`
+      + `<span class="tp-scr"><span class="tp-nm">${value === curScreen ? '✓ ' : ''}${esc(name)}</span></span>`
+      + `</span>`;
+    b.onclick = () => { applyScreen(value); renderThemePicker(); };
+    ggrid.appendChild(b);
+  }
+  host.appendChild(ggrid);
+}
+
+
+function openThemePicker() {
+  renderThemePicker();
+  _themePickerOpen = true;
+  const host = document.getElementById('theme-picker');
+  if (host) host.hidden = false;
+  document.getElementById('themebtn')?.classList.add('open');
+}
+function closeThemePicker() {
+  if (!_themePickerOpen) return;
+  _themePickerOpen = false;
+  const host = document.getElementById('theme-picker');
+  if (host) host.hidden = true;
+  document.getElementById('themebtn')?.classList.remove('open');
+}
+document.getElementById('themebtn').onclick = () => { _themePickerOpen ? closeThemePicker() : openThemePicker(); };
+document.addEventListener('pointerdown', e => {
+  if (!_themePickerOpen) return;
+  if (e.target.closest?.('.punchpad')) return;   // pads are performance, not dismissal
+  const host = document.getElementById('theme-picker');
+  const btn = document.getElementById('themebtn');
+  // Picking a tile re-renders the drawer (to move the ✓), detaching the
+  // clicked button before this listener runs — closest() on the detached
+  // node still identifies it as a tile, so the drawer stays open.
+  if (e.target.closest?.('.ttile, .picker-done, .help-tab')) return;
+  if (host && !host.contains(e.target) && e.target !== btn && !btn?.contains(e.target)) closeThemePicker();
+});
 // Screen picker (Settings) — override the theme's glass with a chosen LCD.
-document.getElementById('screensel').onchange = e => {
-  const v = e.target.value;
-  if (v === 'default') delete document.documentElement.dataset.screen;
-  else document.documentElement.dataset.screen = v;
-  localStorage.setItem('gb-screen', v);
-  viz.invalidateThemeColors?.();
-};
 
 // (Scope + quick-edit lane tabs are built and wired in renderViewTabs().)
 
@@ -1287,14 +1559,10 @@ eng.onStep(({ absStep, bar, stepInBar, fill, queue, target }) => {
   if (saved === 'dark') saved = 'midnight';   // Dark was renamed; Oyster is the default now
   if (saved && saved !== 'oyster') {
     document.documentElement.dataset.theme = saved;
-    const sel = document.getElementById('themesel');
-    if (sel) sel.value = saved;
   }
   const screen = localStorage.getItem('gb-screen');
   if (screen && screen !== 'default') {
     document.documentElement.dataset.screen = screen;
-    const ssel = document.getElementById('screensel');
-    if (ssel) ssel.value = screen;
   }
 })();
 
@@ -1322,7 +1590,7 @@ document.getElementById('help-modal-backdrop').onclick = () => {
   document.getElementById('help-modal').hidden = true;
 };
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') document.getElementById('help-modal').hidden = true;
+  if (e.key === 'Escape') { document.getElementById('help-modal').hidden = true; closePicker(); closeThemePicker(); }
 });
 
 // ─── View-settings popover ────────────────────────────────────────────────────
@@ -1686,22 +1954,10 @@ function initSectionWrappers() {
 }
 
 // ─── Initial load ─────────────────────────────────────────────────────────────
-// Song dropdown = the record shelf: every option shows "title — artist",
-// straight from the song data. ("(AI)" goes — the artist credit says it.)
-{
-  const sel = document.getElementById('songsel');
-  for (const opt of sel.options) {
-    const s = SONGS[opt.value];
-    if (s?.artist) opt.textContent = `${opt.textContent.replace(' (AI)', '')} — ${s.artist}`;
-  }
-}
-
 const BOOT_SONG = 'press-start';
 eng.load(SONGS[BOOT_SONG]);
-// Pin the dropdown to the boot song so the selector, the loaded song, and the
-// credit line (set in mount from the loaded song) always agree — don't rely on
-// the option's `selected` attribute matching the boot song by coincidence.
-document.getElementById('songsel').value = BOOT_SONG;
+_currentSongKey = BOOT_SONG;
+songButtonLabel(presetLabel(BOOT_SONG));
 const initialSong = eng.getSong();
 currentBpm = initialSong.bpm;
 eng.setTempo(initialSong.bpm);
@@ -1726,23 +1982,11 @@ const shareHooks = {
   notice: gbNotice,
   onSongLoaded: (rec) => {
     afterSongLoad();
-    // songsel no longer matches a preset — park it on a hidden "(shared)" option.
-    const sel = document.getElementById('songsel');
-    let opt = document.getElementById('songsel-shared');
-    if (!opt) {
-      opt = document.createElement('option');
-      opt.id = 'songsel-shared';
-      opt.hidden = true;
-      sel.appendChild(opt);
+    // The slot is the title surface — shared songs read "♫ name — author".
+    if (rec) {
+      _currentSongKey = `s:${rec.id}`;
+      songButtonLabel(`♫ ${rec.name}${rec.author ? ` — ${rec.author}` : ''}`);
     }
-    // The dropdown is the title surface — name, author and play count all
-    // live in the option text. No second line.
-    const n = typeof rec?.plays === 'number' ? rec.plays + 1 : null;
-    opt.textContent = rec?.name
-      ? ['♫ ' + rec.name, rec.author ? `by ${rec.author}` : '', n ? `${n} play${n === 1 ? '' : 's'}` : '']
-          .filter(Boolean).join(' · ')
-      : '(shared)';
-    opt.selected = true;
   },
   onGroovesChanged: () => { renderStrips(); refreshVizPattern(); },
   // v1: import into the first matching lane (multi-lane-same-type songs are
@@ -1769,6 +2013,12 @@ loadInstruments();
 
 initShare(eng, shareHooks);
 maybeLoadShared(eng, shareHooks);
+
+// ─── Discovery shelf — prefetch the registry list for the picker ─────────────
+// Fire-and-forget: no registry (vite dev / offline) → no shelf, app unaffected.
+listItems('song', 25)
+  .then(({ items }) => { if (Array.isArray(items)) _sharedItems = items; })
+  .catch(() => { /* shelf is best-effort */ });
 // Press-and-hold on a control must not open the browser context menu (Android
 // Chrome long-press → "more actions / translate"). Scoped to controls so
 // right-click elsewhere stays normal on desktop.
@@ -1779,3 +2029,15 @@ document.addEventListener('contextmenu', e => {
     e.preventDefault();
   }
 });
+// Dev hooks: ?devopen=theme|song auto-opens a picker; ?devtheme= / ?devscreen=
+// force a cabinet/glass combo — lets headless-browser screenshots verify
+// visuals without clicks. Inert in normal use.
+if (location.search.includes('devopen=theme')) setTimeout(() => openThemePicker(), 300);
+if (location.search.includes('devopen=lcd')) setTimeout(() => { _themePickerTab = 'lcd'; openThemePicker(); }, 300);
+if (location.search.includes('devopen=song')) setTimeout(() => openPicker(), 300);
+{
+  const q = new URLSearchParams(location.search);
+  const dt = q.get('devtheme'), ds = q.get('devscreen');
+  if (dt) { document.documentElement.dataset.theme = dt; viz?.invalidateThemeColors?.(); }
+  if (ds) { document.documentElement.dataset.screen = ds; viz?.invalidateThemeColors?.(); }
+}

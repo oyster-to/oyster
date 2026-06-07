@@ -17,7 +17,7 @@ function themeColors() {
   const cs = getComputedStyle(document.getElementById('viz') || document.documentElement);
   const g = n => cs.getPropertyValue(n).trim() || '#888';
   _tc = {
-    acc:     g('--acc'),
+    acc:     g('--screen-acc'),   // canvas highlights live on the glass
     scope:   g('--scope'),
     note:    g('--roll-note'),
     grid:    g('--grid-line'),
