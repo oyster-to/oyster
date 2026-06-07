@@ -106,7 +106,8 @@ async function play(id, db) {
 async function list(url, db) {
   const kind = url.searchParams.get('kind') ?? 'song';
   if (kind !== 'song' && kind !== 'groove') return json(400, { error: 'bad kind' });
-  const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit') ?? '25', 10) || 25));
+  const raw = parseInt(url.searchParams.get('limit') ?? '', 10);
+  const limit = Math.min(50, Math.max(1, Number.isNaN(raw) ? 25 : raw));
   const rows = await db.list(kind, limit);
   return json(200, {
     items: rows.map(({ id, kind: k, name, author, plays, remix_of, created_at }) =>
