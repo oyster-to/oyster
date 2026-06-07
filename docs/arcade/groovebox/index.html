@@ -13,50 +13,10 @@
       <div class="titlebar">
         <h1><span class="brand-icon" title="Oyster Groovebox" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/><path d="M8 8v1"/><path d="M12 8v1"/><path d="M16 8v1"/><rect width="20" height="12" x="2" y="9" rx="2"/><circle cx="8" cy="15" r="2"/><circle cx="16" cy="15" r="2"/></svg></span><span class="brand-oyster">oyster </span>groovebox</h1>
         <div class="titlebar-tools">
-          <select id="themesel">
-            <option value="oyster" selected>Oyster</option>
-            <option value="midnight">Midnight</option>
-            <option value="light">Light</option>
-            <option value="beige">Beige</option>
-            <option value="purple">Purple</option>
-            <option value="amber">Amber</option>
-            <optgroup label="Handhelds">
-              <option value="playdate">Playdate</option>
-              <option value="gameboy">Game Boy</option>
-              <option value="r1">Rabbit</option>
-              <option value="switch">Switch</option>
-            </optgroup>
-            <optgroup label="Consoles">
-              <option value="atari2600">Atari 2600</option>
-              <option value="famicom">Famicom</option>
-              <option value="nes">NES</option>
-              <option value="snes">SNES</option>
-              <option value="snesus">SNES US</option>
-              <option value="megadrive">Sega</option>
-              <option value="ps1">PlayStation</option>
-              <option value="n64">N64</option>
-              <option value="dreamcast">Dreamcast</option>
-              <option value="gamecube">GameCube</option>
-              <option value="xbox">Xbox</option>
-            </optgroup>
-            <optgroup label="Computers">
-              <option value="spectrum">ZX Spectrum</option>
-              <option value="amiga">Amiga</option>
-            </optgroup>
-            <optgroup label="Calculators">
-              <option value="casiofx">Casio fx</option>
-              <option value="ti83">TI-83</option>
-              <option value="vl1">VL-Tone</option>
-              <option value="hp12c">HP-12C</option>
-              <option value="et66">Braun ET66</option>
-              <option value="littleprof">Little Professor</option>
-            </optgroup>
-            <optgroup label="Studio">
-              <option value="tr808">TR-808</option>
-              <option value="mpc">MPC</option>
-              <option value="dx7">DX7</option>
-            </optgroup>
-          </select>
+          <div class="theme-wrap">
+            <button id="themebtn" title="Select a theme" aria-haspopup="true">Oyster</button>
+            <div id="theme-picker" hidden></div>
+          </div>
           <div class="vs-wrap">
             <button id="viewsettings-btn" title="Settings">Settings</button>
             <div id="viewsettings" hidden>

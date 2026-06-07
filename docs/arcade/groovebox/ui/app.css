@@ -85,6 +85,16 @@
   --screen-glow:  color-mix(in srgb, var(--acc) 6%, transparent);
 }
 
+/* Oyster's swatch identity — the theme-picker chips carry data-theme, and the
+   default theme has no block of its own, so pin just the swatch tokens here.
+   (Must follow the [data-theme] alias rule so these win at equal specificity.) */
+[data-theme="oyster"] {
+  --bg:        #04060d;
+  --screen-bg: #cfe0ea;
+  --acc:       #8b76ff;
+  --hot:       #ff8de0;
+}
+
 /* ─── MIDNIGHT — the former Dark theme: graphite cabinet, teal accent,
    teal-phosphor screen ───────────────────────────────────────────────────── */
 [data-theme="midnight"] {
@@ -622,6 +632,90 @@ input[type=range] {
   color: var(--screen-dim);
   margin-left: 10px;
   white-space: nowrap;
+}
+
+/* ─── Theme picker — drawer with live swatches under the titlebar button ──── */
+.theme-wrap { position: relative; }
+#themebtn.open { border-color: var(--acc); color: var(--acc); }
+#theme-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 200;
+  width: min(300px, calc(100vw - 32px));
+  max-height: min(480px, 70vh);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+#theme-picker[hidden] { display: none; }
+.trow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  margin: 3px 0;
+  padding: 6px 9px;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-2);
+  color: var(--ink);
+  font-size: 12px;
+  box-shadow: none;
+  cursor: pointer;
+}
+.trow:hover { border-color: var(--acc-dim); background: var(--panel-3); }
+.trow.sel { border-color: var(--acc); }
+.trow.sel .trow-t { color: var(--acc); font-weight: 700; }
+/* The swatches: each strip carries the theme's data-theme attribute, so its
+   own CSS block resolves the chips — cabinet · screen · accent · hot. */
+.swatches { display: inline-flex; gap: 3px; flex: 0 0 auto; }
+.swatches i {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  border: 1px solid rgba(0,0,0,0.35);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
+}
+.swatches i:nth-child(1) { background: var(--bg); }
+.swatches i:nth-child(2) { background: var(--screen-bg); }
+.swatches i:nth-child(3) { background: var(--acc); }
+.swatches i:nth-child(4) { background: var(--hot); }
+
+/* Mobile: bottom sheet, like the song drawer. */
+@media (max-width: 900px) {
+  #theme-picker {
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    max-height: 75vh;
+    border-radius: 16px 16px 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    padding: 14px 20px calc(24px + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 40px rgba(0,0,0,0.45);
+    animation: gbm-sheet-up 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+    z-index: 210;
+  }
+  #theme-picker::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--line);
+    margin: 0 auto 12px;
+  }
 }
 
 /* ─── Song slot button — opens the cartridge picker on the screen ─────────── */

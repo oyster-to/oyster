@@ -1371,16 +1371,89 @@ document.getElementById('play').onclick = async function() {
 };
 // (Tempo + transpose controls live on MASTER — built in renderMaster().)
 
-// The song slot opens the cartridge picker on the screen.
+// The song slot opens the cartridge drawer.
 document.getElementById('songbtn').onclick = () => { _pickerOpen ? closePicker() : openPicker(); };
-document.getElementById('themesel').onchange = e => {
-  const t = e.target.value;
+
+// ─── Theme picker — drawer with live swatches (Henry's request) ──────────────
+// Each row's swatches carry data-theme, so the theme's OWN css block resolves
+// the chip colours locally: cabinet · screen · accent · hot, never hardcoded.
+const THEME_GROUPS = [
+  ['', [['oyster', 'Oyster'], ['midnight', 'Midnight'], ['light', 'Light'], ['beige', 'Beige'], ['purple', 'Purple'], ['amber', 'Amber']]],
+  ['Handhelds', [['playdate', 'Playdate'], ['gameboy', 'Game Boy'], ['r1', 'Rabbit'], ['switch', 'Switch']]],
+  ['Consoles', [['atari2600', 'Atari 2600'], ['famicom', 'Famicom'], ['nes', 'NES'], ['snes', 'SNES'], ['snesus', 'SNES US'], ['megadrive', 'Sega'], ['ps1', 'PlayStation'], ['n64', 'N64'], ['dreamcast', 'Dreamcast'], ['gamecube', 'GameCube'], ['xbox', 'Xbox']]],
+  ['Computers', [['spectrum', 'ZX Spectrum'], ['amiga', 'Amiga']]],
+  ['Calculators', [['casiofx', 'Casio fx'], ['ti83', 'TI-83'], ['vl1', 'VL-Tone'], ['hp12c', 'HP-12C'], ['et66', 'Braun ET66'], ['littleprof', 'Little Professor']]],
+  ['Studio', [['tr808', 'TR-808'], ['mpc', 'MPC'], ['dx7', 'DX7']]],
+];
+const THEME_LABELS = new Map(THEME_GROUPS.flatMap(([, ts]) => ts));
+let _themePickerOpen = false;
+
+function currentTheme() { return document.documentElement.dataset.theme || 'oyster'; }
+
+function applyTheme(t) {
   if (t === 'oyster') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = t;
   localStorage.setItem('gb-theme', t);
+  const btn = document.getElementById('themebtn');
+  if (btn) btn.textContent = THEME_LABELS.get(t) || t;
   // Invalidate canvas colour cache + repaint active view with new colours.
-  viz.invalidateThemeColors?.();
-};
+  viz?.invalidateThemeColors?.();
+}
+
+function renderThemePicker() {
+  const host = document.getElementById('theme-picker');
+  if (!host) return;
+  host.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'picker-head';
+  head.innerHTML = '<span>SELECT THEME</span>';
+  const close = document.createElement('button');
+  close.className = 'picker-close';
+  close.textContent = '✕';
+  close.setAttribute('aria-label', 'Close theme picker');
+  close.onclick = () => closeThemePicker();
+  head.appendChild(close);
+  host.appendChild(head);
+  const cur = currentTheme();
+  for (const [label, themes] of THEME_GROUPS) {
+    if (label) {
+      const s = document.createElement('div');
+      s.className = 'picker-sect';
+      s.textContent = label;
+      host.appendChild(s);
+    }
+    for (const [value, name] of themes) {
+      const b = document.createElement('button');
+      b.className = 'trow' + (value === cur ? ' sel' : '');
+      b.innerHTML = `<span class="trow-t">${esc(name)}</span>`
+        + `<span class="swatches" data-theme="${esc(value)}"><i></i><i></i><i></i><i></i></span>`;
+      b.onclick = () => { applyTheme(value); renderThemePicker(); };   // stay open — theme browsing is the fun part
+      host.appendChild(b);
+    }
+  }
+}
+
+function openThemePicker() {
+  renderThemePicker();
+  _themePickerOpen = true;
+  const host = document.getElementById('theme-picker');
+  if (host) host.hidden = false;
+  document.getElementById('themebtn')?.classList.add('open');
+}
+function closeThemePicker() {
+  if (!_themePickerOpen) return;
+  _themePickerOpen = false;
+  const host = document.getElementById('theme-picker');
+  if (host) host.hidden = true;
+  document.getElementById('themebtn')?.classList.remove('open');
+}
+document.getElementById('themebtn').onclick = () => { _themePickerOpen ? closeThemePicker() : openThemePicker(); };
+document.addEventListener('click', e => {
+  if (!_themePickerOpen) return;
+  const host = document.getElementById('theme-picker');
+  const btn = document.getElementById('themebtn');
+  if (host && !host.contains(e.target) && e.target !== btn && !btn?.contains(e.target)) closeThemePicker();
+});
 // Screen picker (Settings) — override the theme's glass with a chosen LCD.
 document.getElementById('screensel').onchange = e => {
   const v = e.target.value;
@@ -1412,8 +1485,8 @@ eng.onStep(({ absStep, bar, stepInBar, fill, queue, target }) => {
   if (saved === 'dark') saved = 'midnight';   // Dark was renamed; Oyster is the default now
   if (saved && saved !== 'oyster') {
     document.documentElement.dataset.theme = saved;
-    const sel = document.getElementById('themesel');
-    if (sel) sel.value = saved;
+    const btn = document.getElementById('themebtn');
+    if (btn) btn.textContent = THEME_LABELS.get(saved) || saved;
   }
   const screen = localStorage.getItem('gb-screen');
   if (screen && screen !== 'default') {
@@ -1447,7 +1520,7 @@ document.getElementById('help-modal-backdrop').onclick = () => {
   document.getElementById('help-modal').hidden = true;
 };
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { document.getElementById('help-modal').hidden = true; closePicker(); }
+  if (e.key === 'Escape') { document.getElementById('help-modal').hidden = true; closePicker(); closeThemePicker(); }
 });
 
 // ─── View-settings popover ────────────────────────────────────────────────────
