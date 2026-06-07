@@ -88,3 +88,37 @@ test('toggleDrumSolo: exclusive — soloing snare clears kick (one at a time)', 
   expect(lane.voiceSolo.kick).toBe(false);
   expect(lane.voiceSolo.snare).toBe(true);
 });
+
+// 'bar' durations are legal on ANY note lane (DATA-MODEL: durSteps|'bar').
+// Previously bass/melody computed 'bar' * sixteenth = NaN, and the Tone throw
+// killed the step scheduler — a shared song could freeze playback at step 0.
+import { trigger } from '../engine/voices.js';
+import { describe, it } from 'vitest';
+
+describe("'bar' + garbage durations never reach Tone as NaN", () => {
+  const calls = [];
+  const fakeVoice = {
+    bass: { triggerAttackRelease: (n, d, t, v) => calls.push(d) },
+    lead: { triggerAttackRelease: (n, d, t, v) => calls.push(d) },
+    chordSyn: { triggerAttackRelease: (n, d, t, v) => calls.push(d) },
+  };
+  const SIXTEENTH = 0.125, BAR = 2.0;
+
+  it("'bar' maps to barSeconds on bass, melody, and chord pads", () => {
+    calls.length = 0;
+    trigger(fakeVoice, { type: 'bass', note: 'A1', dur: 'bar' }, 0, SIXTEENTH, BAR);
+    trigger(fakeVoice, { type: 'melody', note: 'A4', dur: 'bar' }, 0, SIXTEENTH, BAR);
+    trigger(fakeVoice, { type: 'chords', mode: 'pad', notes: ['A2'], dur: 'bar' }, 0, SIXTEENTH, BAR);
+    expect(calls).toEqual([BAR, BAR, BAR]);
+  });
+
+  it('numeric durs scale by sixteenth; garbage falls back to 2 steps', () => {
+    calls.length = 0;
+    trigger(fakeVoice, { type: 'bass', note: 'A1', dur: 8 }, 0, SIXTEENTH, BAR);
+    trigger(fakeVoice, { type: 'bass', note: 'A1', dur: 'wat' }, 0, SIXTEENTH, BAR);
+    trigger(fakeVoice, { type: 'bass', note: 'A1' }, 0, SIXTEENTH, BAR);
+    trigger(fakeVoice, { type: 'bass', note: 'A1', dur: -3 }, 0, SIXTEENTH, BAR);
+    expect(calls).toEqual([1, 0.25, 0.25, 0.25]);
+    expect(calls.every(Number.isFinite)).toBe(true);
+  });
+});

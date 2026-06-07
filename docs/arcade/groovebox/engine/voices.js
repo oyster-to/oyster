@@ -50,6 +50,15 @@ export function createVoiceForType(type, bus) {
  * voice — the voice object for ev.laneId (from voices[ev.laneId])
  * ev    — { laneId, type, ... }
  */
+// Note duration → seconds. DATA-MODEL allows durSteps|'bar' on ANY note lane;
+// 'bar' previously NaN-crashed bass/melody (killing the whole step scheduler —
+// a shared song could freeze playback). Anything non-numeric falls back to 2
+// steps: invariant 2 says bad data must never crash the engine.
+function durSeconds(dur, sixteenth, barSeconds) {
+  if (dur === 'bar') return barSeconds;
+  return (typeof dur === 'number' && Number.isFinite(dur) && dur > 0 ? dur : 2) * sixteenth;
+}
+
 export function trigger(voice, ev, t, sixteenth, barSeconds) {
   if (ev.type === 'drums') {
     if (ev.voice === 'kick')  voice.kick.triggerAttackRelease('C1', '8n', t);
@@ -58,12 +67,12 @@ export function trigger(voice, ev, t, sixteenth, barSeconds) {
     if (ev.voice === 'crash') voice.crash.triggerAttackRelease('8n', t, 0.8);
     if (ev.voice === 'tom')   voice.tom.triggerAttackRelease(Tone.Frequency('A2').transpose(ev.semi), '8n', t);
   } else if (ev.type === 'bass') {
-    voice.bass.triggerAttackRelease(ev.note, (ev.dur || 2) * sixteenth, t, 0.85);
+    voice.bass.triggerAttackRelease(ev.note, durSeconds(ev.dur, sixteenth, barSeconds), t, 0.85);
   } else if (ev.type === 'melody') {
-    voice.lead.triggerAttackRelease(ev.note, (ev.dur || 2) * sixteenth, t, 0.82);
+    voice.lead.triggerAttackRelease(ev.note, durSeconds(ev.dur, sixteenth, barSeconds), t, 0.82);
   } else if (ev.type === 'chords') {
     if (ev.mode === 'arp') voice.chordSyn.triggerAttackRelease(ev.note, sixteenth, t, 0.34);
-    else voice.chordSyn.triggerAttackRelease(ev.notes, ev.dur === 'bar' ? barSeconds : (ev.dur || 2) * sixteenth, t, 0.3);
+    else voice.chordSyn.triggerAttackRelease(ev.notes, durSeconds(ev.dur, sixteenth, barSeconds), t, 0.3);
   }
 }
 
