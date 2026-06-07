@@ -1008,8 +1008,8 @@ body.gb-knob-values .knob-val { display: block; }
 
 /* bigger touch targets on touch devices */
 @media (pointer: coarse) {
-  .knob-dial { width: 42px; height: 42px; }
-  .knob-ind  { top: 4px; height: 15px; transform-origin: 50% 17px; }
+  .knob-dial { width: 36px; height: 36px; }
+  .knob-ind  { top: 3px; height: 13px; transform-origin: 50% 15px; }
 
   /* It's an instrument, not a document: press-and-hold must not start text
      selection (Android Chrome's "more actions / translate" toolbar) or the
