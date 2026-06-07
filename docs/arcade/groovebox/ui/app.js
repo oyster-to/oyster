@@ -727,7 +727,9 @@ function makeTempoGroup() {
   // (where MIX knobs say vol/bal/wid) carries the live BPM value.
   const knob = makeKnob({
     label: String(currentBpm),
-    value: (currentBpm - 80) / 100,
+    // Clamp the dial position — a shared/legacy song can carry a BPM outside
+    // the knob's 80–180 sweep; the engine keeps the true tempo, the dial pins.
+    value: Math.max(0, Math.min(1, (currentBpm - 80) / 100)),
     fmt: v => Math.round(80 + v * 100),
     onChange: v => {
       currentBpm = Math.round(80 + v * 100);
@@ -964,8 +966,15 @@ function renderStrip() {
   edit.textContent = `✎ P${eng.getEditPatternIndex() + 1}`;
   host.appendChild(edit);
   // The strip is the door to the song's structure: tap it → Song tab.
+  // It's a div, so make it a real control for keyboards / assistive tech.
   host.title = 'Open the Song editor';
+  host.setAttribute('role', 'button');
+  host.setAttribute('aria-label', 'Open the Song editor');
+  host.tabIndex = 0;
   host.onclick = () => activateSongTab();
+  host.onkeydown = e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateSongTab(); }
+  };
   const chordWrap = document.createElement('span');
   chordWrap.className = 'strip-chords';
   chordWrap.dataset.idx = -1;

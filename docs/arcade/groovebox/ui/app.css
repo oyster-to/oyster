@@ -60,8 +60,10 @@
   --bevel-lo:   rgba(0,0,0,0.45);
 }
 
-/* Every named theme's screen shares its cabinet polarity — alias the screen
-   inks back to the cabinet inks. (Only the default Oyster theme splits them.) */
+/* Default for named themes: screen shares the cabinet's polarity — alias the
+   screen inks back to the cabinet inks. Themes whose screen polarity differs
+   (Oyster's pearl LCD via :root; casiofx/ti83/hp12c dark-on-pale and
+   nes/snes/snesus/ps1 light-on-CRT via overrides further down) set their own. */
 [data-theme] {
   --screen-ink: var(--ink);
   --screen-dim: var(--dim);
