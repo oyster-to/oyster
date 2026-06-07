@@ -2756,6 +2756,63 @@ body.gb-knob-values .knob-val { display: block; }
   --hit1:        #ff5038;
   --hit2:        #c02818;
 }
+[data-theme="amiga"] {
+  /* BODY — A500 beige wedge; SCREEN — Workbench blue with orange */
+  --bg:          #a8a294;
+  --panel:       #d6d0c0;
+  --panel-2:     #ccc6b6;
+  --panel-3:     #beb8a8;
+  --line:        rgba(50,47,40,.18);
+  --line-dk:     rgba(50,47,40,.32);
+  --ink:         #322f28;
+  --dim:         #645f52;
+  --faint:       #908a78;
+  --acc:         #1a5cb8;   /* Workbench blue */
+  --acc-dim:     #7a9cd8;
+  --hot:         #e05a18;   /* Workbench orange */
+  --warn:        #b8962a;
+  --ink-on-acc:  #ffffff;
+  --meter-lo:    #3aa54a;
+  --meter-mid:   #d8a82a;
+  --meter-hi:    #d8402a;
+  --chrome-hi:   #c4beac;
+  --chrome-mid:  #b4ae9c;
+  --chrome-lo:   #a49e8c;
+  --bevel-hi:    rgba(255,255,255,0.5);
+  --bevel-lo:    rgba(0,0,0,0.12);
+  /* SCREEN — Workbench 1.x: blue desktop, white pointer, orange windows */
+  --screen-bg:   #0a3c7c;
+  --screen-glow: rgba(26,92,184,0.15);
+  --roll-bg:     #0c4488;
+  --roll-bg-blk: #0a3c78;
+  --roll-note:   #ffffff;
+  --grid-line:   #2a62a8;
+  --scope:       #7ab8f0;
+  --playhead:    #e8742a;
+  --cell:        #0d4a92;
+  --cell-alt:    #10529e;
+  --hit1:        #f08a3a;
+  --hit2:        #c85a10;
+}
+/* Beige body text washes out on the Workbench-blue screen — flip the
+   in-screen ink light (same #viz re-scope trick as the pale-LCD calcs). */
+[data-theme="amiga"] #viz { --ink: #e8f0fa; --dim: #a8c4e0; --faint: #6a8cb8; }
+/* The Commodore rainbow, as a hard-banded underline beneath the title row */
+[data-theme="amiga"] .titlebar {
+  border-bottom: 3px solid;
+  border-image: linear-gradient(90deg,
+    #d8362a 0%, #d8362a 20%,
+    #e8742a 20%, #e8742a 40%,
+    #d8c82a 40%, #d8c82a 60%,
+    #3ab83a 60%, #3ab83a 80%,
+    #2a62c8 80%, #2a62c8 100%) 1;
+  padding-bottom: 8px;
+}
+[data-theme="amiga"] h1 { text-shadow: none; }
+[data-theme="amiga"] .vc.hit { box-shadow: 0 0 6px rgba(240,138,58,0.4), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+[data-theme="amiga"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(232,116,42,0.35); background: rgba(255,255,255,0.1); }
+[data-theme="amiga"] .vc.hit.now { box-shadow: 0 0 10px rgba(255,255,255,0.5), inset 0 1px 0 rgba(255,255,255,0.25); }
+
 [data-theme="littleprof"] h1 { text-shadow: none; color: #ffe9a8; }
 [data-theme="littleprof"] .vc.hit { box-shadow: 0 0 6px rgba(255,80,56,0.45), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
 [data-theme="littleprof"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(255,216,184,0.3); background: rgba(255,216,184,0.08); }
