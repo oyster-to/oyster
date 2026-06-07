@@ -434,8 +434,10 @@ function closePicker() {
   document.getElementById('songbtn')?.classList.remove('open');
 }
 
-// Outside click closes the drawer (same manners as the Settings popover).
-document.addEventListener('click', e => {
+// Outside press closes the drawer (pointerdown: fires before any re-render
+// can detach the pressed element, so in-drawer clicks can never read as
+// outside — the bug class that closed the drawer on tile/tab clicks).
+document.addEventListener('pointerdown', e => {
   if (!_pickerOpen) return;
   const host = document.getElementById('song-picker');
   const btn = document.getElementById('songbtn');
@@ -1506,7 +1508,7 @@ function closeThemePicker() {
   document.getElementById('themebtn')?.classList.remove('open');
 }
 document.getElementById('themebtn').onclick = () => { _themePickerOpen ? closeThemePicker() : openThemePicker(); };
-document.addEventListener('click', e => {
+document.addEventListener('pointerdown', e => {
   if (!_themePickerOpen) return;
   const host = document.getElementById('theme-picker');
   const btn = document.getElementById('themebtn');
