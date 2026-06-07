@@ -124,7 +124,14 @@ export function createVoiceForType(type, bus, opts = {}) {
       if (!inst) continue;
       const plan = compileSynthPatch(inst);
       const v = buildFromPlan(plan, bus);
-      byNote[note] = { synth: v.synth, trig: plan.trig };
+      // Carry the slot's tone filter so a velocity lock can move its cutoff per
+      // hit (brightness, not just loudness). Unfiltered slots stay volume-only.
+      byNote[note] = {
+        synth: v.synth, trig: plan.trig,
+        filter: v.filter,
+        filterBase: plan.filter ? plan.filter.freq : 0,
+        filterType: plan.filter ? plan.filter.type : null,
+      };
       nodes.push(v.synth, v.filter);
     }
     return { byNote, dispose() { for (const n of nodes) { try { n?.dispose?.(); } catch (_) {} } } };
@@ -159,6 +166,24 @@ function lockVel(base, vel) {
   return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
+// Velocity → brightness on a drum slot's tone filter. A lock shifts the cutoff
+// by up to ~1.5 octaves: accents (vel>1) pass MORE energy, ghosts less — so a
+// HIGHPASS moves DOWN on an accent (fuller), a LOWPASS moves UP. Scheduled at
+// audio time t; every filtered hit re-asserts a value (base when unlocked) so
+// the filter never sticks. No-op for unfiltered slots. Scalar math, no allocs.
+const BRIGHT_OCT = 1.5;
+function applyBrightness(slot, vel, t) {
+  if (!slot.filter) return;
+  let freq = slot.filterBase;
+  if (vel != null) {
+    let shift = (vel - 1) * BRIGHT_OCT;
+    if (shift > BRIGHT_OCT) shift = BRIGHT_OCT; else if (shift < -BRIGHT_OCT) shift = -BRIGHT_OCT;
+    const dir = slot.filterType === 'highpass' ? -1 : 1;
+    freq = slot.filterBase * Math.pow(2, dir * shift);
+  }
+  slot.filter.frequency.setValueAtTime(freq, t);
+}
+
 /**
  * trigger(voice, ev, t, sixteenth, barSeconds)
  * Fires one scheduler event at audio time `t`.
@@ -172,6 +197,7 @@ export function trigger(voice, ev, t, sixteenth, barSeconds) {
     const slot = note === null ? undefined : voice.byNote?.[note];
     if (!slot) return;
     const { synth, trig } = slot;
+    applyBrightness(slot, ev.vel, t);
     if (trig.sig === 'noise') {
       synth.triggerAttackRelease(trig.dur ?? '16n', t, lockVel(trig.velocity, ev.vel));
     } else {

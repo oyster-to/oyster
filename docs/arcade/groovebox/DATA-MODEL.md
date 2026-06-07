@@ -38,7 +38,10 @@ song = {
       // LOCK (per-step parameter lock) — optional trailing object, the ONE
       //   extensible per-step slot: { v }. v multiplies the voice's base
       //   velocity (0 < v <= 2; product clamped to 0..1). Absent → base
-      //   velocity unchanged. Strict-keyed, so a typo'd/unknown key is rejected
+      //   velocity unchanged. On drum voices that carry a tone filter (e.g.
+      //   hat/crash) v ALSO shifts the cutoff (accents fuller, ghosts thinner) —
+      //   an engine rendering of v, not a separate field. Strict-keyed, so a
+      //   typo'd/unknown key is rejected
       //   at publish (validate.js) rather than silently ignored. Future per-step
       //   params (e.g. micro-timing 't') join this same object — no new tuple
       //   position. Drum 2-element tuple is type-discriminated: a number is a

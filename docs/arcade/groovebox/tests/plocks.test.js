@@ -157,6 +157,50 @@ test('locked melody: vel multiplies the 0.82 base', () => {
   expect(lastVel(synth)).toBeCloseTo(0.41);
 });
 
+// ── velocity → brightness: a locked drum hit also moves its filter cutoff ──
+// Accent (vel>1) pulls a HIGHPASS down (fuller); ghost (vel<1) pushes it up
+// (thinner). Unfiltered slots are volume-only. Cutoff is set at audio time t.
+function fakeFilter(type, base) {
+  const calls = [];
+  return { type, _base: base, frequency: { setValueAtTime: (v, t) => calls.push([v, t]) }, calls };
+}
+const lastFreq = f => f.calls.at(-1)[0];
+
+test('accent on a highpass-filtered drum lowers the cutoff below base', () => {
+  const synth = fakeSynth(), filter = fakeFilter('highpass', 7000);
+  const voice = { byNote: { 42: { synth, trig: { sig: 'noise', dur: '32n', velocity: 0.6 }, filter, filterBase: 7000, filterType: 'highpass' } } };
+  trigger(voice, { type: 'drums', voice: 42, vel: 1.9 }, 5, 0.1, 1.6);
+  expect(lastFreq(filter)).toBeLessThan(7000);
+});
+
+test('ghost on a highpass-filtered drum raises the cutoff above base', () => {
+  const synth = fakeSynth(), filter = fakeFilter('highpass', 7000);
+  const voice = { byNote: { 42: { synth, trig: { sig: 'noise', dur: '32n', velocity: 0.6 }, filter, filterBase: 7000, filterType: 'highpass' } } };
+  trigger(voice, { type: 'drums', voice: 42, vel: 0.3 }, 5, 0.1, 1.6);
+  expect(lastFreq(filter)).toBeGreaterThan(7000);
+});
+
+test('an unlocked hit on a filtered slot resets the cutoff to base (no stuck filter)', () => {
+  const synth = fakeSynth(), filter = fakeFilter('highpass', 7000);
+  const voice = { byNote: { 42: { synth, trig: { sig: 'noise', dur: '32n', velocity: 0.6 }, filter, filterBase: 7000, filterType: 'highpass' } } };
+  trigger(voice, { type: 'drums', voice: 42 }, 5, 0.1, 1.6);
+  expect(lastFreq(filter)).toBe(7000);
+});
+
+test('brightness is scheduled at the hit time t', () => {
+  const synth = fakeSynth(), filter = fakeFilter('highpass', 7000);
+  const voice = { byNote: { 42: { synth, trig: { sig: 'noise', dur: '32n', velocity: 0.6 }, filter, filterBase: 7000, filterType: 'highpass' } } };
+  trigger(voice, { type: 'drums', voice: 42, vel: 1.5 }, 9, 0.1, 1.6);
+  expect(filter.calls.at(-1)[1]).toBe(9);
+});
+
+test('a locked hit on an unfiltered slot still fires (volume-only, no crash)', () => {
+  const synth = fakeSynth();
+  const voice = { byNote: { 36: { synth, trig: { sig: 'note', note: 'C1', dur: '8n', velocity: undefined }, filter: null, filterBase: 0, filterType: null } } };
+  expect(() => trigger(voice, { type: 'drums', voice: 36, vel: 0.5 }, 0, 0.1, 1.6)).not.toThrow();
+  expect(lastVel(synth)).toBe(0.5);
+});
+
 // ── validator: the lock object is the strict contract surface ──
 const groove = bars => ({ laneType: 'melody', meter: meter44, relative: true, bars });
 
