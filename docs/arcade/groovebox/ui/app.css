@@ -2379,6 +2379,58 @@ body.gb-knob-values .knob-val { display: block; }
 [data-theme="megadrive"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(216,180,74,0.3); background: rgba(216,180,74,0.07); }
 [data-theme="megadrive"] .vc.hit.now { box-shadow: 0 0 10px rgba(216,180,74,0.5), inset 0 1px 0 rgba(255,255,255,0.25); }
 
+[data-theme="switch"] {
+  /* BODY — the black tablet; neon-blue/neon-red Joy-Cons live on the page
+     surround (body gradient below) and in the accents */
+  --bg:          #0b0b0d;
+  --panel:       #161619;
+  --panel-2:     #1f1f23;
+  --panel-3:     #2a2a2f;
+  --line:        rgba(255,255,255,.09);
+  --line-dk:     rgba(0,0,0,.6);
+  --ink:         #f2f2f4;
+  --dim:         #9a9aa2;
+  --faint:       #606068;
+  --acc:         #0ab9e6;   /* neon blue (L) */
+  --acc-dim:     #0782a2;
+  --hot:         #ff3c28;   /* neon red (R) */
+  --warn:        #e8c020;
+  --ink-on-acc:  #03222c;
+  --meter-lo:    #0ab9e6;
+  --meter-mid:   #e8c020;
+  --meter-hi:    #ff3c28;
+  --chrome-hi:   #2a2a2e;
+  --chrome-mid:  #1c1c20;
+  --chrome-lo:   #101014;
+  --bevel-hi:    rgba(255,255,255,0.07);
+  --bevel-lo:    rgba(0,0,0,0.6);
+  /* SCREEN — black tablet screen: blue melody notes (L), red drum hits (R) */
+  --screen-bg:   #0d0d10;
+  --screen-glow: rgba(10,185,230,0.08);
+  --roll-bg:     #131316;
+  --roll-bg-blk: #0e0e11;
+  --roll-note:   #3ec8ec;
+  --grid-line:   #28282c;
+  --scope:       #6adcf8;
+  --playhead:    #ffffff;
+  --cell:        #141417;
+  --cell-alt:    #19191d;
+  --hit1:        #ff5a48;
+  --hit2:        #c22414;
+}
+/* The Joy-Con sandwich: neon blue on top, the black tablet in the middle,
+   neon red at the bottom. Fixed to the viewport so the bands hold on scroll. */
+[data-theme="switch"] body {
+  background: linear-gradient(180deg,
+    #0ab9e6 0%, #0ab9e6 10%,
+    #0b0b0d 24%, #0b0b0d 76%,
+    #ff3c28 90%, #ff3c28 100%);
+  background-attachment: fixed;
+}
+[data-theme="switch"] .vc.hit { box-shadow: 0 0 6px rgba(255,60,40,0.35), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
+[data-theme="switch"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(10,185,230,0.35); background: rgba(10,185,230,0.08); }
+[data-theme="switch"] .vc.hit.now { box-shadow: 0 0 10px rgba(10,185,230,0.55), inset 0 1px 0 rgba(255,255,255,0.25); }
+
 /* ─── § 5 — lane actions: dup + remove buttons ────────────────────────────── */
 .lane-actions {
   display: flex;
