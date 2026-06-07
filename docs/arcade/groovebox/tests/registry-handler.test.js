@@ -15,6 +15,7 @@ function memDb(rows = {}) {
       rows[row.id] = { ...row };
     },
     async update(id, fields) { Object.assign(rows[id], fields); },
+    async bumpPlays(id) { rows[id].plays = (rows[id].plays ?? 0) + 1; },
   };
 }
 
@@ -161,5 +162,36 @@ describe('PUT /api/registry/:id', () => {
 
   it('404 on unknown id (before any key check)', async () => {
     expect((await handleRegistry(put('zzzzzzzz', { editKey, name: 'n', author: '', payload: GROOVE_PAYLOAD }), db, SECRET)).status).toBe(404);
+  });
+});
+
+describe('POST /api/registry/:id/play', () => {
+  const playReq = (id) => new Request(`https://x/api/registry/${id}/play`, { method: 'POST' });
+  let db, id;
+  beforeEach(async () => {
+    db = memDb();
+    ({ id } = await (await handleRegistry(post(CREATE()), db, SECRET)).json());
+  });
+
+  it('204, increments plays', async () => {
+    expect((await handleRegistry(playReq(id), db, SECRET)).status).toBe(204);
+    expect((await handleRegistry(playReq(id), db, SECRET)).status).toBe(204);
+    expect(db.rows[id].plays).toBe(2);
+  });
+
+  it('404 on unknown id; non-POST methods rejected', async () => {
+    expect((await handleRegistry(playReq('zzzzzzzz'), db, SECRET)).status).toBe(404);
+    expect((await handleRegistry(new Request(`https://x/api/registry/${id}/play`), db, SECRET)).status).toBe(405);
+    expect((await handleRegistry(new Request(`https://x/api/registry/${id}/play`, { method: 'PUT', body: '{}' }), db, SECRET)).status).toBe(405);
+  });
+
+  it('plays survives owner updates and cannot be set via PUT body', async () => {
+    await handleRegistry(playReq(id), db, SECRET);
+    // PUT with plays in body → 400 (strict keys protect the counter)
+    const res = await handleRegistry(new Request(`https://x/api/registry/${id}`, {
+      method: 'PUT', body: JSON.stringify({ editKey: 'k'.repeat(43), name: 'n', author: '', payload: GROOVE_PAYLOAD, plays: 9000 }),
+    }), db, SECRET);
+    expect(res.status).toBe(400);
+    expect(db.rows[id].plays).toBe(1);
   });
 });

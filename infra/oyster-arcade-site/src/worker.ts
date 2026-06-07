@@ -46,6 +46,9 @@ function d1Db(d1: D1Database) {
       await d1.prepare(`UPDATE ${T} SET name=?, author=?, payload=?, revision=?, updated_at=? WHERE id=?`)
         .bind(f.name, f.author, f.payload, f.revision, f.updated_at, id).run();
     },
+    async bumpPlays(id: string) {
+      await d1.prepare(`UPDATE ${T} SET plays = plays + 1 WHERE id = ?`).bind(id).run();
+    },
   };
 }
 
@@ -55,7 +58,10 @@ export default {
 
     // ─── Share registry API (all hosts; same-origin from both prod domains) ──
     if (url.pathname === '/api/registry' || url.pathname.startsWith('/api/registry/')) {
-      if (req.method === 'POST' || req.method === 'PUT') {
+      // /play beacons (exact shape only) are exempt from the write limit —
+      // they'd starve a publisher's 5/min budget; inflated counts are low-stakes.
+      const isPlayBeacon = req.method === 'POST' && /^\/api\/registry\/[a-z0-9]{8}\/play$/.test(url.pathname);
+      if ((req.method === 'POST' || req.method === 'PUT') && !isPlayBeacon) {
         const ip = req.headers.get('cf-connecting-ip') ?? 'unknown';
         const rl = await env.WRITE_LIMIT?.limit({ key: ip });   // binding absent in local dev → skip
         if (rl && !rl.success) {

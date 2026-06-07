@@ -62,3 +62,5 @@ async function call(method, path, body) {
 export const createItem = (body) => call('POST', '', body);            // → { id, editKey }
 export const getItem = (id) => call('GET', `/${id}`);                  // → record
 export const updateItem = (id, body) => call('PUT', `/${id}`, body);   // → { revision }
+// Fire-and-forget play beacon — never blocks or breaks the load path.
+export const pingPlay = (id) => { fetch(`${API_BASE}/${id}/play`, { method: 'POST' }).catch(() => {}); };
