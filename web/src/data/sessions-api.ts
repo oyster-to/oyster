@@ -17,7 +17,7 @@ import type {
 } from "../../../shared/types";
 import { ApiError, getJson, apiPath } from "./http";
 import { caps } from "../caps";
-import { freshRelayState, relayPath } from "./relay";
+import { freshRelayState, relayPath, withRelayTimeout } from "./relay";
 import {
   fetchCloudSessions,
   fetchCloudSession,
@@ -155,7 +155,7 @@ export async function searchTranscripts(
       try {
         const hits = await getJson<TranscriptHit[]>(
           relayPath(d.device_id, `/api/sessions/search?${params.toString()}`),
-          withTimeout(opts.signal, 3_000),
+          withRelayTimeout(opts.signal, 3_000),
         );
         return hits.map((h) => ({ ...h, originDeviceLabel: d.device_label }));
       } catch {
@@ -166,14 +166,6 @@ export async function searchTranscripts(
   }
 
   return getJson<TranscriptHit[]>(apiPath(`/api/sessions/search?${params.toString()}`), opts.signal);
-}
-
-/** Combine the caller's signal with a per-request timeout. AbortSignal.any
- *  is baseline in every browser the cloud build targets; the fallback just
- *  drops the timeout rather than the caller's signal. */
-function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal | undefined {
-  if (typeof AbortSignal.any !== "function" || typeof AbortSignal.timeout !== "function") return signal;
-  return signal ? AbortSignal.any([signal, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms);
 }
 
 // The list endpoint strips `raw` from every event to keep the payload

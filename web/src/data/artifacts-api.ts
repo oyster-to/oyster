@@ -4,7 +4,7 @@ import { getJson, patchJson, postJson, postEmpty, del, apiPath } from "./http";
 import { caps } from "../caps";
 import { fetchCloudPublications } from "./cloud-publications";
 import { fetchCloudArtifacts } from "./cloud-artifacts";
-import { freshRelayState, relayPath } from "./relay";
+import { freshRelayState, relayPath, withRelayTimeout } from "./relay";
 
 export async function fetchArtifacts(signal?: AbortSignal): Promise<Artifact[]> {
   // Cloud Artefacts tab = the synced registry, plus orphan live publications
@@ -45,10 +45,16 @@ async function enrichWithLiveDevices(rows: Artifact[], signal?: AbortSignal): Pr
     if (online.length === 0) return rows;
     const lists = await Promise.all(online.map(async (d) => {
       try {
-        const artifacts = await getJson<Artifact[]>(relayPath(d.device_id, "/api/artifacts"), signal);
+        // 3s budget per device: a wedged device degrades that device's
+        // rows to the mirror; without it, Promise.all would hold the
+        // whole artefact list hostage until the relay's 30s timeout.
+        const artifacts = await getJson<Artifact[]>(
+          relayPath(d.device_id, "/api/artifacts"),
+          withRelayTimeout(signal, 3_000),
+        );
         return { deviceId: d.device_id, artifacts };
       } catch {
-        return null; // one slow/offline device must not block the rest
+        return null; // slow or offline — this device's rows stay inert
       }
     }));
     // artifact_id → live open target. Three cases from the device's own

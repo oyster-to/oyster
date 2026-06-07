@@ -48,7 +48,23 @@ const listeners = new Set<() => void>();
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 function emit(): void {
-  for (const fn of listeners) fn();
+  for (const fn of listeners) {
+    try { fn(); }
+    catch (err) {
+      // One broken subscriber must not starve the others or break the
+      // poll flow that triggered the emit (same posture as ui-events).
+      console.warn("[relay] listener failed:", err);
+    }
+  }
+}
+
+/** Combine a caller's signal with a per-request timeout — used by the
+ *  fan-out callers (artefact enrichment, ⌘K) so one wedged device can't
+ *  stall a whole surface. AbortSignal.any is baseline in the browsers the
+ *  cloud build targets; the fallback drops the timeout, never the signal. */
+export function withRelayTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal | undefined {
+  if (typeof AbortSignal.any !== "function" || typeof AbortSignal.timeout !== "function") return signal;
+  return signal ? AbortSignal.any([signal, AbortSignal.timeout(ms)]) : AbortSignal.timeout(ms);
 }
 
 async function fetchStatus(signal?: AbortSignal): Promise<RelayState> {

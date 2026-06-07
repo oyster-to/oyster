@@ -54,7 +54,7 @@ export function RelayDevicesChip() {
         type="button"
         className="relay-chip__pill"
         onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
+        aria-haspopup="true"
         aria-expanded={open}
         title={live.length > 0
           ? `${live.length} device${live.length === 1 ? "" : "s"} serving live content`
@@ -65,7 +65,7 @@ export function RelayDevicesChip() {
       </button>
 
       {open && (
-        <div className="auth-chip__menu relay-chip__menu" role="menu">
+        <div className="auth-chip__menu relay-chip__menu">
           <div className="relay-chip__menu-title">Devices</div>
           {live.length === 0 && state.disabled.length === 0 && (
             <div className="relay-chip__menu-empty">
@@ -74,7 +74,7 @@ export function RelayDevicesChip() {
             </div>
           )}
           {live.map((d) => (
-            <div key={d.device_id} className="relay-chip__device" role="menuitem">
+            <div key={d.device_id} className="relay-chip__device">
               <span className="relay-chip__device-label" title={d.device_label ?? d.device_id}>
                 <span className="relay-chip__dot relay-chip__dot--live" aria-hidden="true" />
                 {d.device_label ?? d.device_id.slice(0, 8)}
@@ -91,7 +91,7 @@ export function RelayDevicesChip() {
             </div>
           ))}
           {state.disabled.map((d) => (
-            <div key={d.device_id} className="relay-chip__device relay-chip__device--disabled" role="menuitem">
+            <div key={d.device_id} className="relay-chip__device relay-chip__device--disabled">
               <span className="relay-chip__device-label" title={d.device_label ?? d.device_id}>
                 <span className="relay-chip__dot" aria-hidden="true" />
                 {d.device_label ?? d.device_id.slice(0, 8)}
