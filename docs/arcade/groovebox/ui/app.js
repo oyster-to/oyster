@@ -368,10 +368,9 @@ function renderPicker() {
     host.appendChild(s);
   };
 
-  sect('PRESETS');
-  for (const key of PRESET_ORDER) {
+  const presetCart = (key) => {
     const s = SONGS[key];
-    if (!s) continue;
+    if (!s) return;
     host.appendChild(cartEl({
       cls: AI_PRESETS.has(key) ? 'ai' : 'cover',
       title: s.title || key,
@@ -379,7 +378,12 @@ function renderPicker() {
       selected: _currentSongKey === key,
       onPick: () => { closePicker(); loadSong(key); },
     }));
-  }
+  };
+
+  sect('BUILT-IN');
+  for (const key of PRESET_ORDER) if (AI_PRESETS.has(key)) presetCart(key);
+
+  // The social shelf rides high — right under the house carts.
   if (_sharedItems.length) {
     sect('SHARED — FROM OTHER PLAYERS');
     for (const it of _sharedItems) {
@@ -402,6 +406,9 @@ function renderPicker() {
       }));
     }
   }
+
+  sect('JUKEBOX — COVERS');
+  for (const key of PRESET_ORDER) if (!AI_PRESETS.has(key)) presetCart(key);
 }
 
 function openPicker() {
