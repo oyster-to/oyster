@@ -14,7 +14,8 @@ import { scallywag } from '../songs/scallywag.js';
 import { booWaltz } from '../songs/boo-waltz.js';
 import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
-import { initShare, maybeLoadShared, clearLoadedFrom } from './share.js';
+import { initShare, maybeLoadShared, loadSharedSong, clearLoadedFrom } from './share.js';
+import { listItems } from '../registry/client.js';
 import { openPunchEditor, isPunchEditorOpen } from './punch-editor.js';
 import { DEFAULT_PRESETS } from '../engine/punch-presets.js';
 
@@ -1234,7 +1235,21 @@ document.getElementById('play').onclick = async function() {
 };
 // (Tempo + transpose controls live on MASTER — built in renderMaster().)
 
-document.getElementById('songsel').onchange = e => loadSong(e.target.value);
+document.getElementById('songsel').onchange = async e => {
+  const v = e.target.value;
+  if (v.startsWith('s:')) {
+    // Shelf entry — a published song from the registry. Stop first, like loadSong.
+    eng.stop();
+    stopMeterLoop();
+    const play = document.getElementById('play');
+    play.classList.remove('on');
+    play.textContent = '▶ play';
+    try { await loadSharedSong(eng, shareHooks, v.slice(2)); }
+    catch (err) { gbNotice(`couldn't load (${err.message})`); }
+    return;
+  }
+  loadSong(v);
+};
 document.getElementById('themesel').onchange = e => {
   const t = e.target.value;
   if (t === 'oyster') delete document.documentElement.dataset.theme;
@@ -1713,8 +1728,10 @@ const shareHooks = {
   notice: gbNotice,
   onSongLoaded: (rec) => {
     afterSongLoad();
-    // songsel no longer matches a preset — park it on a hidden "(shared)" option.
     const sel = document.getElementById('songsel');
+    // Loaded from the shelf? The dropdown already sits on the right entry.
+    if (rec && sel.value === `s:${rec.id}`) return;
+    // Otherwise (boot-time /s/<id> link) — park it on a hidden option.
     let opt = document.getElementById('songsel-shared');
     if (!opt) {
       opt = document.createElement('option');
@@ -1738,6 +1755,27 @@ const shareHooks = {
 };
 initShare(eng, shareHooks);
 maybeLoadShared(eng, shareHooks);
+
+// ─── Discovery shelf — recent published songs in the song dropdown ───────────
+// Fire-and-forget: no registry (vite dev / offline) → no shelf, app unaffected.
+(async () => {
+  try {
+    const { items } = await listItems('song', 25);
+    if (!Array.isArray(items) || !items.length) return;
+    const sel = document.getElementById('songsel');
+    const grp = document.createElement('optgroup');
+    grp.label = 'Shared';
+    for (const it of items) {
+      const o = document.createElement('option');
+      o.value = `s:${it.id}`;
+      const plays = typeof it.plays === 'number' && it.plays > 0
+        ? ` · ${it.plays} play${it.plays === 1 ? '' : 's'}` : '';
+      o.textContent = `♫ ${it.name}${it.author ? ` — ${it.author}` : ''}${plays}`;
+      grp.appendChild(o);
+    }
+    sel.appendChild(grp);
+  } catch { /* shelf is best-effort */ }
+})();
 // Press-and-hold on a control must not open the browser context menu (Android
 // Chrome long-press → "more actions / translate"). Scoped to controls so
 // right-click elsewhere stays normal on desktop.

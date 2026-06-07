@@ -49,6 +49,14 @@ function d1Db(d1: D1Database) {
     async bumpPlays(id: string) {
       await d1.prepare(`UPDATE ${T} SET plays = plays + 1 WHERE id = ?`).bind(id).run();
     },
+    // Discovery shelf — light rows, newest first (payload + edit_key_hash never leave D1 here).
+    async list(kind: string, limit: number) {
+      const { results } = await d1.prepare(
+        `SELECT id, kind, name, author, plays, remix_of, created_at FROM ${T}
+         WHERE kind = ? ORDER BY created_at DESC LIMIT ?`)
+        .bind(kind, limit).all();
+      return results;
+    },
   };
 }
 

@@ -16,6 +16,12 @@ function memDb(rows = {}) {
     },
     async update(id, fields) { Object.assign(rows[id], fields); },
     async bumpPlays(id) { rows[id].plays = (rows[id].plays ?? 0) + 1; },
+    async list(kind, limit) {
+      return Object.values(rows)
+        .filter(r => r.kind === kind)
+        .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+        .slice(0, limit);
+    },
   };
 }
 
@@ -193,5 +199,52 @@ describe('POST /api/registry/:id/play', () => {
     }), db, SECRET);
     expect(res.status).toBe(400);
     expect(db.rows[id].plays).toBe(1);
+  });
+});
+
+describe('GET /api/registry (list — the discovery shelf)', () => {
+  let db; beforeEach(() => { db = memDb(); });
+  const listReq = (qs = '') => new Request(`https://groovebox.oyster.to/api/registry${qs}`);
+
+  async function seed(kind, name, plays = 0) {
+    const res = await handleRegistry(post(CREATE({
+      kind, name,
+      schema_version: kind === 'song' ? 2 : 1,
+      payload: kind === 'song' ? SONG_PAYLOAD : GROOVE_PAYLOAD,
+    })), db, SECRET);
+    expect(res.status).toBe(201);
+    const { id } = await res.json();
+    db.rows[id].plays = plays;
+    return id;
+  }
+
+  it('returns light song rows — no payload, no edit_key_hash', async () => {
+    await seed('song', 'Cool Song', 7);
+    await seed('groove', 'Some Groove');
+    const res = await handleRegistry(listReq('?kind=song'), db, SECRET);
+    expect(res.status).toBe(200);
+    const { items } = await res.json();
+    expect(items).toHaveLength(1);
+    expect(items[0].name).toBe('Cool Song');
+    expect(items[0].plays).toBe(7);
+    expect(items[0].author).toBe('Henry');
+    expect(items[0]).not.toHaveProperty('payload');
+    expect(items[0]).not.toHaveProperty('edit_key_hash');
+  });
+
+  it('defaults to kind=song; bad kind → 400; limit clamps to 50', async () => {
+    await seed('song', 'A');
+    const def = await handleRegistry(listReq(''), db, SECRET);
+    expect((await def.json()).items).toHaveLength(1);
+    const bad = await handleRegistry(listReq('?kind=banana'), db, SECRET);
+    expect(bad.status).toBe(400);
+    const big = await handleRegistry(listReq('?limit=999'), db, SECRET);
+    expect(big.status).toBe(200);   // clamp is the db arg; just must not error
+  });
+
+  it('grooves listable too', async () => {
+    await seed('groove', 'G1');
+    const res = await handleRegistry(listReq('?kind=groove'), db, SECRET);
+    expect((await res.json()).items.map(i => i.name)).toEqual(['G1']);
   });
 });

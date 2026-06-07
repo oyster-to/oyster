@@ -169,6 +169,26 @@ export function initShare(eng, hooks) {
   $('share-copy').onclick = () => { navigator.clipboard?.writeText($('share-link').value); hooks.notice('link copied'); };
 }
 
+// Apply a fetched song record: registry state, play beacon, engine load, UI hooks.
+// Shared by the boot loader (/s/<id>) and the dropdown's discovery shelf.
+function applySharedSong(eng, hooks, rec) {
+  loadedFrom = { id: rec.id, kind: rec.kind };
+  pingPlay(rec.id);
+  const n = typeof rec.plays === 'number' ? rec.plays + 1 : null;
+  const plays = n ? ` · ${n} play${n === 1 ? '' : 's'}` : '';
+  eng.load(rec.payload);
+  hooks.onSongLoaded(rec);
+  hooks.notice(`loaded "${rec.name}"${rec.author ? ` by ${rec.author}` : ''}${plays}`);
+}
+
+// Load a published song by id (the dropdown shelf). Throws on fetch errors /
+// non-song kinds — the caller owns the user-facing failure message.
+export async function loadSharedSong(eng, hooks, id) {
+  const rec = await getItem(id);
+  if (rec.kind !== 'song') throw new Error('not a song');
+  applySharedSong(eng, hooks, rec);
+}
+
 // Boot-time: /s/<id> was redirected to /?s=<id> by the worker. Returns true if
 // a share id was present (whether or not it loaded).
 export async function maybeLoadShared(eng, hooks) {
@@ -176,15 +196,11 @@ export async function maybeLoadShared(eng, hooks) {
   if (!id) return false;
   try {
     const rec = await getItem(id);
-    loadedFrom = { id: rec.id, kind: rec.kind };
-    pingPlay(rec.id);
-    const n = typeof rec.plays === 'number' ? rec.plays + 1 : null;
-    const plays = n ? ` · ${n} play${n === 1 ? '' : 's'}` : '';
     if (rec.kind === 'song') {
-      eng.load(rec.payload);
-      hooks.onSongLoaded(rec);
-      hooks.notice(`loaded "${rec.name}"${rec.author ? ` by ${rec.author}` : ''}${plays}`);
+      applySharedSong(eng, hooks, rec);
     } else {
+      loadedFrom = { id: rec.id, kind: rec.kind };
+      pingPlay(rec.id);
       const lanes = pickHostLanes(eng.getLanes(), rec.payload.laneType);
       const laneId = lanes.length === 0 ? eng.addLane(rec.payload.laneType).id
                    : lanes.length === 1 ? lanes[0].id
