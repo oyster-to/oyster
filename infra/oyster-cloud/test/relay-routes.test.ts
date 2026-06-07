@@ -239,7 +239,7 @@ describe("GET /api/relay/d/:deviceId/<path>", () => {
 
     for (const bad of [
       "/api/memories",                  // not on the allowlist
-      "/api/artifacts",                 // deliberately not in v1
+      "/api/chat/session",              // later slice, opt-in
       "/artifacts/%2e%2e/secrets",      // encoded traversal
       "/artifacts/%252e%252e/secrets",  // double-encoded traversal
       "/artifacts//gap",                // empty segment

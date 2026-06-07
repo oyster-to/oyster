@@ -19,8 +19,16 @@ export const RELAY_ALLOWLIST: ReadonlyArray<string> = [
   "/api/sessions",
   "/api/sessions/search",
   "/api/sessions/:id",
+  // The registry mirror deliberately does NOT sync artefact file URLs, so
+  // the cloud client must ask the live device for them before it can open
+  // anything through /artifacts/*. This is the one list-shaped route on
+  // the allowlist, and that's why.
+  "/api/artifacts",
   "/artifacts/*",
 ];
+
+// (Everything else stays off the list — notably no memories, no chat, no
+// resume; those are later slices behind per-device opt-in.)
 
 const MAX_PATH_CHARS = 2048;
 
