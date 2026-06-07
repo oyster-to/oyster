@@ -178,7 +178,8 @@ export async function maybeLoadShared(eng, hooks) {
     const rec = await getItem(id);
     loadedFrom = { id: rec.id, kind: rec.kind };
     pingPlay(rec.id);
-    const plays = typeof rec.plays === 'number' ? ` · ${rec.plays + 1} plays` : '';
+    const n = typeof rec.plays === 'number' ? rec.plays + 1 : null;
+    const plays = n ? ` · ${n} play${n === 1 ? '' : 's'}` : '';
     if (rec.kind === 'song') {
       eng.load(rec.payload);
       hooks.onSongLoaded(rec);

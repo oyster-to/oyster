@@ -58,9 +58,10 @@ export default {
 
     // ─── Share registry API (all hosts; same-origin from both prod domains) ──
     if (url.pathname === '/api/registry' || url.pathname.startsWith('/api/registry/')) {
-      // /play beacons are exempt from the write limit — they'd starve a
-      // publisher's 5/min budget; inflated counts are low-stakes.
-      if ((req.method === 'POST' || req.method === 'PUT') && !url.pathname.endsWith('/play')) {
+      // /play beacons (exact shape only) are exempt from the write limit —
+      // they'd starve a publisher's 5/min budget; inflated counts are low-stakes.
+      const isPlayBeacon = req.method === 'POST' && /^\/api\/registry\/[a-z0-9]{8}\/play$/.test(url.pathname);
+      if ((req.method === 'POST' || req.method === 'PUT') && !isPlayBeacon) {
         const ip = req.headers.get('cf-connecting-ip') ?? 'unknown';
         const rl = await env.WRITE_LIMIT?.limit({ key: ip });   // binding absent in local dev → skip
         if (rl && !rl.success) {
