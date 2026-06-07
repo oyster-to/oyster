@@ -26,10 +26,13 @@ export function drumVoiceAudible(drumsLane, voice) {
 export { DRUM_KEYS };
 
 export function transposeNote(note, semis) {
-  const m = note.match(/^([A-G]#?)(-?\d+)$/); if (!m) return note;
+  // Flats accepted (noteToPc below and the chord-line parser both produce/take
+  // them); output is sharp-canonical. Accidental as ±1 offset keeps Cb4 → B3
+  // octave-correct, matching Tone's parsing.
+  const m = note.match(/^([A-G])(#|b)?(-?\d+)$/); if (!m) return note;
   const N = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-  const i = N.indexOf(m[1]); if (i < 0) return note;
-  const t = i + (parseInt(m[2]) + 1) * 12 + semis;
+  const i = N.indexOf(m[1]) + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0);
+  const t = i + (parseInt(m[3]) + 1) * 12 + semis;
   return N[((t % 12) + 12) % 12] + (Math.floor(t / 12) - 1);
 }
 
