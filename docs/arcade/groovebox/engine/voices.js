@@ -20,6 +20,8 @@ import { DEFAULT_INSTRUMENTS, DEFAULT_KIT, validateInstrument, slotKey } from '.
  * via voice.lead. disposeLane prefers voice.dispose().)
  */
 
+const BRIGHT_OPEN = 18000;   // transparent lowpass base for pitched brightness inserts
+
 const CTOR_BY_ARCHETYPE = {
   membrane: 'MembraneSynth',
   noise:    'NoiseSynth',
@@ -80,10 +82,16 @@ export function compileSynthPatch(inst) {
 }
 
 // Build one connected voice from a plan. Returns { synth, filter }.
-function buildFromPlan(plan, bus) {
+// openInsert: when the plan has no filter, add a transparent open lowpass so a
+// velocity lock has a cutoff to modulate (pitched brightness). Drums pass false
+// and keep using their plan filter (or none).
+function buildFromPlan(plan, bus, openInsert = false) {
   let out = bus, filter = null;
   if (plan.filter) {
     filter = new Tone.Filter(plan.filter.freq, plan.filter.type).connect(bus);
+    out = filter;
+  } else if (openInsert) {
+    filter = new Tone.Filter(BRIGHT_OPEN, 'lowpass').connect(bus);
     out = filter;
   }
   let synth;
@@ -124,7 +132,14 @@ export function createVoiceForType(type, bus, opts = {}) {
       if (!inst) continue;
       const plan = compileSynthPatch(inst);
       const v = buildFromPlan(plan, bus);
-      byNote[note] = { synth: v.synth, trig: plan.trig };
+      // Carry the slot's tone filter so a velocity lock can move its cutoff per
+      // hit (brightness, not just loudness). Unfiltered slots stay volume-only.
+      byNote[note] = {
+        synth: v.synth, trig: plan.trig,
+        filter: v.filter,
+        filterBase: plan.filter ? plan.filter.freq : 0,
+        filterType: plan.filter ? plan.filter.type : null,
+      };
       nodes.push(v.synth, v.filter);
     }
     return { byNote, dispose() { for (const n of nodes) { try { n?.dispose?.(); } catch (_) {} } } };
@@ -133,11 +148,14 @@ export function createVoiceForType(type, bus, opts = {}) {
   if (!fallback) return {};
   const inst = resolveInstrument(opts.instrumentId ?? fallback, instruments, fallback);
   const plan = compileSynthPatch(inst);
-  const v = buildFromPlan(plan, bus);
+  const v = buildFromPlan(plan, bus, true);   // openInsert: a cutoff for velocity to modulate
   const dispose = () => { try { v.synth.dispose?.(); } catch (_) {} try { v.filter?.dispose?.(); } catch (_) {} };
-  if (type === 'bass')   return { bass: v.synth, trig: plan.trig, dispose };
-  if (type === 'chords') return { chordSyn: v.synth, chordFilter: v.filter, trig: plan.trig, dispose };
-  return { lead: v.synth, trig: plan.trig, dispose };
+  // Brightness modulates the character filter where one exists (chords @ 4200),
+  // else the open insert (bass/melody @ BRIGHT_OPEN — transparent at rest).
+  const tone = { toneFilter: v.filter, toneBase: plan.filter ? plan.filter.freq : BRIGHT_OPEN, toneType: plan.filter ? plan.filter.type : 'lowpass' };
+  if (type === 'bass')   return { bass: v.synth, trig: plan.trig, ...tone, dispose };
+  if (type === 'chords') return { chordSyn: v.synth, chordFilter: v.filter, trig: plan.trig, ...tone, dispose };
+  return { lead: v.synth, trig: plan.trig, ...tone, dispose };
 }
 
 // Note duration → seconds. DATA-MODEL allows durSteps|'bar' on ANY note lane;
@@ -147,6 +165,39 @@ export function createVoiceForType(type, bus, opts = {}) {
 function durSeconds(dur, sixteenth, barSeconds) {
   if (dur === 'bar') return barSeconds;
   return (typeof dur === 'number' && Number.isFinite(dur) && dur > 0 ? dur : 2) * sixteenth;
+}
+
+// Velocity p-lock: ev.vel multiplies the voice's base velocity, product clamped
+// to 0..1. Unlocked events (ev.vel == null) pass the base through UNCHANGED —
+// undefined base stays undefined (Tone defaults it), so legacy songs are
+// byte-identical. Scalar math only: nothing here allocates in the hot path.
+function lockVel(base, vel) {
+  if (vel == null) return base;
+  const v = (base ?? 1) * vel;
+  return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+
+// Velocity → brightness: a lock shifts a tone filter's cutoff by up to ~1.5
+// octaves so accents pass MORE energy and ghosts less — a HIGHPASS moves DOWN on
+// an accent (fuller), a LOWPASS moves UP (brighter). Scheduled at audio time t;
+// every locked-or-not hit re-asserts a value (base when unlocked) so the filter
+// never sticks. No-op when there's no filter. Scalar math, no allocs.
+// Drums modulate their slot's own tone filter (hat/crash highpass). Pitched
+// lanes modulate either their character lowpass (chords @ 4200) or an OPEN insert
+// (bass/melody @ ~18k — transparent at rest, so unlocked notes are unchanged;
+// ghosts darken, accents stay bright). Same-lane note overlaps share the filter
+// (a soft tail can be nudged by the next note) — mild and musical, Elektron-ish.
+const BRIGHT_OCT = 1.5;
+function shiftCutoff(filter, base, type, vel, t) {
+  if (!filter) return;
+  let freq = base;
+  if (vel != null) {
+    let shift = (vel - 1) * BRIGHT_OCT;
+    if (shift > BRIGHT_OCT) shift = BRIGHT_OCT; else if (shift < -BRIGHT_OCT) shift = -BRIGHT_OCT;
+    const dir = type === 'highpass' ? -1 : 1;
+    freq = base * Math.pow(2, dir * shift);
+  }
+  filter.frequency.setValueAtTime(freq, t);
 }
 
 /**
@@ -162,20 +213,24 @@ export function trigger(voice, ev, t, sixteenth, barSeconds) {
     const slot = note === null ? undefined : voice.byNote?.[note];
     if (!slot) return;
     const { synth, trig } = slot;
+    shiftCutoff(slot.filter, slot.filterBase, slot.filterType, ev.vel, t);
     if (trig.sig === 'noise') {
-      synth.triggerAttackRelease(trig.dur ?? '16n', t, trig.velocity);
+      synth.triggerAttackRelease(trig.dur ?? '16n', t, lockVel(trig.velocity, ev.vel));
     } else {
       const base = trig.note ?? 'C3';
       const pitch = ev.semi ? Tone.Frequency(base).transpose(ev.semi) : base;
-      synth.triggerAttackRelease(pitch, trig.dur ?? '8n', t, trig.velocity);
+      synth.triggerAttackRelease(pitch, trig.dur ?? '8n', t, lockVel(trig.velocity, ev.vel));
     }
   } else if (ev.type === 'bass') {
-    voice.bass.triggerAttackRelease(ev.note, durSeconds(ev.dur, sixteenth, barSeconds), t, voice.trig?.velocity ?? 0.85);
+    shiftCutoff(voice.toneFilter, voice.toneBase, voice.toneType, ev.vel, t);
+    voice.bass.triggerAttackRelease(ev.note, durSeconds(ev.dur, sixteenth, barSeconds), t, lockVel(voice.trig?.velocity ?? 0.85, ev.vel));
   } else if (ev.type === 'melody') {
-    voice.lead.triggerAttackRelease(ev.note, durSeconds(ev.dur, sixteenth, barSeconds), t, voice.trig?.velocity ?? 0.82);
+    shiftCutoff(voice.toneFilter, voice.toneBase, voice.toneType, ev.vel, t);
+    voice.lead.triggerAttackRelease(ev.note, durSeconds(ev.dur, sixteenth, barSeconds), t, lockVel(voice.trig?.velocity ?? 0.82, ev.vel));
   } else if (ev.type === 'chords') {
+    shiftCutoff(voice.toneFilter, voice.toneBase, voice.toneType, ev.vel, t);
     // Arp hits ride slightly hotter than sustained voicings (legacy 0.34 vs 0.30).
-    if (ev.mode === 'arp') voice.chordSyn.triggerAttackRelease(ev.note, sixteenth, t, 0.34);
-    else voice.chordSyn.triggerAttackRelease(ev.notes, durSeconds(ev.dur, sixteenth, barSeconds), t, voice.trig?.velocity ?? 0.3);
+    if (ev.mode === 'arp') voice.chordSyn.triggerAttackRelease(ev.note, sixteenth, t, lockVel(0.34, ev.vel));
+    else voice.chordSyn.triggerAttackRelease(ev.notes, durSeconds(ev.dur, sixteenth, barSeconds), t, lockVel(voice.trig?.velocity ?? 0.3, ev.vel));
   }
 }

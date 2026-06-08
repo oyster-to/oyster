@@ -31,9 +31,23 @@ song = {
       // LITERAL bars[] — each bar:
       // drums lane:   { kick:[steps], snare:[steps], hat:[steps], crash:[steps],
       //                 tom:[[step, semitoneOffset], …] }
-      // other lanes:  [ [step, note|notes[], durSteps|'bar'], … ]
+      //               a drum step is a number, OR a tuple carrying a lock:
+      //               [step, lock] (noise slot) | [step, semitoneOffset, lock] (tom)
+      // other lanes:  [ [step, note|notes[], durSteps|'bar', lock?], … ]
       //               note = 'C4' style; notes[] = simultaneous (chords)
-      // RELATIVE relBars[] — each bar: [ [step, REF, durSteps|'bar'], … ]
+      // LOCK (per-step parameter lock) — optional trailing object, the ONE
+      //   extensible per-step slot: { v }. v multiplies the voice's base
+      //   velocity (0 < v <= 2; product clamped to 0..1). Absent → base
+      //   velocity unchanged. v ALSO shifts a tone-filter cutoff (accents
+      //   brighter/fuller, ghosts darker/thinner): drums via their hat/crash
+      //   filter, pitched lanes via the chords' character lowpass or a
+      //   transparent insert on bass/melody — an engine rendering of v, not a
+      //   separate field. Strict-keyed, so a typo'd/unknown key is rejected
+      //   at publish (validate.js) rather than silently ignored. Future per-step
+      //   params (e.g. micro-timing 't') join this same object — no new tuple
+      //   position. Drum 2-element tuple is type-discriminated: a number is a
+      //   semitone, an object is a lock.
+      // RELATIVE relBars[] — each bar: [ [step, REF, durSteps|'bar', lock?], … ]
       //   REFs resolve against the PATTERN's chord for that bar
       //   (pattern.chords[barInPattern % chords.length]):
       //     'R'        → chord.root
@@ -77,6 +91,7 @@ song = {
 4. Groove lengths are 1–8 bars. **The schema permits any length 1–8** (`bar % groove.length` cycling is length-agnostic; non-dividing lengths truncate their cycle at each pattern repeat) — but **the UI stays opinionated at 1/2/4/8**: powers of two always nest evenly, so nothing drifts. Arbitrary 3/5/7-bar grooves are musically surprising and stay a deliberate future decision, not a default.
 5. The whole song is **pure JSON** — no functions, no hidden state. This is the property that makes grooves/patterns/songs shareable and LLM-authorable. Never add a non-serializable field.
 6. Playback state (the chain-position/pattern-loop target, edit selection, fill queue) is **engine runtime, never part of the song**.
+7. **Per-step locks are additive and inert by default:** a lock-less step plays exactly as before (byte-identical legacy songs). The lock object never adds, removes, or retimes a note — it only modulates the voice at trigger time. A song with no locks is indistinguishable from a pre-lock song; the parity suite (legacy note stream, no velocity) therefore stays valid unchanged.
 
 ## The legacy bridge (read-only, temporary)
 

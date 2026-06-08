@@ -134,8 +134,9 @@ export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = 
       const bars = grooveBars(g);
       const bar = fillPat || (bars ? bars[barInPattern % bars.length] : null) || {};
       // Slot-agnostic: keys are canonical GM numbers post-ingest (slotKey also
-      // tolerates raw name keys). Steps are numbers or [step, semi] pairs —
-      // any slot may be pitched. for-in: no per-step allocations.
+      // tolerates raw name keys). Steps are numbers, [step, semi] pairs, or
+      // lock-carrying [step, lock] / [step, semi, lock] (type-discriminated:
+      // number = semi, object = lock). for-in: no per-step allocations.
       for (const k in bar) {
         const steps = bar[k];
         if (!Array.isArray(steps)) continue;
@@ -147,7 +148,17 @@ export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = 
             if (s === step && drumVoiceAudible(lane, note))
               ev.push({ laneId: lane.id, type: 'drums', voice: note });
           } else if (Array.isArray(s) && s[0] === step && drumVoiceAudible(lane, note)) {
-            ev.push({ laneId: lane.id, type: 'drums', voice: note, semi: s[1] ?? 0 });
+            const a = s[1];
+            // Position 1 is a semitone (number) or a lock (PLAIN object) — never
+            // an array (matches the validator + contract). Garbage falls through
+            // to no-semi/base, and the lock is read from s[2].
+            const isLock = a !== null && typeof a === 'object' && !Array.isArray(a);
+            const lock = isLock ? a : s[2];
+            const e = isLock
+              ? { laneId: lane.id, type: 'drums', voice: note }
+              : { laneId: lane.id, type: 'drums', voice: note, semi: typeof a === 'number' ? a : 0 };
+            if (lock && typeof lock.v === 'number') e.vel = lock.v;
+            ev.push(e);
           }
         }
       }
@@ -158,29 +169,35 @@ export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = 
     if (g && g.relative) {
       // Chord-relative: resolve each REF against the pattern's chord for this bar.
       // No chords on the pattern → the lane is silent (resolveRef → null).
-      for (const [s, ref, dur] of notes) {
+      for (const [s, ref, dur, lock] of notes) {
         if (s !== step) continue;
         const resolved = resolveRef(ref, chord);
         if (resolved == null) continue;
+        let e;
         if (Array.isArray(resolved)) {
-          ev.push({ laneId: lane.id, type: 'chords', mode: 'pad', notes: resolved.map(T), dur });
+          e = { laneId: lane.id, type: 'chords', mode: 'pad', notes: resolved.map(T), dur };
         } else if (lane.type === 'chords') {
-          ev.push({ laneId: lane.id, type: 'chords', mode: 'arp', note: T(resolved), dur });
+          e = { laneId: lane.id, type: 'chords', mode: 'arp', note: T(resolved), dur };
         } else {
-          ev.push({ laneId: lane.id, type: lane.type, note: T(resolved), dur });
+          e = { laneId: lane.id, type: lane.type, note: T(resolved), dur };
         }
+        if (lock && typeof lock.v === 'number') e.vel = lock.v;
+        ev.push(e);
       }
       continue;
     }
-    // Literal groove — untouched behaviour.
-    for (const [s, n, dur] of notes) {
+    // Literal groove — untouched behaviour (plus the optional 4th-element lock).
+    for (const [s, n, dur, lock] of notes) {
       if (s !== step) continue;
+      let e;
       if (lane.type === 'chords') {
-        if (Array.isArray(n)) ev.push({ laneId: lane.id, type: 'chords', mode: 'pad', notes: n.map(T), dur });
-        else ev.push({ laneId: lane.id, type: 'chords', mode: 'arp', note: T(n), dur });
+        if (Array.isArray(n)) e = { laneId: lane.id, type: 'chords', mode: 'pad', notes: n.map(T), dur };
+        else e = { laneId: lane.id, type: 'chords', mode: 'arp', note: T(n), dur };
       } else {
-        ev.push({ laneId: lane.id, type: lane.type, note: T(n), dur });
+        e = { laneId: lane.id, type: lane.type, note: T(n), dur };
       }
+      if (lock && typeof lock.v === 'number') e.vel = lock.v;
+      ev.push(e);
     }
   }
   return ev;
@@ -294,7 +311,9 @@ export function setDrumStep(song, laneId, grooveName, barIdx, voice, step, on, p
     else if (i >= 0) bar[k].splice(i, 1);
   } else {
     bar[k] = bar[k] || [];
-    const i = bar[k].indexOf(step);
+    // A non-pitched step is a plain number, OR a lock tuple [step, lock] — match
+    // both so a locked hit can still be toggled off / isn't duplicated.
+    const i = bar[k].findIndex(x => x === step || (Array.isArray(x) && x[0] === step));
     if (on) { if (i < 0) bar[k].push(step); }
     else if (i >= 0) bar[k].splice(i, 1);
   }
