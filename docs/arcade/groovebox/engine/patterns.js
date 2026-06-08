@@ -149,10 +149,14 @@ export function eventsForStepV2(song, patternIdx, barInPattern, step, fillPat = 
               ev.push({ laneId: lane.id, type: 'drums', voice: note });
           } else if (Array.isArray(s) && s[0] === step && drumVoiceAudible(lane, note)) {
             const a = s[1];
-            const lock = (a !== null && typeof a === 'object') ? a : s[2];
-            const e = (a !== null && typeof a === 'object')
+            // Position 1 is a semitone (number) or a lock (PLAIN object) — never
+            // an array (matches the validator + contract). Garbage falls through
+            // to no-semi/base, and the lock is read from s[2].
+            const isLock = a !== null && typeof a === 'object' && !Array.isArray(a);
+            const lock = isLock ? a : s[2];
+            const e = isLock
               ? { laneId: lane.id, type: 'drums', voice: note }
-              : { laneId: lane.id, type: 'drums', voice: note, semi: a ?? 0 };
+              : { laneId: lane.id, type: 'drums', voice: note, semi: typeof a === 'number' ? a : 0 };
             if (lock && typeof lock.v === 'number') e.vel = lock.v;
             ev.push(e);
           }

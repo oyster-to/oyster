@@ -60,6 +60,16 @@ test('drum step [s, lock] carries vel; plain steps do not', () => {
   expect(plain.vel).toBeUndefined();
 });
 
+test('drum position-1 array is not mistaken for the lock — a real trailing lock still reads', () => {
+  // Malformed [step, array, lock]: only a PLAIN object is a lock (matches the
+  // validator + contract). The array must not shadow the real lock at s[2].
+  const song = makeSong();
+  song.grooves.drums.beat[0][42] = [[4, ['oops'], { v: 0.5 }]];
+  const hit = eventsForStepV2(song, 0, 0, 4).find(e => e.type === 'drums' && e.voice === 42);
+  expect(hit.vel).toBe(0.5);
+  expect(hit.semi ?? 0).toBe(0);          // garbage array never becomes a semitone
+});
+
 test('pitched drum step [s, semi, lock] carries both semi and vel', () => {
   const hit = at(makeSong(), 6).find(e => e.type === 'drums' && e.voice === 45);
   expect(hit.semi).toBe(-3);
