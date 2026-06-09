@@ -89,7 +89,10 @@
           <div class="help-sections">
             <div class="help-section active" data-help="controls">
               <dl>
-                <dt>SONG</dt><dd>The song's structure on the screen — click a pattern to edit it (it loops while playing), click a chain chip to play the song from there. ＋ adds, ⧉ duplicates.</dd>
+                <dt>HOME</dt><dd>The screen's menu — pick what to make: Grooves (loops), Patterns (sections), or Song (the play order). The breadcrumb at the top navigates back.</dd>
+                <dt>GROOVES</dt><dd>Pick an instrument, then edit its loop in the step grid / piano roll.</dd>
+                <dt>PATTERNS</dt><dd>Compose a section by swapping a loop per instrument, plus its chords.</dd>
+                <dt>SONG</dt><dd>Arrange your sections into the play order — drag to reorder, tap a chip to play from there.</dd>
                 <dt>M</dt><dd>Mute a lane (silences it; FX state preserved)</dd>
                 <dt>S</dt><dd>Solo a lane (silences all others)</dd>
                 <dt>VIEW</dt><dd>Open that lane in the step editor / piano roll</dd>
@@ -131,15 +134,17 @@
           </div>
         </div>
       </div>
-      <!-- Tier 3 — the screen: status strip + tabs (built by renderViewTabs)
-           + body. makeViz owns #lcd-body's innerHTML; the Song tab body
-           (#lcd-song) is a sibling so the two can swap via display toggle. -->
-      <div id="viz">
-        <div id="lcd-strip"></div>
-        <div class="vtabs"></div>
-        <div id="lcd-body"></div>
-        <div id="lcd-song" hidden>
-          <div id="lcd-song-rows"></div>
+      <!-- Tier 3 — the screen: a routed surface. #lcd-strip = breadcrumb +
+           status. #lcd-body = the active screen (HOME / Grooves list / Patterns
+           composer / Song arranger). #lcd-viz is a PERSISTENT sibling that
+           makeViz owns — it's the Grooves detail pane (and the scope monitor),
+           shown beside/over #lcd-body by route so router re-renders of #lcd-body
+           never destroy its canvas. -->
+      <div id="viz" class="route-home">
+        <div id="lcd-strip" class="lcdbar"></div>
+        <div id="lcd-screen">
+          <div id="lcd-body"></div>
+          <div id="lcd-viz"></div>
         </div>
       </div>
       <div id="master"></div>
