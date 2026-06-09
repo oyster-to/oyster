@@ -81,6 +81,7 @@ export function openPunchEditor({ slot, eng, onSaved }) {
 
   function stopPreview() {
     if (previewHeld) { eng.punchPreview(draft, false); previewHeld = false; }
+    modal.querySelector('.pe-test')?.classList.remove('held');
   }
   function close() {
     stopPreview();
@@ -96,6 +97,7 @@ export function openPunchEditor({ slot, eng, onSaved }) {
       e.stopPropagation(); e.preventDefault();
       if (!previewHeld && eng.isPlaying() && validatePreset(draft)) {
         eng.punchPreview(draft, true); previewHeld = true;
+        modal.querySelector('.pe-test')?.classList.add('held');   // key-hold lights the button like a click
       }
     }
   }
@@ -148,7 +150,7 @@ export function openPunchEditor({ slot, eng, onSaved }) {
       }
       test.classList.remove('idle');
       test.innerHTML = armedLabel;
-      if (validatePreset(draft)) { eng.punchPreview(draft, true); previewHeld = true; }
+      if (validatePreset(draft)) { eng.punchPreview(draft, true); previewHeld = true; test.classList.add('held'); }
     });
     const off = () => stopPreview();
     test.addEventListener('pointerup', off);
