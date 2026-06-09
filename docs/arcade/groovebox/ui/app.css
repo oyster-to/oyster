@@ -4341,6 +4341,22 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
   --roll-bg: #c6d9e4; --roll-bg-blk: #b9cedb; --roll-note: #1d3766;
   --grid-line: #9db5c4; --scope: #1d4a7e; --playhead: #122441;
 }
+[data-screen="frost"] {
+  --screen-acc: #4663ff; --screen-hot: #ff5fa8;
+  --screen-bg: #eef1f5; --screen-glow: rgba(120,150,220,0.07);
+  --screen-ink: #161b26; --screen-dim: #5a6678;
+  --cell: #e3e8ee; --cell-alt: #dce2ea; --hit1: #2f4a8e; --hit2: #1a2c5a;
+  --roll-bg: #e7ecf2; --roll-bg-blk: #dde3eb; --roll-note: #161b26;
+  --grid-line: #c4cdd9; --scope: #1d3a7e; --playhead: #11203f;
+}
+[data-screen="snow"] {
+  --screen-acc: #4663ff; --screen-hot: #ff5fa8;
+  --screen-bg: #ffffff; --screen-glow: rgba(120,150,220,0.06);
+  --screen-ink: #14181f; --screen-dim: #5e6776;
+  --cell: #f1f3f6; --cell-alt: #e8ecf1; --hit1: #2f4a8e; --hit2: #1a2c5a;
+  --roll-bg: #f6f8fa; --roll-bg-blk: #eef1f5; --roll-note: #14181f;
+  --grid-line: #d6dce4; --scope: #1d3a7e; --playhead: #11203f;
+}
 [data-screen="phosphor"] {
   --screen-acc: #54f0c8; --screen-hot: #ff5b9e;
   --screen-bg: #051813; --screen-glow: rgba(84,240,200,0.14);
@@ -4407,6 +4423,8 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
 }
 /* In-screen DOM ink rebinding per glass (matches the theme #viz treatment). */
 [data-screen="pearl"] #viz    { --ink: #16243f; --dim: #4d6787; --faint: #6d83a0; }
+[data-screen="frost"] #viz    { --ink: #161b26; --dim: #5a6678; --faint: #79849a; }
+[data-screen="snow"] #viz     { --ink: #14181f; --dim: #5e6776; --faint: #7c8696; }
 [data-screen="sage"] #viz     { --ink: #1e2424; --dim: #424c46; --faint: #66706a; }
 [data-screen="signal"] #viz   { --ink: #d9ecf5; --dim: #7da3b8; --faint: #5d8094; }
 [data-screen="workbench"] #viz { --ink: #e8f0fa; --dim: #a8c4e0; --faint: #7a9cc4; }
@@ -4417,6 +4435,8 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
 [data-screen="amber"] #viz    { --ink: #ffcf7a; --dim: #b87f20; --faint: #8a5f16; }
 /* Pale glass gets the reflective-LCD inset; dark glass gets the CRT cave. */
 [data-screen="pearl"] #viz,
+[data-screen="frost"] #viz,
+[data-screen="snow"] #viz,
 [data-screen="lime"] #viz,
 [data-screen="sage"] #viz,
 [data-screen="paper"] #viz {
@@ -4426,6 +4446,8 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
     0 0 0 1px rgba(0,0,0,0.3);
 }
 [data-screen="pearl"] .vc.hit,
+[data-screen="frost"] .vc.hit,
+[data-screen="snow"] .vc.hit,
 [data-screen="lime"] .vc.hit,
 [data-screen="sage"] .vc.hit,
 [data-screen="paper"] .vc.hit { box-shadow: none; }
