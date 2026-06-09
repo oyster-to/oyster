@@ -348,7 +348,7 @@ function renderPicker() {
   host.innerHTML = '';
   const head = document.createElement('div');
   head.className = 'picker-head';
-  head.innerHTML = `<span>SELECT SONG</span>`;
+  head.innerHTML = `<span>LOAD SONG</span>`;
   const close = document.createElement('button');
   close.className = 'picker-close';
   close.textContent = '✕';

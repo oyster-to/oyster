@@ -258,14 +258,15 @@ body {
   gap: 6px;
   flex-shrink: 0;
 }
-/* Tool chrome — smaller, visually secondary vs transport */
+/* Tool chrome — smaller, visually secondary vs transport, but still read as
+   tappable buttons (a subtle fill + legible label, not flat text). */
 .titlebar-tools select,
 .titlebar-tools button {
   height: 26px;
   font-size: 11px;
   padding: 0 10px;
-  color: var(--dim);
-  background: transparent;
+  color: var(--ink);
+  background: var(--panel-2);
   border-color: var(--line);
   box-shadow: none;
 }
@@ -282,7 +283,7 @@ body {
 }
 .titlebar-tools button:hover,
 .titlebar-tools select:hover {
-  background-color: var(--panel-2);
+  background-color: var(--panel-3);
   border-color: var(--acc-dim);
   color: var(--ink);
 }
@@ -1172,6 +1173,8 @@ input[type=range] {
   position: relative;
   z-index: 2;
 }
+/* The scope is a screen monitor (lives on the pearl LCD), so it speaks the
+   screen palette — not the dark cabinet tokens. Match the .gpick control look. */
 .scope-bar {
   display: flex;
   align-items: center;
@@ -1180,18 +1183,24 @@ input[type=range] {
   position: relative;
   z-index: 2;
   font-size: 11px;
-  color: var(--dim);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--screen-dim);
 }
 .scope-bar select {
-  background: var(--panel-2);
-  color: var(--acc);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 0 28px 0 4px;
+  background: color-mix(in srgb, var(--screen-ink) 8%, transparent);
+  color: var(--screen-ink);
+  border: 1px solid color-mix(in srgb, var(--screen-ink) 30%, transparent);
+  border-radius: 6px;
+  padding: 4px 8px;
   font: inherit;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
   cursor: pointer;
-  height: 26px;
+  height: auto;
 }
+.scope-bar select:hover { border-color: var(--screen-acc); }
 
 /* ─── § 5 — lane strips: aligned shared grid ────────────────────────────── */
 .lane {

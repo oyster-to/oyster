@@ -80,12 +80,4 @@ export const DEFAULT_PRESETS = [
       { module: 'delay', param: 'wet', from: 'neutral', to: 0.5,
         engage: { ramp: { unit: 'steps', value: 0.5 } }, release: { ramp: { unit: 'beats', value: 3 } } },
     ] },
-  { name: 'STOP', key: '6', engageQuantize: 'immediate', releaseQuantize: 'immediate',
-    automations: [
-      // Semantic module (spec decision 6): the engine implements tapeStop
-      // internally (gate fade + tape slump + on-grid return). Engage ramp =
-      // slump duration; release handling is internal to the module.
-      { module: 'transport', param: 'tapeStop', from: 'neutral', to: 1,
-        engage: { ramp: { unit: 'beats', value: 1.5 } }, release: { ramp: { unit: 'steps', value: 0 } } },
-    ] },
 ];
