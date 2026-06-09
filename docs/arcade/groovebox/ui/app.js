@@ -287,17 +287,22 @@ function toggleScope() {
   else if (_route === 'grooves' && _editingLaneId) activateEditLane(_editingLaneId);
 }
 
-// Live playback paint across whatever screen is showing (+ the status bar).
+// Live playback paint (called every step). The status strip always updates;
+// the in-screen chips only exist on Song/Patterns, so gate those queries by
+// route to avoid per-step DOM work on Home/Grooves.
 function updatePlayback(target) {
   if (!target) return;
   updateLcdBar(target);
+  const isPattern = target.kind === 'pattern';
   const body = document.getElementById('lcd-body');
   if (!body) return;
-  const isPattern = target.kind === 'pattern';
-  body.querySelectorAll('.chain-chip[data-pos]').forEach(c =>
-    c.classList.toggle('playing', !isPattern && +c.dataset.pos === target.chainPos));
-  body.querySelectorAll('.li[data-sec]').forEach(b =>
-    b.classList.toggle('playing', isPattern && +b.dataset.sec === target.patternIdx));
+  if (_route === 'song') {
+    body.querySelectorAll('.chain-chip[data-pos]').forEach(c =>
+      c.classList.toggle('playing', !isPattern && +c.dataset.pos === target.chainPos));
+  } else if (_route === 'patterns') {
+    body.querySelectorAll('.li[data-sec]').forEach(b =>
+      b.classList.toggle('playing', isPattern && +b.dataset.sec === target.patternIdx));
+  }
 }
 
 // ─── SELECT SONG — the cartridge drawer ──────────────────────────────────────
@@ -1214,6 +1219,8 @@ function renderLcdBar() {
   const scopeBtn = document.createElement('button');
   scopeBtn.className = 'scope-btn' + (_scopeOpen ? ' on' : '');
   scopeBtn.title = 'Oscilloscope';
+  scopeBtn.setAttribute('aria-label', 'Oscilloscope');
+  scopeBtn.setAttribute('aria-pressed', String(_scopeOpen));
   scopeBtn.textContent = '∿';
   scopeBtn.onclick = () => toggleScope();
   status.appendChild(scopeBtn);
@@ -1223,8 +1230,8 @@ function renderLcdBar() {
   bpmEl.textContent = `${currentBpm} BPM`;
   status.appendChild(bpmEl);
   host.appendChild(status);
-
-  updateLcdBar(eng.getPlaybackTarget());
+  // (No updateLcdBar here — renderScreen() calls updatePlayback() right after,
+  // which paints the playhead. renderLcdBar is only ever called from there.)
 }
 
 function crumbSeg(label, go, cur) {
