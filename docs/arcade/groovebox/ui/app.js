@@ -624,13 +624,18 @@ function renderStrips() {
     handle.addEventListener('mousedown', () => { row.draggable = true; });
     handle.addEventListener('mouseup',   () => { row.draggable = false; });
 
+    // stopPropagation on a lane drag so it doesn't bubble to the .sec panel
+    // reorder (which would dim the whole strips section, .sec-dragging). Gated on
+    // _draggedLaneId so a panel drag passing over a lane still reaches the .sec.
     row.addEventListener('dragstart', e => {
+      e.stopPropagation();
       _draggedLaneId = row.dataset.lane;
       row.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
     });
 
-    row.addEventListener('dragend', () => {
+    row.addEventListener('dragend', e => {
+      e.stopPropagation();
       row.classList.remove('dragging');
       row.draggable = false;
       _draggedLaneId = null;
@@ -641,6 +646,7 @@ function renderStrips() {
     row.addEventListener('dragover', e => {
       if (!_draggedLaneId || _draggedLaneId === row.dataset.lane) return;
       e.preventDefault();
+      e.stopPropagation();
       e.dataTransfer.dropEffect = 'move';
       const rect = row.getBoundingClientRect();
       const midY = rect.top + rect.height / 2;
@@ -654,8 +660,10 @@ function renderStrips() {
     });
 
     row.addEventListener('drop', e => {
+      if (!_draggedLaneId) return;            // panel drag — let the .sec reorder handle it
+      e.stopPropagation();
       e.preventDefault();
-      if (!_draggedLaneId || _draggedLaneId === row.dataset.lane) return;
+      if (_draggedLaneId === row.dataset.lane) return;
       const lanes = eng.getLanes();
       const targetIdx = lanes.findIndex(l => l.id === row.dataset.lane);
       const rect = row.getBoundingClientRect();
@@ -1123,8 +1131,8 @@ function renderSongArranger(body) {
     chip.ondragend = e => { e.stopPropagation(); clearChainDrag(); };
     // Show an insertion line on the side the chip would drop into.
     chip.ondragover = e => {
+      if (_chainDragFrom === null || _chainDragFrom === pos) return;   // only our own reorder
       e.preventDefault(); e.stopPropagation();
-      if (_chainDragFrom === null || _chainDragFrom === pos) return;
       const rect = chip.getBoundingClientRect();
       const before = e.clientX < rect.left + rect.width / 2;
       body.querySelectorAll('.chain-chip').forEach(c => c.classList.remove('drop-left', 'drop-right'));
@@ -1132,12 +1140,13 @@ function renderSongArranger(body) {
     };
     chip.ondragleave = () => chip.classList.remove('drop-left', 'drop-right');
     chip.ondrop = e => {
+      if (_chainDragFrom === null) return;     // panel drag passing over a chip — let it bubble
       e.preventDefault(); e.stopPropagation();
       const from = _chainDragFrom;
       const rect = chip.getBoundingClientRect();
       const before = e.clientX < rect.left + rect.width / 2;
       clearChainDrag();                  // clear feedback before the re-render replaces nodes
-      if (from === null || from === pos) return;
+      if (from === pos) return;
       let to = before ? pos : pos + 1;
       if (from < to) to--;
       eng.moveChain(from, to);
