@@ -4585,7 +4585,11 @@ select.gpick { margin-left: auto; background: color-mix(in srgb, var(--screen-in
 .chain-row.big { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
 #lcd-body .chain-chip { display: inline-flex; align-items: center; gap: 5px; background: color-mix(in srgb, var(--screen-ink) 6%, transparent); border: 1px solid color-mix(in srgb, var(--screen-ink) 30%, transparent); color: var(--screen-ink); border-radius: 7px; padding: 6px 10px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: ui-monospace, Menlo, monospace; }
 #lcd-body .chain-chip.playing { border-color: var(--screen-hot); box-shadow: 0 0 6px var(--screen-hot); }
-#lcd-body .chain-chip.dragging { opacity: .4; }
+/* Reorder feedback: a light lift on the grabbed chip + an insertion line in the
+   gap where it will drop (no heavy grey-out). */
+#lcd-body .chain-chip.dragging { opacity: .7; border-color: var(--screen-acc); }
+#lcd-body .chain-chip.drop-left  { box-shadow: -5px 0 0 -1px var(--screen-acc); }
+#lcd-body .chain-chip.drop-right { box-shadow:  5px 0 0 -1px var(--screen-acc); }
 #lcd-body .chain-chip .chip-x { color: var(--screen-dim); font-size: 9px; }
 .add-secs { display: flex; flex-direction: column; }
 

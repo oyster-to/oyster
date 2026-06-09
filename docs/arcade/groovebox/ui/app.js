@@ -1104,6 +1104,12 @@ function renderSongArranger(body) {
   h += `</div>`;
   body.innerHTML = h;
 
+  // Clear the drag-dim from EVERY chip (not just one) on any drag end — HTML5 DnD
+  // doesn't reliably fire dragend when the source node is replaced by a re-render.
+  const clearChainDrag = () => {
+    _chainDragFrom = null;
+    body.querySelectorAll('.chain-chip').forEach(c => c.classList.remove('dragging', 'drop-left', 'drop-right'));
+  };
   body.querySelectorAll('.chain-chip[data-pos]').forEach(chip => {
     const pos = +chip.dataset.pos;
     chip.onclick = e => {
@@ -1111,16 +1117,27 @@ function renderSongArranger(body) {
       eng.playChain(pos); renderScreen();
     };
     chip.ondragstart = () => { _chainDragFrom = pos; chip.classList.add('dragging'); };
-    chip.ondragend = () => { _chainDragFrom = null; chip.classList.remove('dragging'); };
-    chip.ondragover = e => e.preventDefault();
-    chip.ondrop = e => {
+    chip.ondragend = clearChainDrag;
+    // Show an insertion line on the side the chip would drop into.
+    chip.ondragover = e => {
       e.preventDefault();
       if (_chainDragFrom === null || _chainDragFrom === pos) return;
       const rect = chip.getBoundingClientRect();
       const before = e.clientX < rect.left + rect.width / 2;
+      body.querySelectorAll('.chain-chip').forEach(c => c.classList.remove('drop-left', 'drop-right'));
+      chip.classList.add(before ? 'drop-left' : 'drop-right');
+    };
+    chip.ondragleave = () => chip.classList.remove('drop-left', 'drop-right');
+    chip.ondrop = e => {
+      e.preventDefault();
+      const from = _chainDragFrom;
+      const rect = chip.getBoundingClientRect();
+      const before = e.clientX < rect.left + rect.width / 2;
+      clearChainDrag();                  // clear feedback before the re-render replaces nodes
+      if (from === null || from === pos) return;
       let to = before ? pos : pos + 1;
-      if (_chainDragFrom < to) to--;
-      eng.moveChain(_chainDragFrom, to);
+      if (from < to) to--;
+      eng.moveChain(from, to);
       renderScreen();
     };
   });
