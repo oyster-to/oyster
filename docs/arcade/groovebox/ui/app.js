@@ -1116,11 +1116,14 @@ function renderSongArranger(body) {
       if (e.target.classList.contains('chip-x')) { if (eng.removeChainAt(pos)) renderScreen(); return; }
       eng.playChain(pos); renderScreen();
     };
-    chip.ondragstart = () => { _chainDragFrom = pos; chip.classList.add('dragging'); };
-    chip.ondragend = clearChainDrag;
+    // stopPropagation on every drag event: the screen is wrapped in a draggable
+    // .sec (cabinet panel reorder) whose handlers would otherwise fire on this
+    // chip drag and dim the whole section (.sec-dragging { opacity:.45 }).
+    chip.ondragstart = e => { e.stopPropagation(); _chainDragFrom = pos; chip.classList.add('dragging'); };
+    chip.ondragend = e => { e.stopPropagation(); clearChainDrag(); };
     // Show an insertion line on the side the chip would drop into.
     chip.ondragover = e => {
-      e.preventDefault();
+      e.preventDefault(); e.stopPropagation();
       if (_chainDragFrom === null || _chainDragFrom === pos) return;
       const rect = chip.getBoundingClientRect();
       const before = e.clientX < rect.left + rect.width / 2;
@@ -1129,7 +1132,7 @@ function renderSongArranger(body) {
     };
     chip.ondragleave = () => chip.classList.remove('drop-left', 'drop-right');
     chip.ondrop = e => {
-      e.preventDefault();
+      e.preventDefault(); e.stopPropagation();
       const from = _chainDragFrom;
       const rect = chip.getBoundingClientRect();
       const before = e.clientX < rect.left + rect.width / 2;
