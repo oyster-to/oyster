@@ -4523,18 +4523,21 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
 .scope-btn.on { color: var(--screen-acc); border-color: var(--screen-acc); }
 
 /* ── HOME hub cards ──────────────────────────────────────────────────────── */
-.home-q { font-size: 11px; letter-spacing: .04em; color: var(--screen-dim); margin: 4px 2px 10px; }
+.home-q { font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--screen-dim); margin: 4px 2px 10px; }
 .homecard {
-  display: flex; align-items: center; gap: 12px; width: 100%; cursor: pointer;
-  background: color-mix(in srgb, var(--screen-ink) 5%, transparent);
-  border: 1px solid color-mix(in srgb, var(--screen-ink) 18%, transparent);
-  border-radius: 10px; padding: 13px 14px; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 13px; width: 100%; cursor: pointer;
+  /* Raised tile: a #fff-lift of the screen bg (near-white on pearl, a lifted
+     panel on dark themes) + elevation cues, so it reads as a card everywhere. */
+  background: color-mix(in srgb, #fff 38%, var(--screen-bg));
+  border: 1px solid color-mix(in srgb, var(--screen-ink) 14%, transparent);
+  border-radius: 11px; padding: 14px; margin-bottom: 9px;
   color: var(--screen-ink); text-align: left;
+  box-shadow: 0 1px 3px rgba(0,0,0,.13), inset 0 1px 0 color-mix(in srgb, #fff 55%, transparent);
 }
-.homecard:hover { border-color: var(--screen-acc); background: color-mix(in srgb, var(--screen-acc) 8%, transparent); }
-.hc-ic { font-size: 22px; }
+.homecard:hover { border-color: var(--screen-acc); background: color-mix(in srgb, #fff 50%, var(--screen-bg)); }
+.hc-ic { font-size: 24px; }
 .hc-tx { display: flex; flex-direction: column; }
-.hc-t { font-size: 14px; font-weight: 800; }
+.hc-t { font-size: 15px; font-weight: 800; }
 .hc-s { font-size: 11px; color: var(--screen-dim); }
 .hc-chev { margin-left: auto; font-size: 16px; font-weight: 800; color: var(--screen-dim); }
 
@@ -4546,8 +4549,9 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
 .mini-btn { background: none; border: 1px solid color-mix(in srgb, var(--screen-ink) 25%, transparent); color: var(--screen-dim); border-radius: 5px; font-size: 9px; padding: 1px 6px; cursor: pointer; font-weight: 700; }
 .li {
   display: flex; align-items: center; gap: 8px; width: 100%; cursor: pointer;
-  background: color-mix(in srgb, var(--screen-ink) 4%, transparent);
-  border: 1px solid color-mix(in srgb, var(--screen-ink) 16%, transparent);
+  background: color-mix(in srgb, #fff 26%, var(--screen-bg));
+  border: 1px solid color-mix(in srgb, var(--screen-ink) 12%, transparent);
+  box-shadow: 0 1px 2px rgba(0,0,0,.07);
   border-radius: 8px; padding: 8px 10px; margin-bottom: 5px;
   color: var(--screen-ink); font-size: 12px; font-weight: 700; text-align: left;
 }
@@ -4564,7 +4568,7 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
 .li-addx { margin-left: auto; color: var(--screen-acc); font-size: 10px; font-weight: 700; }
 
 /* ── Compose rows (swap a loop per instrument) ───────────────────────────── */
-.crow { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--screen-ink) 4%, transparent); border: 1px solid color-mix(in srgb, var(--screen-ink) 16%, transparent); }
+.crow { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, #fff 26%, var(--screen-bg)); border: 1px solid color-mix(in srgb, var(--screen-ink) 12%, transparent); box-shadow: 0 1px 2px rgba(0,0,0,.07); }
 .crow-fl { font-size: 12px; font-weight: 700; color: var(--screen-ink); min-width: 84px; }
 select.gpick { margin-left: auto; background: color-mix(in srgb, var(--screen-ink) 8%, transparent); color: var(--screen-ink); border: 1px solid color-mix(in srgb, var(--screen-ink) 30%, transparent); border-radius: 6px; padding: 4px 8px; font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; }
 .prog { margin-left: auto; display: inline-flex; gap: 4px; cursor: pointer; }
