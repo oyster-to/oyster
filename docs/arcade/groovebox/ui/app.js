@@ -1038,7 +1038,8 @@ function renderPatternsComposer(body) {
       `<span class="li-nm">${p.name ? esc(p.name) : 'P' + (i + 1)}</span>` +
       `<span class="li-chev">›</span></button>`;
   });
-  list += `<button class="li li-add" data-newsec="1">＋ new section</button>`;
+  const atCap = patterns.length >= 16;
+  list += `<button class="li li-add" data-newsec="1"${atCap ? ' disabled title="Maximum 16 sections"' : ''}>＋ new section</button>`;
 
   let detail = `<button class="pane-back" data-back="1">‹ sections</button>` +
     `<div class="pane-ttl">compose “${s && s.name ? esc(s.name) : 'P' + (editIdx + 1)}” — swap a loop` +
@@ -1238,7 +1239,10 @@ function crumbSeg(label, go, cur) {
   const b = document.createElement('button');
   b.className = 'cseg' + (cur ? ' cur' : '');
   b.textContent = label;
-  if (go && !cur) b.onclick = go; else b.disabled = !!cur;
+  // Current location: stays keyboard-focusable, state via aria-current, no action
+  // (don't use `disabled` — it drops focusability and muddies "where am I").
+  if (cur) b.setAttribute('aria-current', 'true');
+  else if (go) b.onclick = go;
   return b;
 }
 function crumbSep() {
