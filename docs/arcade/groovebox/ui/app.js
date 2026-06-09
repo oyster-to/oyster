@@ -225,93 +225,79 @@ function updateEditHighlight(id) {
       if (editBtn) editBtn.classList.toggle('editing', isEditing);
     });
   }
-  const bar = document.querySelector('.vtabs');
-  if (bar) {
-    bar.querySelectorAll('.vtab-lane').forEach(t => t.classList.toggle('on', t.dataset.edit === id));
-    bar.querySelectorAll('[data-view]').forEach(x => x.classList.remove('on'));
-  }
 }
 
-// Screen tabs in the LCD: Song first, then one per editable lane, then Scope.
-// Rebuilt on every renderStrips() so it tracks add/dup/remove/rename.
-function renderViewTabs() {
-  const bar = document.querySelector('.vtabs');
-  if (!bar) return;
-  bar.innerHTML = '';
-  const songTab = document.createElement('button');
-  songTab.dataset.view = 'song';
-  songTab.textContent = 'Song';
-  songTab.onclick = () => activateSongTab();
-  bar.appendChild(songTab);
-  for (const lane of eng.getLanes()) {
-    if (lane.type === 'chords') continue;   // chords has no grid/roll editor
-    const b = document.createElement('button');
-    b.className = 'vtab-lane';
-    b.dataset.edit = lane.id;
-    b.textContent = lane.name;
-    b.onclick = () => activateEditLane(lane.id);
-    bar.appendChild(b);
-  }
-  const scope = document.createElement('button');
-  scope.dataset.view = 'scope';
-  scope.textContent = 'Scope';
-  scope.onclick = () => toggleScope(scope);
-  bar.appendChild(scope);
-  if (_songTabOpen) songTab.classList.add('on');
-  else if (_editingLaneId) updateEditHighlight(_editingLaneId);
-}
+// ─── Screen router — HOME hub → Grooves / Patterns / Song, with a breadcrumb ──
+// The LCD is one routed surface. #lcd-body holds the active screen; #lcd-viz is
+// a PERSISTENT sibling that makeViz owns (re-rendering #lcd-body never destroys
+// its canvas). Grooves shows #lcd-body (lane list) beside #lcd-viz (the editor);
+// other routes hide #lcd-viz. The breadcrumb in #lcd-strip is the navigation.
+let _route = 'home';        // 'home' | 'grooves' | 'patterns' | 'song'
+let _drilled = false;       // mobile: show the detail pane instead of the list
+let _scopeOpen = false;     // scope monitor overlay (Story 6) — independent of route
+const isWide = () => matchMedia('(min-width: 901px)').matches;   // complements the 900px mobile breakpoint
+const LANE_ICONS = { drums: '🥁', bass: '🎸', melody: '🎹', chords: '🎵' };
+const patLabel = i => { const p = eng.getPatterns()[i]; return p && p.name ? p.name : `P${i + 1}`; };
 
-// The screen has two tab panes — #lcd-body (viz: lane editors / scope) and
-// #lcd-song (song structure) — plus the SELECT SONG picker, which overlays
-// whichever pane is current and closes back to it. Display toggles only —
-// the viz is never disposed here, so switching is free.
-let _songTabOpen = false;
-function setLcdPane(songOpen) {
-  _songTabOpen = songOpen;
-  const body = document.getElementById('lcd-body');
-  const songPane = document.getElementById('lcd-song');
-  if (body) body.hidden = songOpen;
-  if (songPane) songPane.hidden = !songOpen;
-}
-
-// Song tab: show the song structure pane, clear lane-editing highlights.
-function activateSongTab() {
-  const bar = document.querySelector('.vtabs');
-  if (bar) {
-    bar.querySelectorAll('button').forEach(x => x.classList.remove('on'));
-    bar.querySelector('[data-view="song"]')?.classList.add('on');
-  }
-  const host = document.getElementById('strips');
-  if (host) {
-    host.querySelectorAll('.lane').forEach(row => row.classList.remove('editing'));
-    host.querySelectorAll('.lane-edit').forEach(b => b.classList.remove('editing'));
-  }
-  setLcdPane(true);
-}
-
-// Scope toggle: on → show oscilloscope; off (click again) → back to last lane editor.
-function toggleScope(btn) {
-  if (btn.classList.contains('on')) {
-    btn.classList.remove('on');
-    if (_editingLaneId) activateEditLane(_editingLaneId);
-  } else {
-    document.querySelector('.vtabs').querySelectorAll('button').forEach(x => x.classList.remove('on'));
-    btn.classList.add('on');
-    const host = document.getElementById('strips');
-    if (host) {
-      host.querySelectorAll('.lane').forEach(row => row.classList.remove('editing'));
-      host.querySelectorAll('.lane-edit').forEach(b => b.classList.remove('editing'));
-    }
-    setLcdPane(false);
-    viz.setView('scope');
-  }
-}
-
-// Open a lane editor in the viz + update highlight.
+// Open a lane's editor in the viz (no route change) + highlight its strip.
 function activateEditLane(id) {
-  setLcdPane(false);
   viz.editLane(id);
   updateEditHighlight(id);
+}
+
+// Navigate. opts: { laneId } selects a Grooves lane; { patternIdx } a section;
+// { drilled } sets the mobile list↔detail state.
+function setRoute(route, opts = {}) {
+  _scopeOpen = false;                       // any nav closes the scope monitor
+  _route = route;
+  if (route === 'home' || route === 'song') _drilled = false;
+  if (opts.drilled !== undefined) _drilled = opts.drilled;
+  if (opts.patternIdx !== undefined) eng.selectPattern(opts.patternIdx);
+  let grooveLane = null;
+  if (route === 'grooves') {
+    const lanes = eng.getLanes().filter(l => l.type !== 'chords');
+    let id = opts.laneId || _editingLaneId;
+    if (!id || !lanes.some(l => l.id === id)) id = lanes[0] && lanes[0].id;
+    if (id) { _editingLaneId = id; grooveLane = id; }   // set before render so the list highlights
+  }
+  renderScreen();                           // sets the route class → #lcd-viz gets its real width
+  if (grooveLane) activateEditLane(grooveLane);   // THEN build the editor (correct width — R1)
+}
+
+// Paint the whole screen for the current route.
+function renderScreen() {
+  const vizEl = document.getElementById('viz');
+  if (vizEl) vizEl.className = `route-${_route}` + (_drilled ? ' drilled' : '') + (_scopeOpen ? ' scope' : '');
+  renderLcdBar();
+  const body = document.getElementById('lcd-body');
+  if (!body) return;
+  if (_route === 'home') renderHome(body);
+  else if (_route === 'grooves') renderGroovesEditor(body);
+  else if (_route === 'patterns') renderPatternsComposer(body);
+  else if (_route === 'song') renderSongArranger(body);
+  updatePlayback(eng.getPlaybackTarget());
+}
+
+// Scope monitor (Story 6): overlay the oscilloscope over the screen; toggling
+// off returns to the route (re-opening the lane editor if we were in Grooves).
+function toggleScope() {
+  _scopeOpen = !_scopeOpen;
+  renderScreen();                           // set visibility first, then build at the right width
+  if (_scopeOpen) viz.setView('scope');
+  else if (_route === 'grooves' && _editingLaneId) activateEditLane(_editingLaneId);
+}
+
+// Live playback paint across whatever screen is showing (+ the status bar).
+function updatePlayback(target) {
+  if (!target) return;
+  updateLcdBar(target);
+  const body = document.getElementById('lcd-body');
+  if (!body) return;
+  const isPattern = target.kind === 'pattern';
+  body.querySelectorAll('.chain-chip[data-pos]').forEach(c =>
+    c.classList.toggle('playing', !isPattern && +c.dataset.pos === target.chainPos));
+  body.querySelectorAll('.li[data-sec]').forEach(b =>
+    b.classList.toggle('playing', isPattern && +b.dataset.sec === target.patternIdx));
 }
 
 // ─── SELECT SONG — the cartridge drawer ──────────────────────────────────────
@@ -457,20 +443,15 @@ function renderStrips() {
   const lanes = eng.getLanes();
   const isLast = lanes.length === 1;
 
-  const grooves = eng.getGrooves();
-  const patterns = eng.getPatterns();
-  const editPat = patterns[eng.getEditPatternIndex()];
   host.innerHTML = lanes.map(lane => {
     const tone = lane.type === 'melody'
       ? `<select data-tone data-lane="${lane.id}">${TONES.map(t=>`<option value="${t}"${t===(lane.tone||'pulse')?' selected':''}>${t==='fatsawtooth'?'fat saw':t}</option>`).join('')}</select>`
       : '';
-    // Groove dropdown — picks the groove the EDIT pattern plays for this lane.
-    const laneGrooves = grooves[lane.id] || {};
-    const picked = editPat?.lanes?.[lane.id];
+    // The strip selects the lane's SOUND (not the groove — the loop is chosen on
+    // the screen, in Grooves / Patterns).
     const soundBtn = lane.type !== 'drums'
       ? `<button class="lane-sound" data-lane="${lane.id}" data-type="${lane.type}" title="Edit ${esc(lane.name)} sound">SOUND</button>`
       : '';
-    const grooveSel = `<select data-groove data-lane="${lane.id}">${Object.keys(laneGrooves).map(n=>`<option value="${esc(n)}"${n===picked?' selected':''}>${esc(n)}</option>`).join('')}</select>`;
     // Edit button — present for types with an editor (drums, melody, bass); skip chords.
     const hasEditor = lane.type !== 'chords';
     const editBtn = hasEditor
@@ -480,7 +461,7 @@ function renderStrips() {
     return `<div class="lane" data-lane="${lane.id}" data-type="${lane.type}">
       <span class="lane-drag" title="Drag to reorder">⠿</span>
       <span class="name" title="double-click to rename">${esc(lane.name)}</span>
-      <div class="mctl">${grooveSel}${tone}${soundBtn}</div>
+      <div class="mctl">${tone}${soundBtn}</div>
       <div class="lvl"><div class="lvl-fill"></div></div>
       <div class="msgroup">
         <button class="mute" data-lane="${lane.id}" aria-label="mute ${esc(lane.name)}" title="Mute">M</button>
@@ -498,7 +479,7 @@ function renderStrips() {
   // Add-lane button at the bottom of strips
   const addBtn = document.createElement('div');
   addBtn.className = 'addlane-wrap';
-  addBtn.innerHTML = `<button class="addlane-btn" title="Add a new lane">＋ add lane</button>
+  addBtn.innerHTML = `<button class="addlane-btn" title="Add a new instrument">＋ add instrument</button>
     <div class="addlane-menu" hidden>
       <button data-addtype="drums">Drums</button>
       <button data-addtype="bass">Bass</button>
@@ -541,10 +522,6 @@ function renderStrips() {
     const id = LANE_INSTRUMENT[b.dataset.type];
     if (id) openInstrumentEditor({ id, eng, onSaved: renderStrips });
   });
-  host.querySelectorAll('select[data-groove]').forEach(s => s.onchange = () => {
-    eng.setLaneGroove(s.dataset.lane, s.value);
-    refreshVizPattern();   // editor must re-target the new groove
-  });
   host.querySelectorAll('.mute').forEach(b => b.onclick = () => {
     eng.toggleMute(b.dataset.lane);
     refreshStates();
@@ -568,10 +545,10 @@ function renderStrips() {
     };
   });
 
-  // Edit button — open that lane's editor in the viz
+  // VIEW — jump to this lane's loop in the Grooves editor on the screen.
   host.querySelectorAll('.lane-edit:not(:disabled)').forEach(b => {
     b.onclick = () => {
-      activateEditLane(b.dataset.lane);
+      setRoute('grooves', { laneId: b.dataset.lane, drilled: true });
     };
   });
 
@@ -692,25 +669,11 @@ function renderStrips() {
 
   refreshStates();
   cacheMeterFills();  // re-cache .lvl-fill refs after DOM rebuild
-  renderViewTabs();   // rebuild quick-edit tabs to track the current lane list
+  if (_editingLaneId) updateEditHighlight(_editingLaneId);  // re-apply lane-edit highlight
   updateEmptyGroups(); // hide kgroups where all knobs are hidden
   // Re-apply the accordion's open lane across the innerHTML rebuild (drop it
   // if that lane was removed).
   setOpenLane(host.querySelector(`.lane[data-lane="${_openLaneId}"]`) ? _openLaneId : null);
-}
-
-// Sync every strip groove dropdown to the EDIT pattern's picks. Called whenever
-// the edit pattern changes (from renderPatterns). Reflects the edit pattern only
-// — never chain playback.
-function syncStripGrooves() {
-  const host = document.getElementById('strips');
-  if (!host) return;
-  const editPat = eng.getPatterns()[eng.getEditPatternIndex()];
-  if (!editPat) return;
-  host.querySelectorAll('select[data-groove]').forEach(s => {
-    const picked = editPat.lanes?.[s.dataset.lane];
-    if (picked !== undefined && s.value !== picked) s.value = picked;
-  });
 }
 
 // ─── Fills row ───────────────────────────────────────────────────────────────
@@ -993,209 +956,265 @@ const PATTERN_COLORS = [
 const patternColor = i => PATTERN_COLORS[i % PATTERN_COLORS.length];
 const patDot = i => `<span class="pat-dot" style="background:${patternColor(i)}"></span>`;
 
-function renderPatterns() {
-  const host = document.getElementById('lcd-song-rows');
-  if (!host) return;
-  host.innerHTML = '';
-  const patterns = eng.getPatterns();
-  const chain = eng.getChain();
-  const editIdx = eng.getEditPatternIndex();
+// ─── HOME hub ─────────────────────────────────────────────────────────────────
+function renderHome(body) {
+  body.innerHTML =
+    `<div class="home-q">what do you want to make?</div>` +
+    homecard('grooves', '🥁', 'Grooves', 'make &amp; edit loops') +
+    homecard('patterns', '🧩', 'Patterns', 'compose sections from loops') +
+    homecard('song', '🎚', 'Song', 'arrange sections in order');
+  body.querySelectorAll('.homecard').forEach(c => c.onclick = () => setRoute(c.dataset.route));
+}
+function homecard(route, ic, t, s) {
+  return `<button class="homecard" data-route="${route}"><span class="hc-ic">${ic}</span>` +
+    `<span class="hc-tx"><span class="hc-t">${t}</span><span class="hc-s">${s}</span></span>` +
+    `<span class="hc-chev">›</span></button>`;
+}
 
-  // First-run teaching: a dismissible one-liner naming the make-loops → arrange
-  // flow. Persistent inline labels (below) carry the lesson after it's dismissed.
-  if (!localStorage.getItem('gb-song-hint-off')) {
-    const hint = document.createElement('div');
-    hint.className = 'song-hint';
-    hint.innerHTML = `<span>💡 Make loops in <b>Patterns</b>, then line them up in the <b>Song</b> below.</span><button class="song-hint-x" title="dismiss">✕</button>`;
-    hint.querySelector('.song-hint-x').onclick = () => {
-      try { localStorage.setItem('gb-song-hint-off', '1'); } catch (e) { /* private mode */ }
-      hint.remove();
-    };
-    host.appendChild(hint);
+// ─── Grooves editor — instrument list (here) + the step editor (in #lcd-viz) ──
+function renderGroovesEditor(body) {
+  const lanes = eng.getLanes().filter(l => l.type !== 'chords');
+  const editPat = eng.getPatterns()[eng.getEditPatternIndex()];
+  let h = `<div class="pane-list"><div class="pane-ttl">instruments</div>`;
+  lanes.forEach(l => {
+    const g = (editPat && editPat.lanes && editPat.lanes[l.id]) || '—';
+    h += `<button class="li ${l.id === _editingLaneId ? 'sel' : ''}" data-lane="${l.id}">` +
+      `<span class="li-ic">${LANE_ICONS[l.type] || '🎛'}</span>` +
+      `<span class="li-nm">${esc(l.name)}</span>` +
+      `<span class="li-sub">${esc(g)}</span><span class="li-chev">›</span></button>`;
+  });
+  h += `<button class="li li-add" data-addinstr="1">＋ add instrument</button></div>`;
+  body.innerHTML = h;
+  body.querySelectorAll('.li[data-lane]').forEach(b =>
+    b.onclick = () => setRoute('grooves', { laneId: b.dataset.lane, drilled: true }));
+  wireAddInstr(body.querySelector('[data-addinstr]'));
+}
+
+// Inline 4-type instrument picker (mirrors the strips add-lane menu).
+function wireAddInstr(btn) {
+  if (!btn) return;
+  btn.onclick = () => {
+    const menu = document.createElement('div');
+    menu.className = 'addinstr-menu';
+    menu.innerHTML = ['drums', 'bass', 'melody', 'chords']
+      .map(t => `<button data-t="${t}">${LANE_ICONS[t]} ${t[0].toUpperCase() + t.slice(1)}</button>`).join('');
+    btn.replaceWith(menu);
+    menu.querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
+      eng.addLane(b.dataset.t);
+      renderStrips();
+      const ls = eng.getLanes().filter(l => l.type !== 'chords');
+      const last = ls[ls.length - 1];
+      if (b.dataset.t !== 'chords' && last) setRoute('grooves', { laneId: last.id, drilled: true });
+      else renderScreen();
+    });
+  };
+}
+
+// ─── Patterns composer — sections list + compose (swap a loop per instrument) ─
+function renderPatternsComposer(body) {
+  const patterns = eng.getPatterns();
+  const editIdx = eng.getEditPatternIndex();
+  const grooves = eng.getGrooves();
+  const lanes = eng.getLanes();
+  const s = patterns[editIdx];
+
+  let list = `<div class="pane-ttl">sections</div>`;
+  patterns.forEach((p, i) => {
+    list += `<button class="li ${i === editIdx ? 'sel' : ''}" data-sec="${i}">` +
+      `<span class="li-dot" style="background:${patternColor(i)}"></span>` +
+      `<span class="li-nm">${p.name ? esc(p.name) : 'P' + (i + 1)}</span>` +
+      `<span class="li-chev">›</span></button>`;
+  });
+  list += `<button class="li li-add" data-newsec="1">＋ new section</button>`;
+
+  let detail = `<button class="pane-back" data-back="1">‹ sections</button>` +
+    `<div class="pane-ttl">compose “${s && s.name ? esc(s.name) : 'P' + (editIdx + 1)}” — swap a loop ▾` +
+    ` <button class="mini-btn" data-ren="1">rename</button></div>`;
+  lanes.filter(l => l.type !== 'chords').forEach(l => {
+    const laneGrooves = grooves[l.id] || {};
+    const picked = s && s.lanes ? s.lanes[l.id] : undefined;
+    const opts = Object.keys(laneGrooves).map(n =>
+      `<option value="${esc(n)}"${n === picked ? ' selected' : ''}>${esc(n)}</option>`).join('');
+    detail += `<div class="crow"><span class="crow-fl">${LANE_ICONS[l.type] || '🎛'} ${esc(l.name)}</span>` +
+      `<select class="gpick" data-swap="${l.id}">${opts}</select></div>`;
+  });
+  const chordLane = lanes.find(l => l.type === 'chords');
+  if (chordLane) {
+    const chords = eng.getPatternChords(editIdx) || [];
+    const chips = chords.length
+      ? chords.map(c => `<span class="progc">${esc(c.name)}</span>`).join('')
+      : `<span class="progc progc-empty">＋ chords</span>`;
+    detail += `<div class="crow crow-chords"><span class="crow-fl">🎵 ${esc(chordLane.name)}</span>` +
+      `<span class="prog" data-chords="1">${chips}</span></div>`;
   }
 
-  // Patterns row: small "patterns" label (matching chords/chain rows) + slots +
-  // duplicate/delete for the selected pattern.
-  const prow = document.createElement('div');
-  prow.className = 'pat-row';
-  const plbl = document.createElement('span');
-  plbl.className = 'pat-lbl';
-  plbl.innerHTML = 'patterns<small>your loops</small>';
-  prow.appendChild(plbl);
-  patterns.forEach((p, i) => {
-    const b = document.createElement('button');
-    b.className = 'pat-slot' + (i === editIdx ? ' sel' : '');
-    b.dataset.idx = i;
-    // Named sections read as their name; unnamed fall back to the number.
-    const label = p.name ? esc(p.name) : (i + 1);
-    b.innerHTML = `${patDot(i)}<span class="pat-name">${label}${i === editIdx ? ' ✎' : ''}</span>`;
-    b.title = 'click: edit this pattern — double-click: rename — play will loop it';
-    // No-op when already selected so the node survives a double-click (rename).
-    b.onclick = () => { if (i !== editIdx) { eng.selectPattern(i); renderPatterns(); refreshVizPattern(); } };
-    b.ondblclick = () => {
-      const span = b.querySelector('.pat-name');
-      if (!span) return;
-      const input = document.createElement('input');
-      input.className = 'lane-rename-input';
-      input.value = p.name || '';
-      input.placeholder = `${i + 1}`;
-      span.replaceWith(input);
-      input.focus(); input.select();
-      const commit = () => { eng.setPatternName(i, input.value); renderPatterns(); };
-      input.onblur = commit;
-      input.onkeydown = e => {
-        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-        if (e.key === 'Escape') { input.value = p.name || ''; input.blur(); }
-      };
-    };
-    prow.appendChild(b);
+  body.innerHTML = `<div class="panes two"><div class="pane-list">${list}</div><div class="pane-detail">${detail}</div></div>`;
+
+  body.querySelectorAll('.li[data-sec]').forEach(b => b.onclick = () => {
+    eng.selectPattern(+b.dataset.sec); refreshVizPattern(); setRoute('patterns', { drilled: true });
   });
-  const add = document.createElement('button');
-  add.className = 'pat-slot pat-add';
-  add.textContent = '＋ New';
-  add.title = 'add pattern';
-  add.disabled = patterns.length >= 16;
-  add.onclick = () => {
-    const idx = eng.addPattern();
-    if (idx !== null) { eng.selectPattern(idx); renderPatterns(); refreshVizPattern(); }
+  body.querySelector('[data-newsec]').onclick = () => {
+    const i = eng.addPattern();
+    if (i !== null) { eng.setPatternName(i, 'Part ' + (i + 1)); eng.selectPattern(i); refreshVizPattern(); setRoute('patterns', { drilled: true }); }
   };
-  prow.appendChild(add);
+  const back = body.querySelector('[data-back]');
+  if (back) back.onclick = () => { _drilled = false; renderScreen(); };
+  const ren = body.querySelector('[data-ren]');
+  if (ren) ren.onclick = () => renameSectionInline(editIdx, ren);
+  body.querySelectorAll('select[data-swap]').forEach(sel => sel.onchange = () => {
+    eng.setLaneGroove(sel.dataset.swap, sel.value);
+    refreshVizPattern();
+  });
+  const prog = body.querySelector('[data-chords]');
+  if (prog) prog.onclick = () => openComposerChordEdit(editIdx, prog);
+}
 
-  const dup = document.createElement('button');
-  dup.className = 'pat-act'; dup.textContent = '⧉ Copy'; dup.title = 'duplicate pattern';
-  dup.disabled = patterns.length >= 16;
-  dup.onclick = () => {
-    const idx = eng.duplicatePattern(editIdx);
-    if (idx !== null) { eng.selectPattern(idx); renderPatterns(); refreshVizPattern(); }
+function renameSectionInline(idx, anchor) {
+  const input = document.createElement('input');
+  input.className = 'lane-rename-input';
+  input.value = eng.getPatternName(idx) || '';
+  input.placeholder = `P${idx + 1}`;
+  anchor.replaceWith(input);
+  input.focus(); input.select();
+  const commit = () => { eng.setPatternName(idx, input.value); renderScreen(); };
+  input.onblur = commit;
+  input.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.value = eng.getPatternName(idx) || ''; input.blur(); }
   };
-  prow.appendChild(dup);
+}
 
-  const del = document.createElement('button');
-  del.className = 'pat-act'; del.textContent = '✕ Delete'; del.title = 'delete pattern';
-  del.disabled = patterns.length <= 1;
-  del.onclick = () => { eng.removePattern(editIdx); renderPatterns(); refreshVizPattern(); };
-  prow.appendChild(del);
-  host.appendChild(prow);
-
-  // Chord line for the SELECTED pattern, nested under the patterns row (the
-  // indent + spine say "this pattern's chords"). Chords belong to the pattern
-  // (one per bar, cycling). Click anywhere → text input to edit (parser-backed);
-  // empty → a "＋ chords" affordance. The status strip carries the SOUNDING
-  // pattern's chords — this row is purely the edit pattern's.
-  host.appendChild(buildChordLine(editIdx));
-
-  // Chain row: chips (click = play chain from there; hover-✕ removes; drag reorders) + append.
-  const crow = document.createElement('div');
-  crow.className = 'chain-row';
-  crow.innerHTML = `<span class="pat-lbl">song<small>play order →</small></span>`;
+// ─── Song arranger — the play order (chain) + add a section ────────────────────
+function renderSongArranger(body) {
+  const patterns = eng.getPatterns();
+  const chain = eng.getChain();
+  let h = `<div class="pane-ttl">song order <small>— tap to play from there · drag to reorder</small></div>`;
+  h += `<div class="chain-row big">`;
   chain.forEach((pi, pos) => {
-    const chip = document.createElement('button');
-    chip.className = 'chain-chip';
-    chip.dataset.pos = pos;
-    chip.draggable = true;
-    chip.innerHTML = `${patDot(pi)}<span>${pi + 1}</span><span class="chip-x" title="remove">✕</span>`;
+    h += `<button class="chain-chip" data-pos="${pos}" draggable="true">${patDot(pi)}` +
+      `<span>${pi + 1}</span><span class="chip-x" title="remove">✕</span></button>`;
+  });
+  h += `</div>`;
+  h += `<div class="pane-ttl">add a section to the order</div><div class="add-secs">`;
+  patterns.forEach((p, i) => {
+    h += `<button class="li" data-add="${i}"><span class="li-dot" style="background:${patternColor(i)}"></span>` +
+      `<span class="li-nm">${p.name ? esc(p.name) : 'P' + (i + 1)}</span>` +
+      `<span class="li-addx">＋ add</span></button>`;
+  });
+  h += `</div>`;
+  body.innerHTML = h;
+
+  body.querySelectorAll('.chain-chip[data-pos]').forEach(chip => {
+    const pos = +chip.dataset.pos;
     chip.onclick = e => {
-      if (e.target.classList.contains('chip-x')) { if (eng.removeChainAt(pos)) renderPatterns(); return; }
-      eng.playChain(pos);
-      renderPatterns();
+      if (e.target.classList.contains('chip-x')) { if (eng.removeChainAt(pos)) renderScreen(); return; }
+      eng.playChain(pos); renderScreen();
     };
     chip.ondragstart = () => { _chainDragFrom = pos; chip.classList.add('dragging'); };
     chip.ondragend = () => { _chainDragFrom = null; chip.classList.remove('dragging'); };
-    chip.ondragover = e => { e.preventDefault(); };
+    chip.ondragover = e => e.preventDefault();
     chip.ondrop = e => {
       e.preventDefault();
       if (_chainDragFrom === null || _chainDragFrom === pos) return;
       const rect = chip.getBoundingClientRect();
       const before = e.clientX < rect.left + rect.width / 2;
       let to = before ? pos : pos + 1;
-      if (_chainDragFrom < to) to--;           // account for the splice-out shifting targets left
+      if (_chainDragFrom < to) to--;
       eng.moveChain(_chainDragFrom, to);
-      renderPatterns();
+      renderScreen();
     };
-    crow.appendChild(chip);
   });
-  const append = document.createElement('button');
-  append.className = 'chain-chip chain-add';
-  append.textContent = '＋ Add';
-  append.title = 'append selected pattern to chain';
-  append.onclick = () => { eng.appendToChain(eng.getEditPatternIndex()); renderPatterns(); };
-  crow.appendChild(append);
-  host.appendChild(crow);
-
-  renderStrip();        // chain/chords may have changed → rebuild the readout
-  updatePatternsPlayback(eng.getPlaybackTarget());
-  syncStripGrooves();   // edit pattern may have changed → resync strip dropdowns
+  body.querySelectorAll('[data-add]').forEach(b => b.onclick = () => {
+    eng.appendToChain(+b.dataset.add); renderScreen();
+  });
 }
 
 // ─── LCD status strip (read-only narrator: title · chain · chords · key · bpm) ─
-function renderStrip() {
+// ─── LCD bar — breadcrumb (navigation) + status (song-order playhead · bpm) ───
+function renderLcdBar() {
   const host = document.getElementById('lcd-strip');
   if (!host) return;
   host.innerHTML = '';
-  const s = eng.getSong();
-  if (!s) return;
-  const title = document.createElement('span');
-  title.className = 'strip-title';
-  title.textContent = (s.title || '').toUpperCase();
-  host.appendChild(title);
-  if (s.artist) {
-    const credit = document.createElement('span');
-    credit.className = 'strip-credit';
-    credit.textContent = s.artist;
-    host.appendChild(credit);
+  host.removeAttribute('role'); host.removeAttribute('tabindex'); host.title = '';
+  host.onclick = null; host.onkeydown = null;
+
+  // Breadcrumb — every segment above the current one navigates up.
+  const crumb = document.createElement('div');
+  crumb.className = 'crumb';
+  crumb.appendChild(crumbSeg('Home', _route === 'home' ? null : () => setRoute('home'), _route === 'home'));
+  if (_route !== 'home') {
+    crumb.appendChild(crumbSep());
+    if (_route === 'song') {
+      crumb.appendChild(crumbSeg('Song', null, true));
+    } else {
+      const ed = _route === 'grooves' ? 'Grooves' : 'Patterns';
+      const showItem = isWide() || _drilled;
+      crumb.appendChild(crumbSeg(ed, showItem ? () => { _drilled = false; renderScreen(); } : null, !showItem));
+      if (showItem) {
+        crumb.appendChild(crumbSep());
+        let item;
+        if (_route === 'grooves') {
+          const lane = eng.getLanes().find(l => l.id === _editingLaneId);
+          item = lane ? lane.name : '—';
+        } else {
+          item = patLabel(eng.getEditPatternIndex());
+        }
+        crumb.appendChild(crumbSeg(item, null, true));
+      }
+    }
   }
+  host.appendChild(crumb);
+
+  // Status — the song-order playhead + a scope toggle + BPM, always visible.
+  const status = document.createElement('div');
+  status.className = 'lcd-status';
   const chainWrap = document.createElement('span');
   chainWrap.className = 'strip-chain';
   eng.getChain().forEach((pi, pos) => {
     const seg = document.createElement('span');
     seg.className = 'strip-seg';
     seg.dataset.pos = pos;
-    seg.textContent = pi + 1;
+    seg.innerHTML = `${patDot(pi)}<span>${pi + 1}</span>`;
     chainWrap.appendChild(seg);
   });
   const loop = document.createElement('span');
   loop.className = 'strip-seg strip-loop hot';
   loop.hidden = true;
   chainWrap.appendChild(loop);
-  host.appendChild(chainWrap);
-  // Which pattern the editors are pointed at — visible from every view, in the
-  // editing colour (teal), not the sounding colour (pink).
-  const edit = document.createElement('span');
-  edit.className = 'strip-seg strip-edit';
-  edit.textContent = `✎ P${eng.getEditPatternIndex() + 1}`;
-  host.appendChild(edit);
-  // The strip is the door to the song's structure: tap it → Song tab.
-  // It's a div, so make it a real control for keyboards / assistive tech.
-  host.title = 'Open the Song editor';
-  host.setAttribute('role', 'button');
-  host.setAttribute('aria-label', 'Open the Song editor');
-  host.tabIndex = 0;
-  host.onclick = () => activateSongTab();
-  host.onkeydown = e => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateSongTab(); }
-  };
-  const chordWrap = document.createElement('span');
-  chordWrap.className = 'strip-chords';
-  chordWrap.dataset.idx = -1;
-  host.appendChild(chordWrap);
-  const key = eng.getKey();
-  if (key) {
-    const keyEl = document.createElement('span');
-    keyEl.className = 'strip-key';
-    keyEl.textContent = fmtKeyName(key).toUpperCase();
-    host.appendChild(keyEl);
-  }
+  status.appendChild(chainWrap);
+  const scopeBtn = document.createElement('button');
+  scopeBtn.className = 'scope-btn' + (_scopeOpen ? ' on' : '');
+  scopeBtn.title = 'Oscilloscope';
+  scopeBtn.textContent = '⌁';
+  scopeBtn.onclick = () => toggleScope();
+  status.appendChild(scopeBtn);
   const bpmEl = document.createElement('span');
   bpmEl.className = 'strip-bpm';
   bpmEl.id = 'strip-bpm';
   bpmEl.textContent = `${currentBpm} BPM`;
-  host.appendChild(bpmEl);
-  updateStrip(eng.getPlaybackTarget());
+  status.appendChild(bpmEl);
+  host.appendChild(status);
+
+  updateLcdBar(eng.getPlaybackTarget());
 }
 
-// Per-step strip update: hot-class moves only — chord segs rebuild only when
-// the sounding pattern changes (a handful of nodes, on a bar boundary).
-function updateStrip(target) {
+function crumbSeg(label, go, cur) {
+  const b = document.createElement('button');
+  b.className = 'cseg' + (cur ? ' cur' : '');
+  b.textContent = label;
+  if (go && !cur) b.onclick = go; else b.disabled = !!cur;
+  return b;
+}
+function crumbSep() {
+  const s = document.createElement('span');
+  s.className = 'csep';
+  s.textContent = '›';
+  return s;
+}
+
+// Per-step status update: move the hot class on the song-order chips; show a
+// LOOP marker when a single pattern is looping instead of the chain.
+function updateLcdBar(target) {
   const host = document.getElementById('lcd-strip');
   if (!host || !target) return;
   const isPattern = target.kind === 'pattern';
@@ -1205,142 +1224,40 @@ function updateStrip(target) {
   const loop = host.querySelector('.strip-loop');
   if (loop) {
     loop.hidden = !isPattern;
-    if (isPattern) loop.textContent = `LOOP P${target.patternIdx + 1}`;
-  }
-  const wrap = host.querySelector('.strip-chords');
-  if (wrap) {
-    if (+wrap.dataset.idx !== target.patternIdx) {
-      wrap.dataset.idx = target.patternIdx;
-      wrap.innerHTML = '';
-      (eng.getPatternChords(target.patternIdx) || []).forEach((c, i) => {
-        const seg = document.createElement('span');
-        seg.className = 'strip-seg';
-        seg.dataset.i = i;
-        seg.textContent = c.name;
-        wrap.appendChild(seg);
-      });
-    }
-    const segs = wrap.querySelectorAll('.strip-seg');
-    if (segs.length) {
-      const hot = target.barInPattern % segs.length;
-      segs.forEach(seg => seg.classList.toggle('hot', +seg.dataset.i === hot));
-    }
+    if (isPattern) loop.textContent = `LOOP ${patLabel(target.patternIdx)}`;
   }
 }
 
-// Build the chord line for pattern `idx`: "chords" label + chord chips (or a
-// "＋ chords" affordance when empty). Nested under the patterns row — the
-// indent says whose chords they are, so no P-marker. The chip area is
-// clickable → beginChordEdit swaps in the text input. Watching the sounding
-// pattern's chords is the strip's job; this row is the edit pattern's.
-function buildChordLine(idx) {
-  const row = document.createElement('div');
-  row.className = 'chord-row';
-  row.dataset.idx = idx;
-  const lbl = document.createElement('span');
-  lbl.className = 'pat-lbl';
-  lbl.innerHTML = `chords<small>of pattern ${idx + 1}</small>`;
-  row.appendChild(lbl);
-
-  const chips = document.createElement('div');
-  chips.className = 'h-chips';
-  const chords = eng.getPatternChords(idx) || [];
-  if (chords.length) {
-    chords.forEach((c, i) => {
-      const chip = document.createElement('span');
-      chip.className = 'h-chip';
-      chip.dataset.idx = i;
-      chip.textContent = c.name;
-      chips.appendChild(chip);
-    });
-  } else {
-    const add = document.createElement('span');
-    add.className = 'h-chip h-empty';
-    add.textContent = '＋ chords';
-    chips.appendChild(add);
-  }
-  chips.onclick = () => beginChordEdit(idx);
-  row.appendChild(chips);
-  // The song's key rides the chords row — it's harmony information.
-  const key = eng.getKey();
-  if (key) {
-    const badge = document.createElement('span');
-    badge.className = 'h-key';
-    badge.textContent = fmtKeyName(key);
-    row.appendChild(badge);
-  }
-  return row;
-}
-
-// Swap the chip area for a text input prefilled from the pattern's chords.
-// Enter / blur commit (parse → setPatternChords); Escape cancels; invalid input
-// keeps a red border and stays editing.
-function beginChordEdit(idx) {
-  const host = document.getElementById('lcd-song-rows');
-  const chips = host?.querySelector('.chord-row .h-chips');
-  if (!chips) return;
+// Composer chord edit: swap the progression chips for a text input
+// (parser-backed). Enter / blur commit; Escape cancels; invalid stays editing.
+function openComposerChordEdit(idx, anchor) {
   const chords = eng.getPatternChords(idx) || [];
   const input = document.createElement('input');
   input.className = 'h-edit';
   input.value = formatProgression(chords);
   input.placeholder = 'e.g. F#m D A E/G#';
-  chips.replaceWith(input);
+  anchor.replaceWith(input);
   input.focus();
   input.select();
   let done = false;
-  const cancel = () => { if (done) return; done = true; renderPatterns(); refreshVizPattern(); };
+  const finish = () => { renderScreen(); refreshVizPattern(); };
   const commit = () => {
     if (done) return;
     const text = input.value.trim();
-    if (text === '') {                         // empty → clear the pattern's chords
-      done = true;
-      eng.selectPattern(idx);
-      eng.setPatternChords([]);
-      renderPatterns();
-      refreshVizPattern();
-      return;
-    }
+    if (text === '') { done = true; eng.selectPattern(idx); eng.setPatternChords([]); finish(); return; }
     const { chords: parsed, errors } = parseProgression(text);
     if (errors.length || !parsed.length) { input.classList.add('invalid'); return; }
     done = true;
-    eng.selectPattern(idx);                    // setPatternChords targets the edit pattern
+    eng.selectPattern(idx);
     eng.setPatternChords(parsed);
-    renderPatterns();
-    refreshVizPattern();   // melody/bass tinting reads the new chords/key
+    finish();
   };
   input.oninput = () => input.classList.remove('invalid');
   input.onkeydown = e => {
     if (e.key === 'Enter') { e.preventDefault(); commit(); }
-    else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    else if (e.key === 'Escape') { e.preventDefault(); if (!done) { done = true; finish(); } }
   };
   input.onblur = commit;
-}
-
-// Glow + row dimming — called from renderPatterns and every step.
-function updatePatternsPlayback(target) {
-  const host = document.getElementById('lcd-song-rows');
-  if (!host || !target) return;
-  const isPattern = target.kind === 'pattern';
-  const prow = host.querySelector('.pat-row');
-  const crow = host.querySelector('.chain-row');
-  if (prow) prow.classList.toggle('dimmed', !isPattern);
-  if (crow) crow.classList.toggle('dimmed', isPattern);
-  host.querySelectorAll('.pat-slot').forEach(b => {
-    b.classList.toggle('playing', isPattern && +b.dataset.idx === target.patternIdx);
-  });
-  host.querySelectorAll('.chain-chip').forEach(c => {
-    c.classList.toggle('playing', !isPattern && +c.dataset.pos === target.chainPos);
-  });
-  // The chord row shows the EDIT pattern's chords; light the live chord only
-  // when the edit pattern happens to be the one sounding. (The strip narrates
-  // the sounding pattern; no prose status — the chips ARE the status.)
-  const liveRow = host.querySelector('.chord-row');
-  const chordChips = liveRow ? liveRow.querySelectorAll('.h-chip:not(.h-empty)') : [];
-  if (chordChips.length) {
-    const isSounding = +liveRow.dataset.idx === target.patternIdx;
-    const sounding = target.barInPattern % chordChips.length;
-    chordChips.forEach(chip => chip.classList.toggle('sounding', isSounding && +chip.dataset.idx === sounding));
-  }
 }
 
 // Tell the viz the edit pattern changed (rebuilds the open editor).
@@ -1376,20 +1293,19 @@ function resetFX() {
 // ─── Mount: (re)build all per-song UI ────────────────────────────────────────
 function mount() {
   song = eng.getSong();
-  // No credit line — the strip carries title + artist; the dropdown carries the title.
+  // No credit line — the breadcrumb/title carry it.
   renderStrips();
   renderFills();
   renderPunch();
   renderMaster();
-  renderPatterns();   // also rebuilds the LCD status strip
   viz?.dispose?.();   // stop the outgoing viz's rAF loops before replacing it
-  viz = makeViz(document.getElementById('lcd-body'), song, eng);
-  // Scope/Song tabs off — lane editor takes over.
-  document.querySelectorAll('[data-view]').forEach(x => x.classList.remove('on'));
-  // Auto-open the first editable lane (drums or first non-chords lane).
+  viz = makeViz(document.getElementById('lcd-viz'), song, eng);
+  // Point the viz at the first editable lane so Grooves has a default; then
+  // route to HOME — the hub is the entry, Song is not forced.
   const lanes = eng.getLanes();
   const firstEditable = lanes.find(l => l.type !== 'chords') || lanes[0];
-  if (firstEditable) activateEditLane(firstEditable.id);
+  if (firstEditable) _editingLaneId = firstEditable.id;
+  setRoute('home');
 }
 
 // ─── Load a different song ────────────────────────────────────────────────────
@@ -1424,13 +1340,11 @@ document.getElementById('play').onclick = async function() {
   if (this.classList.contains('on')) {
     eng.stop(); this.classList.remove('on'); this.textContent='▶ play';
     stopMeterLoop();
-    updatePatternsPlayback(eng.getPlaybackTarget());
-    updateStrip(eng.getPlaybackTarget());
+    updatePlayback(eng.getPlaybackTarget());
   } else {
     await eng.play(); this.classList.add('on'); this.textContent='⏹ stop';
     startMeterLoop();
-    updatePatternsPlayback(eng.getPlaybackTarget());
-    updateStrip(eng.getPlaybackTarget());
+    updatePlayback(eng.getPlaybackTarget());
   }
 };
 // (Tempo + transpose controls live on MASTER — built in renderMaster().)
@@ -1583,7 +1497,7 @@ document.addEventListener('pointerdown', e => {
 });
 // Screen picker (Settings) — override the theme's glass with a chosen LCD.
 
-// (Scope + quick-edit lane tabs are built and wired in renderViewTabs().)
+// (The screen is routed by setRoute(); the scope monitor toggles via toggleScope().)
 
 // ─── Step callback (registered once; closes over module-level song/viz) ──────
 eng.onStep(({ absStep, bar, stepInBar, fill, queue, target }) => {
@@ -1595,8 +1509,7 @@ eng.onStep(({ absStep, bar, stepInBar, fill, queue, target }) => {
     });
     renderChain(queue);
   }
-  updatePatternsPlayback(target);
-  updateStrip(target);
+  updatePlayback(target);
 });
 
 // ─── Restore saved theme ──────────────────────────────────────────────────────
