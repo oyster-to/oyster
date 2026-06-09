@@ -4512,20 +4512,21 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
 #lcd-strip.lcdbar { cursor: default; justify-content: space-between; }
 .crumb { display: inline-flex; align-items: center; gap: 2px; flex-wrap: wrap; }
 .cseg {
-  background: none; border: none; padding: 2px 6px; border-radius: 5px;
-  font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit;
+  background: none; border: none; box-shadow: none; padding: 2px 5px; border-radius: 5px;
+  font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
   color: var(--screen-dim);
 }
-.cseg:not(.cur):hover { background: color-mix(in srgb, var(--screen-acc) 12%, transparent); color: var(--screen-ink); }
+.cseg:not(.cur):hover { background: color-mix(in srgb, var(--screen-acc) 14%, transparent); color: var(--screen-ink); }
 .cseg.cur { color: var(--screen-ink); cursor: default; }
 .csep { color: var(--screen-dim); opacity: .55; font-size: 11px; }
 .lcd-status { display: inline-flex; align-items: center; gap: 8px; }
 .scope-btn {
-  background: none; color: var(--screen-dim); cursor: pointer; line-height: 1;
-  border: 1px solid color-mix(in srgb, var(--screen-ink) 30%, transparent);
-  border-radius: 5px; padding: 0 6px; height: 18px; font-size: 11px;
+  background: none; box-shadow: none; color: var(--screen-ink); cursor: pointer; line-height: 1;
+  border: 1px solid color-mix(in srgb, var(--screen-ink) 45%, transparent);
+  border-radius: 5px; padding: 1px 7px; height: 20px; font-size: 14px;
 }
-.scope-btn.on { color: var(--screen-acc); border-color: var(--screen-acc); }
+.scope-btn:hover { border-color: var(--screen-acc); color: var(--screen-acc); }
+.scope-btn.on { color: var(--screen-bg); background: var(--screen-acc); border-color: var(--screen-acc); }
 
 /* ── HOME hub cards ──────────────────────────────────────────────────────── */
 .home-q { font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--screen-dim); margin: 4px 2px 10px; }

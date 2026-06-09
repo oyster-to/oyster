@@ -1185,7 +1185,7 @@ function renderLcdBar() {
   const scopeBtn = document.createElement('button');
   scopeBtn.className = 'scope-btn' + (_scopeOpen ? ' on' : '');
   scopeBtn.title = 'Oscilloscope';
-  scopeBtn.textContent = '⌁';
+  scopeBtn.textContent = '∿';
   scopeBtn.onclick = () => toggleScope();
   status.appendChild(scopeBtn);
   const bpmEl = document.createElement('span');
