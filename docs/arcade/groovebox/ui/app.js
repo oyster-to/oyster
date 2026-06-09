@@ -855,25 +855,27 @@ function makeTempoGroup() {
   grp.appendChild(lbl);
   const row = document.createElement('div');
   row.className = 'kgroup-knobs';
-  // One label per control: the group label names it, the knob's sublabel slot
-  // (where MIX knobs say vol/bal/wid) carries the live BPM value.
-  const knob = makeKnob({
-    label: String(currentBpm),
-    // Clamp the dial position — a shared/legacy song can carry a BPM outside
-    // the knob's 80–180 sweep; the engine keeps the true tempo, the dial pins.
-    value: Math.max(0, Math.min(1, (currentBpm - 80) / 100)),
-    fmt: v => Math.round(80 + v * 100),
-    onChange: v => {
-      currentBpm = Math.round(80 + v * 100);
-      eng.setTempo(currentBpm);
-      const kl = knob.querySelector('.knob-lbl');
-      if (kl) kl.textContent = String(currentBpm);
-      const sb = document.getElementById('strip-bpm');
-      if (sb) sb.textContent = `${currentBpm} BPM`;
-    },
-    tip: 'Tempo (BPM) — drag up / down',
-  });
-  row.appendChild(knob);
+  // A ± stepper (like TRANSPOSE), not a knob: exact BPM, no dial sweep to clamp.
+  const stepper = document.createElement('div');
+  stepper.className = 'key-stepper';
+  const dn = document.createElement('button'); dn.textContent = '−';
+  const val = document.createElement('span'); val.className = 'mono'; val.textContent = String(Math.round(currentBpm));
+  const up = document.createElement('button'); up.textContent = '＋';
+  // Clamp matches the registry's valid bpm range (20–999), so a loaded song is
+  // never outside it — the displayed value always equals the stepper's value and
+  // the first click stays monotonic. Steps round to stay integral.
+  const setBpm = n => {
+    currentBpm = Math.max(20, Math.min(999, n));
+    eng.setTempo(currentBpm);
+    val.textContent = String(currentBpm);
+    const sb = document.getElementById('strip-bpm');
+    if (sb) sb.textContent = `${currentBpm} BPM`;
+  };
+  dn.onclick = () => setBpm(Math.round(currentBpm) - 1);
+  up.onclick = () => setBpm(Math.round(currentBpm) + 1);
+  stepper.appendChild(dn); stepper.appendChild(val); stepper.appendChild(up);
+  stepper.title = 'Tempo (BPM)';
+  row.appendChild(stepper);
   grp.appendChild(row);
   return grp;
 }
