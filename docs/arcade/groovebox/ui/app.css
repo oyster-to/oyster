@@ -4490,6 +4490,11 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
 #lcd-body { flex: 1 1 auto; min-width: 0; }
 #lcd-viz  { flex: 1 1 auto; min-width: 0; }
 
+/* These are <button>s; escape the global button height:30px so the padded
+   cards/chips/breadcrumb segments size to their content (not a 30px box). */
+.homecard, .li, #lcd-body .chain-chip, .cseg, .pane-back, .mini-btn,
+.addinstr-menu button, .scope-btn { height: auto; }
+
 /* Home / Patterns / Song: only #lcd-body shows. */
 #viz.route-home #lcd-viz,
 #viz.route-patterns #lcd-viz,
