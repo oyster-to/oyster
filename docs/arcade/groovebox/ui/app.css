@@ -1549,7 +1549,7 @@ body.gb-knob-values .knob-val { display: block; }
    armed, fills while you hold it, muted when the transport is stopped. */
 .pe-test {
   margin-left: auto; border: 1px solid var(--acc); border-radius: 6px;
-  padding: 6px 16px; cursor: pointer;
+  height: auto; padding: 7px 16px; cursor: pointer; line-height: 1.2;
   background: color-mix(in srgb, var(--acc) 14%, transparent); color: var(--acc);
   font-weight: 700; user-select: none; touch-action: none;
 }
