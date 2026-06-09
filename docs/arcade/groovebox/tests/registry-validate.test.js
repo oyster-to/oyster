@@ -83,6 +83,14 @@ describe('validateSongPayload — invariants', () => {
     expect(validateSongPayload({ ...song(), key: { root: 'A', mode: 'major' } }).ok).toBe(true);
     expect(validateSongPayload({ ...song(), key: 'A major' }).ok).toBe(false);
   });
+  it('accepts optional pattern.name, rejects non-string or oversized', () => {
+    const s = song(); s.patterns[0].name = 'Verse';
+    expect(validateSongPayload(s).ok).toBe(true);
+    const s2 = song(); s2.patterns[0].name = 123;
+    expect(validateSongPayload(s2).ok).toBe(false);
+    const s3 = song(); s3.patterns[0].name = 'x'.repeat(81);   // > NAME_MAX (80)
+    expect(validateSongPayload(s3).ok).toBe(false);
+  });
   it('rejects empty chain and out-of-range chain entries', () => {
     expect(validateSongPayload({ ...song(), chain: [] }).ok).toBe(false);
     expect(validateSongPayload({ ...song(), chain: [1] }).ok).toBe(false);   // only pattern 0 exists

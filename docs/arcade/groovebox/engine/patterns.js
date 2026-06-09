@@ -212,7 +212,7 @@ export function addPattern(song, fromIdx = 0) {
   if (song.patterns.length >= MAX_PATTERNS) return null;
   const src = song.patterns[fromIdx] || song.patterns[0];
   if (!src) return null;
-  song.patterns.push({ lanes: { ...src.lanes } });
+  song.patterns.push({ lanes: { ...src.lanes }, name: '' });
   return song.patterns.length - 1;
 }
 

@@ -837,6 +837,13 @@ export function createEngine() {
       const key = deriveKey(all);
       if (key) song.key = key; else delete song.key;
     },
+    // Section name (optional, UI-only — engine never reads it). Empty = unnamed,
+    // the UI falls back to "P{n}". Capped short; sharing validates ≤ NAME_MAX.
+    getPatternName(i) { return song?.patterns[i]?.name ?? ''; },
+    setPatternName(i, name) {
+      if (!song || !song.patterns[i]) return;
+      song.patterns[i].name = String(name ?? '').trim().slice(0, 40);
+    },
     setTranspose(semis) {
       if (!song) return;
       song.transpose = semis | 0;

@@ -124,7 +124,8 @@ export function validateSongPayload(p) {
   }
   if (!Array.isArray(p.patterns) || p.patterns.length < 1 || p.patterns.length > 16) return err('patterns must be 1..16');
   for (const pat of p.patterns) {
-    if (!isObj(pat) || strictKeys(pat, ['lanes', 'chords'], 'pattern') !== null || !isObj(pat.lanes)) return err('invalid pattern');
+    if (!isObj(pat) || strictKeys(pat, ['lanes', 'chords', 'name'], 'pattern') !== null || !isObj(pat.lanes)) return err('invalid pattern');
+    if (pat.name !== undefined && (typeof pat.name !== 'string' || pat.name.length > NAME_MAX)) return err('invalid pattern name');
     if (pat.chords !== undefined && pat.chords !== null && !chordsValid(pat.chords)) return err('invalid pattern chords');
     for (const [laneId, name] of Object.entries(pat.lanes)) {
       if (name === null || name === undefined) continue;     // explicit no-pick is allowed

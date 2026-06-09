@@ -77,6 +77,19 @@ test('pattern/chain mutation APIs are wired through', () => {
   expect(eng.getSong().chain.length).toBe(len - 1);
 });
 
+test('addPattern seeds an empty name; setPatternName trims and caps it', () => {
+  const eng = loaded();
+  const i = eng.addPattern();
+  expect(eng.getSong().patterns[i].name).toBe('');
+  expect(eng.getPatternName(i)).toBe('');
+  eng.setPatternName(i, '  Verse  ');
+  expect(eng.getPatternName(i)).toBe('Verse');               // trimmed
+  eng.setPatternName(i, 'x'.repeat(60));
+  expect(eng.getPatternName(i).length).toBe(40);             // capped
+  eng.setPatternName(i, '');
+  expect(eng.getPatternName(i)).toBe('');                    // clears
+});
+
 test('getGrooves lists named grooves; flattened kids has a drums groove named from "four"', () => {
   const eng = loaded();
   const grooves = eng.getGrooves();
