@@ -1187,12 +1187,15 @@ input[type=range] {
   text-transform: uppercase;
   color: var(--screen-dim);
 }
-.scope-bar select {
+.scope-bar-lbl { flex-shrink: 0; }
+.scope-segs { display: flex; flex-wrap: wrap; gap: 4px; }
+.scope-seg {
+  appearance: none;
   background: color-mix(in srgb, var(--screen-ink) 8%, transparent);
   color: var(--screen-ink);
-  border: 1px solid color-mix(in srgb, var(--screen-ink) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--screen-ink) 25%, transparent);
   border-radius: 6px;
-  padding: 4px 8px;
+  padding: 3px 9px;
   font: inherit;
   font-weight: 700;
   text-transform: none;
@@ -1200,7 +1203,12 @@ input[type=range] {
   cursor: pointer;
   height: auto;
 }
-.scope-bar select:hover { border-color: var(--screen-acc); }
+.scope-seg:hover { border-color: var(--screen-acc); }
+.scope-seg.on {
+  background: var(--screen-acc);
+  border-color: var(--screen-acc);
+  color: var(--screen-bg);
+}
 
 /* ─── § 5 — lane strips: aligned shared grid ────────────────────────────── */
 .lane {
@@ -2860,6 +2868,11 @@ html:not([data-theme]) .vc.now:not(.hit),
   --hit1:        #4ab44a;   /* Y-green drum hits */
   --hit2:        #2a7a30;
 }
+/* Knob indicators cycle the ABXY button colours (blue → yellow → red → green). */
+[data-theme="snes"] .knob[data-kc="0"] .knob-ind { background: #3a6ee0; box-shadow: 0 0 4px #3a6ee0; }
+[data-theme="snes"] .knob[data-kc="1"] .knob-ind { background: #d8b43a; box-shadow: 0 0 4px #d8b43a; }
+[data-theme="snes"] .knob[data-kc="2"] .knob-ind { background: #d8403a; box-shadow: 0 0 4px #d8403a; }
+[data-theme="snes"] .knob[data-kc="3"] .knob-ind { background: #4ab44a; box-shadow: 0 0 4px #4ab44a; }
 [data-theme="snes"] h1 { text-shadow: none; }
 [data-theme="snes"] .vc.hit { box-shadow: 0 0 6px rgba(74,180,74,0.35), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
 [data-theme="snes"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(216,180,58,0.3); background: rgba(216,180,58,0.07); }

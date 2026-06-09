@@ -798,18 +798,22 @@ export function makeViz(host, song, eng) {
         drawRoll(-1);
       }
     } else if (view === 'scope') {
-      // Build source list: master + each lane (id as value, name as label).
+      // Source = master + each lane. Segmented pills (not a native <select>): one
+      // tap, no OS popup, and they speak the pearl-LCD palette.
       const laneSources = eng.getLanes().map(l => ({ value: l.id, label: l.name }));
       const SOURCES = [{ value: 'master', label: 'master' }, ...laneSources];
-      const opts = SOURCES.map(s =>
-        `<option value="${s.value}"${s.value === scopeSource ? ' selected' : ''}>${s.label}</option>`
+      const segs = SOURCES.map(s =>
+        `<button class="scope-seg${s.value === scopeSource ? ' on' : ''}" data-src="${esc(s.value)}">${esc(s.label)}</button>`
       ).join('');
-      host.innerHTML = `<div class="scope-bar"><label>source <select id="scope-src">${opts}</select></label></div>`
+      host.innerHTML = `<div class="scope-bar"><span class="scope-bar-lbl">source</span><div class="scope-segs">${segs}</div></div>`
         + `<canvas id="scope-canvas"></canvas>`;
       const cv = host.querySelector('#scope-canvas');
       cv.width = host.clientWidth || 680;
       cv.height = 140;
-      host.querySelector('#scope-src').onchange = e => { scopeSource = e.target.value; };
+      host.querySelectorAll('.scope-seg').forEach(b => b.onclick = () => {
+        scopeSource = b.dataset.src;
+        host.querySelectorAll('.scope-seg').forEach(x => x.classList.toggle('on', x === b));
+      });
       startScopeLoop();
     } else if (view === 'bass') {
       if (rollMode === 'blocks') {
