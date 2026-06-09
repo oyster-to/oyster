@@ -1028,8 +1028,8 @@ function renderPatternsComposer(body) {
   list += `<button class="li li-add" data-newsec="1">＋ new section</button>`;
 
   let detail = `<button class="pane-back" data-back="1">‹ sections</button>` +
-    `<div class="pane-ttl">compose “${s && s.name ? esc(s.name) : 'P' + (editIdx + 1)}” — swap a loop ▾` +
-    ` <button class="mini-btn" data-ren="1">rename</button></div>`;
+    `<div class="pane-ttl">compose “${s && s.name ? esc(s.name) : 'P' + (editIdx + 1)}” — swap a loop` +
+    ` <button class="mini-btn" data-ren="1">✎ rename</button></div>`;
   lanes.filter(l => l.type !== 'chords').forEach(l => {
     const laneGrooves = grooves[l.id] || {};
     const picked = s && s.lanes ? s.lanes[l.id] : undefined;
