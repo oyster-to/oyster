@@ -57,7 +57,7 @@ export const DEFAULT_PRESETS = [
   { name: 'STUTTER BASS', key: '2', engageQuantize: 'immediate', releaseQuantize: 'immediate',
     lanes: ['drums', 'bass'],   // chop the rhythm section; pads/melody ride on top
     automations: [
-      { module: 'gate', param: 'depth', from: 'neutral', to: 1, division: '1/8',
+      { module: 'gate', param: 'depth', from: 'neutral', to: 1, division: '1/4',
         engage: { ramp: { unit: 'steps', value: 0 } }, release: { ramp: { unit: 'steps', value: 0.1 } } },
     ] },
   { name: 'CRUSH', key: '3', engageQuantize: 'immediate', releaseQuantize: 'immediate',

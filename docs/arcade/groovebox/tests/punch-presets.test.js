@@ -15,12 +15,12 @@ describe('DEFAULT_PRESETS', () => {
       for (const a of p.automations)
         expect(MODULE_PARAMS[`${a.module}.${a.param}`]).toBeDefined();
   });
-  it('both stutters chop at 1/8 with their own sections', () => {
+  it('stutters chop their own sections (melody 1/8, bass 1/4)', () => {
     const mel = DEFAULT_PRESETS.find(p => p.name === 'STUTTER');
     const bas = DEFAULT_PRESETS.find(p => p.name === 'STUTTER BASS');
     expect(mel.automations[0].division).toBe('1/8');
     expect(mel.lanes).toEqual(['melody']);
-    expect(bas.automations[0].division).toBe('1/8');
+    expect(bas.automations[0].division).toBe('1/4');
     expect(bas.lanes).toEqual(['drums', 'bass']);
   });
 });
