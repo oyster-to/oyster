@@ -258,14 +258,15 @@ body {
   gap: 6px;
   flex-shrink: 0;
 }
-/* Tool chrome — smaller, visually secondary vs transport */
+/* Tool chrome — smaller, visually secondary vs transport, but still read as
+   tappable buttons (a subtle fill + legible label, not flat text). */
 .titlebar-tools select,
 .titlebar-tools button {
   height: 26px;
   font-size: 11px;
   padding: 0 10px;
-  color: var(--dim);
-  background: transparent;
+  color: var(--ink);
+  background: var(--panel-2);
   border-color: var(--line);
   box-shadow: none;
 }
@@ -282,7 +283,7 @@ body {
 }
 .titlebar-tools button:hover,
 .titlebar-tools select:hover {
-  background-color: var(--panel-2);
+  background-color: var(--panel-3);
   border-color: var(--acc-dim);
   color: var(--ink);
 }
@@ -1172,6 +1173,8 @@ input[type=range] {
   position: relative;
   z-index: 2;
 }
+/* The scope is a screen monitor (lives on the pearl LCD), so it speaks the
+   screen palette — not the dark cabinet tokens. Match the .gpick control look. */
 .scope-bar {
   display: flex;
   align-items: center;
@@ -1180,17 +1183,31 @@ input[type=range] {
   position: relative;
   z-index: 2;
   font-size: 11px;
-  color: var(--dim);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--screen-dim);
 }
-.scope-bar select {
-  background: var(--panel-2);
-  color: var(--acc);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 0 28px 0 4px;
+.scope-bar-lbl { flex-shrink: 0; }
+.scope-segs { display: flex; flex-wrap: wrap; gap: 4px; }
+.scope-seg {
+  appearance: none;
+  background: color-mix(in srgb, var(--screen-ink) 8%, transparent);
+  color: var(--screen-ink);
+  border: 1px solid color-mix(in srgb, var(--screen-ink) 25%, transparent);
+  border-radius: 6px;
+  padding: 3px 9px;
   font: inherit;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
   cursor: pointer;
-  height: 26px;
+  height: auto;
+}
+.scope-seg:hover { border-color: var(--screen-acc); }
+.scope-seg.on {
+  background: var(--screen-acc);
+  border-color: var(--screen-acc);
+  color: var(--screen-bg);
 }
 
 /* ─── § 5 — lane strips: aligned shared grid ────────────────────────────── */
@@ -1528,13 +1545,22 @@ body.gb-knob-values .knob-val { display: block; }
   letter-spacing: 0.06em; width: 130px; text-transform: uppercase;
 }
 .pe-badge { font-size: 10px; color: var(--faint); }
+/* Ghost-accent momentary button (on-theme, not a candy gradient): outlined when
+   armed, fills while you hold it, muted when the transport is stopped. */
 .pe-test {
-  margin-left: auto; border: 0; border-radius: 8px; padding: 6px 16px; cursor: pointer;
-  background: linear-gradient(180deg, #63f8d4, #3dd6b0); color: #04201a; font-weight: 700;
-  box-shadow: 0 0 14px rgba(84, 240, 200, 0.4); user-select: none; touch-action: none;
+  margin-left: auto; border: 1px solid var(--acc); border-radius: 6px;
+  height: auto; padding: 7px 16px; cursor: pointer; line-height: 1.2;
+  background: color-mix(in srgb, var(--acc) 14%, transparent); color: var(--acc);
+  font-weight: 700; user-select: none; touch-action: none;
 }
-.pe-test small { display: block; font-weight: 400; font-size: 9px; opacity: 0.7; }
-.pe-test.idle { filter: grayscale(1); opacity: 0.5; box-shadow: none; }
+.pe-test small { display: block; font-weight: 400; font-size: 9px; opacity: 0.8; }
+.pe-test:active {
+  background: var(--acc); color: #04201a;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--acc) 45%, transparent);
+}
+.pe-test.idle {
+  border-color: var(--line); background: none; color: var(--faint); box-shadow: none;
+}
 .pe-fx { border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); padding: 10px; margin: 8px 0; }
 .pe-fxhd { display: flex; align-items: center; margin-bottom: 6px; }
 .pe-fxname { color: var(--ink); font-weight: 700; }
@@ -2851,6 +2877,11 @@ html:not([data-theme]) .vc.now:not(.hit),
   --hit1:        #4ab44a;   /* Y-green drum hits */
   --hit2:        #2a7a30;
 }
+/* Knob indicators cycle the ABXY button colours (blue → yellow → red → green). */
+[data-theme="snes"] .knob[data-kc="0"] .knob-ind { background: #3a6ee0; box-shadow: 0 0 4px #3a6ee0; }
+[data-theme="snes"] .knob[data-kc="1"] .knob-ind { background: #d8b43a; box-shadow: 0 0 4px #d8b43a; }
+[data-theme="snes"] .knob[data-kc="2"] .knob-ind { background: #d8403a; box-shadow: 0 0 4px #d8403a; }
+[data-theme="snes"] .knob[data-kc="3"] .knob-ind { background: #4ab44a; box-shadow: 0 0 4px #4ab44a; }
 [data-theme="snes"] h1 { text-shadow: none; }
 [data-theme="snes"] .vc.hit { box-shadow: 0 0 6px rgba(74,180,74,0.35), inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.3); }
 [data-theme="snes"] .vc.now:not(.hit) { box-shadow: 0 0 8px rgba(216,180,58,0.3); background: rgba(216,180,58,0.07); }

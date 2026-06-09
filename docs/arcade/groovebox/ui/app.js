@@ -161,6 +161,9 @@ function makeKnobrow(groups) {
   row.appendChild(mkHint('l'));
   for (const g of groups) row.appendChild(g);
   row.appendChild(mkHint('r'));
+  // Rotation index per knob (0-3) — themes can colour the indicator by position
+  // (e.g. SNES cycles the ABXY button colours blue/yellow/red/green).
+  row.querySelectorAll('.knob').forEach((k, i) => { k.dataset.kc = String(i % 4); });
   row.addEventListener('scroll', () => updateKnobrowFade(row), { passive: true });
   requestAnimationFrame(() => updateKnobrowFade(row));
   return row;
@@ -348,7 +351,7 @@ function renderPicker() {
   host.innerHTML = '';
   const head = document.createElement('div');
   head.className = 'picker-head';
-  head.innerHTML = `<span>SELECT SONG</span>`;
+  head.innerHTML = `<span>LOAD SONG</span>`;
   const close = document.createElement('button');
   close.className = 'picker-close';
   close.textContent = '✕';
