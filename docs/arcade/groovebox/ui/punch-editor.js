@@ -81,6 +81,7 @@ export function openPunchEditor({ slot, eng, onSaved }) {
 
   function stopPreview() {
     if (previewHeld) { eng.punchPreview(draft, false); previewHeld = false; }
+    modal.querySelector('.pe-test')?.classList.remove('held');
   }
   function close() {
     stopPreview();
@@ -96,6 +97,7 @@ export function openPunchEditor({ slot, eng, onSaved }) {
       e.stopPropagation(); e.preventDefault();
       if (!previewHeld && eng.isPlaying() && validatePreset(draft)) {
         eng.punchPreview(draft, true); previewHeld = true;
+        modal.querySelector('.pe-test')?.classList.add('held');   // key-hold lights the button like a click
       }
     }
   }
@@ -132,19 +134,23 @@ export function openPunchEditor({ slot, eng, onSaved }) {
     const badge = document.createElement('span');
     badge.className = 'pe-badge';
     badge.textContent = (COARSE ? '' : `key ${draft.key} · `) + `slot ${slot + 1} of ${eng.getPunchPresets().length}`;
+    // Label tracks transport state ONLY (never changes on press): armed when
+    // playing, "press ▶ first" when stopped (which explains the greyed look).
+    const armedLabel = COARSE ? 'TEST<small>hold to hear</small>' : `TEST<small>hold · or key ${draft.key}</small>`;
+    const idleLabel = 'TEST<small>press ▶ first</small>';
     const test = document.createElement('button');
     test.className = 'pe-test' + (playing ? '' : ' idle');
-    test.innerHTML = COARSE ? 'TEST<small>hold to hear</small>' : `TEST<small>hold · or key ${draft.key}</small>`;
+    test.innerHTML = playing ? armedLabel : idleLabel;
     test.addEventListener('pointerdown', e => {
       e.preventDefault(); test.setPointerCapture(e.pointerId);
       if (!eng.isPlaying()) {            // live check — not the render-time snapshot
         test.classList.add('idle');
-        test.innerHTML = 'TEST<small>press ▶ first</small>';
+        test.innerHTML = idleLabel;
         return;
       }
       test.classList.remove('idle');
-      test.innerHTML = 'TEST<small>hold to hear</small>';
-      if (validatePreset(draft)) { eng.punchPreview(draft, true); previewHeld = true; }
+      test.innerHTML = armedLabel;
+      if (validatePreset(draft)) { eng.punchPreview(draft, true); previewHeld = true; test.classList.add('held'); }
     });
     const off = () => stopPreview();
     test.addEventListener('pointerup', off);
