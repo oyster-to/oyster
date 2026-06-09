@@ -979,6 +979,20 @@ function fmtKeyName(key) {
 
 let _chainDragFrom = null;
 
+// Per-pattern identity colour, derived from index. The same dot rides the
+// pattern slot and every song slot that plays it, so the song reads as a
+// sequence of *references* rather than a second bank of numbers. (Colour tracks
+// position; it shifts if patterns are added/removed — stable per-pattern IDs are
+// future work.)
+const PATTERN_COLORS = [
+  '#e8742a', '#2a9d8f', '#5566d8', '#c44ec9',
+  '#3a9d4a', '#d8443a', '#caa02a', '#8a5cd8',
+  '#2aa3c4', '#d86aa0', '#6a9d2a', '#a05cd8',
+  '#d8902a', '#3a78d8', '#c43a78', '#2a9d6a',
+];
+const patternColor = i => PATTERN_COLORS[i % PATTERN_COLORS.length];
+const patDot = i => `<span class="pat-dot" style="background:${patternColor(i)}"></span>`;
+
 function renderPatterns() {
   const host = document.getElementById('lcd-song-rows');
   if (!host) return;
@@ -987,26 +1001,39 @@ function renderPatterns() {
   const chain = eng.getChain();
   const editIdx = eng.getEditPatternIndex();
 
+  // First-run teaching: a dismissible one-liner naming the make-loops → arrange
+  // flow. Persistent inline labels (below) carry the lesson after it's dismissed.
+  if (!localStorage.getItem('gb-song-hint-off')) {
+    const hint = document.createElement('div');
+    hint.className = 'song-hint';
+    hint.innerHTML = `<span>💡 Make loops in <b>Patterns</b>, then line them up in the <b>Song</b> below.</span><button class="song-hint-x" title="dismiss">✕</button>`;
+    hint.querySelector('.song-hint-x').onclick = () => {
+      try { localStorage.setItem('gb-song-hint-off', '1'); } catch (e) { /* private mode */ }
+      hint.remove();
+    };
+    host.appendChild(hint);
+  }
+
   // Patterns row: small "patterns" label (matching chords/chain rows) + slots +
   // duplicate/delete for the selected pattern.
   const prow = document.createElement('div');
   prow.className = 'pat-row';
   const plbl = document.createElement('span');
   plbl.className = 'pat-lbl';
-  plbl.textContent = 'patterns';
+  plbl.innerHTML = 'patterns<small>your loops</small>';
   prow.appendChild(plbl);
   patterns.forEach((p, i) => {
     const b = document.createElement('button');
     b.className = 'pat-slot' + (i === editIdx ? ' sel' : '');
     b.dataset.idx = i;
-    b.textContent = i === editIdx ? `${i + 1} ✎` : `${i + 1}`;
+    b.innerHTML = `${patDot(i)}<span>${i + 1}${i === editIdx ? ' ✎' : ''}</span>`;
     b.title = 'click: edit this pattern — play will loop it';
     b.onclick = () => { eng.selectPattern(i); renderPatterns(); refreshVizPattern(); };
     prow.appendChild(b);
   });
   const add = document.createElement('button');
   add.className = 'pat-slot pat-add';
-  add.textContent = '＋';
+  add.textContent = '＋ New';
   add.title = 'add pattern';
   add.disabled = patterns.length >= 16;
   add.onclick = () => {
@@ -1016,7 +1043,7 @@ function renderPatterns() {
   prow.appendChild(add);
 
   const dup = document.createElement('button');
-  dup.className = 'pat-act'; dup.textContent = '⧉'; dup.title = 'duplicate pattern';
+  dup.className = 'pat-act'; dup.textContent = '⧉ Copy'; dup.title = 'duplicate pattern';
   dup.disabled = patterns.length >= 16;
   dup.onclick = () => {
     const idx = eng.duplicatePattern(editIdx);
@@ -1025,7 +1052,7 @@ function renderPatterns() {
   prow.appendChild(dup);
 
   const del = document.createElement('button');
-  del.className = 'pat-act'; del.textContent = '✕'; del.title = 'delete pattern';
+  del.className = 'pat-act'; del.textContent = '✕ Delete'; del.title = 'delete pattern';
   del.disabled = patterns.length <= 1;
   del.onclick = () => { eng.removePattern(editIdx); renderPatterns(); refreshVizPattern(); };
   prow.appendChild(del);
@@ -1041,13 +1068,13 @@ function renderPatterns() {
   // Chain row: chips (click = play chain from there; hover-✕ removes; drag reorders) + append.
   const crow = document.createElement('div');
   crow.className = 'chain-row';
-  crow.innerHTML = `<span class="pat-lbl">chain</span>`;
+  crow.innerHTML = `<span class="pat-lbl">song<small>play order →</small></span>`;
   chain.forEach((pi, pos) => {
     const chip = document.createElement('button');
     chip.className = 'chain-chip';
     chip.dataset.pos = pos;
     chip.draggable = true;
-    chip.innerHTML = `<span>${pi + 1}</span><span class="chip-x" title="remove">✕</span>`;
+    chip.innerHTML = `${patDot(pi)}<span>${pi + 1}</span><span class="chip-x" title="remove">✕</span>`;
     chip.onclick = e => {
       if (e.target.classList.contains('chip-x')) { if (eng.removeChainAt(pos)) renderPatterns(); return; }
       eng.playChain(pos);
@@ -1070,7 +1097,7 @@ function renderPatterns() {
   });
   const append = document.createElement('button');
   append.className = 'chain-chip chain-add';
-  append.textContent = '＋';
+  append.textContent = '＋ Add';
   append.title = 'append selected pattern to chain';
   append.onclick = () => { eng.appendToChain(eng.getEditPatternIndex()); renderPatterns(); };
   crow.appendChild(append);
@@ -1193,7 +1220,7 @@ function buildChordLine(idx) {
   row.dataset.idx = idx;
   const lbl = document.createElement('span');
   lbl.className = 'pat-lbl';
-  lbl.textContent = 'chords';
+  lbl.innerHTML = `chords<small>of pattern ${idx + 1}</small>`;
   row.appendChild(lbl);
 
   const chips = document.createElement('div');
