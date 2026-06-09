@@ -1410,7 +1410,7 @@ let _themePickerOpen = false;
 
 function currentTheme() { return document.documentElement.dataset.theme || 'oyster'; }
 
-const SCREEN_OPTIONS = [['default', 'Theme default'], ['pearl', 'Pearl'], ['phosphor', 'Phosphor'], ['signal', 'Signal'], ['lime', 'Lime'], ['backlit', 'Backlit'], ['amber', 'Amber'], ['workbench', 'Workbench'], ['sage', 'Sage'], ['paper', 'Paper']];
+const SCREEN_OPTIONS = [['default', 'Theme default'], ['pearl', 'Pearl'], ['frost', 'Frost'], ['snow', 'Snow'], ['phosphor', 'Phosphor'], ['signal', 'Signal'], ['lime', 'Pea Soup'], ['backlit', 'Backlit'], ['amber', 'Amber'], ['workbench', 'Workbench'], ['sage', 'Sage'], ['paper', 'Paper']];
 let _themePickerTab = 'chrome';   // 'chrome' (cabinets) | 'lcd' (glass)
 
 function applyScreen(v) {
