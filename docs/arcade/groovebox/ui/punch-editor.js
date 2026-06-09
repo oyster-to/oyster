@@ -132,18 +132,22 @@ export function openPunchEditor({ slot, eng, onSaved }) {
     const badge = document.createElement('span');
     badge.className = 'pe-badge';
     badge.textContent = (COARSE ? '' : `key ${draft.key} · `) + `slot ${slot + 1} of ${eng.getPunchPresets().length}`;
+    // Label tracks transport state ONLY (never changes on press): armed when
+    // playing, "press ▶ first" when stopped (which explains the greyed look).
+    const armedLabel = COARSE ? 'TEST<small>hold to hear</small>' : `TEST<small>hold · or key ${draft.key}</small>`;
+    const idleLabel = 'TEST<small>press ▶ first</small>';
     const test = document.createElement('button');
     test.className = 'pe-test' + (playing ? '' : ' idle');
-    test.innerHTML = COARSE ? 'TEST<small>hold to hear</small>' : `TEST<small>hold · or key ${draft.key}</small>`;
+    test.innerHTML = playing ? armedLabel : idleLabel;
     test.addEventListener('pointerdown', e => {
       e.preventDefault(); test.setPointerCapture(e.pointerId);
       if (!eng.isPlaying()) {            // live check — not the render-time snapshot
         test.classList.add('idle');
-        test.innerHTML = 'TEST<small>press ▶ first</small>';
+        test.innerHTML = idleLabel;
         return;
       }
       test.classList.remove('idle');
-      test.innerHTML = 'TEST<small>hold to hear</small>';
+      test.innerHTML = armedLabel;
       if (validatePreset(draft)) { eng.punchPreview(draft, true); previewHeld = true; }
     });
     const off = () => stopPreview();
