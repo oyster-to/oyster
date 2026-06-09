@@ -1026,9 +1026,28 @@ function renderPatterns() {
     const b = document.createElement('button');
     b.className = 'pat-slot' + (i === editIdx ? ' sel' : '');
     b.dataset.idx = i;
-    b.innerHTML = `${patDot(i)}<span>${i + 1}${i === editIdx ? ' ✎' : ''}</span>`;
-    b.title = 'click: edit this pattern — play will loop it';
-    b.onclick = () => { eng.selectPattern(i); renderPatterns(); refreshVizPattern(); };
+    // Named sections read as their name; unnamed fall back to the number.
+    const label = p.name ? esc(p.name) : (i + 1);
+    b.innerHTML = `${patDot(i)}<span class="pat-name">${label}${i === editIdx ? ' ✎' : ''}</span>`;
+    b.title = 'click: edit this pattern — double-click: rename — play will loop it';
+    // No-op when already selected so the node survives a double-click (rename).
+    b.onclick = () => { if (i !== editIdx) { eng.selectPattern(i); renderPatterns(); refreshVizPattern(); } };
+    b.ondblclick = () => {
+      const span = b.querySelector('.pat-name');
+      if (!span) return;
+      const input = document.createElement('input');
+      input.className = 'lane-rename-input';
+      input.value = p.name || '';
+      input.placeholder = `${i + 1}`;
+      span.replaceWith(input);
+      input.focus(); input.select();
+      const commit = () => { eng.setPatternName(i, input.value); renderPatterns(); };
+      input.onblur = commit;
+      input.onkeydown = e => {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { input.value = p.name || ''; input.blur(); }
+      };
+    };
     prow.appendChild(b);
   });
   const add = document.createElement('button');

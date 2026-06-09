@@ -130,7 +130,7 @@ test('addPattern clones the picks of patterns[fromIdx] (groove refs shared); cap
   const s = makeSong();
   const idx = addPattern(s, 1);
   expect(idx).toBe(2);
-  expect(s.patterns[2]).toEqual({ lanes: { drums: 'hats', melody: 'chord' } });
+  expect(s.patterns[2]).toEqual({ lanes: { drums: 'hats', melody: 'chord' }, name: '' });
   // picks are a shallow copy — editing the new pattern's pick doesn't touch the source
   s.patterns[2].lanes.drums = 'groove2';
   expect(s.patterns[1].lanes.drums).toBe('hats');
@@ -142,7 +142,7 @@ test('duplicatePattern is the same affordance as addPattern (clones picks)', () 
   const s = makeSong();
   expect(duplicatePattern).toBe(addPattern);
   const idx = duplicatePattern(s, 0);
-  expect(s.patterns[idx]).toEqual({ lanes: { drums: 'groove2', melody: 'riff' } });
+  expect(s.patterns[idx]).toEqual({ lanes: { drums: 'groove2', melody: 'riff' }, name: '' });
 });
 
 test('removePattern: blocked on last; reindexes chain; falls back to [0] if chain empties', () => {
