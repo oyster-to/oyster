@@ -26,12 +26,12 @@ export const scallywag = {
 
   grooves: {
     drums: {
-      // gentle ship-sway: pulses on the two dotted quarters
-      sway:  [{ kick: [0, 6], hat: [0, 2, 4, 6, 8, 10] }],
-      // tavern stomp: snare answers on the second pulse
-      stomp: [{ kick: [0, 6], snare: [6], hat: [0, 2, 4, 6, 8, 10] }],
-      // full sail: busier kick, crash to open
-      'full sail': [{ kick: [0, 3, 6, 9], snare: [6], hat: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], crash: [0] }],
+      // gentle ship-sway: pulses on the two dotted quarters, open-hat lilt
+      sway:  [{ kick: [0, 6], hat: [0, 2, 4, 6, 8, 10], openhat: [10] }],
+      // tavern stomp: snare answers on the second pulse, clap-along
+      stomp: [{ kick: [0, 6], snare: [6], hat: [0, 2, 4, 6, 8, 10], clap: [6] }],
+      // full sail: busier kick, crash to open, ride the dotted quarters
+      'full sail': [{ kick: [0, 3, 6, 9], snare: [6], hat: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], crash: [0], clap: [6], ride: [0, 3, 6, 9] }],
     },
     bass: {
       // lilting root → octave → fifth, the 6/8 sea-legs walk

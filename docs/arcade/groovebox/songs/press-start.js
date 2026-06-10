@@ -26,12 +26,12 @@ export const pressStart = {
 
   grooves: {
     drums: {
-      // fanfare bed — sparse, big crash
-      fanfare: [{ kick: [0, 8], snare: [12], hat: [0, 2, 4, 6, 8, 10, 12, 14], crash: [0] }],
-      // main run — driving 16th hats, four on the floor
-      sprint:  [{ kick: [0, 4, 8, 12], snare: [4, 12], hat: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] }],
-      // B section — syncopated kick, lighter hats
-      skip:    [{ kick: [0, 6, 8, 14], snare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14] }],
+      // fanfare bed — sparse, big crash, open-hat pickup
+      fanfare: [{ kick: [0, 8], snare: [12], hat: [0, 2, 4, 6, 8, 10, 12, 14], crash: [0], openhat: [14] }],
+      // main run — driving 16th hats, four on the floor, clap on the backbeat
+      sprint:  [{ kick: [0, 4, 8, 12], snare: [4, 12], hat: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], clap: [4, 12] }],
+      // B section — syncopated kick, lighter hats, clap + open-hat lift
+      skip:    [{ kick: [0, 6, 8, 14], snare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14], clap: [4, 12], openhat: [14] }],
     },
     bass: {
       // THE game bass: root/fifth oom-pah in 8ths
