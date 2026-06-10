@@ -178,37 +178,37 @@ export function normalizeSongDrums(song) {
 // Values mirror engine/voices.js createVoiceForType EXACTLY (parity-tested).
 export const DEFAULT_INSTRUMENTS = {
   'gb-kick': {
-    name: 'GB KICK', type: 'drum', engine: 'synth',
+    name: 'GB Kick', type: 'drum', engine: 'synth',
     patch: { archetype: 'membrane', volume: -5, trigger: { note: 'C1', dur: '8n' } },
   },
   'gb-snare': {
-    name: 'GB SNARE', type: 'drum', engine: 'synth',
+    name: 'GB Snare', type: 'drum', engine: 'synth',
     patch: { archetype: 'noise', volume: -11,
       envelope: { attack: 0.001, decay: 0.16, sustain: 0 },
       trigger: { dur: '16n' } },
   },
   'gb-hat': {
-    name: 'GB HAT', type: 'drum', engine: 'synth',
+    name: 'GB Hat', type: 'drum', engine: 'synth',
     patch: { archetype: 'noise', volume: -20,
       envelope: { attack: 0.001, decay: 0.03, sustain: 0 },
       filter: { type: 'highpass', freq: 7000 },
       trigger: { dur: '32n', velocity: 0.6 } },
   },
   'gb-tom': {
-    name: 'GB TOM', type: 'drum', engine: 'synth',
+    name: 'GB Tom', type: 'drum', engine: 'synth',
     patch: { archetype: 'membrane', volume: -6,
       pitch: { pitchDecay: 0.06, octaves: 2 },
       trigger: { note: 'A2', dur: '8n' } },
   },
   'gb-crash': {
-    name: 'GB CRASH', type: 'drum', engine: 'synth',
+    name: 'GB Crash', type: 'drum', engine: 'synth',
     patch: { archetype: 'noise', volume: -12,
       envelope: { attack: 0.001, decay: 1.1, sustain: 0, release: 0.3 },
       filter: { type: 'highpass', freq: 3500 },
       trigger: { dur: '8n', velocity: 0.8 } },
   },
   'gb-bass': {
-    name: 'GB BASS', type: 'bass', engine: 'synth',
+    name: 'GB Bass', type: 'bass', engine: 'synth',
     patch: { archetype: 'mono', volume: -7,
       oscillator: { shape: 'triangle' },
       envelope: { attack: 0.005, decay: 0.18, sustain: 0.35, release: 0.18 },
@@ -216,7 +216,7 @@ export const DEFAULT_INSTRUMENTS = {
       trigger: { velocity: 0.85 } },
   },
   'gb-chords': {
-    name: 'GB CHORDS', type: 'chords', engine: 'synth',
+    name: 'GB Chords', type: 'chords', engine: 'synth',
     patch: { archetype: 'poly', volume: -17,
       oscillator: { shape: 'triangle' },
       envelope: { attack: 0.05, decay: 0.3, sustain: 0.6, release: 0.5 },
@@ -224,7 +224,7 @@ export const DEFAULT_INSTRUMENTS = {
       trigger: { velocity: 0.3 } },
   },
   'gb-lead': {
-    name: 'GB LEAD', type: 'melody', engine: 'synth',
+    name: 'GB Lead', type: 'melody', engine: 'synth',
     patch: { archetype: 'poly', volume: -11,
       oscillator: { shape: 'pulse', width: 0.3 },
       envelope: { attack: 0.004, decay: 0.18, sustain: 0.2, release: 0.2 },
@@ -233,7 +233,7 @@ export const DEFAULT_INSTRUMENTS = {
 };
 
 export const DEFAULT_KIT = {
-  name: 'GB KIT',
+  name: 'GB Kit',
   slots: [
     { note: 36, label: 'Kick',  instrument: 'gb-kick' },
     { note: 38, label: 'Snare', instrument: 'gb-snare' },
@@ -251,7 +251,7 @@ export const DEFAULT_KIT = {
 export const SYNTH_PRESETS = {
   // Bass (mono)
   'preset-sub-bass': {
-    name: 'SUB BASS', type: 'bass', engine: 'synth',
+    name: 'Sub Bass', type: 'bass', engine: 'synth',
     patch: { archetype: 'mono', volume: -6,
       oscillator: { shape: 'sine' },
       envelope: { attack: 0.008, decay: 0.2, sustain: 0.7, release: 0.25 },
@@ -259,7 +259,7 @@ export const SYNTH_PRESETS = {
       trigger: { velocity: 0.9 } },
   },
   'preset-reese': {
-    name: 'REESE', type: 'bass', engine: 'synth',
+    name: 'Reese', type: 'bass', engine: 'synth',
     patch: { archetype: 'mono', volume: -8,
       oscillator: { shape: 'sawtooth' },
       envelope: { attack: 0.005, decay: 0.25, sustain: 0.6, release: 0.2 },
@@ -267,7 +267,7 @@ export const SYNTH_PRESETS = {
       trigger: { velocity: 0.85 } },
   },
   'preset-pluck-bass': {
-    name: 'PLUCK BASS', type: 'bass', engine: 'synth',
+    name: 'Pluck Bass', type: 'bass', engine: 'synth',
     patch: { archetype: 'mono', volume: -7,
       oscillator: { shape: 'square' },
       envelope: { attack: 0.003, decay: 0.09, sustain: 0.05, release: 0.1 },
@@ -275,7 +275,7 @@ export const SYNTH_PRESETS = {
       trigger: { velocity: 0.85 } },
   },
   'preset-moog-bass': {
-    name: 'MOOG', type: 'bass', engine: 'synth',
+    name: 'Moog', type: 'bass', engine: 'synth',
     patch: { archetype: 'mono', volume: -7,
       oscillator: { shape: 'sawtooth' },
       envelope: { attack: 0.01, decay: 0.35, sustain: 0.5, release: 0.25 },
@@ -284,7 +284,7 @@ export const SYNTH_PRESETS = {
   },
   // Chords (poly)
   'preset-poly-pad': {
-    name: 'POLY PAD', type: 'chords', engine: 'synth',
+    name: 'Poly Pad', type: 'chords', engine: 'synth',
     patch: { archetype: 'poly', volume: -16,
       oscillator: { shape: 'triangle' },
       envelope: { attack: 0.08, decay: 0.4, sustain: 0.7, release: 0.8 },
@@ -292,7 +292,7 @@ export const SYNTH_PRESETS = {
       trigger: { velocity: 0.3 } },
   },
   'preset-stab': {
-    name: 'STAB', type: 'chords', engine: 'synth',
+    name: 'Stab', type: 'chords', engine: 'synth',
     patch: { archetype: 'poly', volume: -16,
       oscillator: { shape: 'sawtooth' },
       envelope: { attack: 0.005, decay: 0.12, sustain: 0, release: 0.15 },
@@ -300,7 +300,7 @@ export const SYNTH_PRESETS = {
       trigger: { velocity: 0.35 } },
   },
   'preset-organ': {
-    name: 'ORGAN', type: 'chords', engine: 'synth',
+    name: 'Organ', type: 'chords', engine: 'synth',
     patch: { archetype: 'poly', volume: -18,
       oscillator: { shape: 'square' },
       envelope: { attack: 0.005, decay: 0.1, sustain: 1, release: 0.2 },
@@ -308,7 +308,7 @@ export const SYNTH_PRESETS = {
       trigger: { velocity: 0.3 } },
   },
   'preset-glass': {
-    name: 'GLASS', type: 'chords', engine: 'synth',
+    name: 'Glass', type: 'chords', engine: 'synth',
     patch: { archetype: 'poly', volume: -16,
       oscillator: { shape: 'sine' },
       envelope: { attack: 0.06, decay: 0.3, sustain: 0.25, release: 0.5 },
@@ -317,49 +317,49 @@ export const SYNTH_PRESETS = {
   },
   // Melody (poly)
   'preset-square-lead': {
-    name: 'SQUARE LEAD', type: 'melody', engine: 'synth',
+    name: 'Square Lead', type: 'melody', engine: 'synth',
     patch: { archetype: 'poly', volume: -11,
       oscillator: { shape: 'square' },
       envelope: { attack: 0.004, decay: 0.16, sustain: 0.25, release: 0.18 },
       trigger: { velocity: 0.82 } },
   },
   'preset-saw-lead': {
-    name: 'SAW LEAD', type: 'melody', engine: 'synth',
+    name: 'Saw Lead', type: 'melody', engine: 'synth',
     patch: { archetype: 'poly', volume: -12,
       oscillator: { shape: 'sawtooth' },
       envelope: { attack: 0.004, decay: 0.2, sustain: 0.3, release: 0.2 },
       trigger: { velocity: 0.82 } },
   },
   'preset-soft-pad': {
-    name: 'SOFT PAD', type: 'melody', engine: 'synth',
+    name: 'Soft Pad', type: 'melody', engine: 'synth',
     patch: { archetype: 'poly', volume: -12,
       oscillator: { shape: 'triangle' },
       envelope: { attack: 0.07, decay: 0.4, sustain: 0.65, release: 0.5 },
       trigger: { velocity: 0.75 } },
   },
   'preset-pluck-lead': {
-    name: 'PLUCK LEAD', type: 'melody', engine: 'synth',
+    name: 'Pluck Lead', type: 'melody', engine: 'synth',
     patch: { archetype: 'poly', volume: -11,
       oscillator: { shape: 'pulse', width: 0.25 },
       envelope: { attack: 0.004, decay: 0.08, sustain: 0, release: 0.12 },
       trigger: { velocity: 0.82 } },
   },
   'preset-fat-saw': {
-    name: 'FAT SAW', type: 'melody', engine: 'synth',
+    name: 'Fat Saw', type: 'melody', engine: 'synth',
     patch: { archetype: 'poly', volume: -12,
       oscillator: { shape: 'fatsawtooth' },
       envelope: { attack: 0.006, decay: 0.22, sustain: 0.35, release: 0.2 },
       trigger: { velocity: 0.82 } },
   },
   'preset-triangle-lead': {
-    name: 'TRIANGLE LEAD', type: 'melody', engine: 'synth',
+    name: 'Triangle Lead', type: 'melody', engine: 'synth',
     patch: { archetype: 'poly', volume: -11,
       oscillator: { shape: 'triangle' },
       envelope: { attack: 0.004, decay: 0.18, sustain: 0.2, release: 0.2 },
       trigger: { velocity: 0.82 } },
   },
   'preset-sine-lead': {
-    name: 'SINE LEAD', type: 'melody', engine: 'synth',
+    name: 'Sine Lead', type: 'melody', engine: 'synth',
     patch: { archetype: 'poly', volume: -10,
       oscillator: { shape: 'sine' },
       envelope: { attack: 0.004, decay: 0.18, sustain: 0.2, release: 0.2 },

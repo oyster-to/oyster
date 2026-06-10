@@ -100,7 +100,7 @@ export function openInstrumentEditor({ id, eng, onSaved }) {
   function save() {
     if (!validateInstrument(draft)) return;
     previewing = false;                     // a still-held TEST must not restore over the save
-    draft.name = (draft.name || 'SOUND').toUpperCase().slice(0, 24);
+    draft.name = (draft.name || 'Sound').trim().slice(0, 24) || 'Sound';
     const next = { ...stash, [id]: draft };
     eng.setInstruments(next);
     // Persist only non-stock-identical entries? v1: persist the whole user set.
