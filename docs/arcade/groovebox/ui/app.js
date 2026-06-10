@@ -23,9 +23,11 @@ import { openInstrumentEditor, isInstrumentEditorOpen } from './instrument-edito
 // carries no explicit lane.instrument).
 const LANE_INSTRUMENT = { bass: 'gb-bass', chords: 'gb-chords', melody: 'gb-lead' };
 import { DEFAULT_PRESETS } from '../engine/punch-presets.js';
-import { ALL_INSTRUMENTS } from '../engine/instruments.js';
+import { ALL_INSTRUMENTS, ALL_KITS } from '../engine/instruments.js';
 
 const eng = createEngine();
+// Selected drum kit (global for now — kit-per-song serialization is a follow-up).
+let currentKitId = 'oyster-kit';
 
 // ─── Knob info map (single source of truth) ───────────────────────────────────
 const KNOB_INFO = {
@@ -462,6 +464,11 @@ function renderStrips() {
         .filter(([, inst]) => inst.type === lane.type)
         .map(([id, inst]) => `<option value="${id}"${id === cur ? ' selected' : ''}>${esc(inst.name)}</option>`).join('');
       presetSel = `<select class="lane-preset" data-preset data-lane="${lane.id}" title="Instrument preset">${opts}</select>`;
+    } else {
+      // Drums pick a KIT (a composite of drum sounds).
+      const opts = Object.entries(ALL_KITS)
+        .map(([id, k]) => `<option value="${id}"${id === currentKitId ? ' selected' : ''}>${esc(k.name)}</option>`).join('');
+      presetSel = `<select class="lane-preset" data-kit data-lane="${lane.id}" title="Drum kit">${opts}</select>`;
     }
     const soundBtn = isPitched
       ? `<button class="lane-sound" data-lane="${lane.id}" data-type="${lane.type}" title="Edit ${esc(lane.name)} sound">EDIT</button>`
@@ -532,6 +539,10 @@ function renderStrips() {
 
   host.querySelectorAll('select[data-preset]').forEach(s => s.onchange = () => {
     eng.setLaneInstrument(s.dataset.lane, s.value);
+  });
+  host.querySelectorAll('select[data-kit]').forEach(s => s.onchange = () => {
+    currentKitId = s.value;
+    eng.setKit(ALL_KITS[currentKitId]);
   });
   host.querySelectorAll('.lane-sound').forEach(b => b.onclick = e => {
     e.stopPropagation();

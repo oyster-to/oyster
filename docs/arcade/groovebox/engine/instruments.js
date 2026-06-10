@@ -379,6 +379,64 @@ export const LEGACY_TONE_PRESET = {
   sine: 'preset-sine-lead',
 };
 
+// ─── Drum instrument presets (Slice 2) ────────────────────────────────────────
+// type:'drum' patches the kits below assemble. Kicks/toms = membrane (shaped via
+// pitch + trigger.dur + filter; no envelope). Snares/hats/crashes = noise (shaped
+// via envelope + filter). STARTER values — ear-test gated.
+export const DRUM_PRESETS = {
+  // 808 — deep sub kick, snappy snare, tight hats
+  'drum-808-kick':  { name: '808 Kick',  type: 'drum', engine: 'synth',
+    patch: { archetype: 'membrane', volume: -3, pitch: { pitchDecay: 0.45, octaves: 6 }, trigger: { note: 'C1', dur: '2n', velocity: 1 } } },
+  'drum-808-snare': { name: '808 Snare', type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -10, envelope: { attack: 0.001, decay: 0.2, sustain: 0 }, filter: { type: 'highpass', freq: 1400 }, trigger: { dur: '16n', velocity: 0.9 } } },
+  'drum-808-hat':   { name: '808 Hat',   type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -18, envelope: { attack: 0.001, decay: 0.04, sustain: 0 }, filter: { type: 'highpass', freq: 9000 }, trigger: { dur: '32n', velocity: 0.6 } } },
+  // 909 — punchy kick, noisy snare, sizzly hats
+  'drum-909-kick':  { name: '909 Kick',  type: 'drum', engine: 'synth',
+    patch: { archetype: 'membrane', volume: -4, pitch: { pitchDecay: 0.06, octaves: 4 }, trigger: { note: 'C1', dur: '8n', velocity: 1 } } },
+  'drum-909-snare': { name: '909 Snare', type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -10, envelope: { attack: 0.001, decay: 0.18, sustain: 0 }, filter: { type: 'highpass', freq: 1800 }, trigger: { dur: '16n', velocity: 0.9 } } },
+  'drum-909-hat':   { name: '909 Hat',   type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -17, envelope: { attack: 0.001, decay: 0.05, sustain: 0 }, filter: { type: 'highpass', freq: 8000 }, trigger: { dur: '32n', velocity: 0.65 } } },
+  // Acoustic — natural thud, fuller snare
+  'drum-acoustic-kick':  { name: 'Acoustic Kick',  type: 'drum', engine: 'synth',
+    patch: { archetype: 'membrane', volume: -5, pitch: { pitchDecay: 0.03, octaves: 3 }, trigger: { note: 'C1', dur: '8n', velocity: 0.9 } } },
+  'drum-acoustic-snare': { name: 'Acoustic Snare', type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -9, envelope: { attack: 0.001, decay: 0.22, sustain: 0 }, filter: { type: 'highpass', freq: 1100 }, trigger: { dur: '8n', velocity: 0.85 } } },
+  'drum-acoustic-hat':   { name: 'Acoustic Hat',   type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -19, envelope: { attack: 0.001, decay: 0.05, sustain: 0 }, filter: { type: 'highpass', freq: 7500 }, trigger: { dur: '32n', velocity: 0.55 } } },
+  // Lo-Fi — soft warm kick (low-passed), dusty snare, muffled hat
+  'drum-lofi-kick':  { name: 'Lo-Fi Kick',  type: 'drum', engine: 'synth',
+    patch: { archetype: 'membrane', volume: -6, pitch: { pitchDecay: 0.05, octaves: 2.5 }, filter: { type: 'lowpass', freq: 2200 }, trigger: { note: 'C1', dur: '8n', velocity: 0.8 } } },
+  'drum-lofi-snare': { name: 'Lo-Fi Snare', type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -12, envelope: { attack: 0.002, decay: 0.25, sustain: 0 }, filter: { type: 'highpass', freq: 700 }, trigger: { dur: '8n', velocity: 0.7 } } },
+  'drum-lofi-hat':   { name: 'Lo-Fi Hat',   type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -22, envelope: { attack: 0.001, decay: 0.06, sustain: 0 }, filter: { type: 'highpass', freq: 5000 }, trigger: { dur: '32n', velocity: 0.5 } } },
+};
+
 // The full selectable set: stock defaults + preset banks. Engine inits
 // `_instruments` from this so every preset id resolves.
-export const ALL_INSTRUMENTS = { ...DEFAULT_INSTRUMENTS, ...SYNTH_PRESETS };
+export const ALL_INSTRUMENTS = { ...DEFAULT_INSTRUMENTS, ...SYNTH_PRESETS, ...DRUM_PRESETS };
+
+// ─── Drum kits (Slice 2) ──────────────────────────────────────────────────────
+// Each kit keeps the SAME GM notes/labels as DEFAULT_KIT (36/38/42/45/49) so the
+// drum grooves trigger the same slots; only the instrument per slot differs.
+// Tom + Crash reuse the Oyster voices for now.
+const kit = (name, kick, snare, hat) => ({
+  name,
+  slots: [
+    { note: 36, label: 'Kick',  instrument: kick },
+    { note: 38, label: 'Snare', instrument: snare },
+    { note: 42, label: 'HH',    instrument: hat },
+    { note: 45, label: 'Tom',   instrument: 'gb-tom', pitched: true },
+    { note: 49, label: 'Crash', instrument: 'gb-crash' },
+  ],
+});
+export const DRUM_KITS = {
+  'kit-808':      kit('808',      'drum-808-kick',      'drum-808-snare',      'drum-808-hat'),
+  'kit-909':      kit('909',      'drum-909-kick',      'drum-909-snare',      'drum-909-hat'),
+  'kit-acoustic': kit('Acoustic', 'drum-acoustic-kick', 'drum-acoustic-snare', 'drum-acoustic-hat'),
+  'kit-lofi':     kit('Lo-Fi',    'drum-lofi-kick',     'drum-lofi-snare',     'drum-lofi-hat'),
+};
+// Selectable kits: the Oyster default + the banks.
+export const ALL_KITS = { 'oyster-kit': DEFAULT_KIT, ...DRUM_KITS };
