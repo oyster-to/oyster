@@ -1,7 +1,7 @@
 import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
 import { createVoiceForType, trigger } from './voices.js';
-import { normalizeSongDrums, DEFAULT_INSTRUMENTS, DEFAULT_KIT, validateInstrument, validateKit } from './instruments.js';
+import { normalizeSongDrums, DEFAULT_INSTRUMENTS, ALL_INSTRUMENTS, LEGACY_TONE_PRESET, DEFAULT_KIT, validateInstrument, validateKit } from './instruments.js';
 import { laneByType, toggleMute as _toggleMute, soloExclusive as _soloExclusive, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane, moveLane as _moveLane } from './lanes.js';
 import { deriveKey } from './song.js';
 import { flattenSong } from './flatten.js';
@@ -35,7 +35,7 @@ export function createEngine() {
   let punchPresets = DEFAULT_PRESETS;            // replaced via setPunchPresets (validated)
   // Instruments layer (PR2): user instruments/kit override the stock set.
   // Same contract as punch presets: validated on set, defaults on bad data.
-  let _instruments = DEFAULT_INSTRUMENTS;
+  let _instruments = ALL_INSTRUMENTS;   // stock defaults + selectable preset banks
   let _kit = DEFAULT_KIT;
   const _slotHeld = new Array(DEFAULT_PRESETS.length).fill(false);
   const _gates = new Map();                      // slot → { depth, division, laneIds } (preview uses 'preview')
@@ -194,10 +194,6 @@ export function createEngine() {
     fx[lane.id]     = _makeFX(_masterIn);
     voices[lane.id] = createVoiceForType(lane.type, fx[lane.id].input,
       { instruments: _instruments, kit: _kit, instrumentId: lane.instrument });
-    // Apply saved tone to melody lanes
-    if (lane.type === 'melody' && lane.tone) {
-      voices[lane.id].lead?.set({ oscillator: { type: lane.tone, width: 0.3 } });
-    }
     // Per-lane scope analyser — lazy: created on first getScope(id) call.
     // scopeLane[lane.id] intentionally NOT created here.
     // Per-lane level meter
@@ -214,17 +210,20 @@ export function createEngine() {
   // Rebuild voices only (FX chains, meters, captures untouched) — used when
   // the instrument set or kit changes. Safe while playing: voices swap at
   // graph time; the next scheduled step triggers the new nodes.
+  // Rebuild a single lane's voice in place (targeted — used by setLaneInstrument
+  // so a preset change doesn't churn every voice).
+  function _rebuildVoice(laneId) {
+    if (!started || !song) return;
+    const lane = song.lanes.find(l => l.id === laneId);
+    if (!lane || !fx[laneId]) return;
+    const v = voices[laneId];
+    if (v?.dispose) { try { v.dispose(); } catch (_) {} }
+    voices[laneId] = createVoiceForType(lane.type, fx[laneId].input,
+      { instruments: _instruments, kit: _kit, instrumentId: lane.instrument });
+  }
   function _rebuildVoices() {
     if (!started || !song) return;
-    for (const lane of song.lanes) {
-      const v = voices[lane.id];
-      if (v?.dispose) { try { v.dispose(); } catch (_) {} }
-      voices[lane.id] = createVoiceForType(lane.type, fx[lane.id].input,
-        { instruments: _instruments, kit: _kit, instrumentId: lane.instrument });
-      if (lane.type === 'melody' && lane.tone) {
-        voices[lane.id].lead?.set({ oscillator: { type: lane.tone, width: 0.3 } });
-      }
-    }
+    for (const lane of song.lanes) _rebuildVoice(lane.id);
   }
 
   function disposeLane(id) {
@@ -327,6 +326,12 @@ export function createEngine() {
     load(s) {
       const v2 = (s.patterns && s.chain) ? s : flattenSong(s);
       normalizeSongDrums(v2);                 // ingest boundary: GM numbers past here
+      // Migrate the retired per-lane `tone` (oscillator override) → a melody
+      // preset. Old/shared songs upgrade here; nothing downstream reads `tone`.
+      for (const lane of v2.lanes) {
+        if (lane.tone && !lane.instrument) lane.instrument = LEGACY_TONE_PRESET[lane.tone] || 'gb-lead';
+        delete lane.tone;
+      }
       song = v2;
       editIdx = 0; pendingTarget = null;
       target = { kind: 'chain', pos: 0, barInPattern: 0 };
@@ -335,16 +340,11 @@ export function createEngine() {
         for (const id of Object.keys(voices)) {
           if (!v2.lanes.some(l => l.id === id)) disposeLane(id);
         }
+        // New lanes get a full build; surviving lanes (reused id) rebuild their
+        // voice so the switched song's instrument takes effect (FX chain kept).
         for (const lane of v2.lanes) {
           if (!voices[lane.id]) buildLane(lane);
-          // Re-apply tone to SURVIVING melody voices: the voice (keyed by lane id)
-          // is reused across a song switch, but the new song carries its own
-          // lane.tone. Without this the reused oscillator keeps the previous
-          // song's (or the user's last-dialed) tone while the UI shows the new
-          // one — an audible/visual desync after switching songs.
-          else if (lane.type === 'melody' && lane.tone && voices[lane.id]?.lead) {
-            voices[lane.id].lead.set({ oscillator: { type: lane.tone, width: 0.3 } });
-          }
+          else _rebuildVoice(lane.id);
         }
         // Re-sync punch routing for REUSED lane graphs (song-switch desync).
         _recomputePunchRouting();
@@ -685,15 +685,13 @@ export function createEngine() {
       const g = grooveFor(song, editIdx, laneId);
       if (g) _toggleNote(song, laneId, g.name, barIdx, stepIdx, note, dur);
     },
-    // setTone by lane id (melody lanes)
-    setTone(id, type) {
-      // Back-compat: if called with one arg (old API), treat it as the melody lane
-      if (type === undefined) { type = id; id = laneByType(song?.lanes ?? [], 'melody')?.id; }
-      if (!id || !song) return;
+    // Select a preset instrument for a pitched lane. Unknown id = no-op.
+    setLaneInstrument(id, instrumentId) {
+      if (!song || !_instruments[instrumentId]) return;
       const lane = song.lanes.find(l => l.id === id);
-      if (lane) lane.tone = type;
-      const v = voices[id];
-      if (v?.lead) v.lead.set({ oscillator: { type, width: 0.3 } });
+      if (!lane) return;
+      lane.instrument = instrumentId;
+      _rebuildVoice(id);
     },
     getLevel(id) {
       if (!started || !meters[id]) return 0;

@@ -19,13 +19,13 @@ import { listItems } from '../registry/client.js';
 import { openPunchEditor, isPunchEditorOpen } from './punch-editor.js';
 import { openInstrumentEditor, isInstrumentEditorOpen } from './instrument-editor.js';
 
-// Lane type → instrument id in the engine set (PR2 v1: one per type; per-lane
-// refs ride lane.instrument when the picker lands).
+// Lane type → default preset id (the instrument a lane falls back to when it
+// carries no explicit lane.instrument).
 const LANE_INSTRUMENT = { bass: 'gb-bass', chords: 'gb-chords', melody: 'gb-lead' };
 import { DEFAULT_PRESETS } from '../engine/punch-presets.js';
+import { ALL_INSTRUMENTS } from '../engine/instruments.js';
 
 const eng = createEngine();
-const TONES = ['pulse','square','sawtooth','fatsawtooth','triangle','sine'];
 
 // ─── Knob info map (single source of truth) ───────────────────────────────────
 const KNOB_INFO = {
@@ -452,13 +452,19 @@ function renderStrips() {
   const isLast = lanes.length === 1;
 
   host.innerHTML = lanes.map(lane => {
-    const tone = lane.type === 'melody'
-      ? `<select data-tone data-lane="${lane.id}">${TONES.map(t=>`<option value="${t}"${t===(lane.tone||'pulse')?' selected':''}>${t==='fatsawtooth'?'fat saw':t}</option>`).join('')}</select>`
-      : '';
-    // The strip selects the lane's SOUND (not the groove — the loop is chosen on
-    // the screen, in Grooves / Patterns).
-    const soundBtn = lane.type !== 'drums'
-      ? `<button class="lane-sound" data-lane="${lane.id}" data-type="${lane.type}" title="Edit ${esc(lane.name)} sound">SOUND</button>`
+    // Pitched lanes pick an instrument PRESET from a dropdown; EDIT opens the
+    // synth editor for the lane's current preset. (Drums = a kit, handled later.)
+    const isPitched = lane.type !== 'drums';
+    let presetSel = '';
+    if (isPitched) {
+      const cur = lane.instrument || LANE_INSTRUMENT[lane.type];
+      const opts = Object.entries(ALL_INSTRUMENTS)
+        .filter(([, inst]) => inst.type === lane.type)
+        .map(([id, inst]) => `<option value="${id}"${id === cur ? ' selected' : ''}>${esc(inst.name)}</option>`).join('');
+      presetSel = `<select class="lane-preset" data-preset data-lane="${lane.id}" title="Instrument preset">${opts}</select>`;
+    }
+    const soundBtn = isPitched
+      ? `<button class="lane-sound" data-lane="${lane.id}" data-type="${lane.type}" title="Edit ${esc(lane.name)} sound">EDIT</button>`
       : '';
     // Edit button — present for types with an editor (drums, melody, bass); skip chords.
     const hasEditor = lane.type !== 'chords';
@@ -469,7 +475,7 @@ function renderStrips() {
     return `<div class="lane" data-lane="${lane.id}" data-type="${lane.type}">
       <span class="lane-drag" title="Drag to reorder">⠿</span>
       <span class="name" title="double-click to rename">${esc(lane.name)}</span>
-      <div class="mctl">${tone}${soundBtn}</div>
+      <div class="mctl">${presetSel}${soundBtn}</div>
       <div class="lvl"><div class="lvl-fill"></div></div>
       <div class="msgroup">
         <button class="mute" data-lane="${lane.id}" aria-label="mute ${esc(lane.name)}" title="Mute">M</button>
@@ -524,10 +530,13 @@ function renderStrips() {
     renderStrips();
   });
 
-  host.querySelectorAll('select[data-tone]').forEach(s => s.onchange = e => eng.setTone(s.dataset.lane, e.target.value));
+  host.querySelectorAll('select[data-preset]').forEach(s => s.onchange = () => {
+    eng.setLaneInstrument(s.dataset.lane, s.value);
+  });
   host.querySelectorAll('.lane-sound').forEach(b => b.onclick = e => {
     e.stopPropagation();
-    const id = LANE_INSTRUMENT[b.dataset.type];
+    const lane = eng.getLanes().find(l => l.id === b.dataset.lane);
+    const id = lane?.instrument || LANE_INSTRUMENT[b.dataset.type];
     if (id) openInstrumentEditor({ id, eng, onSaved: renderStrips });
   });
   host.querySelectorAll('.mute').forEach(b => b.onclick = () => {

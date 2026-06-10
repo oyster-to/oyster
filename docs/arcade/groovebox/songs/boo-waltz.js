@@ -20,7 +20,7 @@ export const booWaltz = {
     { id: 'drums',  type: 'drums',  name: 'drums',  muted: false, soloed: false },
     { id: 'bass',   type: 'bass',   name: 'bass',   muted: false, soloed: false },
     { id: 'chords', type: 'chords', name: 'chords', muted: false, soloed: false },
-    { id: 'melody', type: 'melody', name: 'melody', muted: false, soloed: false, tone: 'sine' },
+    { id: 'melody', type: 'melody', name: 'melody', muted: false, soloed: false, instrument: 'preset-sine-lead' },
   ],
 
   grooves: {

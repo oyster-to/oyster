@@ -242,3 +242,143 @@ export const DEFAULT_KIT = {
     { note: 49, label: 'Crash', instrument: 'gb-crash' },
   ],
 };
+
+// ─── Synth preset banks (Slice 1) ─────────────────────────────────────────────
+// Read-only starting points per pitched lane type. Same patch schema as
+// DEFAULT_INSTRUMENTS; all values stay inside PATCH_PARAMS so validateInstrument
+// passes. STARTER values — ear-test gated; tune freely. The strip dropdown lists
+// these + the gb-* defaults (by type); EDIT forks to a song-local Custom patch.
+export const SYNTH_PRESETS = {
+  // Bass (mono)
+  'preset-sub-bass': {
+    name: 'SUB BASS', type: 'bass', engine: 'synth',
+    patch: { archetype: 'mono', volume: -6,
+      oscillator: { shape: 'sine' },
+      envelope: { attack: 0.008, decay: 0.2, sustain: 0.7, release: 0.25 },
+      filterEnvelope: { attack: 0.005, decay: 0.15, sustain: 0.5, baseFrequency: 60, octaves: 2 },
+      trigger: { velocity: 0.9 } },
+  },
+  'preset-reese': {
+    name: 'REESE', type: 'bass', engine: 'synth',
+    patch: { archetype: 'mono', volume: -8,
+      oscillator: { shape: 'sawtooth' },
+      envelope: { attack: 0.005, decay: 0.25, sustain: 0.6, release: 0.2 },
+      filterEnvelope: { attack: 0.005, decay: 0.3, sustain: 0.4, baseFrequency: 180, octaves: 4.5 },
+      trigger: { velocity: 0.85 } },
+  },
+  'preset-pluck-bass': {
+    name: 'PLUCK BASS', type: 'bass', engine: 'synth',
+    patch: { archetype: 'mono', volume: -7,
+      oscillator: { shape: 'square' },
+      envelope: { attack: 0.003, decay: 0.09, sustain: 0.05, release: 0.1 },
+      filterEnvelope: { attack: 0.003, decay: 0.08, sustain: 0.2, baseFrequency: 400, octaves: 3 },
+      trigger: { velocity: 0.85 } },
+  },
+  'preset-moog-bass': {
+    name: 'MOOG', type: 'bass', engine: 'synth',
+    patch: { archetype: 'mono', volume: -7,
+      oscillator: { shape: 'sawtooth' },
+      envelope: { attack: 0.01, decay: 0.35, sustain: 0.5, release: 0.25 },
+      filterEnvelope: { attack: 0.008, decay: 0.3, sustain: 0.45, baseFrequency: 300, octaves: 3.5 },
+      trigger: { velocity: 0.85 } },
+  },
+  // Chords (poly)
+  'preset-poly-pad': {
+    name: 'POLY PAD', type: 'chords', engine: 'synth',
+    patch: { archetype: 'poly', volume: -16,
+      oscillator: { shape: 'triangle' },
+      envelope: { attack: 0.08, decay: 0.4, sustain: 0.7, release: 0.8 },
+      filter: { type: 'lowpass', freq: 2000 },
+      trigger: { velocity: 0.3 } },
+  },
+  'preset-stab': {
+    name: 'STAB', type: 'chords', engine: 'synth',
+    patch: { archetype: 'poly', volume: -16,
+      oscillator: { shape: 'sawtooth' },
+      envelope: { attack: 0.005, decay: 0.12, sustain: 0, release: 0.15 },
+      filter: { type: 'lowpass', freq: 5000 },
+      trigger: { velocity: 0.35 } },
+  },
+  'preset-organ': {
+    name: 'ORGAN', type: 'chords', engine: 'synth',
+    patch: { archetype: 'poly', volume: -18,
+      oscillator: { shape: 'square' },
+      envelope: { attack: 0.005, decay: 0.1, sustain: 1, release: 0.2 },
+      filter: { type: 'lowpass', freq: 6000 },
+      trigger: { velocity: 0.3 } },
+  },
+  'preset-glass': {
+    name: 'GLASS', type: 'chords', engine: 'synth',
+    patch: { archetype: 'poly', volume: -16,
+      oscillator: { shape: 'sine' },
+      envelope: { attack: 0.06, decay: 0.3, sustain: 0.25, release: 0.5 },
+      filter: { type: 'lowpass', freq: 8000 },
+      trigger: { velocity: 0.3 } },
+  },
+  // Melody (poly)
+  'preset-square-lead': {
+    name: 'SQUARE LEAD', type: 'melody', engine: 'synth',
+    patch: { archetype: 'poly', volume: -11,
+      oscillator: { shape: 'square' },
+      envelope: { attack: 0.004, decay: 0.16, sustain: 0.25, release: 0.18 },
+      trigger: { velocity: 0.82 } },
+  },
+  'preset-saw-lead': {
+    name: 'SAW LEAD', type: 'melody', engine: 'synth',
+    patch: { archetype: 'poly', volume: -12,
+      oscillator: { shape: 'sawtooth' },
+      envelope: { attack: 0.004, decay: 0.2, sustain: 0.3, release: 0.2 },
+      trigger: { velocity: 0.82 } },
+  },
+  'preset-soft-pad': {
+    name: 'SOFT PAD', type: 'melody', engine: 'synth',
+    patch: { archetype: 'poly', volume: -12,
+      oscillator: { shape: 'triangle' },
+      envelope: { attack: 0.07, decay: 0.4, sustain: 0.65, release: 0.5 },
+      trigger: { velocity: 0.75 } },
+  },
+  'preset-pluck-lead': {
+    name: 'PLUCK LEAD', type: 'melody', engine: 'synth',
+    patch: { archetype: 'poly', volume: -11,
+      oscillator: { shape: 'pulse', width: 0.25 },
+      envelope: { attack: 0.004, decay: 0.08, sustain: 0, release: 0.12 },
+      trigger: { velocity: 0.82 } },
+  },
+  'preset-fat-saw': {
+    name: 'FAT SAW', type: 'melody', engine: 'synth',
+    patch: { archetype: 'poly', volume: -12,
+      oscillator: { shape: 'fatsawtooth' },
+      envelope: { attack: 0.006, decay: 0.22, sustain: 0.35, release: 0.2 },
+      trigger: { velocity: 0.82 } },
+  },
+  'preset-triangle-lead': {
+    name: 'TRIANGLE LEAD', type: 'melody', engine: 'synth',
+    patch: { archetype: 'poly', volume: -11,
+      oscillator: { shape: 'triangle' },
+      envelope: { attack: 0.004, decay: 0.18, sustain: 0.2, release: 0.2 },
+      trigger: { velocity: 0.82 } },
+  },
+  'preset-sine-lead': {
+    name: 'SINE LEAD', type: 'melody', engine: 'synth',
+    patch: { archetype: 'poly', volume: -10,
+      oscillator: { shape: 'sine' },
+      envelope: { attack: 0.004, decay: 0.18, sustain: 0.2, release: 0.2 },
+      trigger: { velocity: 0.82 } },
+  },
+};
+
+// One-time migration: the retired per-lane `tone` (oscillator override on the
+// default lead) maps to the matching melody preset. Used at the load boundary
+// to upgrade old/shared songs; nothing downstream reads `tone`.
+export const LEGACY_TONE_PRESET = {
+  pulse: 'gb-lead',
+  square: 'preset-square-lead',
+  sawtooth: 'preset-saw-lead',
+  fatsawtooth: 'preset-fat-saw',
+  triangle: 'preset-triangle-lead',
+  sine: 'preset-sine-lead',
+};
+
+// The full selectable set: stock defaults + preset banks. Engine inits
+// `_instruments` from this so every preset id resolves.
+export const ALL_INSTRUMENTS = { ...DEFAULT_INSTRUMENTS, ...SYNTH_PRESETS };

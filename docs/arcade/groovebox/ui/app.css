@@ -1248,7 +1248,7 @@ input[type=range] {
 .mctl { display:flex; gap:8px; align-items:center; }
 .mctl select { width:auto; }
 .mctl select[data-lane] { flex:1; }
-.mctl select[data-tone] { flex:0 0 auto; color:var(--dim); }
+.mctl select[data-preset] { flex:1 1 auto; min-width:0; }
 
 /* ─── § 5 — knob groups ─────────────────────────────────────────────────── */
 .kgroup {
