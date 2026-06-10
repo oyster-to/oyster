@@ -859,7 +859,12 @@ function makeTempoGroup() {
   const stepper = document.createElement('div');
   stepper.className = 'key-stepper';
   const dn = document.createElement('button'); dn.textContent = '−';
-  const val = document.createElement('span'); val.className = 'mono'; val.textContent = String(Math.round(currentBpm));
+  // Editable: type a BPM directly, or use ± to step. inputmode=numeric brings up
+  // the number pad on mobile; type=text avoids the native spinner arrows.
+  const val = document.createElement('input');
+  val.className = 'mono'; val.type = 'text'; val.inputMode = 'numeric';
+  val.setAttribute('aria-label', 'Tempo (BPM)');
+  val.value = String(Math.round(currentBpm));
   const up = document.createElement('button'); up.textContent = '＋';
   // Clamp matches the registry's valid bpm range (20–999), so a loaded song is
   // never outside it — the displayed value always equals the stepper's value and
@@ -867,14 +872,26 @@ function makeTempoGroup() {
   const setBpm = n => {
     currentBpm = Math.max(20, Math.min(999, n));
     eng.setTempo(currentBpm);
-    val.textContent = String(currentBpm);
+    val.value = String(currentBpm);
     const sb = document.getElementById('strip-bpm');
     if (sb) sb.textContent = `${currentBpm} BPM`;
   };
   dn.onclick = () => setBpm(Math.round(currentBpm) - 1);
   up.onclick = () => setBpm(Math.round(currentBpm) + 1);
+  // Commit typed input on Enter/blur; revert junk to the current value.
+  const commit = () => {
+    const n = parseInt(val.value, 10);
+    if (Number.isFinite(n)) setBpm(n); else val.value = String(Math.round(currentBpm));
+  };
+  val.onfocus = () => val.select();
+  val.onchange = commit;
+  val.onkeydown = e => {
+    e.stopPropagation();   // keep punch/keyboard shortcuts out while typing
+    if (e.key === 'Enter') { commit(); val.blur(); }
+    else if (e.key === 'Escape') { val.value = String(Math.round(currentBpm)); val.blur(); }
+  };
   stepper.appendChild(dn); stepper.appendChild(val); stepper.appendChild(up);
-  stepper.title = 'Tempo (BPM)';
+  stepper.title = 'Tempo (BPM) — type or ±';
   row.appendChild(stepper);
   grp.appendChild(row);
   return grp;

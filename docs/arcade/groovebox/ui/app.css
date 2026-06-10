@@ -1922,6 +1922,28 @@ body.gb-knob-values .knob-val { display: block; }
   align-items: center;
   justify-content: center;
 }
+/* Editable value cell (TEMPO): looks like the span, but type-to-set. */
+.key-stepper input {
+  width: 3.4ch;
+  height: 22px;
+  font-size: 12px;
+  font-family: ui-monospace, Menlo, monospace;
+  color: var(--ink);
+  text-align: center;
+  padding: 0 2px;
+  border: none;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  cursor: text;
+}
+.key-stepper input:focus { background: color-mix(in srgb, var(--acc) 16%, transparent); }
 
 /* ─── colour themes — each block overrides design tokens only ────────────── */
 
