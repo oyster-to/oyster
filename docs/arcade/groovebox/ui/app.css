@@ -1922,6 +1922,30 @@ body.gb-knob-values .knob-val { display: block; }
   align-items: center;
   justify-content: center;
 }
+/* Editable value cell (TEMPO): looks like the span, but type-to-set. */
+.key-stepper input {
+  width: 5ch;
+  height: 22px;
+  font-size: 12px;
+  font-family: ui-monospace, Menlo, monospace;
+  color: var(--ink);
+  text-align: center;
+  padding: 0 6px;
+  border: none;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  cursor: text;
+}
+.key-stepper input:focus { background: color-mix(in srgb, var(--acc) 16%, transparent); }
+/* Keyboard focus ring, inset so the stepper's overflow:hidden doesn't clip it. */
+.key-stepper input:focus-visible { outline: 2px solid var(--acc); outline-offset: -2px; }
 
 /* ─── colour themes — each block overrides design tokens only ────────────── */
 
