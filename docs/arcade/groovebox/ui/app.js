@@ -460,10 +460,12 @@ function renderStrips() {
     let presetSel = '';
     if (isPitched) {
       const cur = lane.instrument || LANE_INSTRUMENT[lane.type];
+      const isCustom = !ALL_INSTRUMENTS[cur];   // a song-local custom (forked) patch
       const opts = Object.entries(ALL_INSTRUMENTS)
         .filter(([, inst]) => inst.type === lane.type)
         .map(([id, inst]) => `<option value="${id}"${id === cur ? ' selected' : ''}>${esc(inst.name)}</option>`).join('');
-      presetSel = `<select class="lane-preset" data-preset data-lane="${lane.id}" title="Instrument preset">${opts}</select>`;
+      const customOpt = isCustom ? `<option value="${esc(cur)}" selected>Custom ✎</option>` : '';
+      presetSel = `<select class="lane-preset" data-preset data-lane="${lane.id}" title="Instrument preset">${customOpt}${opts}</select>`;
     } else {
       // Drums pick a KIT (a composite of drum sounds).
       const opts = Object.entries(ALL_KITS)
@@ -539,6 +541,7 @@ function renderStrips() {
 
   host.querySelectorAll('select[data-preset]').forEach(s => s.onchange = () => {
     eng.setLaneInstrument(s.dataset.lane, s.value);
+    renderStrips();   // a stock pick clears the "Custom" option from the list
   });
   host.querySelectorAll('select[data-kit]').forEach(s => s.onchange = () => {
     currentKitId = s.value;
@@ -547,8 +550,18 @@ function renderStrips() {
   host.querySelectorAll('.lane-sound').forEach(b => b.onclick = e => {
     e.stopPropagation();
     const lane = eng.getLanes().find(l => l.id === b.dataset.lane);
-    const id = lane?.instrument || LANE_INSTRUMENT[b.dataset.type];
-    if (id) openInstrumentEditor({ id, eng, onSaved: renderStrips });
+    if (!lane) return;
+    const patch = eng.resolveLaneInstrument(lane.id);
+    if (!patch) return;
+    // EDIT forks to a SONG-LOCAL Custom patch (per-lane hooks) — never mutates
+    // the shared stock preset.
+    openInstrumentEditor({
+      patch, eng,
+      onPreview: d => eng.previewLaneInstrument(lane.id, d),
+      onRestore: () => eng.clearLanePreview(lane.id),
+      onCommit:  d => eng.setLaneCustom(lane.id, d),
+      onSaved: renderStrips,
+    });
   });
   host.querySelectorAll('.mute').forEach(b => b.onclick = () => {
     eng.toggleMute(b.dataset.lane);

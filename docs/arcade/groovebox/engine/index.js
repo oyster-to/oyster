@@ -2,7 +2,7 @@ import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
 import { createVoiceForType, trigger } from './voices.js';
 import { normalizeSongDrums, DEFAULT_INSTRUMENTS, ALL_INSTRUMENTS, LEGACY_TONE_PRESET, DEFAULT_KIT, validateInstrument, validateKit } from './instruments.js';
-import { laneByType, toggleMute as _toggleMute, soloExclusive as _soloExclusive, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane, moveLane as _moveLane } from './lanes.js';
+import { laneByType, DEFAULT_LANE_INSTRUMENT, toggleMute as _toggleMute, soloExclusive as _soloExclusive, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane, moveLane as _moveLane } from './lanes.js';
 import { deriveKey } from './song.js';
 import { flattenSong } from './flatten.js';
 import {
@@ -190,10 +190,17 @@ export function createEngine() {
     }
   }
 
+  // Resolvable instrument set for the CURRENT song: stock/global + the song's
+  // own custom (forked) patches in song.instruments. Custom ids resolve here
+  // without polluting the global _instruments set across songs.
+  function instrumentSet() {
+    return song?.instruments ? { ..._instruments, ...song.instruments } : _instruments;
+  }
+
   function buildLane(lane) {
     fx[lane.id]     = _makeFX(_masterIn);
     voices[lane.id] = createVoiceForType(lane.type, fx[lane.id].input,
-      { instruments: _instruments, kit: _kit, instrumentId: lane.instrument });
+      { instruments: instrumentSet(), kit: _kit, instrumentId: lane.instrument });
     // Per-lane scope analyser — lazy: created on first getScope(id) call.
     // scopeLane[lane.id] intentionally NOT created here.
     // Per-lane level meter
@@ -219,7 +226,7 @@ export function createEngine() {
     const v = voices[laneId];
     if (v?.dispose) { try { v.dispose(); } catch (_) {} }
     voices[laneId] = createVoiceForType(lane.type, fx[laneId].input,
-      { instruments: _instruments, kit: _kit, instrumentId: lane.instrument });
+      { instruments: instrumentSet(), kit: _kit, instrumentId: lane.instrument });
   }
   function _rebuildVoices() {
     if (!started || !song) return;
@@ -687,12 +694,45 @@ export function createEngine() {
     },
     // Select a preset instrument for a pitched lane. Unknown id = no-op.
     setLaneInstrument(id, instrumentId) {
-      if (!song || !_instruments[instrumentId]) return;
+      if (!song || !instrumentSet()[instrumentId]) return;
       const lane = song.lanes.find(l => l.id === id);
       if (!lane) return;
       lane.instrument = instrumentId;
       _rebuildVoice(id);
     },
+    // The resolved patch a lane currently sounds (stock preset or song-local
+    // custom), for the editor to open. Falls back to the type default.
+    resolveLaneInstrument(id) {
+      const lane = song?.lanes.find(l => l.id === id);
+      if (!lane) return null;
+      const set = instrumentSet();
+      return set[lane.instrument] || set[DEFAULT_LANE_INSTRUMENT[lane.type]] || null;
+    },
+    // Fork-to-Custom: store an edited patch as a SONG-LOCAL custom for this lane
+    // (travels with the song), point the lane at it, rebuild. The stock preset is
+    // never mutated. id scheme: one custom slot per lane (`custom-<laneId>`).
+    setLaneCustom(id, patch) {
+      if (!song) return;
+      const lane = song.lanes.find(l => l.id === id);
+      if (!lane || !validateInstrument(patch)) return;
+      const cid = 'custom-' + id;
+      if (!song.instruments) song.instruments = {};
+      song.instruments[cid] = JSON.parse(JSON.stringify(patch));
+      lane.instrument = cid;
+      _rebuildVoice(id);
+    },
+    // Live-audition a draft patch on one lane's voice (transient — not stored).
+    previewLaneInstrument(id, patch) {
+      if (!started || !song || !fx[id] || !validateInstrument(patch)) return;
+      const lane = song.lanes.find(l => l.id === id);
+      if (!lane) return;
+      const v = voices[id];
+      if (v?.dispose) { try { v.dispose(); } catch (_) {} }
+      voices[id] = createVoiceForType(lane.type, fx[id].input,
+        { instruments: { _preview: patch }, instrumentId: '_preview', kit: _kit });
+    },
+    // Undo a preview — rebuild the lane from its stored instrument.
+    clearLanePreview(id) { _rebuildVoice(id); },
     getLevel(id) {
       if (!started || !meters[id]) return 0;
       let db = meters[id].getValue();
