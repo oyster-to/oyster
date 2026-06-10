@@ -412,6 +412,34 @@ export const DRUM_PRESETS = {
     patch: { archetype: 'noise', volume: -12, envelope: { attack: 0.002, decay: 0.25, sustain: 0 }, filter: { type: 'highpass', freq: 700 }, trigger: { dur: '8n', velocity: 0.7 } } },
   'drum-lofi-hat':   { name: 'Lo-Fi Hat',   type: 'drum', engine: 'synth',
     patch: { archetype: 'noise', volume: -22, envelope: { attack: 0.001, decay: 0.06, sustain: 0 }, filter: { type: 'highpass', freq: 5000 }, trigger: { dur: '32n', velocity: 0.5 } } },
+  // Boom Bap — punchy mid kick, fat cracky snare, dark short hats
+  'drum-boombap-kick':  { name: 'Boom Bap Kick',  type: 'drum', engine: 'synth',
+    patch: { archetype: 'membrane', volume: -4, pitch: { pitchDecay: 0.04, octaves: 2 }, filter: { type: 'lowpass', freq: 4000 }, trigger: { note: 'C1', dur: '8n', velocity: 0.95 } } },
+  'drum-boombap-snare': { name: 'Boom Bap Snare', type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -8, envelope: { attack: 0.001, decay: 0.3, sustain: 0 }, filter: { type: 'highpass', freq: 900 }, trigger: { dur: '8n', velocity: 0.95 } } },
+  'drum-boombap-hat':   { name: 'Boom Bap Hat',   type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -20, envelope: { attack: 0.001, decay: 0.035, sustain: 0 }, filter: { type: 'highpass', freq: 6500 }, trigger: { dur: '32n', velocity: 0.55 } } },
+  // Techno — hard clicky kick, bright snare, OPEN sizzly hats
+  'drum-techno-kick':  { name: 'Techno Kick',  type: 'drum', engine: 'synth',
+    patch: { archetype: 'membrane', volume: -3, pitch: { pitchDecay: 0.025, octaves: 3.5 }, trigger: { note: 'C1', dur: '8n', velocity: 1 } } },
+  'drum-techno-snare': { name: 'Techno Snare', type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -9, envelope: { attack: 0.001, decay: 0.16, sustain: 0 }, filter: { type: 'highpass', freq: 2600 }, trigger: { dur: '16n', velocity: 0.95 } } },
+  'drum-techno-hat':   { name: 'Techno Hat',   type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -16, envelope: { attack: 0.001, decay: 0.12, sustain: 0 }, filter: { type: 'highpass', freq: 8500 }, trigger: { dur: '16n', velocity: 0.7 } } },
+  // Electro — ultra-short zappy everything
+  'drum-electro-kick':  { name: 'Electro Kick',  type: 'drum', engine: 'synth',
+    patch: { archetype: 'membrane', volume: -4, pitch: { pitchDecay: 0.015, octaves: 5 }, trigger: { note: 'C1', dur: '16n', velocity: 1 } } },
+  'drum-electro-snare': { name: 'Electro Snare', type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -11, envelope: { attack: 0.001, decay: 0.08, sustain: 0 }, filter: { type: 'highpass', freq: 3500 }, trigger: { dur: '32n', velocity: 0.9 } } },
+  'drum-electro-hat':   { name: 'Electro Hat',   type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -19, envelope: { attack: 0.001, decay: 0.025, sustain: 0 }, filter: { type: 'highpass', freq: 10000 }, trigger: { dur: '32n', velocity: 0.55 } } },
+  // Brush — soft low kick, long swept warm snare, brushy hats
+  'drum-brush-kick':  { name: 'Brush Kick',  type: 'drum', engine: 'synth',
+    patch: { archetype: 'membrane', volume: -7, pitch: { pitchDecay: 0.04, octaves: 2 }, filter: { type: 'lowpass', freq: 1800 }, trigger: { note: 'C1', dur: '8n', velocity: 0.75 } } },
+  'drum-brush-snare': { name: 'Brush Snare', type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -13, envelope: { attack: 0.003, decay: 0.35, sustain: 0 }, filter: { type: 'highpass', freq: 500 }, trigger: { dur: '4n', velocity: 0.6 } } },
+  'drum-brush-hat':   { name: 'Brush Hat',   type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -23, envelope: { attack: 0.002, decay: 0.08, sustain: 0 }, filter: { type: 'highpass', freq: 4500 }, trigger: { dur: '16n', velocity: 0.45 } } },
 };
 
 // The full selectable set: stock defaults + preset banks. Engine inits
@@ -437,6 +465,10 @@ export const DRUM_KITS = {
   'kit-909':      kit('909',      'drum-909-kick',      'drum-909-snare',      'drum-909-hat'),
   'kit-acoustic': kit('Acoustic', 'drum-acoustic-kick', 'drum-acoustic-snare', 'drum-acoustic-hat'),
   'kit-lofi':     kit('Lo-Fi',    'drum-lofi-kick',     'drum-lofi-snare',     'drum-lofi-hat'),
+  'kit-boombap':  kit('Boom Bap', 'drum-boombap-kick',  'drum-boombap-snare',  'drum-boombap-hat'),
+  'kit-techno':   kit('Techno',   'drum-techno-kick',   'drum-techno-snare',   'drum-techno-hat'),
+  'kit-electro':  kit('Electro',  'drum-electro-kick',  'drum-electro-snare',  'drum-electro-hat'),
+  'kit-brush':    kit('Brush',    'drum-brush-kick',    'drum-brush-snare',    'drum-brush-hat'),
 };
 // Selectable kits: the Oyster default + the banks.
 export const ALL_KITS = { 'oyster-kit': DEFAULT_KIT, ...DRUM_KITS };
