@@ -1,0 +1,5 @@
+# Files in this directory are deployed as static assets by infra/oyster-arcade-site
+# (wrangler walks the whole tree and does NOT honour .gitignore). Keep dev-only
+# artefacts out of the edge upload. Same format as .gitignore.
+node_modules
+.DS_Store
