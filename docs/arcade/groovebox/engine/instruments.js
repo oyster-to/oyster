@@ -207,6 +207,27 @@ export const DEFAULT_INSTRUMENTS = {
       filter: { type: 'highpass', freq: 3500 },
       trigger: { dur: '8n', velocity: 0.8 } },
   },
+  'gb-clap': {
+    name: 'Oyster Clap', type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -11,
+      envelope: { attack: 0.001, decay: 0.15, sustain: 0 },
+      filter: { type: 'highpass', freq: 1200 },
+      trigger: { dur: '16n', velocity: 0.8 } },
+  },
+  'gb-openhat': {
+    name: 'Oyster Open Hat', type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -19,
+      envelope: { attack: 0.001, decay: 0.35, sustain: 0 },
+      filter: { type: 'highpass', freq: 7000 },
+      trigger: { dur: '8n', velocity: 0.6 } },
+  },
+  'gb-ride': {
+    name: 'Oyster Ride', type: 'drum', engine: 'synth',
+    patch: { archetype: 'noise', volume: -20,
+      envelope: { attack: 0.001, decay: 0.6, sustain: 0 },
+      filter: { type: 'highpass', freq: 6000 },
+      trigger: { dur: '4n', velocity: 0.5 } },
+  },
   'gb-bass': {
     name: 'Oyster Bass', type: 'bass', engine: 'synth',
     patch: { archetype: 'mono', volume: -7,
@@ -232,14 +253,19 @@ export const DEFAULT_INSTRUMENTS = {
   },
 };
 
+// The canonical 8-slot layout: every kit fills these GM notes. The drum editor
+// derives its rows from this (viz.js DROWS), so slot order = row order.
 export const DEFAULT_KIT = {
   name: 'Oyster Kit',
   slots: [
     { note: 36, label: 'Kick',  instrument: 'gb-kick' },
     { note: 38, label: 'Snare', instrument: 'gb-snare' },
+    { note: 39, label: 'Clap',  instrument: 'gb-clap' },
     { note: 42, label: 'HH',    instrument: 'gb-hat' },
+    { note: 46, label: 'OH',    instrument: 'gb-openhat' },
     { note: 45, label: 'Tom',   instrument: 'gb-tom', pitched: true },   // steps carry [step, semi]
     { note: 49, label: 'Crash', instrument: 'gb-crash' },
+    { note: 51, label: 'Ride',  instrument: 'gb-ride' },
   ],
 };
 
@@ -440,6 +466,56 @@ export const DRUM_PRESETS = {
     patch: { archetype: 'noise', volume: -13, envelope: { attack: 0.003, decay: 0.35, sustain: 0 }, filter: { type: 'highpass', freq: 500 }, trigger: { dur: '4n', velocity: 0.6 } } },
   'drum-brush-hat':   { name: 'Brush Hat',   type: 'drum', engine: 'synth',
     patch: { archetype: 'noise', volume: -23, envelope: { attack: 0.002, decay: 0.08, sustain: 0 }, filter: { type: 'highpass', freq: 4500 }, trigger: { dur: '16n', velocity: 0.45 } } },
+
+  // ─ Clap · Open Hat · Tom · Crash · Ride per kit (the 8-slot completion) ─
+  // 808
+  'drum-808-clap':    { name: '808 Clap',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -10, envelope: { attack: 0.001, decay: 0.18, sustain: 0 }, filter: { type: 'highpass', freq: 1300 }, trigger: { dur: '16n', velocity: 0.85 } } },
+  'drum-808-openhat': { name: '808 Open Hat', type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -17, envelope: { attack: 0.001, decay: 0.4, sustain: 0 }, filter: { type: 'highpass', freq: 9000 }, trigger: { dur: '8n', velocity: 0.6 } } },
+  'drum-808-tom':     { name: '808 Tom',     type: 'drum', engine: 'synth', patch: { archetype: 'membrane', volume: -5, pitch: { pitchDecay: 0.3, octaves: 4 }, trigger: { note: 'A2', dur: '8n', velocity: 0.85 } } },
+  'drum-808-crash':   { name: '808 Crash',   type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -13, envelope: { attack: 0.001, decay: 1.3, sustain: 0, release: 0.3 }, filter: { type: 'highpass', freq: 4000 }, trigger: { dur: '8n', velocity: 0.7 } } },
+  'drum-808-ride':    { name: '808 Ride',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -19, envelope: { attack: 0.001, decay: 0.5, sustain: 0 }, filter: { type: 'highpass', freq: 8500 }, trigger: { dur: '4n', velocity: 0.5 } } },
+  // 909
+  'drum-909-clap':    { name: '909 Clap',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -10, envelope: { attack: 0.001, decay: 0.16, sustain: 0 }, filter: { type: 'highpass', freq: 1500 }, trigger: { dur: '16n', velocity: 0.85 } } },
+  'drum-909-openhat': { name: '909 Open Hat', type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -16, envelope: { attack: 0.001, decay: 0.45, sustain: 0 }, filter: { type: 'highpass', freq: 8000 }, trigger: { dur: '8n', velocity: 0.65 } } },
+  'drum-909-tom':     { name: '909 Tom',     type: 'drum', engine: 'synth', patch: { archetype: 'membrane', volume: -5, pitch: { pitchDecay: 0.08, octaves: 4 }, trigger: { note: 'A2', dur: '8n', velocity: 0.85 } } },
+  'drum-909-crash':   { name: '909 Crash',   type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -12, envelope: { attack: 0.001, decay: 1.2, sustain: 0, release: 0.3 }, filter: { type: 'highpass', freq: 3500 }, trigger: { dur: '8n', velocity: 0.75 } } },
+  'drum-909-ride':    { name: '909 Ride',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -18, envelope: { attack: 0.001, decay: 0.55, sustain: 0 }, filter: { type: 'highpass', freq: 8000 }, trigger: { dur: '4n', velocity: 0.55 } } },
+  // Acoustic
+  'drum-acoustic-clap':    { name: 'Acoustic Clap',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -11, envelope: { attack: 0.002, decay: 0.2, sustain: 0 }, filter: { type: 'highpass', freq: 1000 }, trigger: { dur: '8n', velocity: 0.8 } } },
+  'drum-acoustic-openhat': { name: 'Acoustic Open Hat', type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -18, envelope: { attack: 0.001, decay: 0.4, sustain: 0 }, filter: { type: 'highpass', freq: 7500 }, trigger: { dur: '8n', velocity: 0.55 } } },
+  'drum-acoustic-tom':     { name: 'Acoustic Tom',     type: 'drum', engine: 'synth', patch: { archetype: 'membrane', volume: -6, pitch: { pitchDecay: 0.04, octaves: 3 }, trigger: { note: 'A2', dur: '8n', velocity: 0.85 } } },
+  'drum-acoustic-crash':   { name: 'Acoustic Crash',   type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -12, envelope: { attack: 0.001, decay: 1.4, sustain: 0, release: 0.4 }, filter: { type: 'highpass', freq: 3500 }, trigger: { dur: '8n', velocity: 0.8 } } },
+  'drum-acoustic-ride':    { name: 'Acoustic Ride',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -19, envelope: { attack: 0.001, decay: 0.6, sustain: 0 }, filter: { type: 'highpass', freq: 7000 }, trigger: { dur: '4n', velocity: 0.5 } } },
+  // Lo-Fi
+  'drum-lofi-clap':    { name: 'Lo-Fi Clap',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -13, envelope: { attack: 0.003, decay: 0.2, sustain: 0 }, filter: { type: 'highpass', freq: 700 }, trigger: { dur: '8n', velocity: 0.65 } } },
+  'drum-lofi-openhat': { name: 'Lo-Fi Open Hat', type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -21, envelope: { attack: 0.001, decay: 0.4, sustain: 0 }, filter: { type: 'highpass', freq: 5000 }, trigger: { dur: '8n', velocity: 0.5 } } },
+  'drum-lofi-tom':     { name: 'Lo-Fi Tom',     type: 'drum', engine: 'synth', patch: { archetype: 'membrane', volume: -7, pitch: { pitchDecay: 0.05, octaves: 2.5 }, filter: { type: 'lowpass', freq: 2000 }, trigger: { note: 'A2', dur: '8n', velocity: 0.8 } } },
+  'drum-lofi-crash':   { name: 'Lo-Fi Crash',   type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -15, envelope: { attack: 0.002, decay: 1.2, sustain: 0, release: 0.4 }, filter: { type: 'highpass', freq: 2500 }, trigger: { dur: '8n', velocity: 0.65 } } },
+  'drum-lofi-ride':    { name: 'Lo-Fi Ride',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -22, envelope: { attack: 0.001, decay: 0.5, sustain: 0 }, filter: { type: 'highpass', freq: 4500 }, trigger: { dur: '4n', velocity: 0.45 } } },
+  // Boom Bap
+  'drum-boombap-clap':    { name: 'Boom Bap Clap',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -9, envelope: { attack: 0.001, decay: 0.22, sustain: 0 }, filter: { type: 'highpass', freq: 1000 }, trigger: { dur: '8n', velocity: 0.9 } } },
+  'drum-boombap-openhat': { name: 'Boom Bap Open Hat', type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -19, envelope: { attack: 0.001, decay: 0.3, sustain: 0 }, filter: { type: 'highpass', freq: 6500 }, trigger: { dur: '8n', velocity: 0.55 } } },
+  'drum-boombap-tom':     { name: 'Boom Bap Tom',     type: 'drum', engine: 'synth', patch: { archetype: 'membrane', volume: -5, pitch: { pitchDecay: 0.04, octaves: 2.2 }, filter: { type: 'lowpass', freq: 4000 }, trigger: { note: 'A2', dur: '8n', velocity: 0.85 } } },
+  'drum-boombap-crash':   { name: 'Boom Bap Crash',   type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -13, envelope: { attack: 0.001, decay: 1.2, sustain: 0, release: 0.3 }, filter: { type: 'highpass', freq: 3000 }, trigger: { dur: '8n', velocity: 0.75 } } },
+  'drum-boombap-ride':    { name: 'Boom Bap Ride',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -20, envelope: { attack: 0.001, decay: 0.55, sustain: 0 }, filter: { type: 'highpass', freq: 6500 }, trigger: { dur: '4n', velocity: 0.5 } } },
+  // Techno
+  'drum-techno-clap':    { name: 'Techno Clap',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -9, envelope: { attack: 0.001, decay: 0.14, sustain: 0 }, filter: { type: 'highpass', freq: 2000 }, trigger: { dur: '16n', velocity: 0.9 } } },
+  'drum-techno-openhat': { name: 'Techno Open Hat', type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -15, envelope: { attack: 0.001, decay: 0.5, sustain: 0 }, filter: { type: 'highpass', freq: 8500 }, trigger: { dur: '8n', velocity: 0.7 } } },
+  'drum-techno-tom':     { name: 'Techno Tom',     type: 'drum', engine: 'synth', patch: { archetype: 'membrane', volume: -5, pitch: { pitchDecay: 0.03, octaves: 3.5 }, trigger: { note: 'A2', dur: '8n', velocity: 0.85 } } },
+  'drum-techno-crash':   { name: 'Techno Crash',   type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -12, envelope: { attack: 0.001, decay: 1.3, sustain: 0, release: 0.3 }, filter: { type: 'highpass', freq: 4000 }, trigger: { dur: '8n', velocity: 0.8 } } },
+  'drum-techno-ride':    { name: 'Techno Ride',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -17, envelope: { attack: 0.001, decay: 0.6, sustain: 0 }, filter: { type: 'highpass', freq: 9000 }, trigger: { dur: '4n', velocity: 0.6 } } },
+  // Electro
+  'drum-electro-clap':    { name: 'Electro Clap',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -11, envelope: { attack: 0.001, decay: 0.09, sustain: 0 }, filter: { type: 'highpass', freq: 3000 }, trigger: { dur: '32n', velocity: 0.85 } } },
+  'drum-electro-openhat': { name: 'Electro Open Hat', type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -18, envelope: { attack: 0.001, decay: 0.2, sustain: 0 }, filter: { type: 'highpass', freq: 10000 }, trigger: { dur: '16n', velocity: 0.6 } } },
+  'drum-electro-tom':     { name: 'Electro Tom',     type: 'drum', engine: 'synth', patch: { archetype: 'membrane', volume: -5, pitch: { pitchDecay: 0.015, octaves: 5 }, trigger: { note: 'A2', dur: '16n', velocity: 0.85 } } },
+  'drum-electro-crash':   { name: 'Electro Crash',   type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -13, envelope: { attack: 0.001, decay: 0.9, sustain: 0, release: 0.2 }, filter: { type: 'highpass', freq: 5000 }, trigger: { dur: '8n', velocity: 0.75 } } },
+  'drum-electro-ride':    { name: 'Electro Ride',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -19, envelope: { attack: 0.001, decay: 0.35, sustain: 0 }, filter: { type: 'highpass', freq: 10000 }, trigger: { dur: '8n', velocity: 0.5 } } },
+  // Brush
+  'drum-brush-clap':    { name: 'Brush Clap',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -14, envelope: { attack: 0.004, decay: 0.25, sustain: 0 }, filter: { type: 'highpass', freq: 600 }, trigger: { dur: '4n', velocity: 0.55 } } },
+  'drum-brush-openhat': { name: 'Brush Open Hat', type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -22, envelope: { attack: 0.002, decay: 0.4, sustain: 0 }, filter: { type: 'highpass', freq: 4500 }, trigger: { dur: '8n', velocity: 0.45 } } },
+  'drum-brush-tom':     { name: 'Brush Tom',     type: 'drum', engine: 'synth', patch: { archetype: 'membrane', volume: -8, pitch: { pitchDecay: 0.04, octaves: 2 }, filter: { type: 'lowpass', freq: 1800 }, trigger: { note: 'A2', dur: '8n', velocity: 0.7 } } },
+  'drum-brush-crash':   { name: 'Brush Crash',   type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -15, envelope: { attack: 0.003, decay: 1.4, sustain: 0, release: 0.5 }, filter: { type: 'highpass', freq: 2500 }, trigger: { dur: '8n', velocity: 0.6 } } },
+  'drum-brush-ride':    { name: 'Brush Ride',    type: 'drum', engine: 'synth', patch: { archetype: 'noise', volume: -21, envelope: { attack: 0.002, decay: 0.7, sustain: 0 }, filter: { type: 'highpass', freq: 5500 }, trigger: { dur: '4n', velocity: 0.45 } } },
 };
 
 // The full selectable set: stock defaults + preset banks. Engine inits
@@ -447,28 +523,31 @@ export const DRUM_PRESETS = {
 export const ALL_INSTRUMENTS = { ...DEFAULT_INSTRUMENTS, ...SYNTH_PRESETS, ...DRUM_PRESETS };
 
 // ─── Drum kits (Slice 2) ──────────────────────────────────────────────────────
-// Each kit keeps the SAME GM notes/labels as DEFAULT_KIT (36/38/42/45/49) so the
-// drum grooves trigger the same slots; only the instrument per slot differs.
-// Tom + Crash reuse the Oyster voices for now.
-const kit = (name, kick, snare, hat) => ({
+// Every kit fills the SAME 8 GM slots (36/38/39/42/46/45/49/51) so any groove
+// triggers the same slots — only the per-slot instrument differs. The 8 sounds
+// follow a `drum-<prefix>-<piece>` id convention, so a kit is named by its prefix.
+const kit = (name, p) => ({
   name,
   slots: [
-    { note: 36, label: 'Kick',  instrument: kick },
-    { note: 38, label: 'Snare', instrument: snare },
-    { note: 42, label: 'HH',    instrument: hat },
-    { note: 45, label: 'Tom',   instrument: 'gb-tom', pitched: true },
-    { note: 49, label: 'Crash', instrument: 'gb-crash' },
+    { note: 36, label: 'Kick',  instrument: `drum-${p}-kick` },
+    { note: 38, label: 'Snare', instrument: `drum-${p}-snare` },
+    { note: 39, label: 'Clap',  instrument: `drum-${p}-clap` },
+    { note: 42, label: 'HH',    instrument: `drum-${p}-hat` },
+    { note: 46, label: 'OH',    instrument: `drum-${p}-openhat` },
+    { note: 45, label: 'Tom',   instrument: `drum-${p}-tom`, pitched: true },
+    { note: 49, label: 'Crash', instrument: `drum-${p}-crash` },
+    { note: 51, label: 'Ride',  instrument: `drum-${p}-ride` },
   ],
 });
 export const DRUM_KITS = {
-  'kit-808':      kit('808',      'drum-808-kick',      'drum-808-snare',      'drum-808-hat'),
-  'kit-909':      kit('909',      'drum-909-kick',      'drum-909-snare',      'drum-909-hat'),
-  'kit-acoustic': kit('Acoustic', 'drum-acoustic-kick', 'drum-acoustic-snare', 'drum-acoustic-hat'),
-  'kit-lofi':     kit('Lo-Fi',    'drum-lofi-kick',     'drum-lofi-snare',     'drum-lofi-hat'),
-  'kit-boombap':  kit('Boom Bap', 'drum-boombap-kick',  'drum-boombap-snare',  'drum-boombap-hat'),
-  'kit-techno':   kit('Techno',   'drum-techno-kick',   'drum-techno-snare',   'drum-techno-hat'),
-  'kit-electro':  kit('Electro',  'drum-electro-kick',  'drum-electro-snare',  'drum-electro-hat'),
-  'kit-brush':    kit('Brush',    'drum-brush-kick',    'drum-brush-snare',    'drum-brush-hat'),
+  'kit-808':      kit('808',      '808'),
+  'kit-909':      kit('909',      '909'),
+  'kit-acoustic': kit('Acoustic', 'acoustic'),
+  'kit-lofi':     kit('Lo-Fi',    'lofi'),
+  'kit-boombap':  kit('Boom Bap', 'boombap'),
+  'kit-techno':   kit('Techno',   'techno'),
+  'kit-electro':  kit('Electro',  'electro'),
+  'kit-brush':    kit('Brush',    'brush'),
 };
 // Selectable kits: the Oyster default + the banks.
 export const ALL_KITS = { 'oyster-kit': DEFAULT_KIT, ...DRUM_KITS };
