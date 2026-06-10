@@ -178,37 +178,37 @@ export function normalizeSongDrums(song) {
 // Values mirror engine/voices.js createVoiceForType EXACTLY (parity-tested).
 export const DEFAULT_INSTRUMENTS = {
   'gb-kick': {
-    name: 'GB Kick', type: 'drum', engine: 'synth',
+    name: 'Oyster Kick', type: 'drum', engine: 'synth',
     patch: { archetype: 'membrane', volume: -5, trigger: { note: 'C1', dur: '8n' } },
   },
   'gb-snare': {
-    name: 'GB Snare', type: 'drum', engine: 'synth',
+    name: 'Oyster Snare', type: 'drum', engine: 'synth',
     patch: { archetype: 'noise', volume: -11,
       envelope: { attack: 0.001, decay: 0.16, sustain: 0 },
       trigger: { dur: '16n' } },
   },
   'gb-hat': {
-    name: 'GB Hat', type: 'drum', engine: 'synth',
+    name: 'Oyster Hat', type: 'drum', engine: 'synth',
     patch: { archetype: 'noise', volume: -20,
       envelope: { attack: 0.001, decay: 0.03, sustain: 0 },
       filter: { type: 'highpass', freq: 7000 },
       trigger: { dur: '32n', velocity: 0.6 } },
   },
   'gb-tom': {
-    name: 'GB Tom', type: 'drum', engine: 'synth',
+    name: 'Oyster Tom', type: 'drum', engine: 'synth',
     patch: { archetype: 'membrane', volume: -6,
       pitch: { pitchDecay: 0.06, octaves: 2 },
       trigger: { note: 'A2', dur: '8n' } },
   },
   'gb-crash': {
-    name: 'GB Crash', type: 'drum', engine: 'synth',
+    name: 'Oyster Crash', type: 'drum', engine: 'synth',
     patch: { archetype: 'noise', volume: -12,
       envelope: { attack: 0.001, decay: 1.1, sustain: 0, release: 0.3 },
       filter: { type: 'highpass', freq: 3500 },
       trigger: { dur: '8n', velocity: 0.8 } },
   },
   'gb-bass': {
-    name: 'GB Bass', type: 'bass', engine: 'synth',
+    name: 'Oyster Bass', type: 'bass', engine: 'synth',
     patch: { archetype: 'mono', volume: -7,
       oscillator: { shape: 'triangle' },
       envelope: { attack: 0.005, decay: 0.18, sustain: 0.35, release: 0.18 },
@@ -216,7 +216,7 @@ export const DEFAULT_INSTRUMENTS = {
       trigger: { velocity: 0.85 } },
   },
   'gb-chords': {
-    name: 'GB Chords', type: 'chords', engine: 'synth',
+    name: 'Oyster Chords', type: 'chords', engine: 'synth',
     patch: { archetype: 'poly', volume: -17,
       oscillator: { shape: 'triangle' },
       envelope: { attack: 0.05, decay: 0.3, sustain: 0.6, release: 0.5 },
@@ -224,7 +224,7 @@ export const DEFAULT_INSTRUMENTS = {
       trigger: { velocity: 0.3 } },
   },
   'gb-lead': {
-    name: 'GB Lead', type: 'melody', engine: 'synth',
+    name: 'Oyster Lead', type: 'melody', engine: 'synth',
     patch: { archetype: 'poly', volume: -11,
       oscillator: { shape: 'pulse', width: 0.3 },
       envelope: { attack: 0.004, decay: 0.18, sustain: 0.2, release: 0.2 },
@@ -233,7 +233,7 @@ export const DEFAULT_INSTRUMENTS = {
 };
 
 export const DEFAULT_KIT = {
-  name: 'GB Kit',
+  name: 'Oyster Kit',
   slots: [
     { note: 36, label: 'Kick',  instrument: 'gb-kick' },
     { note: 38, label: 'Snare', instrument: 'gb-snare' },
