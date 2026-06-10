@@ -85,6 +85,16 @@ describe('per-lane instrument selection + fork-to-Custom', () => {
     eng.setLaneCustom('nope', VALID_BASS);
     expect(eng.getSong().instruments['custom-' + id].name).toBe('My Bass');
   });
+
+  test('type mismatch is rejected (a lane only takes its own type)', () => {
+    const eng = loaded(); const id = bassLane(eng);
+    const before = eng.getSong().lanes.find(l => l.id === id).instrument;
+    eng.setLaneInstrument(id, 'preset-square-lead');      // a melody preset on a bass lane
+    expect(eng.getSong().lanes.find(l => l.id === id).instrument).toBe(before);
+    const melodyPatch = { ...VALID_BASS, type: 'melody' };
+    eng.setLaneCustom(id, melodyPatch);                   // a melody patch on a bass lane
+    expect(eng.getSong().instruments?.['custom-' + id]).toBeUndefined();
+  });
 });
 
 describe('tone → instrument migration (load boundary)', () => {
@@ -112,5 +122,11 @@ describe('registry validation of song-local instruments', () => {
   });
   it('rejects a non-object instruments field', () => {
     expect(validateSongPayload({ ...SONG_PAYLOAD, instruments: [] }).ok).not.toBe(true);
+  });
+  it('rejects ids without the custom- prefix (stock shadowing / proto pollution)', () => {
+    expect(validateSongPayload({ ...SONG_PAYLOAD, instruments: { 'gb-bass': VALID_BASS } }).ok).not.toBe(true);
+    // __proto__ as an OWN key — how it arrives via JSON.parse on a real payload.
+    const proto = JSON.parse(`{"__proto__": ${JSON.stringify(VALID_BASS)}}`);
+    expect(validateSongPayload({ ...SONG_PAYLOAD, instruments: proto }).ok).not.toBe(true);
   });
 });

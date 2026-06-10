@@ -105,11 +105,13 @@ export function validateSongPayload(p) {
   const bad = strictKeys(p, ['version', 'title', 'artist', 'meter', 'bpm', 'lanes', 'grooves',
     'patterns', 'chain', 'fills', 'transpose', 'key', 'instruments', 'extensions'], 'song payload');
   if (bad) return err(bad);
-  // Song-local custom (forked) instruments travel inline with the song.
+  // Song-local custom (forked) instruments travel inline with the song. Ids must
+  // carry the `custom-` prefix — this blocks special keys (__proto__) and stops a
+  // song shadowing a stock preset id (gb-*/preset-*/drum-*/kit-*).
   if (p.instruments !== undefined) {
     if (!isObj(p.instruments)) return err('instruments must be an object');
     for (const [iid, inst] of Object.entries(p.instruments)) {
-      if (typeof iid !== 'string' || !iid.length || iid.length > 64) return err('invalid instrument id');
+      if (!/^custom-[a-z0-9-]{1,48}$/i.test(iid)) return err('invalid instrument id');
       if (!validateInstrument(inst)) return err(`invalid instrument "${iid}"`);
     }
   }

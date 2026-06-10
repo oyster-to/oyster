@@ -26,8 +26,6 @@ import { DEFAULT_PRESETS } from '../engine/punch-presets.js';
 import { ALL_INSTRUMENTS, ALL_KITS } from '../engine/instruments.js';
 
 const eng = createEngine();
-// Selected drum kit (global for now — kit-per-song serialization is a follow-up).
-let currentKitId = 'oyster-kit';
 
 // ─── Knob info map (single source of truth) ───────────────────────────────────
 const KNOB_INFO = {
@@ -467,10 +465,15 @@ function renderStrips() {
       const customOpt = isCustom ? `<option value="${esc(cur)}" selected>Custom ✎</option>` : '';
       presetSel = `<select class="lane-preset" data-preset data-lane="${lane.id}" title="Instrument preset">${customOpt}${opts}</select>`;
     } else {
-      // Drums pick a KIT (a composite of drum sounds).
+      // Drums pick a KIT. The selected id is derived from the engine's live kit
+      // (by reference) — so a saved global custom kit shows "Custom", not a wrong
+      // bank entry.
+      const curKit = eng.getKit();
+      const selId = Object.keys(ALL_KITS).find(k => ALL_KITS[k] === curKit);
       const opts = Object.entries(ALL_KITS)
-        .map(([id, k]) => `<option value="${id}"${id === currentKitId ? ' selected' : ''}>${esc(k.name)}</option>`).join('');
-      presetSel = `<select class="lane-preset" data-kit data-lane="${lane.id}" title="Drum kit">${opts}</select>`;
+        .map(([id, k]) => `<option value="${id}"${id === selId ? ' selected' : ''}>${esc(k.name)}</option>`).join('');
+      const customOpt = selId ? '' : `<option value="" selected>Custom</option>`;
+      presetSel = `<select class="lane-preset" data-kit data-lane="${lane.id}" title="Drum kit">${customOpt}${opts}</select>`;
     }
     const soundBtn = isPitched
       ? `<button class="lane-sound" data-lane="${lane.id}" data-type="${lane.type}" title="Edit ${esc(lane.name)} sound">EDIT</button>`
@@ -544,8 +547,8 @@ function renderStrips() {
     renderStrips();   // a stock pick clears the "Custom" option from the list
   });
   host.querySelectorAll('select[data-kit]').forEach(s => s.onchange = () => {
-    currentKitId = s.value;
-    eng.setKit(ALL_KITS[currentKitId]);
+    const k = ALL_KITS[s.value];
+    if (k) eng.setKit(k);   // ignore the display-only "Custom" entry
   });
   host.querySelectorAll('.lane-sound').forEach(b => b.onclick = e => {
     e.stopPropagation();

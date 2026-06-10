@@ -54,8 +54,14 @@ let _open = false;
 export const isInstrumentEditorOpen = () => _open;
 
 /**
- * openInstrumentEditor({ id, eng, onSaved })
- * id — instrument id in the engine's set (e.g. 'gb-kick', 'gb-bass')
+ * openInstrumentEditor({ id, patch, eng, onSaved, onPreview, onRestore, onCommit })
+ *   id    — instrument id in the global set (e.g. 'gb-kick'); the draft source
+ *           and the default persistence target. Optional when `patch` is given.
+ *   patch — explicit starting patch (used by the lane EDIT, where the lane's
+ *           instrument may be a song-local custom not in the global set).
+ *   onPreview/onRestore/onCommit — optional hooks. Default persists to the global
+ *           instrument set + localStorage (drum-slot editor). The lane EDIT injects
+ *           per-lane hooks so SAVE forks to a song-local Custom patch.
  */
 export function openInstrumentEditor({ id, patch, eng, onSaved, onPreview, onRestore, onCommit }) {
   if (_open) return;
@@ -73,9 +79,14 @@ export function openInstrumentEditor({ id, patch, eng, onSaved, onPreview, onRes
   const restore = () => onRestore ? onRestore() : eng.setInstruments(stash);
   const persist = d => {
     if (onCommit) { onCommit(d); return; }
-    const next = { ...stash, [id]: d };
-    eng.setInstruments(next);
-    localStorage.setItem('gb-instruments', JSON.stringify(next));
+    eng.setInstruments({ ...stash, [id]: d });
+    // Persist ONLY this edited instrument as an override (not the whole bank) —
+    // otherwise localStorage freezes every stock preset at today's values and
+    // future preset updates would never reach the user.
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem('gb-instruments') || '{}') || {}; } catch (_) { saved = {}; }
+    saved[id] = d;
+    localStorage.setItem('gb-instruments', JSON.stringify(saved));
   };
   function applyDraftLive() {
     if (!previewing) return;

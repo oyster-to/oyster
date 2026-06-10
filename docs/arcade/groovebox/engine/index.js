@@ -692,11 +692,14 @@ export function createEngine() {
       const g = grooveFor(song, editIdx, laneId);
       if (g) _toggleNote(song, laneId, g.name, barIdx, stepIdx, note, dur);
     },
-    // Select a preset instrument for a pitched lane. Unknown id = no-op.
+    // Select a preset instrument for a pitched lane. Rejects unknown ids and any
+    // type mismatch (a lane only takes an instrument of its own type; drums use
+    // a kit, not an instrument).
     setLaneInstrument(id, instrumentId) {
-      if (!song || !instrumentSet()[instrumentId]) return;
+      if (!song) return;
       const lane = song.lanes.find(l => l.id === id);
-      if (!lane) return;
+      const inst = instrumentSet()[instrumentId];
+      if (!lane || lane.type === 'drums' || !inst || inst.type !== lane.type) return;
       lane.instrument = instrumentId;
       _rebuildVoice(id);
     },
@@ -714,7 +717,7 @@ export function createEngine() {
     setLaneCustom(id, patch) {
       if (!song) return;
       const lane = song.lanes.find(l => l.id === id);
-      if (!lane || !validateInstrument(patch)) return;
+      if (!lane || lane.type === 'drums' || !validateInstrument(patch) || patch.type !== lane.type) return;
       const cid = 'custom-' + id;
       if (!song.instruments) song.instruments = {};
       song.instruments[cid] = JSON.parse(JSON.stringify(patch));
@@ -725,7 +728,7 @@ export function createEngine() {
     previewLaneInstrument(id, patch) {
       if (!started || !song || !fx[id] || !validateInstrument(patch)) return;
       const lane = song.lanes.find(l => l.id === id);
-      if (!lane) return;
+      if (!lane || patch.type !== lane.type) return;
       const v = voices[id];
       if (v?.dispose) { try { v.dispose(); } catch (_) {} }
       voices[id] = createVoiceForType(lane.type, fx[id].input,
