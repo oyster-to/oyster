@@ -1944,6 +1944,8 @@ body.gb-knob-values .knob-val { display: block; }
   cursor: text;
 }
 .key-stepper input:focus { background: color-mix(in srgb, var(--acc) 16%, transparent); }
+/* Keyboard focus ring, inset so the stepper's overflow:hidden doesn't clip it. */
+.key-stepper input:focus-visible { outline: 2px solid var(--acc); outline-offset: -2px; }
 
 /* ─── colour themes — each block overrides design tokens only ────────────── */
 

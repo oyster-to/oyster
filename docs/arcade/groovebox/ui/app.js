@@ -878,16 +878,18 @@ function makeTempoGroup() {
   };
   dn.onclick = () => setBpm(Math.round(currentBpm) - 1);
   up.onclick = () => setBpm(Math.round(currentBpm) + 1);
-  // Commit typed input on Enter/blur; revert junk to the current value.
+  // Commit on blur (Enter blurs → one commit, no double-fire). Only a pure
+  // integer string counts; anything else ("120abc", "") reverts to current.
   const commit = () => {
-    const n = parseInt(val.value, 10);
-    if (Number.isFinite(n)) setBpm(n); else val.value = String(Math.round(currentBpm));
+    const t = val.value.trim();
+    if (/^\d+$/.test(t)) setBpm(parseInt(t, 10));
+    else val.value = String(Math.round(currentBpm));
   };
   val.onfocus = () => val.select();
-  val.onchange = commit;
+  val.onblur = commit;
   val.onkeydown = e => {
     e.stopPropagation();   // keep punch/keyboard shortcuts out while typing
-    if (e.key === 'Enter') { commit(); val.blur(); }
+    if (e.key === 'Enter') val.blur();
     else if (e.key === 'Escape') { val.value = String(Math.round(currentBpm)); val.blur(); }
   };
   stepper.appendChild(dn); stepper.appendChild(val); stepper.appendChild(up);
