@@ -43,6 +43,7 @@ export function addLane(song, type) {
     muted: false,
     soloed: false,
     ...(DEFAULT_LANE_INSTRUMENT[type] ? { instrument: DEFAULT_LANE_INSTRUMENT[type] } : {}),
+    ...(type === 'drums' ? { kit: 'oyster-kit' } : {}),
   };
   lanes.push(lane);
   // New lane gets one 'empty' groove; every pattern picks it.

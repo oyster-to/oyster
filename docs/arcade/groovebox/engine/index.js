@@ -1,7 +1,7 @@
 import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
 import { createVoiceForType, trigger } from './voices.js';
-import { normalizeSongDrums, DEFAULT_INSTRUMENTS, ALL_INSTRUMENTS, LEGACY_TONE_PRESET, DEFAULT_KIT, validateInstrument, validateKit } from './instruments.js';
+import { normalizeSongDrums, DEFAULT_INSTRUMENTS, ALL_INSTRUMENTS, ALL_KITS, LEGACY_TONE_PRESET, DEFAULT_KIT, validateInstrument, validateKit } from './instruments.js';
 import { laneByType, DEFAULT_LANE_INSTRUMENT, toggleMute as _toggleMute, soloExclusive as _soloExclusive, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane, moveLane as _moveLane } from './lanes.js';
 import { deriveKey } from './song.js';
 import { flattenSong } from './flatten.js';
@@ -196,11 +196,19 @@ export function createEngine() {
   function instrumentSet() {
     return song?.instruments ? { ..._instruments, ...song.instruments } : _instruments;
   }
+  // The kit a drums lane sounds: its own `lane.kit` ref (so the kit travels with
+  // the song), else the global default. (song.kits is the future custom-kit hook.)
+  function resolveKit(kitId) {
+    return (kitId && ALL_KITS[kitId]) || (kitId && song?.kits?.[kitId]) || null;
+  }
+  function kitFor(lane) {
+    return resolveKit(lane?.kit) || _kit;
+  }
 
   function buildLane(lane) {
     fx[lane.id]     = _makeFX(_masterIn);
     voices[lane.id] = createVoiceForType(lane.type, fx[lane.id].input,
-      { instruments: instrumentSet(), kit: _kit, instrumentId: lane.instrument });
+      { instruments: instrumentSet(), kit: kitFor(lane), instrumentId: lane.instrument });
     // Per-lane scope analyser — lazy: created on first getScope(id) call.
     // scopeLane[lane.id] intentionally NOT created here.
     // Per-lane level meter
@@ -226,7 +234,7 @@ export function createEngine() {
     const v = voices[laneId];
     if (v?.dispose) { try { v.dispose(); } catch (_) {} }
     voices[laneId] = createVoiceForType(lane.type, fx[laneId].input,
-      { instruments: instrumentSet(), kit: _kit, instrumentId: lane.instrument });
+      { instruments: instrumentSet(), kit: kitFor(lane), instrumentId: lane.instrument });
   }
   function _rebuildVoices() {
     if (!started || !song) return;
@@ -701,6 +709,15 @@ export function createEngine() {
       const inst = instrumentSet()[instrumentId];
       if (!lane || lane.type === 'drums' || !inst || inst.type !== lane.type) return;
       lane.instrument = instrumentId;
+      _rebuildVoice(id);
+    },
+    // Choose a kit for a drums lane. The ref rides on the lane (so it serializes
+    // with the song); unknown kit / non-drums lane = no-op.
+    setLaneKit(id, kitId) {
+      if (!song) return;
+      const lane = song.lanes.find(l => l.id === id);
+      if (!lane || lane.type !== 'drums' || !resolveKit(kitId)) return;
+      lane.kit = kitId;
       _rebuildVoice(id);
     },
     // The resolved patch a lane currently sounds (stock preset or song-local
