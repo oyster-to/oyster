@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   GM, slotKey, gmName, normalizeDrumBar, normalizeDrumGrooves,
   validateInstrument, validateKit, DEFAULT_INSTRUMENTS, DEFAULT_KIT,
-  PATCH_PARAMS, ARCHETYPES,
+  PATCH_PARAMS, ARCHETYPES, SYNTH_PRESETS,
 } from '../engine/instruments.js';
 
 describe('slotKey — names and numbers are both valid input, numbers canonical', () => {
@@ -161,5 +161,30 @@ describe('PATCH_PARAMS registry', () => {
   });
   it('archetypes are the four todays voices need', () => {
     expect(ARCHETYPES).toEqual(['membrane', 'noise', 'mono', 'poly']);
+  });
+});
+
+describe('schema v2 — filter resonance + vibrato', () => {
+  const resoSaw = () => JSON.parse(JSON.stringify(SYNTH_PRESETS['preset-reso-saw']));
+
+  it('declares filter.Q and vibrato rate/depth in PATCH_PARAMS', () => {
+    expect(PATCH_PARAMS['filter.Q']).toBeDefined();
+    expect(PATCH_PARAMS['vibrato.rate']).toBeDefined();
+    expect(PATCH_PARAMS['vibrato.depth']).toBeDefined();
+  });
+  it('accepts the Reso Saw preset (resonant lowpass + vibrato)', () => {
+    expect(validateInstrument(SYNTH_PRESETS['preset-reso-saw'])).toBe(true);
+  });
+  it('rejects out-of-range resonance', () => {
+    const inst = resoSaw(); inst.patch.filter.Q = 99;
+    expect(validateInstrument(inst)).toBe(false);
+  });
+  it('rejects out-of-range vibrato rate', () => {
+    const inst = resoSaw(); inst.patch.vibrato.rate = 50;
+    expect(validateInstrument(inst)).toBe(false);
+  });
+  it('rejects a malformed (non-object) vibrato block', () => {
+    const inst = resoSaw(); inst.patch.vibrato = 5;
+    expect(validateInstrument(inst)).toBe(false);
   });
 });

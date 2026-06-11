@@ -38,7 +38,7 @@ export function gmName(note) { return GM_NAME_BY_NOTE[note] ?? null; }
 // ── neutral patch vocabulary ─────────────────────────────────────────────────
 // Versioned and deliberately small: exactly what today's eight voices need.
 // scale: 'linear' | 'log'. Compiled to Tone by ONE adapter (voices.js).
-export const PATCH_SCHEMA_VERSION = 1;
+export const PATCH_SCHEMA_VERSION = 2;   // v2 adds filter.Q (resonance) + vibrato
 
 export const ARCHETYPES = ['membrane', 'noise', 'mono', 'poly'];
 export const OSC_SHAPES = ['pulse', 'square', 'sawtooth', 'fatsawtooth', 'triangle', 'sine'];
@@ -52,6 +52,9 @@ export const PATCH_PARAMS = {
   'envelope.release':        { min: 0.01,  max: 8,     scale: 'log' },
   'oscillator.width':        { min: 0.05,  max: 0.95,  scale: 'linear' },  // pulse only
   'filter.freq':             { min: 40,    max: 20000, scale: 'log' },
+  'filter.Q':                { min: 0,     max: 20,    scale: 'linear' },  // resonance; ~self-oscillates near max
+  'vibrato.rate':            { min: 0.1,   max: 12,    scale: 'log' },     // Hz — pitch LFO speed
+  'vibrato.depth':           { min: 0,     max: 1,     scale: 'linear' },
   'filterEnvelope.attack':   { min: 0.001, max: 4,     scale: 'log' },
   'filterEnvelope.decay':    { min: 0.01,  max: 4,     scale: 'log' },
   'filterEnvelope.sustain':  { min: 0,     max: 1,     scale: 'linear' },
@@ -91,6 +94,10 @@ export function validateInstrument(inst) {
     if (!FILTER_TYPES.includes(p.filter.type)) return false;
     if (!inRange('filter.freq', p.filter.freq)) return false;
   }
+  // vibrato is an optional object; its rate/depth ranges are checked by the loop
+  // above, but a non-object (e.g. a stray scalar) must be rejected outright.
+  if (p.vibrato !== undefined &&
+      (typeof p.vibrato !== 'object' || p.vibrato === null || Array.isArray(p.vibrato))) return false;
   if (p.trigger !== undefined) {
     if (p.trigger.note !== undefined && typeof p.trigger.note !== 'string') return false;
     if (p.trigger.dur !== undefined && typeof p.trigger.dur !== 'string') return false;
@@ -376,6 +383,19 @@ export const SYNTH_PRESETS = {
       oscillator: { shape: 'fatsawtooth' },
       envelope: { attack: 0.006, decay: 0.22, sustain: 0.35, release: 0.2 },
       trigger: { velocity: 0.82 } },
+  },
+  'preset-reso-saw': {
+    // Quacky resonant saw lead (the MGMT "Kids" topline character): one bright
+    // detuned saw → resonant lowpass in the upper-mids (the nasal "quack") →
+    // wide ~4 Hz pitch vibrato (the wobble). fatsawtooth's unison detune stands
+    // in for the record's chorus/ensemble.
+    name: 'Reso Saw', type: 'melody', engine: 'synth',
+    patch: { archetype: 'poly', volume: -11,
+      oscillator: { shape: 'fatsawtooth' },
+      envelope: { attack: 0.004, decay: 0.2, sustain: 0.55, release: 0.25 },
+      filter: { type: 'lowpass', freq: 1300, Q: 11 },
+      vibrato: { rate: 4.2, depth: 0.18 },
+      trigger: { velocity: 0.85 } },
   },
   'preset-triangle-lead': {
     name: 'Triangle Lead', type: 'melody', engine: 'synth',

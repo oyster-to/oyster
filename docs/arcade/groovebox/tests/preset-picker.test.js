@@ -42,6 +42,11 @@ describe('preset banks', () => {
       expect(ALL_INSTRUMENTS[presetId].type).toBe('melody');
     }
   });
+  it('the Kids song plays its own lead preset (not the stock default)', () => {
+    const eng = createEngine(); eng.load(kids);
+    const melody = eng.getSong().lanes.find(l => l.type === 'melody');
+    expect(melody.instrument).toBe('preset-reso-saw');
+  });
 });
 
 describe('addLane seeds the default preset', () => {

@@ -42,7 +42,12 @@ export function compileSynthPatch(inst) {
     ctor: CTOR_BY_ARCHETYPE[p.archetype],
     options: {},
     postVolume: undefined,
-    filter: p.filter ? { type: p.filter.type, freq: p.filter.freq } : null,
+    filter: p.filter
+      ? { type: p.filter.type, freq: p.filter.freq, ...(p.filter.Q !== undefined ? { Q: p.filter.Q } : {}) }
+      : null,
+    // vibrato is opt-in: the key is absent unless the patch declares one, so
+    // default voices compile to a byte-identical plan (parity preserved).
+    ...(p.vibrato ? { vibrato: { rate: p.vibrato.rate, depth: p.vibrato.depth } } : {}),
     trig: {
       sig: p.archetype === 'noise' ? 'noise' : 'note',
       note: p.trigger?.note,
@@ -81,18 +86,26 @@ export function compileSynthPatch(inst) {
   return plan;
 }
 
-// Build one connected voice from a plan. Returns { synth, filter }.
+// Build one connected voice from a plan. Returns { synth, filter, vibrato }.
 // openInsert: when the plan has no filter, add a transparent open lowpass so a
 // velocity lock has a cutoff to modulate (pitched brightness). Drums pass false
 // and keep using their plan filter (or none).
+// Chain: synth → [vibrato] → [filter] → bus. The filter is returned for the
+// velocity→brightness modulation; the vibrato is returned only for disposal.
 function buildFromPlan(plan, bus, openInsert = false) {
   let out = bus, filter = null;
   if (plan.filter) {
     filter = new Tone.Filter(plan.filter.freq, plan.filter.type).connect(bus);
+    if (plan.filter.Q !== undefined) filter.Q.value = plan.filter.Q;   // resonance (the "honk")
     out = filter;
   } else if (openInsert) {
     filter = new Tone.Filter(BRIGHT_OPEN, 'lowpass').connect(bus);
     out = filter;
+  }
+  let vibrato = null;
+  if (plan.vibrato) {   // pitch wobble — a delay-line vibrato works for mono OR poly
+    vibrato = new Tone.Vibrato({ frequency: plan.vibrato.rate ?? 5, depth: plan.vibrato.depth ?? 0 }).connect(out);
+    out = vibrato;
   }
   let synth;
   if (plan.ctor === 'PolySynth') {
@@ -102,7 +115,7 @@ function buildFromPlan(plan, bus, openInsert = false) {
     synth = new Tone[plan.ctor](plan.options).connect(out);
   }
   if (plan.postVolume !== undefined) synth.volume.value = plan.postVolume;
-  return { synth, filter };
+  return { synth, filter, vibrato };
 }
 
 // Resolve + validate an instrument ref; bad data falls back (never crashes).
@@ -140,7 +153,7 @@ export function createVoiceForType(type, bus, opts = {}) {
         filterBase: plan.filter ? plan.filter.freq : 0,
         filterType: plan.filter ? plan.filter.type : null,
       };
-      nodes.push(v.synth, v.filter);
+      nodes.push(v.synth, v.filter, v.vibrato);
     }
     return { byNote, dispose() { for (const n of nodes) { try { n?.dispose?.(); } catch (_) {} } } };
   }
@@ -149,7 +162,11 @@ export function createVoiceForType(type, bus, opts = {}) {
   const inst = resolveInstrument(opts.instrumentId ?? fallback, instruments, fallback);
   const plan = compileSynthPatch(inst);
   const v = buildFromPlan(plan, bus, true);   // openInsert: a cutoff for velocity to modulate
-  const dispose = () => { try { v.synth.dispose?.(); } catch (_) {} try { v.filter?.dispose?.(); } catch (_) {} };
+  const dispose = () => {
+    try { v.synth.dispose?.(); } catch (_) {}
+    try { v.filter?.dispose?.(); } catch (_) {}
+    try { v.vibrato?.dispose?.(); } catch (_) {}
+  };
   // Brightness modulates the character filter where one exists (chords @ 4200),
   // else the open insert (bass/melody @ BRIGHT_OPEN — transparent at rest).
   const tone = { toneFilter: v.filter, toneBase: plan.filter ? plan.filter.freq : BRIGHT_OPEN, toneType: plan.filter ? plan.filter.type : 'lowpass' };

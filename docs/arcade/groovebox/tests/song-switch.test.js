@@ -94,6 +94,7 @@ test('switching to a song and back gives an independent flattened object each ti
   switchTo(eng, kids);
   const second = eng.getSong();
   expect(second).not.toBe(first);              // fresh flatten
-  // The new flatten must NOT carry the runtime mutation — kids' melody has no override.
-  expect(second.lanes.find(l => l.type === 'melody').instrument).toBeUndefined();
+  // The new flatten must NOT carry the runtime mutation — it reflects kids'
+  // SOURCE override (preset-reso-saw), not the runtime 'preset-saw-lead'.
+  expect(second.lanes.find(l => l.type === 'melody').instrument).toBe('preset-reso-saw');
 });

@@ -13,6 +13,9 @@ const PARAM_UI = {
   'envelope.release':       { label: 'release',     fmt: v => `${(v * 1000).toFixed(0)} ms` },
   'oscillator.width':       { label: 'pulse width', fmt: v => v.toFixed(2) },
   'filter.freq':            { label: 'filter Hz',   fmt: v => `${Math.round(v)} Hz` },
+  'filter.Q':               { label: 'resonance',   fmt: v => v.toFixed(1) },
+  'vibrato.rate':           { label: 'vibrato Hz',  fmt: v => `${v.toFixed(1)} Hz` },
+  'vibrato.depth':          { label: 'vibrato amt', fmt: v => v.toFixed(2) },
   'filterEnvelope.baseFrequency': { label: 'flt base', fmt: v => `${Math.round(v)} Hz` },
   'filterEnvelope.octaves': { label: 'flt sweep',   fmt: v => v.toFixed(1) },
   'pitch.pitchDecay':       { label: 'pitch drop',  fmt: v => `${(v * 1000).toFixed(0)} ms` },
@@ -27,7 +30,7 @@ const ARCHETYPE_PARAMS = {
   mono:     ['volume', 'envelope.attack', 'envelope.decay', 'envelope.sustain', 'envelope.release',
              'filterEnvelope.baseFrequency', 'filterEnvelope.octaves', 'trigger.velocity'],
   poly:     ['volume', 'envelope.attack', 'envelope.decay', 'envelope.sustain', 'envelope.release',
-             'oscillator.width', 'trigger.velocity'],
+             'oscillator.width', 'filter.freq', 'filter.Q', 'vibrato.rate', 'vibrato.depth', 'trigger.velocity'],
 };
 
 // slider position (0..1) ↔ value, honouring the registry's scale
@@ -180,9 +183,19 @@ export function openInstrumentEditor({ id, patch, eng, onSaved, onPreview, onRes
       modal.appendChild(row);
     }
 
+    // Resonant filter + vibrato are general lead/pad primitives, not specific to
+    // any one preset. On a poly patch that ships without them, seed a NEUTRAL
+    // block (transparent lowpass / zero-depth wobble) so the knobs are always
+    // there and inaudible until moved. (mono keeps its own filterEnvelope path.)
+    if (draft.patch.archetype === 'poly') {
+      if (!draft.patch.filter)  draft.patch.filter  = { type: 'lowpass', freq: 20000, Q: 1 };
+      if (!draft.patch.vibrato) draft.patch.vibrato = { rate: 5, depth: 0 };
+    }
+
     // param sliders — ranges/scales straight from the registry
     for (const pid of ARCHETYPE_PARAMS[draft.patch.archetype] ?? []) {
-      if (pid === 'filter.freq' && !draft.patch.filter) continue;   // no filter on this patch
+      if (pid.startsWith('filter.') && !draft.patch.filter) continue;     // patch has no filter block
+      if (pid.startsWith('vibrato.') && !draft.patch.vibrato) continue;   // patch has no vibrato block
       const ui = PARAM_UI[pid];
       const cur = get(draft.patch, pid);
       const reg = PATCH_PARAMS[pid];
