@@ -20,7 +20,7 @@ import { DEFAULT_INSTRUMENTS, DEFAULT_KIT, validateInstrument, slotKey } from '.
  * via voice.lead. disposeLane prefers voice.dispose().)
  */
 
-const BRIGHT_OPEN = 18000;   // transparent lowpass base for pitched brightness inserts
+export const BRIGHT_OPEN = 18000;   // transparent lowpass base for pitched brightness inserts
 
 const CTOR_BY_ARCHETYPE = {
   membrane: 'MembraneSynth',

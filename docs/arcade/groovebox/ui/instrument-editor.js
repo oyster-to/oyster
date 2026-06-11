@@ -3,6 +3,7 @@
 // from the engine registry (PATCH_PARAMS), hold-to-TEST auditions the UNSAVED
 // draft live (the playing loop sounds it), SAVE persists to localStorage.
 import { PATCH_PARAMS, OSC_SHAPES, validateInstrument, DEFAULT_INSTRUMENTS } from '../engine/instruments.js';
+import { BRIGHT_OPEN } from '../engine/voices.js';
 
 // UI metadata only — ranges/scales live in PATCH_PARAMS (one source of truth).
 const PARAM_UI = {
@@ -184,12 +185,17 @@ export function openInstrumentEditor({ id, patch, eng, onSaved, onPreview, onRes
     }
 
     // Resonant filter + vibrato are general lead/pad primitives, not specific to
-    // any one preset. On a poly patch that ships without them, seed a NEUTRAL
-    // block (transparent lowpass / zero-depth wobble) so the knobs are always
-    // there and inaudible until moved. (mono keeps its own filterEnvelope path.)
+    // any one preset. On a poly patch, seed/complete a NEUTRAL block so the knobs
+    // are always present AND read their TRUE value, not the slider midpoint.
+    // freq = BRIGHT_OPEN and Q = 1 mirror the engine's transparent openInsert, so
+    // an edit→save round-trip never shifts the velocity→brightness base cutoff.
+    // (mono keeps its own filterEnvelope path.)
     if (draft.patch.archetype === 'poly') {
-      if (!draft.patch.filter)  draft.patch.filter  = { type: 'lowpass', freq: 20000, Q: 1 };
-      if (!draft.patch.vibrato) draft.patch.vibrato = { rate: 5, depth: 0 };
+      const f = draft.patch.filter ?? (draft.patch.filter = { type: 'lowpass', freq: BRIGHT_OPEN });
+      if (f.Q === undefined) f.Q = 1;
+      const vib = draft.patch.vibrato ?? (draft.patch.vibrato = {});
+      if (vib.rate === undefined) vib.rate = 5;
+      if (vib.depth === undefined) vib.depth = 0;
     }
 
     // param sliders — ranges/scales straight from the registry
