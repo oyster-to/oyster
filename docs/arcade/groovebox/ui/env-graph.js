@@ -34,21 +34,25 @@ export function makeEnvGraph(env, onInput) {
     hDS.setAttribute('cx', h.ds.x); hDS.setAttribute('cy', h.ds.y);
     hR.setAttribute('cx', h.r.x);   hR.setAttribute('cy', h.r.y);
   }
-  const toSvg = ev => {
-    const r = svg.getBoundingClientRect();
-    return { x: (ev.clientX - r.left) * (W / r.width), y: (ev.clientY - r.top) * (H / r.height) };
-  };
   const drag = which => ev => {
     ev.preventDefault(); ev.stopPropagation();
+    const r = svg.getBoundingClientRect();          // capture once per drag (not per move)
+    const sx = W / r.width, sy = H / r.height;
     const move = e => {
-      const p = toSvg(e);
-      if (which === 'a') env.attack = attackFromX(p.x, G);
-      else if (which === 'ds') { env.decay = decayFromX(p.x, env, G); env.sustain = sustainFromY(p.y, G); }
-      else env.release = releaseFromX(p.x, env, G);
+      const x = (e.clientX - r.left) * sx, y = (e.clientY - r.top) * sy;
+      if (which === 'a') env.attack = attackFromX(x, G);
+      else if (which === 'ds') { env.decay = decayFromX(x, env, G); env.sustain = sustainFromY(y, G); }
+      else env.release = releaseFromX(x, env, G);
       redraw(); onInput?.();
     };
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    const end = () => {                             // clean up on cancel too, so an
+      window.removeEventListener('pointermove', move);   // interrupted gesture can't
+      window.removeEventListener('pointerup', end);      // leak listeners / keep editing
+      window.removeEventListener('pointercancel', end);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
   };
   hA.addEventListener('pointerdown', drag('a'));
   hDS.addEventListener('pointerdown', drag('ds'));

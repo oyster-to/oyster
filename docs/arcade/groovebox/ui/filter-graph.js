@@ -36,20 +36,23 @@ export function makeFilterGraph(filter, onInput) {
         `Q${hx + 10},${peak} ${(hx + G.x1) / 2},${(peak + fall) / 2} L${G.x1},${fall}`);
     handle.setAttribute('cx', hx); handle.setAttribute('cy', h.y);
   }
-  const toSvg = ev => {
-    const r = svg.getBoundingClientRect();
-    return { x: (ev.clientX - r.left) * (W / r.width), y: (ev.clientY - r.top) * (H / r.height) };
-  };
   handle.addEventListener('pointerdown', ev => {
     ev.preventDefault(); ev.stopPropagation();
+    const r = svg.getBoundingClientRect();          // capture once per drag (not per move)
+    const sx = W / r.width, sy = H / r.height;
     const move = e => {
-      const p = toSvg(e);
-      filter.freq = freqFromX(p.x, G);
-      filter.Q = qFromY(p.y, G);
+      filter.freq = freqFromX((e.clientX - r.left) * sx, G);
+      filter.Q = qFromY((e.clientY - r.top) * sy, G);
       redraw(); onInput?.();
     };
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    const end = () => {                             // clean up on cancel too (interrupted gesture)
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
   });
 
   redraw();

@@ -181,9 +181,13 @@ export function openInstrumentEditor({ id, patch, eng, onSaved, onPreview, onRes
     const curShape = draft.patch.oscillator?.shape ?? 'triangle';
     for (const sh of OSC_SHAPES) {
       const b = document.createElement('button');
+      b.type = 'button';
       b.className = 'ie-wv' + (sh === curShape ? ' on' : '');
-      b.title = sh === 'fatsawtooth' ? 'fat saw' : sh;
-      b.innerHTML = `<svg viewBox="0 0 20 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">${WAVE_ICON[sh]}</svg>`;
+      const wlabel = sh === 'fatsawtooth' ? 'fat saw' : sh;
+      b.title = wlabel;
+      b.setAttribute('aria-label', wlabel);                 // icon-only — announce the shape
+      b.setAttribute('aria-pressed', String(sh === curShape));
+      b.innerHTML = `<svg viewBox="0 0 20 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">${WAVE_ICON[sh]}</svg>`;
       b.onclick = () => { set(draft.patch, 'oscillator.shape', sh); refreshSave(); render(); };
       wrap.appendChild(b);
     }
