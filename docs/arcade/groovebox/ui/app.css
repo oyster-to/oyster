@@ -1617,11 +1617,12 @@ body.gb-knob-values .knob-val { display: block; }
   letter-spacing: 0.06em; flex: 1; min-width: 0; text-transform: uppercase;
 }
 .ie-test {
-  margin-left: auto; border: 0; border-radius: 8px; padding: 6px 16px; cursor: pointer;
+  margin-left: auto; border: 0; border-radius: 8px; padding: 7px 18px 8px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; line-height: 1.1;
   background: linear-gradient(180deg, #63f8d4, #3dd6b0); color: #04201a; font-weight: 700;
   box-shadow: 0 0 14px rgba(84, 240, 200, 0.4); user-select: none; touch-action: none;
 }
-.ie-test small { display: block; font-weight: 400; font-size: 9px; opacity: 0.7; }
+.ie-test small { font-weight: 400; font-size: 9px; opacity: 0.7; }
 .ie-test.idle { filter: grayscale(1); opacity: 0.5; box-shadow: none; }
 .ie-row { display: flex; align-items: center; gap: 10px; margin: 7px 0; }
 .ie-rl { width: 84px; flex: 0 0 84px; color: var(--faint); font-size: 11px; }
@@ -1636,6 +1637,32 @@ body.gb-knob-values .knob-val { display: block; }
   background: var(--acc); color: #04201a; font-weight: 700;
 }
 .ie-save:disabled { filter: grayscale(1); opacity: 0.5; cursor: default; }
+
+/* ─── visual editor: section headers + envelope/filter graphs ────────────── */
+.ie-sec { display: flex; align-items: center; gap: 8px; margin: 12px 0 6px; }
+.ie-sec b { font-size: 9px; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; color: var(--faint); }
+.ie-sec i { flex: 1; height: 1px; background: var(--line); }
+.ie-graph { border: 1px solid var(--line); border-radius: 9px; padding: 5px 6px; margin: 2px 0;
+  background: color-mix(in srgb, var(--ink) 5%, transparent); touch-action: none; }
+.ie-graph-svg { display: block; width: 100%; overflow: visible; }
+.ie-axis { stroke: var(--line); stroke-width: 1; }
+.ie-stroke { fill: none; stroke: var(--acc); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.ie-fill { fill: color-mix(in srgb, var(--acc) 18%, transparent); stroke: none; }
+.ie-handle { fill: var(--acc); stroke: #fff; stroke-width: 1; cursor: grab; }
+.ie-handle:active { cursor: grabbing; }
+.ie-sec .ie-tag { font-size: 8px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-on-acc); background: var(--acc); padding: 2px 6px; border-radius: 5px; }
+
+/* waveform icon picker */
+.ie-waves { display: flex; gap: 7px; margin: 4px 0 2px; }
+.ie-wv { width: 42px; height: 30px; border-radius: 8px; cursor: pointer; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--ink) 6%, transparent); border: 1px solid var(--line); color: var(--dim); }
+.ie-wv svg { width: 20px; height: 13px; display: block; }
+.ie-wv.on { background: var(--acc); border-color: var(--acc); color: var(--ink-on-acc); }
+
+/* knob rows in the editor — show the persistent value readout under each dial */
+.ie-knobrow { display: flex; flex-wrap: wrap; gap: 14px 16px; margin: 2px 0 4px; }
+#inst-editor .knob-val { display: block; }
 
 /* ─── fills row (panel chrome via #fills) ───────────────────────────────── */
 .fillsrow {
