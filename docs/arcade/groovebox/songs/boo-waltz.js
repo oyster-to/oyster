@@ -20,17 +20,17 @@ export const booWaltz = {
     { id: 'drums',  type: 'drums',  name: 'drums',  muted: false, soloed: false },
     { id: 'bass',   type: 'bass',   name: 'bass',   muted: false, soloed: false },
     { id: 'chords', type: 'chords', name: 'chords', muted: false, soloed: false },
-    { id: 'melody', type: 'melody', name: 'melody', muted: false, soloed: false, tone: 'sine' },
+    { id: 'melody', type: 'melody', name: 'melody', muted: false, soloed: false, instrument: 'preset-sine-lead' },
   ],
 
   grooves: {
     drums: {
-      // the ballroom: soft pulse on 1, brushes on 2 and 3
-      ballroom: [{ kick: [0], hat: [4, 8] }],
-      // footsteps: something walks on the off-16ths
-      footsteps: [{ kick: [0], hat: [4, 8], snare: [6] }],
-      // the chase: toms lurch through the bar
-      lurch: [{ kick: [0, 8], hat: [2, 6, 10], tom: [[4, 0], [10, -4]] }],
+      // the ballroom: soft pulse on 1, ride shimmer on 2 and 3
+      ballroom: [{ kick: [0], hat: [4, 8], ride: [4, 8] }],
+      // footsteps: something walks on the off-16ths, a creak before the loop
+      footsteps: [{ kick: [0], hat: [4, 8], snare: [6], openhat: [10] }],
+      // the chase: toms lurch through the bar, ride echoes the kick
+      lurch: [{ kick: [0, 8], hat: [2, 6, 10], tom: [[4, 0], [10, -4]], ride: [0, 8] }],
     },
     bass: {
       // oom-cha-cha: root on 1, fifth above on 2 and 3

@@ -20,17 +20,17 @@ export const firstRoll = {
     { id: 'drums',  type: 'drums',  name: 'drums',  muted: false, soloed: false },
     { id: 'bass',   type: 'bass',   name: 'bass',   muted: false, soloed: false },
     { id: 'chords', type: 'chords', name: 'chords', muted: false, soloed: false },
-    { id: 'melody', type: 'melody', name: 'melody', muted: false, soloed: false, tone: 'pulse' },
+    { id: 'melody', type: 'melody', name: 'melody', muted: false, soloed: false, instrument: 'gb-lead' },
   ],
 
   grooves: {
     drums: {
-      // steady verse kit
-      four:        [{ kick: [0, 4, 8, 12], snare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14] }],
-      // sparse intro/bridge kit
-      'half-time': [{ kick: [0], snare: [8], hat: [0, 2, 4, 6, 8, 10, 12, 14] }],
-      // busy chorus kit
-      breaks:      [{ kick: [0, 6, 10], snare: [4, 12], hat: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] }],
+      // steady verse kit — clap on the backbeat, open-hat lift
+      four:        [{ kick: [0, 4, 8, 12], snare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14], clap: [4, 12], openhat: [14] }],
+      // sparse intro/bridge kit — clap doubles the half-time snare
+      'half-time': [{ kick: [0], snare: [8], hat: [0, 2, 4, 6, 8, 10, 12, 14], clap: [8], openhat: [14] }],
+      // busy chorus kit — clap reinforces the backbeat
+      breaks:      [{ kick: [0, 6, 10], snare: [4, 12], hat: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], clap: [4, 12] }],
     },
     bass: {
       // root/octave bounce — rides whatever chords the pattern carries

@@ -78,7 +78,7 @@ test('load() never mutates the rich preset module object', () => {
   const eng = createEngine();
   eng.load(kids);
   eng.setTranspose(7);                         // writes to the FLATTENED song
-  eng.setTone('melody', 'sawtooth');           // writes lane.tone on flattened song
+  eng.setLaneInstrument('melody', 'preset-saw-lead');   // writes lane.instrument on flattened song
   eng.selectPattern(1);
   const after = JSON.stringify(kids, (k, v) => typeof v === 'function' ? '[fn]' : v);
   expect(after).toBe(before);
@@ -88,12 +88,12 @@ test('switching to a song and back gives an independent flattened object each ti
   const eng = createEngine();
   eng.load(kids);
   const first = eng.getSong();
-  eng.setTone('melody', 'sawtooth');           // mutate flattened lane.tone
-  expect(first.lanes.find(l => l.type === 'melody').tone).toBe('sawtooth');
+  eng.setLaneInstrument('melody', 'preset-saw-lead');   // mutate flattened lane.instrument
+  expect(first.lanes.find(l => l.type === 'melody').instrument).toBe('preset-saw-lead');
   switchTo(eng, risingSun);
   switchTo(eng, kids);
   const second = eng.getSong();
   expect(second).not.toBe(first);              // fresh flatten
-  // The new flatten must carry the preset's own tone (pulse), not the mutated one.
-  expect(second.lanes.find(l => l.type === 'melody').tone).toBe('pulse');
+  // The new flatten must NOT carry the runtime mutation — kids' melody has no override.
+  expect(second.lanes.find(l => l.type === 'melody').instrument).toBeUndefined();
 });

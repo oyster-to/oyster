@@ -54,21 +54,44 @@ let _open = false;
 export const isInstrumentEditorOpen = () => _open;
 
 /**
- * openInstrumentEditor({ id, eng, onSaved })
- * id — instrument id in the engine's set (e.g. 'gb-kick', 'gb-bass')
+ * openInstrumentEditor({ id, patch, eng, onSaved, onPreview, onRestore, onCommit })
+ *   id    — instrument id in the global set (e.g. 'gb-kick'); the draft source
+ *           and the default persistence target. Optional when `patch` is given.
+ *   patch — explicit starting patch (used by the lane EDIT, where the lane's
+ *           instrument may be a song-local custom not in the global set).
+ *   onPreview/onRestore/onCommit — optional hooks. Default persists to the global
+ *           instrument set + localStorage (drum-slot editor). The lane EDIT injects
+ *           per-lane hooks so SAVE forks to a song-local Custom patch.
  */
-export function openInstrumentEditor({ id, eng, onSaved }) {
+export function openInstrumentEditor({ id, patch, eng, onSaved, onPreview, onRestore, onCommit }) {
   if (_open) return;
   const stash = eng.getInstruments();
-  if (!stash[id]) return;                   // stale/unknown id — never open broken
+  const startPatch = patch ?? stash[id];
+  if (!startPatch) return;                  // stale/unknown id — never open broken
   _open = true;
-  let draft = JSON.parse(JSON.stringify(stash[id]));
+  let draft = JSON.parse(JSON.stringify(startPatch));
   let previewing = false;
   let _tweakTimer = null, _tweakLast = 0;
+  // Persistence/preview hooks. Default = the global instrument set (+ localStorage)
+  // — used by the drum-slot editor. The lane EDIT injects per-lane (song-local)
+  // hooks so editing forks to a Custom patch instead of mutating the stock preset.
+  const preview = d => onPreview ? onPreview(d) : eng.setInstruments({ ...stash, [id]: d });
+  const restore = () => onRestore ? onRestore() : eng.setInstruments(stash);
+  const persist = d => {
+    if (onCommit) { onCommit(d); return; }
+    eng.setInstruments({ ...stash, [id]: d });
+    // Persist ONLY this edited instrument as an override (not the whole bank) —
+    // otherwise localStorage freezes every stock preset at today's values and
+    // future preset updates would never reach the user.
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem('gb-instruments') || '{}') || {}; } catch (_) { saved = {}; }
+    saved[id] = d;
+    localStorage.setItem('gb-instruments', JSON.stringify(saved));
+  };
   function applyDraftLive() {
     if (!previewing) return;
     const now = Date.now();
-    const run = () => { _tweakLast = Date.now(); if (previewing) eng.setInstruments({ ...stash, [id]: draft }); };
+    const run = () => { _tweakLast = Date.now(); if (previewing) preview(draft); };
     if (now - _tweakLast > 150) run();
     else { clearTimeout(_tweakTimer); _tweakTimer = setTimeout(run, 150 - (now - _tweakLast)); }
   }
@@ -83,7 +106,7 @@ export function openInstrumentEditor({ id, eng, onSaved }) {
   function stopPreview() {
     if (!previewing) return;
     previewing = false;
-    eng.setInstruments(stash);              // restore the saved set
+    restore();                              // undo the live preview
   }
   function close() {
     stopPreview();
@@ -100,11 +123,8 @@ export function openInstrumentEditor({ id, eng, onSaved }) {
   function save() {
     if (!validateInstrument(draft)) return;
     previewing = false;                     // a still-held TEST must not restore over the save
-    draft.name = (draft.name || 'SOUND').toUpperCase().slice(0, 24);
-    const next = { ...stash, [id]: draft };
-    eng.setInstruments(next);
-    // Persist only non-stock-identical entries? v1: persist the whole user set.
-    localStorage.setItem('gb-instruments', JSON.stringify(next));
+    draft.name = (draft.name || 'Sound').trim().slice(0, 24) || 'Sound';
+    persist(draft);                         // global set (default) or song-local fork (lane EDIT)
     close();
     onSaved?.();
   }
@@ -135,7 +155,7 @@ export function openInstrumentEditor({ id, eng, onSaved }) {
       if (!validateInstrument(draft)) return;
       if (!eng.isPlaying()) { eng.auditionInstrument(draft); return; }   // one-shot, no transport needed
       previewing = true;
-      eng.setInstruments({ ...stash, [id]: draft });   // draft is live while held
+      preview(draft);                                  // draft is live while held
     });
     test.addEventListener('pointerup', stopPreview);
     test.addEventListener('pointercancel', stopPreview);

@@ -2,6 +2,7 @@
 // Single source of truth alongside DATA-MODEL.md and the spec
 // (po20/2026-06-06-share-registry-spec.md). Strict everywhere: unknown keys
 // rejected; the ONLY extension point is `extensions: {}` inside payloads.
+import { validateInstrument } from '../engine/instruments.js';
 
 export const KIND_VERSIONS = { song: 2, groove: 1 };
 export const LANE_TYPES = ['drums', 'bass', 'chords', 'melody'];
@@ -102,8 +103,18 @@ export function validateGroovePayload(p) {
 export function validateSongPayload(p) {
   if (!isObj(p)) return err('payload must be an object');
   const bad = strictKeys(p, ['version', 'title', 'artist', 'meter', 'bpm', 'lanes', 'grooves',
-    'patterns', 'chain', 'fills', 'transpose', 'key', 'extensions'], 'song payload');
+    'patterns', 'chain', 'fills', 'transpose', 'key', 'instruments', 'extensions'], 'song payload');
   if (bad) return err(bad);
+  // Song-local custom (forked) instruments travel inline with the song. Ids must
+  // carry the `custom-` prefix — this blocks special keys (__proto__) and stops a
+  // song shadowing a stock preset id (gb-*/preset-*/drum-*/kit-*).
+  if (p.instruments !== undefined) {
+    if (!isObj(p.instruments)) return err('instruments must be an object');
+    for (const [iid, inst] of Object.entries(p.instruments)) {
+      if (!/^custom-[a-z0-9-]{1,48}$/i.test(iid)) return err('invalid instrument id');
+      if (!validateInstrument(inst)) return err(`invalid instrument "${iid}"`);
+    }
+  }
   if (p.key !== undefined && !(isObj(p.key) && typeof p.key.root === 'string' && typeof p.key.mode === 'string')) return err('invalid key');
   if (p.version !== 2) return err('song payload version must be 2');
   if (!meterValid(p.meter)) return err('invalid meter');

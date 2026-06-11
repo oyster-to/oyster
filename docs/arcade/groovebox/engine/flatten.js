@@ -320,7 +320,7 @@ export function flattenSong(rich) {
   const lanes = working.map(l => ({
     id: l.id, type: l.type, name: l.name || l.id,
     muted: !!l.muted, soloed: !!l.soloed,
-    ...(l.type === 'melody' ? { tone: l.tone || 'pulse' } : {}),
+    ...(l.instrument ? { instrument: l.instrument } : {}),
   }));
 
   // Song key (for melody snap-to-scale + editor tinting). The chord progression

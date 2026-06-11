@@ -2,6 +2,9 @@
 import { emptyBarFor } from './patterns.js';
 import { slotKey } from './instruments.js';
 
+// Default preset a new pitched lane starts on (drums use the kit, not this).
+export const DEFAULT_LANE_INSTRUMENT = { bass: 'gb-bass', chords: 'gb-chords', melody: 'gb-lead' };
+
 
 /**
  * uniqueLaneId(lanes, type) → collision-free id string.
@@ -39,7 +42,7 @@ export function addLane(song, type) {
     name: uniqueLaneName(lanes, type),
     muted: false,
     soloed: false,
-    ...(type === 'melody' ? { tone: 'pulse' } : {}),
+    ...(DEFAULT_LANE_INSTRUMENT[type] ? { instrument: DEFAULT_LANE_INSTRUMENT[type] } : {}),
   };
   lanes.push(lane);
   // New lane gets one 'empty' groove; every pattern picks it.
