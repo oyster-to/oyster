@@ -129,7 +129,7 @@ export const kids = {
                 },
               } },
     chords: { selection:'pad', muted:false },
-    melody: { selection:'hook', muted:false, pool:{
+    melody: { selection:'hook', muted:false, instrument:'preset-reso-saw', pool:{
       hook: RIFF,
       chopped: RIFF.map(bar => {
         if (!bar.length) return [];

@@ -3,6 +3,7 @@
 // from the engine registry (PATCH_PARAMS), hold-to-TEST auditions the UNSAVED
 // draft live (the playing loop sounds it), SAVE persists to localStorage.
 import { PATCH_PARAMS, OSC_SHAPES, validateInstrument, DEFAULT_INSTRUMENTS } from '../engine/instruments.js';
+import { BRIGHT_OPEN } from '../engine/voices.js';
 
 // UI metadata only — ranges/scales live in PATCH_PARAMS (one source of truth).
 const PARAM_UI = {
@@ -13,6 +14,9 @@ const PARAM_UI = {
   'envelope.release':       { label: 'release',     fmt: v => `${(v * 1000).toFixed(0)} ms` },
   'oscillator.width':       { label: 'pulse width', fmt: v => v.toFixed(2) },
   'filter.freq':            { label: 'filter Hz',   fmt: v => `${Math.round(v)} Hz` },
+  'filter.Q':               { label: 'resonance',   fmt: v => v.toFixed(1) },
+  'vibrato.rate':           { label: 'vibrato Hz',  fmt: v => `${v.toFixed(1)} Hz` },
+  'vibrato.depth':          { label: 'vibrato amt', fmt: v => v.toFixed(2) },
   'filterEnvelope.baseFrequency': { label: 'flt base', fmt: v => `${Math.round(v)} Hz` },
   'filterEnvelope.octaves': { label: 'flt sweep',   fmt: v => v.toFixed(1) },
   'pitch.pitchDecay':       { label: 'pitch drop',  fmt: v => `${(v * 1000).toFixed(0)} ms` },
@@ -27,7 +31,7 @@ const ARCHETYPE_PARAMS = {
   mono:     ['volume', 'envelope.attack', 'envelope.decay', 'envelope.sustain', 'envelope.release',
              'filterEnvelope.baseFrequency', 'filterEnvelope.octaves', 'trigger.velocity'],
   poly:     ['volume', 'envelope.attack', 'envelope.decay', 'envelope.sustain', 'envelope.release',
-             'oscillator.width', 'trigger.velocity'],
+             'oscillator.width', 'filter.freq', 'filter.Q', 'vibrato.rate', 'vibrato.depth', 'trigger.velocity'],
 };
 
 // slider position (0..1) ↔ value, honouring the registry's scale
@@ -180,9 +184,24 @@ export function openInstrumentEditor({ id, patch, eng, onSaved, onPreview, onRes
       modal.appendChild(row);
     }
 
+    // Resonant filter + vibrato are general lead/pad primitives, not specific to
+    // any one preset. On a poly patch, seed/complete a NEUTRAL block so the knobs
+    // are always present AND read their TRUE value, not the slider midpoint.
+    // freq = BRIGHT_OPEN and Q = 1 mirror the engine's transparent openInsert, so
+    // an edit→save round-trip never shifts the velocity→brightness base cutoff.
+    // (mono keeps its own filterEnvelope path.)
+    if (draft.patch.archetype === 'poly') {
+      const f = draft.patch.filter ?? (draft.patch.filter = { type: 'lowpass', freq: BRIGHT_OPEN });
+      if (f.Q === undefined) f.Q = 1;
+      const vib = draft.patch.vibrato ?? (draft.patch.vibrato = {});
+      if (vib.rate === undefined) vib.rate = 5;
+      if (vib.depth === undefined) vib.depth = 0;
+    }
+
     // param sliders — ranges/scales straight from the registry
     for (const pid of ARCHETYPE_PARAMS[draft.patch.archetype] ?? []) {
-      if (pid === 'filter.freq' && !draft.patch.filter) continue;   // no filter on this patch
+      if (pid.startsWith('filter.') && !draft.patch.filter) continue;     // patch has no filter block
+      if (pid.startsWith('vibrato.') && !draft.patch.vibrato) continue;   // patch has no vibrato block
       const ui = PARAM_UI[pid];
       const cur = get(draft.patch, pid);
       const reg = PATCH_PARAMS[pid];

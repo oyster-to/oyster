@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { compileSynthPatch } from '../engine/voices.js';
-import { DEFAULT_INSTRUMENTS } from '../engine/instruments.js';
+import { DEFAULT_INSTRUMENTS, SYNTH_PRESETS } from '../engine/instruments.js';
 
 // PARITY GATE: the adapter must reproduce the legacy hardcoded voices EXACTLY.
 // Expected values below are copied verbatim from the pre-instruments voices.js
@@ -84,5 +84,37 @@ describe('compileSynthPatch parity vs legacy hardcoded voices', () => {
       postVolume: -11, filter: null,
       trig: { sig: 'note', note: undefined, dur: undefined, velocity: 0.82 },
     });
+  });
+});
+
+// Schema v2 adds two expressive primitives: filter resonance (Q) and a
+// pitch-vibrato block. Both are OPT-IN — absent from a patch means absent from
+// the plan, so the default voices above stay byte-identical (parity preserved).
+describe('compileSynthPatch — filter resonance + vibrato (schema v2)', () => {
+  const melody = patch => ({ name: 'X', type: 'melody', engine: 'synth',
+    patch: { archetype: 'poly', oscillator: { shape: 'sawtooth' }, ...patch } });
+
+  it('carries filter.Q into the plan filter when present', () => {
+    const p = compileSynthPatch(melody({ filter: { type: 'lowpass', freq: 1700, Q: 8 } }));
+    expect(p.filter).toEqual({ type: 'lowpass', freq: 1700, Q: 8 });
+  });
+  it('omits Q from the plan filter when absent (default voices unchanged)', () => {
+    expect(plan('gb-chords').filter).toEqual({ type: 'lowpass', freq: 4200 });
+  });
+  it('carries vibrato {rate, depth} into the plan when present', () => {
+    expect(compileSynthPatch(melody({ vibrato: { rate: 4.2, depth: 0.18 } })).vibrato)
+      .toEqual({ rate: 4.2, depth: 0.18 });
+  });
+  it('has no vibrato key when the patch declares none', () => {
+    expect('vibrato' in plan('gb-lead')).toBe(false);
+  });
+  it('compiles the Reso Saw preset with a resonant lowpass + vibrato', () => {
+    // Tuning numbers are ear-gated — assert STRUCTURE (resonant lowpass + a
+    // vibrato block), not the exact freq/Q/rate so knob-turns don't churn tests.
+    const p = compileSynthPatch(SYNTH_PRESETS['preset-reso-saw']);
+    expect(p.filter.type).toBe('lowpass');
+    expect(p.filter.Q).toBeGreaterThan(0);
+    expect(p.vibrato.rate).toBeGreaterThan(0);
+    expect(p.vibrato.depth).toBeGreaterThan(0);
   });
 });
