@@ -199,7 +199,10 @@ export function createEngine() {
   // The kit a drums lane sounds: its own `lane.kit` ref (so the kit travels with
   // the song), else the global default. (song.kits is the future custom-kit hook.)
   function resolveKit(kitId) {
-    return (kitId && ALL_KITS[kitId]) || (kitId && song?.kits?.[kitId]) || null;
+    if (!kitId) return null;
+    if (ALL_KITS[kitId]) return ALL_KITS[kitId];               // stock kits are trusted
+    const custom = song?.kits?.[kitId];                        // future song-local custom kits
+    return (custom && validateKit(custom, instrumentSet())) ? custom : null;   // bad data never crashes
   }
   function kitFor(lane) {
     return resolveKit(lane?.kit) || _kit;
