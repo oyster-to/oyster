@@ -1,7 +1,7 @@
 import * as Tone from 'tone';
 import { stepsPerBar } from './meter.js';
 import { createVoiceForType, trigger } from './voices.js';
-import { normalizeSongDrums, DEFAULT_INSTRUMENTS, ALL_INSTRUMENTS, LEGACY_TONE_PRESET, DEFAULT_KIT, validateInstrument, validateKit } from './instruments.js';
+import { normalizeSongDrums, normalizeDrumBar, DEFAULT_INSTRUMENTS, ALL_INSTRUMENTS, LEGACY_TONE_PRESET, DEFAULT_KIT, validateInstrument, validateKit } from './instruments.js';
 import { laneByType, DEFAULT_LANE_INSTRUMENT, toggleMute as _toggleMute, soloExclusive as _soloExclusive, toggleDrumMute as _toggleDrumMute, toggleDrumSolo as _toggleDrumSolo, addLane as _addLane, duplicateLane as _duplicateLane, removeLane as _removeLane, renameLane as _renameLane, moveLane as _moveLane } from './lanes.js';
 import { deriveKey } from './song.js';
 import { flattenSong } from './flatten.js';
@@ -647,7 +647,15 @@ export function createEngine() {
     addPattern()            { return song ? _addPattern(song, editIdx) : null; },
     duplicatePattern(i)     { return song ? _duplicatePattern(song, i) : null; },
     setLaneGroove(laneId, grooveName) { return song ? _setLaneGroove(song, editIdx, laneId, grooveName) : false; },
-    addGroove(laneId, name, value) { return song ? _addGroove(song, laneId, name, value) : false; },
+    addGroove(laneId, name, value) {
+      if (!song) return false;
+      // addGroove is an ingest point like load(): drum bars must cross the
+      // GM-numeric boundary here too, or named-key grooves play but render
+      // invisible in the step editor.
+      const lane = song.lanes.find(l => l.id === laneId);
+      const v = (lane?.type === 'drums' && Array.isArray(value)) ? value.map(normalizeDrumBar) : value;
+      return _addGroove(song, laneId, name, v);
+    },
     setGrooveBars(laneId, n) {
       if (!song) return null;
       const g = grooveFor(song, editIdx, laneId);

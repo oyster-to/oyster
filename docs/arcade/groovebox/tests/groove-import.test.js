@@ -11,11 +11,12 @@ const drumLaneId = (eng) => eng.getLanes().find((l) => l.type === 'drums').id;
 describe('eng.addGroove(laneId, name, value)', () => {
   const BARS = [{ kick: [0, 8], snare: [4, 12], hat: [], crash: [], tom: [] }];
 
-  it('adds a named groove to an existing lane', () => {
+  it('adds a named groove to an existing lane (drum bars normalized to GM numbers)', () => {
     const eng = engineWithSong();
     const laneId = drumLaneId(eng);
     expect(eng.addGroove(laneId, 'imported', BARS)).toBe(true);
-    expect(eng.getGrooves()[laneId].imported).toEqual(BARS);
+    // addGroove is an ingest boundary: named keys cross to the numeric contract.
+    expect(eng.getGrooves()[laneId].imported).toEqual([{ 36: [0, 8], 38: [4, 12], 42: [], 49: [], 45: [] }]);
   });
 
   it('refuses name collisions and unknown lanes', () => {

@@ -1826,6 +1826,12 @@ body.gb-knob-values .knob-val { display: block; }
 }
 .h-edit:focus { outline: 2px solid var(--screen-acc); outline-offset: -1px; }
 .h-edit.invalid { border-color: var(--screen-hot); outline-color: var(--screen-hot); }
+/* Progression starters shown under the chord line while editing. */
+.h-edit-wrap { display: flex; flex-direction: column; gap: 5px; margin-left: auto; min-width: 0; }
+.prog-presets { display: flex; flex-wrap: wrap; gap: 4px; }
+.prog-preset { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 5px; cursor: pointer; color: var(--screen-ink); background: color-mix(in srgb, var(--screen-ink) 8%, transparent); border: 1px solid color-mix(in srgb, var(--screen-ink) 25%, transparent); box-shadow: none; }
+.prog-deg { font-family: ui-monospace, Menlo, monospace; font-size: 9px; font-weight: 600; color: var(--screen-dim); margin-left: 3px; }
+.prog-preset:hover { background: color-mix(in srgb, var(--screen-ink) 16%, transparent); }
 
 /* Snap-to-scale toggle — mirror .roll-mode-btn / .glen-btn look. */
 .snap-btn {
@@ -4655,6 +4661,7 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
 .panes.two { display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: start; }
 .pane-ttl { font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--screen-dim); font-weight: 700; margin: 2px 2px 8px; }
 .pane-ttl small { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.used-by { font-size: 10px; color: var(--screen-dim); margin: 8px 2px 0; }
 .pane-back { display: none; background: none; box-shadow: none; border: none; color: var(--screen-acc); font-weight: 700; font-size: 12px; cursor: pointer; margin-bottom: 8px; padding: 0; }
 .pane-back:hover { background-color: transparent; text-decoration: underline; }
 .mini-btn { background: none; box-shadow: none; text-transform: none; letter-spacing: 0; border: 1px solid color-mix(in srgb, var(--screen-ink) 28%, transparent); color: var(--screen-dim); border-radius: 5px; font-size: 10px; padding: 2px 8px; cursor: pointer; font-weight: 700; margin-left: 6px; vertical-align: middle; }
@@ -4682,7 +4689,15 @@ body.hide-k-hi   .knob[data-k="hi"]   { display: none; }
 /* ── Compose rows (swap a loop per instrument) ───────────────────────────── */
 .crow { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, #fff 26%, var(--screen-bg)); border: 1px solid color-mix(in srgb, var(--screen-ink) 12%, transparent); box-shadow: 0 1px 2px rgba(0,0,0,.07); }
 .crow-fl { font-size: 12px; font-weight: 700; color: var(--screen-ink); min-width: 84px; }
-select.gpick { margin-left: auto; background: color-mix(in srgb, var(--screen-ink) 8%, transparent); color: var(--screen-ink); border: 1px solid color-mix(in srgb, var(--screen-ink) 30%, transparent); border-radius: 6px; padding: 4px 8px; font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; }
+select.gpick {
+  margin-left: auto; background: color-mix(in srgb, var(--screen-ink) 8%, transparent); color: var(--screen-ink); border: 1px solid color-mix(in srgb, var(--screen-ink) 30%, transparent); border-radius: 6px; padding: 4px 22px 4px 8px; font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer;
+  /* Unmistakable dropdown affordance: explicit ▾ caret (the chip look hides the native arrow). */
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23667'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 7px center;
+}
+.crow-link { cursor: pointer; }
+.crow-link:hover { background: color-mix(in srgb, var(--screen-ink) 6%, transparent); border-radius: 8px; }
 .prog { margin-left: auto; display: inline-flex; gap: 4px; cursor: pointer; }
 .progc { font-family: ui-monospace, Menlo, monospace; font-weight: 800; font-size: 11px; background: color-mix(in srgb, var(--screen-ink) 8%, transparent); border: 1px solid color-mix(in srgb, var(--screen-ink) 25%, transparent); border-radius: 5px; padding: 2px 7px; color: var(--screen-ink); }
 .progc-empty { color: var(--screen-dim); border-style: dashed; }
