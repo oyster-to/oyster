@@ -12,6 +12,8 @@ import { firstRoll } from '../songs/first-roll.js';
 import { pressStart } from '../songs/press-start.js';
 import { scallywag } from '../songs/scallywag.js';
 import { booWaltz } from '../songs/boo-waltz.js';
+import { blank, blankWaltz } from '../songs/blank.js';
+import { GROOVE_PRESETS, PROGRESSION_PRESETS, resolveProgression, meterKey } from '../engine/groove-presets.js';
 import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
 import { initShare, maybeLoadShared, loadSharedSong, clearLoadedFrom } from './share.js';
@@ -240,6 +242,9 @@ let _drilled = false;       // mobile: show the detail pane instead of the list
 let _scopeOpen = false;     // scope monitor overlay (Story 6) — independent of route
 const isWide = () => matchMedia('(min-width: 901px)').matches;   // complements the 900px mobile breakpoint
 const LANE_ICONS = { drums: '🥁', bass: '🎸', melody: '🎹', chords: '🎵' };
+// Deep-clone pure-JSON song/groove data — matches the JSON-clone convention
+// used across the engine (lanes.js, patterns.js); no structuredClone dependency.
+const clone = (x) => JSON.parse(JSON.stringify(x));
 const patLabel = i => { const p = eng.getPatterns()[i]; return p && p.name ? p.name : `P${i + 1}`; };
 
 // Open a lane's editor in the viz (no route change) + highlight its strip.
@@ -378,6 +383,22 @@ function renderPicker() {
       onPick: () => { closePicker(); loadSong(key); },
     }));
   };
+
+  // ＋ New — start from a blank template. Top of the rack: the first thing
+  // you reach for when you open the drawer. Meter is chosen here (there is
+  // no meter editing at runtime), so the waltz gets its own cartridge.
+  host.appendChild(cartEl({
+    cls: 'new',
+    title: '＋ Start a new song',
+    author: '4/4',
+    onPick: () => { closePicker(); newSong(blank); },
+  }));
+  host.appendChild(cartEl({
+    cls: 'new',
+    title: '＋ Start a new waltz',
+    author: '3/4',
+    onPick: () => { closePicker(); newSong(blankWaltz); },
+  }));
 
   sect('BUILT-IN');
   for (const key of PRESET_ORDER) if (AI_PRESETS.has(key)) presetCart(key);
@@ -1040,41 +1061,42 @@ function homecard(route, ic, t, s) {
 }
 
 // ─── Grooves editor — instrument list (here) + the step editor (in #lcd-viz) ──
+// The loop editor's side pane is about ONE groove: the lane's pick for the
+// edit pattern. It carries the groove switcher (audition-and-choose without
+// leaving the editor), the blast radius ("used by ..."), and a ⧉ duplicate
+// for making a private variant. Song-level furniture (instrument list,
+// ＋ add instrument) deliberately does NOT live here — that's Home/Patterns.
 function renderGroovesEditor(body) {
-  const lanes = eng.getLanes().filter(l => l.type !== 'chords');
-  const editPat = eng.getPatterns()[eng.getEditPatternIndex()];
-  let h = `<div class="pane-list"><div class="pane-ttl">instruments</div>`;
-  lanes.forEach(l => {
-    const g = (editPat && editPat.lanes && editPat.lanes[l.id]) || '—';
-    h += `<button class="li ${l.id === _editingLaneId ? 'sel' : ''}" data-lane="${l.id}">` +
-      `<span class="li-ic">${LANE_ICONS[l.type] || '🎛'}</span>` +
-      `<span class="li-nm">${esc(l.name)}</span>` +
-      `<span class="li-sub">${esc(g)}</span><span class="li-chev">›</span></button>`;
-  });
-  h += `<button class="li li-add" data-addinstr="1">＋ add instrument</button></div>`;
-  body.innerHTML = h;
-  body.querySelectorAll('.li[data-lane]').forEach(b =>
-    b.onclick = () => setRoute('grooves', { laneId: b.dataset.lane, drilled: true }));
-  wireAddInstr(body.querySelector('[data-addinstr]'));
-}
-
-// Inline 4-type instrument picker (mirrors the strips add-lane menu).
-function wireAddInstr(btn) {
-  if (!btn) return;
-  btn.onclick = () => {
-    const menu = document.createElement('div');
-    menu.className = 'addinstr-menu';
-    menu.innerHTML = ['drums', 'bass', 'melody', 'chords']
-      .map(t => `<button data-t="${t}">${LANE_ICONS[t]} ${t[0].toUpperCase() + t.slice(1)}</button>`).join('');
-    btn.replaceWith(menu);
-    menu.querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
-      eng.addLane(b.dataset.t);
-      renderStrips();
-      const ls = eng.getLanes().filter(l => l.type !== 'chords');
-      const last = ls[ls.length - 1];
-      if (b.dataset.t !== 'chords' && last) setRoute('grooves', { laneId: last.id, drilled: true });
-      else renderScreen();
-    });
+  const lane = eng.getLanes().find(l => l.id === _editingLaneId);
+  if (!lane) { body.innerHTML = ''; return; }
+  const patterns = eng.getPatterns();
+  const editIdx = eng.getEditPatternIndex();
+  const picked = patterns[editIdx]?.lanes?.[lane.id];
+  const laneGrooves = eng.getGrooves()[lane.id] || {};
+  const opts = Object.keys(laneGrooves).map(n =>
+    `<option value="${esc(n)}"${n === picked ? ' selected' : ''}>${esc(n)}</option>`).join('');
+  // Blast radius: every section whose pick is this groove changes with it.
+  // Guard on `picked` — otherwise an unpicked lane (undefined) would match
+  // every other unpicked section and claim "used everywhere".
+  const usedBy = picked
+    ? patterns.map((p, i) => (p.lanes?.[lane.id] === picked ? patLabel(i) : null)).filter(Boolean)
+    : [];
+  body.innerHTML =
+    `<div class="pane-list"><div class="pane-ttl">${LANE_ICONS[lane.type] || '🎛'} ${esc(lane.name)}</div>` +
+    `<div class="crow"><select class="gpick" data-swap="${lane.id}">${opts}</select>` +
+    `<button class="mini-btn" data-dup="1" title="Duplicate this loop and edit the copy">⧉</button></div>` +
+    `<div class="used-by">used by ${usedBy.map(esc).join(' · ') || '—'}</div></div>`;
+  body.querySelector('select[data-swap]').onchange = (e) => {
+    eng.setLaneGroove(lane.id, e.target.value);
+    setRoute('grooves', { laneId: lane.id, drilled: true });   // re-render pane + grid
+  };
+  body.querySelector('[data-dup]').onclick = () => {
+    if (!picked) return;
+    let name = `${picked} (copy)`, n = 2;
+    while (laneGrooves[name]) name = `${picked} (copy ${n++})`;
+    eng.addGroove(lane.id, name, clone(laneGrooves[picked]));
+    eng.setLaneGroove(lane.id, name);
+    setRoute('grooves', { laneId: lane.id, drilled: true });
   };
 }
 
@@ -1099,23 +1121,34 @@ function renderPatternsComposer(body) {
   let detail = `<button class="pane-back" data-back="1">‹ sections</button>` +
     `<div class="pane-ttl">compose “${s && s.name ? esc(s.name) : 'P' + (editIdx + 1)}” — swap a loop` +
     ` <button class="mini-btn" data-ren="1">✎ rename</button></div>`;
-  lanes.filter(l => l.type !== 'chords').forEach(l => {
-    const laneGrooves = grooves[l.id] || {};
-    const picked = s && s.lanes ? s.lanes[l.id] : undefined;
-    const opts = Object.keys(laneGrooves).map(n =>
-      `<option value="${esc(n)}"${n === picked ? ' selected' : ''}>${esc(n)}</option>`).join('');
-    detail += `<div class="crow"><span class="crow-fl">${LANE_ICONS[l.type] || '🎛'} ${esc(l.name)}</span>` +
-      `<select class="gpick" data-swap="${l.id}">${opts}</select></div>`;
-  });
-  const chordLane = lanes.find(l => l.type === 'chords');
-  if (chordLane) {
+  // The PROGRESSION is section-owned harmony (pattern.chords): it steers every
+  // chord-relative loop — bass R/V refs, chord voicings, future arps. It is
+  // NOT the chords lane's content, so it gets its own row above the
+  // instruments, not a seat on the chords lane.
+  {
     const chords = eng.getPatternChords(editIdx) || [];
     const chips = chords.length
       ? chords.map(c => `<span class="progc">${esc(c.name)}</span>`).join('')
       : `<span class="progc progc-empty">＋ chords</span>`;
-    detail += `<div class="crow crow-chords"><span class="crow-fl">🎵 ${esc(chordLane.name)}</span>` +
-      `<span class="prog" data-chords="1">${chips}</span></div>`;
+    detail += `<div class="crow crow-harmony"><span class="crow-fl">🎼 progression</span>` +
+      `<span class="prog" data-chords="1" title="The section's chord loop — steers bass and chords">${chips}</span>` +
+      `<button class="mini-btn" data-chords-edit="1" title="Edit the progression — or pick a famous one">✎</button></div>`;
   }
+  // Every lane is an ordinary instrument row: groove dropdown + drill into the
+  // editor (row click or ✎). Chords loops are chord-relative and the engine
+  // can't step-edit those yet, so the chords row swaps loops but doesn't drill.
+  lanes.forEach(l => {
+    const laneGrooves = grooves[l.id] || {};
+    const picked = s && s.lanes ? s.lanes[l.id] : undefined;
+    const opts = Object.keys(laneGrooves).map(n =>
+      `<option value="${esc(n)}"${n === picked ? ' selected' : ''}>${esc(n)}</option>`).join('');
+    const editable = l.type !== 'chords';
+    detail += `<div class="crow${editable ? ' crow-link' : ''}"${editable ? ` data-row="${l.id}"` : ''}>` +
+      `<span class="crow-fl">${LANE_ICONS[l.type] || '🎛'} ${esc(l.name)}</span>` +
+      `<select class="gpick" data-swap="${l.id}">${opts}</select>` +
+      (editable ? `<button class="mini-btn" data-edit="${l.id}" title="Edit this loop's steps">✎</button>` : '') +
+      `</div>`;
+  });
 
   body.innerHTML = `<div class="panes two"><div class="pane-list">${list}</div><div class="pane-detail">${detail}</div></div>`;
 
@@ -1134,8 +1167,26 @@ function renderPatternsComposer(body) {
     eng.setLaneGroove(sel.dataset.swap, sel.value);
     refreshVizPattern();
   });
+  // ✎ or anywhere on the row → jump straight into the step editor for that
+  // lane's picked loop. Clicks on the dropdown itself don't drill.
+  body.querySelectorAll('[data-edit]').forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
+    setRoute('grooves', { laneId: b.dataset.edit, drilled: true });
+  });
+  body.querySelectorAll('.crow[data-row]').forEach(row => row.onclick = (e) => {
+    if (e.target.closest('select, button')) return;
+    setRoute('grooves', { laneId: row.dataset.row, drilled: true });
+  });
   const prog = body.querySelector('[data-chords]');
-  if (prog) prog.onclick = () => openComposerChordEdit(editIdx, prog);
+  // Resolve the live [data-chords] node at click time — the edit replaces it,
+  // so a captured reference goes stale (and re-clicking ✎ mid-edit would no-op).
+  const openChordEdit = () => {
+    const cur = body.querySelector('[data-chords]');
+    if (cur) openComposerChordEdit(editIdx, cur);
+  };
+  if (prog) prog.onclick = openChordEdit;
+  const progEdit = body.querySelector('[data-chords-edit]');
+  if (progEdit) progEdit.onclick = openChordEdit;
 }
 
 function renameSectionInline(idx, anchor) {
@@ -1236,20 +1287,23 @@ function renderLcdBar() {
     crumb.appendChild(crumbSep());
     if (_route === 'song') {
       crumb.appendChild(crumbSeg('Song', null, true));
+    } else if (_route === 'grooves') {
+      // The loop editor is always scoped to the edit pattern's pick, so the
+      // honest trail is Patterns › P<n> › lane — and it navigates back the
+      // way you came.
+      const lane = eng.getLanes().find(l => l.id === _editingLaneId);
+      crumb.appendChild(crumbSeg('Patterns', () => setRoute('patterns')));
+      crumb.appendChild(crumbSep());
+      crumb.appendChild(crumbSeg(patLabel(eng.getEditPatternIndex()),
+        () => setRoute('patterns', { drilled: true })));
+      crumb.appendChild(crumbSep());
+      crumb.appendChild(crumbSeg(lane ? lane.name : '—', null, true));
     } else {
-      const ed = _route === 'grooves' ? 'Grooves' : 'Patterns';
       const showItem = isWide() || _drilled;
-      crumb.appendChild(crumbSeg(ed, showItem ? () => { _drilled = false; renderScreen(); } : null, !showItem));
+      crumb.appendChild(crumbSeg('Patterns', showItem ? () => { _drilled = false; renderScreen(); } : null, !showItem));
       if (showItem) {
         crumb.appendChild(crumbSep());
-        let item;
-        if (_route === 'grooves') {
-          const lane = eng.getLanes().find(l => l.id === _editingLaneId);
-          item = lane ? lane.name : '—';
-        } else {
-          item = patLabel(eng.getEditPatternIndex());
-        }
-        crumb.appendChild(crumbSeg(item, null, true));
+        crumb.appendChild(crumbSeg(patLabel(eng.getEditPatternIndex()), null, true));
       }
     }
   }
@@ -1327,11 +1381,35 @@ function updateLcdBar(target) {
 // (parser-backed). Enter / blur commit; Escape cancels; invalid stays editing.
 function openComposerChordEdit(idx, anchor) {
   const chords = eng.getPatternChords(idx) || [];
+  const wrap = document.createElement('span');
+  wrap.className = 'h-edit-wrap';
   const input = document.createElement('input');
   input.className = 'h-edit';
   input.value = formatProgression(chords);
   input.placeholder = 'e.g. F#m D A E/G#';
-  anchor.replaceWith(input);
+  wrap.appendChild(input);
+  // Curated starters: famous SHAPES resolved in the song's current key, tap to
+  // fill + commit.
+  const starterKey = () => eng.getKey()?.root || 'C';
+  const row = document.createElement('span');
+  row.className = 'prog-presets';
+  for (const p of PROGRESSION_PRESETS) {
+    const b = document.createElement('button');
+    b.className = 'prog-preset';
+    // The shape is the point — show the numerals, don't hide them in a tooltip.
+    b.innerHTML = `${esc(p.name)} <span class="prog-deg">${esc(p.degrees.join('·'))}</span>`;
+    b.title = p.vibe;
+    const apply = (e) => {
+      e.preventDefault();
+      input.value = resolveProgression(p.degrees, starterKey()) || input.value;
+      commit();   // commit() is idempotent (done-guard), so pointer+click can't double-apply
+    };
+    b.onpointerdown = apply;   // mouse/touch: beats the input's blur-commit race
+    b.onclick = apply;         // keyboard (Enter/Space) fires click, not pointerdown
+    row.appendChild(b);
+  }
+  wrap.appendChild(row);
+  anchor.replaceWith(wrap);
   input.focus();
   input.select();
   let done = false;
@@ -1352,7 +1430,12 @@ function openComposerChordEdit(idx, anchor) {
     if (e.key === 'Enter') { e.preventDefault(); commit(); }
     else if (e.key === 'Escape') { e.preventDefault(); if (!done) { done = true; finish(); } }
   };
-  input.onblur = commit;
+  // Commit only when focus leaves the editor for good — keep it open while
+  // focus moves to a starter button inside the wrap.
+  input.addEventListener('blur', (e) => {
+    if (e.relatedTarget && wrap.contains(e.relatedTarget)) return;
+    commit();
+  });
 }
 
 // Tell the viz the edit pattern changed (rebuilds the open editor).
@@ -1428,6 +1511,32 @@ function afterSongLoad() {
   eng.setTranspose(0);
   resetFX();
   mount();
+}
+
+// ─── Start a fresh song from a blank template ─────────────────────────────────
+// clone each time: load() mutates the song in place AND retains the
+// reference, so a shared template would accumulate edits across News.
+function newSong(tpl) {
+  eng.stop();
+  stopMeterLoop();
+  const play = document.getElementById('play');
+  play.classList.remove('on');
+  play.textContent = '▶ play';
+  eng.load(clone(tpl));
+  // Stock the lanes from the curated starter library (matched to the
+  // template's meter) so the dropdowns aren't a one-trick pony. addGroove
+  // harmlessly refuses names already present (the template's own picks),
+  // so those stay selected.
+  const pool = GROOVE_PRESETS[meterKey(tpl.meter)] || {};
+  for (const lane of eng.getLanes()) {
+    for (const [name, value] of Object.entries(pool[lane.type] || {})) {
+      eng.addGroove(lane.id, name, clone(value));
+    }
+  }
+  clearLoadedFrom();
+  _currentSongKey = 'new';
+  songButtonLabel('Untitled');
+  afterSongLoad();
 }
 
 // ─── Transport ───────────────────────────────────────────────────────────────
