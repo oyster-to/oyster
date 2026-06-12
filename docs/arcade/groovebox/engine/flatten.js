@@ -321,6 +321,7 @@ export function flattenSong(rich) {
     id: l.id, type: l.type, name: l.name || l.id,
     muted: !!l.muted, soloed: !!l.soloed,
     ...(l.instrument ? { instrument: l.instrument } : {}),
+    ...(l.type === 'drums' && l.kit ? { kit: l.kit } : {}),
   }));
 
   // Song key (for melody snap-to-scale + editor tinting). The chord progression

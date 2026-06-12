@@ -486,15 +486,11 @@ function renderStrips() {
       const customOpt = isCustom ? `<option value="${esc(cur)}" selected>Custom ✎</option>` : '';
       presetSel = `<select class="lane-preset" data-preset data-lane="${lane.id}" title="Instrument preset">${customOpt}${opts}</select>`;
     } else {
-      // Drums pick a KIT. The selected id is derived from the engine's live kit
-      // (by reference) — so a saved global custom kit shows "Custom", not a wrong
-      // bank entry.
-      const curKit = eng.getKit();
-      const selId = Object.keys(ALL_KITS).find(k => ALL_KITS[k] === curKit);
+      // Drums pick a KIT — the ref rides on the lane so it travels with the song.
+      const selId = ALL_KITS[lane.kit] ? lane.kit : 'oyster-kit';
       const opts = Object.entries(ALL_KITS)
         .map(([id, k]) => `<option value="${id}"${id === selId ? ' selected' : ''}>${esc(k.name)}</option>`).join('');
-      const customOpt = selId ? '' : `<option value="" selected>Custom</option>`;
-      presetSel = `<select class="lane-preset" data-kit data-lane="${lane.id}" title="Drum kit">${customOpt}${opts}</select>`;
+      presetSel = `<select class="lane-preset" data-kit data-lane="${lane.id}" title="Drum kit">${opts}</select>`;
     }
     const soundBtn = isPitched
       ? `<button class="lane-sound" data-lane="${lane.id}" data-type="${lane.type}" title="Edit ${esc(lane.name)} sound">EDIT</button>`
@@ -568,8 +564,7 @@ function renderStrips() {
     renderStrips();   // a stock pick clears the "Custom" option from the list
   });
   host.querySelectorAll('select[data-kit]').forEach(s => s.onchange = () => {
-    const k = ALL_KITS[s.value];
-    if (k) eng.setKit(k);   // ignore the display-only "Custom" entry
+    if (ALL_KITS[s.value]) eng.setLaneKit(s.dataset.lane, s.value);
   });
   host.querySelectorAll('.lane-sound').forEach(b => b.onclick = e => {
     e.stopPropagation();

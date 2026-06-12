@@ -135,3 +135,32 @@ describe('registry validation of song-local instruments', () => {
     expect(validateSongPayload({ ...SONG_PAYLOAD, instruments: proto }).ok).not.toBe(true);
   });
 });
+
+describe('kit-per-song (kit ref rides on the drums lane)', () => {
+  const drumsLane = eng => eng.getLanes().find(l => l.type === 'drums').id;
+
+  it('addLane(drums) seeds a kit ref', () => {
+    const eng = createEngine(); eng.load(kids);
+    expect(addLane(eng.getSong(), 'drums').kit).toBe('oyster-kit');
+  });
+
+  test('setLaneKit records the kit on the lane; unknown/non-drums = no-op', () => {
+    const eng = createEngine(); eng.load(kids); const id = drumsLane(eng);
+    eng.setLaneKit(id, 'kit-808');
+    expect(eng.getSong().lanes.find(l => l.id === id).kit).toBe('kit-808');
+    eng.setLaneKit(id, 'kit-nope');                       // unknown kit
+    expect(eng.getSong().lanes.find(l => l.id === id).kit).toBe('kit-808');
+    const bassId = eng.getLanes().find(l => l.type === 'bass').id;
+    eng.setLaneKit(bassId, 'kit-808');                    // not a drums lane
+    expect(eng.getSong().lanes.find(l => l.id === bassId).kit).toBeUndefined();
+  });
+
+  test('the kit ref serializes and round-trips through load', () => {
+    const eng = createEngine(); eng.load(kids); const id = drumsLane(eng);
+    eng.setLaneKit(id, 'kit-lofi');
+    const v2 = JSON.parse(JSON.stringify(eng.getSong()));
+    expect(v2.lanes.find(l => l.id === id).kit).toBe('kit-lofi');   // serialized
+    const eng2 = createEngine(); eng2.load(v2);
+    expect(eng2.getSong().lanes.find(l => l.id === id).kit).toBe('kit-lofi');   // restored
+  });
+});
