@@ -11,20 +11,42 @@
 
 export function meterKey(meter) { return `${meter.beatsPerBar}/${meter.beatUnit}`; }
 
-// Curated chord progressions — famous, varied moods, one chord per bar.
-// Plain chord-symbol strings for the PATTERNS chord line parser; names teach
-// what they are. Meter-agnostic (a progression works in any meter). This list
+// Curated chord progressions — famous SHAPES, not fixed chords. Stored as
+// roman-numeral degrees (case = quality: I major, i minor; optional 'b'
+// prefix flattens) and resolved against a key at apply time — the schema
+// keeps storing the compiled concrete chords. Meter-agnostic. This list
 // doubles as the roll-a-progression pool for the future Generate feature.
 export const PROGRESSION_PRESETS = [
-  { name: 'axis of awesome', chords: 'C G Am F',           vibe: 'the 4-chord pop anthem (I–V–vi–IV)' },
-  { name: 'doo-wop',         chords: 'C Am F G',           vibe: "'50s heartthrob (I–vi–IV–V)" },
-  { name: "don't stop",      chords: 'Am F C G',           vibe: 'minor-leaning pop drive (vi–IV–I–V)' },
-  { name: 'andalusian',      chords: 'Am G F E',           vibe: 'flamenco descent (i–VII–VI–V)' },
-  { name: 'jazz turnaround', chords: 'Dm G C Am',          vibe: 'smooth cycle (ii–V–I–vi)' },
-  { name: 'creep',           chords: 'C E F Fm',           vibe: 'bittersweet lift and fall (I–III–IV–iv)' },
-  { name: 'simple blues',    chords: 'C F C G',            vibe: 'porch blues (I–IV–I–V)' },
-  { name: 'canon',           chords: 'C G Am Em F C F G',  vibe: "Pachelbel's 8-bar wedding classic" },
+  { name: 'axis of awesome', degrees: ['I', 'V', 'vi', 'IV'],  vibe: 'the 4-chord pop anthem' },
+  { name: 'doo-wop',         degrees: ['I', 'vi', 'IV', 'V'],  vibe: "'50s heartthrob" },
+  { name: "don't stop",      degrees: ['vi', 'IV', 'I', 'V'],  vibe: 'minor-leaning pop drive (Zombie, Kids)' },
+  { name: 'andalusian',      degrees: ['vi', 'V', 'IV', 'III'], vibe: 'flamenco descent' },
+  { name: 'jazz turnaround', degrees: ['ii', 'V', 'I', 'vi'],  vibe: 'smooth cycle' },
+  { name: 'creep',           degrees: ['I', 'III', 'IV', 'iv'], vibe: 'bittersweet lift and fall' },
+  { name: 'simple blues',    degrees: ['I', 'IV', 'I', 'V'],   vibe: 'porch blues' },
+  { name: 'canon',           degrees: ['I', 'V', 'vi', 'iii', 'IV', 'I', 'IV', 'V'], vibe: "Pachelbel's 8-bar classic" },
 ];
+
+// resolveProgression(degrees, keyRoot) → chord-symbol string for the chord
+// line parser (sharps-only spellings). 'vi' in A → 'F#m'. Pure + tested.
+const DEGREE_OFFSETS = { i: 0, ii: 2, iii: 4, iv: 5, v: 7, vi: 9, vii: 11 };
+const PC_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const LETTER_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+export function resolveProgression(degrees, keyRoot) {
+  const m = /^([A-G])(#|b)?$/.exec(keyRoot);
+  if (!m) return null;
+  const base = (LETTER_PC[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + 12) % 12;
+  const out = [];
+  for (let d of degrees) {
+    let flat = 0;
+    while (d.startsWith('b')) { flat -= 1; d = d.slice(1); }   // ♭VII-style borrowings
+    const off = DEGREE_OFFSETS[d.toLowerCase()];
+    if (off === undefined) return null;
+    const minor = d === d.toLowerCase();
+    out.push(PC_NAMES[(base + off + flat + 12) % 12] + (minor ? 'm' : ''));
+  }
+  return out.join(' ');
+}
 
 export const GROOVE_PRESETS = {
   '4/4': {

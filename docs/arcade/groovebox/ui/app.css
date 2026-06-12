@@ -1803,6 +1803,7 @@ body.gb-knob-values .knob-val { display: block; }
 .h-edit-wrap { display: flex; flex-direction: column; gap: 5px; margin-left: auto; min-width: 0; }
 .prog-presets { display: flex; flex-wrap: wrap; gap: 4px; }
 .prog-preset { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 5px; cursor: pointer; color: var(--screen-ink); background: color-mix(in srgb, var(--screen-ink) 8%, transparent); border: 1px solid color-mix(in srgb, var(--screen-ink) 25%, transparent); box-shadow: none; }
+.prog-deg { font-family: ui-monospace, Menlo, monospace; font-size: 9px; font-weight: 600; color: var(--screen-dim); margin-left: 3px; }
 .prog-preset:hover { background: color-mix(in srgb, var(--screen-ink) 16%, transparent); }
 
 /* Snap-to-scale toggle — mirror .roll-mode-btn / .glen-btn look. */

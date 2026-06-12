@@ -13,7 +13,7 @@ import { pressStart } from '../songs/press-start.js';
 import { scallywag } from '../songs/scallywag.js';
 import { booWaltz } from '../songs/boo-waltz.js';
 import { blank, blankWaltz } from '../songs/blank.js';
-import { GROOVE_PRESETS, PROGRESSION_PRESETS, meterKey } from '../engine/groove-presets.js';
+import { GROOVE_PRESETS, PROGRESSION_PRESETS, resolveProgression, meterKey } from '../engine/groove-presets.js';
 import { makeViz } from './viz.js';
 import { makeKnob } from './knob.js';
 import { initShare, maybeLoadShared, loadSharedSong, clearLoadedFrom } from './share.js';
@@ -1100,7 +1100,6 @@ function renderGroovesEditor(body) {
   };
 }
 
-
 // ─── Patterns composer — sections list + compose (swap a loop per instrument) ─
 function renderPatternsComposer(body) {
   const patterns = eng.getPatterns();
@@ -1383,16 +1382,23 @@ function openComposerChordEdit(idx, anchor) {
   input.value = formatProgression(chords);
   input.placeholder = 'e.g. F#m D A E/G#';
   wrap.appendChild(input);
-  // Curated starters: tap one to fill + commit. pointerdown (not click) so the
-  // input's blur-commit doesn't fire first with the stale value.
+  // Curated starters: famous SHAPES resolved in the song's current key, tap to
+  // fill + commit. pointerdown (not click) so the input's blur-commit doesn't
+  // fire first with the stale value.
+  const starterKey = () => eng.getKey()?.root || 'C';
   const row = document.createElement('span');
   row.className = 'prog-presets';
   for (const p of PROGRESSION_PRESETS) {
     const b = document.createElement('button');
     b.className = 'prog-preset';
-    b.textContent = p.name;
-    b.title = `${p.chords} — ${p.vibe}`;
-    b.onpointerdown = (e) => { e.preventDefault(); input.value = p.chords; commit(); };
+    // The shape is the point — show the numerals, don't hide them in a tooltip.
+    b.innerHTML = `${esc(p.name)} <span class="prog-deg">${esc(p.degrees.join('·'))}</span>`;
+    b.title = p.vibe;
+    b.onpointerdown = (e) => {
+      e.preventDefault();
+      input.value = resolveProgression(p.degrees, starterKey()) || input.value;
+      commit();
+    };
     row.appendChild(b);
   }
   wrap.appendChild(row);
@@ -1417,7 +1423,12 @@ function openComposerChordEdit(idx, anchor) {
     if (e.key === 'Enter') { e.preventDefault(); commit(); }
     else if (e.key === 'Escape') { e.preventDefault(); if (!done) { done = true; finish(); } }
   };
-  input.onblur = commit;
+  // Commit only when focus leaves the editor for good — keep it open while
+  // focus moves to a starter button inside the wrap.
+  input.addEventListener('blur', (e) => {
+    if (e.relatedTarget && wrap.contains(e.relatedTarget)) return;
+    commit();
+  });
 }
 
 // Tell the viz the edit pattern changed (rebuilds the open editor).

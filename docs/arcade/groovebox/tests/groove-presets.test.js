@@ -82,14 +82,41 @@ describe('addGroove normalizes drum bars (the invisible-hits bug)', () => {
   });
 });
 
-describe('PROGRESSION_PRESETS', () => {
-  it('every preset parses cleanly through the chord-line parser', async () => {
-    const { parseProgression } = await import('../engine/chords.js');
-    const { PROGRESSION_PRESETS } = await import('../engine/groove-presets.js');
+describe('PROGRESSION_PRESETS (shapes × key)', () => {
+  it('resolving every shape in C reproduces the original fixed chords (parity)', async () => {
+    const { PROGRESSION_PRESETS, resolveProgression } = await import('../engine/groove-presets.js');
+    const IN_C = {
+      'axis of awesome': 'C G Am F',
+      'doo-wop':         'C Am F G',
+      "don't stop":      'Am F C G',
+      'andalusian':      'Am G F E',
+      'jazz turnaround': 'Dm G C Am',
+      'creep':           'C E F Fm',
+      'simple blues':    'C F C G',
+      'canon':           'C G Am Em F C F G',
+    };
     for (const p of PROGRESSION_PRESETS) {
-      const { chords, errors } = parseProgression(p.chords);
-      expect(errors, `${p.name}: ${JSON.stringify(errors)}`).toEqual([]);
-      expect(chords.length, `${p.name} has chords`).toBeGreaterThanOrEqual(4);
+      expect(resolveProgression(p.degrees, 'C'), p.name).toBe(IN_C[p.name]);
+    }
+  });
+
+  it('transposes shapes to other keys', async () => {
+    const { resolveProgression } = await import('../engine/groove-presets.js');
+    expect(resolveProgression(['vi', 'IV', 'I', 'V'], 'G')).toBe('Em C G D');        // Zombie
+    expect(resolveProgression(['vi', 'IV', 'I', 'V'], 'A')).toBe('F#m D A E');       // Kids
+    expect(resolveProgression(['I', 'III', 'IV', 'iv'], 'A')).toBe('A C# D Dm');     // creep in A
+    expect(resolveProgression(['I', 'bVII', 'IV', 'I'], 'C')).toBe('C A# F C');      // borrowed ♭VII
+  });
+
+  it('every resolved preset parses cleanly through the chord-line parser, in all 12 keys', async () => {
+    const { parseProgression } = await import('../engine/chords.js');
+    const { PROGRESSION_PRESETS, resolveProgression } = await import('../engine/groove-presets.js');
+    for (const k of ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']) {
+      for (const p of PROGRESSION_PRESETS) {
+        const { chords, errors } = parseProgression(resolveProgression(p.degrees, k));
+        expect(errors, `${p.name} in ${k}: ${JSON.stringify(errors)}`).toEqual([]);
+        expect(chords.length, `${p.name} in ${k}`).toBeGreaterThanOrEqual(4);
+      }
     }
   });
 });
