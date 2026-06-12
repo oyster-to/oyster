@@ -242,6 +242,9 @@ let _drilled = false;       // mobile: show the detail pane instead of the list
 let _scopeOpen = false;     // scope monitor overlay (Story 6) — independent of route
 const isWide = () => matchMedia('(min-width: 901px)').matches;   // complements the 900px mobile breakpoint
 const LANE_ICONS = { drums: '🥁', bass: '🎸', melody: '🎹', chords: '🎵' };
+// Deep-clone pure-JSON song/groove data — matches the JSON-clone convention
+// used across the engine (lanes.js, patterns.js); no structuredClone dependency.
+const clone = (x) => JSON.parse(JSON.stringify(x));
 const patLabel = i => { const p = eng.getPatterns()[i]; return p && p.name ? p.name : `P${i + 1}`; };
 
 // Open a lane's editor in the viz (no route change) + highlight its strip.
@@ -1078,9 +1081,11 @@ function renderGroovesEditor(body) {
   const opts = Object.keys(laneGrooves).map(n =>
     `<option value="${esc(n)}"${n === picked ? ' selected' : ''}>${esc(n)}</option>`).join('');
   // Blast radius: every section whose pick is this groove changes with it.
-  const usedBy = patterns
-    .map((p, i) => (p.lanes?.[lane.id] === picked ? patLabel(i) : null))
-    .filter(Boolean);
+  // Guard on `picked` — otherwise an unpicked lane (undefined) would match
+  // every other unpicked section and claim "used everywhere".
+  const usedBy = picked
+    ? patterns.map((p, i) => (p.lanes?.[lane.id] === picked ? patLabel(i) : null)).filter(Boolean)
+    : [];
   body.innerHTML =
     `<div class="pane-list"><div class="pane-ttl">${LANE_ICONS[lane.type] || '🎛'} ${esc(lane.name)}</div>` +
     `<div class="crow"><select class="gpick" data-swap="${lane.id}">${opts}</select>` +
@@ -1094,7 +1099,7 @@ function renderGroovesEditor(body) {
     if (!picked) return;
     let name = `${picked} (copy)`, n = 2;
     while (laneGrooves[name]) name = `${picked} (copy ${n++})`;
-    eng.addGroove(lane.id, name, structuredClone(laneGrooves[picked]));
+    eng.addGroove(lane.id, name, clone(laneGrooves[picked]));
     eng.setLaneGroove(lane.id, name);
     setRoute('grooves', { laneId: lane.id, drilled: true });
   };
@@ -1178,9 +1183,15 @@ function renderPatternsComposer(body) {
     setRoute('grooves', { laneId: row.dataset.row, drilled: true });
   });
   const prog = body.querySelector('[data-chords]');
-  if (prog) prog.onclick = () => openComposerChordEdit(editIdx, prog);
+  // Resolve the live [data-chords] node at click time — the edit replaces it,
+  // so a captured reference goes stale (and re-clicking ✎ mid-edit would no-op).
+  const openChordEdit = () => {
+    const cur = body.querySelector('[data-chords]');
+    if (cur) openComposerChordEdit(editIdx, cur);
+  };
+  if (prog) prog.onclick = openChordEdit;
   const progEdit = body.querySelector('[data-chords-edit]');
-  if (progEdit && prog) progEdit.onclick = () => openComposerChordEdit(editIdx, prog);
+  if (progEdit) progEdit.onclick = openChordEdit;
 }
 
 function renameSectionInline(idx, anchor) {
@@ -1383,8 +1394,7 @@ function openComposerChordEdit(idx, anchor) {
   input.placeholder = 'e.g. F#m D A E/G#';
   wrap.appendChild(input);
   // Curated starters: famous SHAPES resolved in the song's current key, tap to
-  // fill + commit. pointerdown (not click) so the input's blur-commit doesn't
-  // fire first with the stale value.
+  // fill + commit.
   const starterKey = () => eng.getKey()?.root || 'C';
   const row = document.createElement('span');
   row.className = 'prog-presets';
@@ -1394,11 +1404,13 @@ function openComposerChordEdit(idx, anchor) {
     // The shape is the point — show the numerals, don't hide them in a tooltip.
     b.innerHTML = `${esc(p.name)} <span class="prog-deg">${esc(p.degrees.join('·'))}</span>`;
     b.title = p.vibe;
-    b.onpointerdown = (e) => {
+    const apply = (e) => {
       e.preventDefault();
       input.value = resolveProgression(p.degrees, starterKey()) || input.value;
-      commit();
+      commit();   // commit() is idempotent (done-guard), so pointer+click can't double-apply
     };
+    b.onpointerdown = apply;   // mouse/touch: beats the input's blur-commit race
+    b.onclick = apply;         // keyboard (Enter/Space) fires click, not pointerdown
     row.appendChild(b);
   }
   wrap.appendChild(row);
@@ -1507,7 +1519,7 @@ function afterSongLoad() {
 }
 
 // ─── Start a fresh song from a blank template ─────────────────────────────────
-// structuredClone each time: load() mutates the song in place AND retains the
+// clone each time: load() mutates the song in place AND retains the
 // reference, so a shared template would accumulate edits across News.
 function newSong(tpl) {
   eng.stop();
@@ -1515,7 +1527,7 @@ function newSong(tpl) {
   const play = document.getElementById('play');
   play.classList.remove('on');
   play.textContent = '▶ play';
-  eng.load(structuredClone(tpl));
+  eng.load(clone(tpl));
   // Stock the lanes from the curated starter library (matched to the
   // template's meter) so the dropdowns aren't a one-trick pony. addGroove
   // harmlessly refuses names already present (the template's own picks),
@@ -1523,7 +1535,7 @@ function newSong(tpl) {
   const pool = GROOVE_PRESETS[meterKey(tpl.meter)] || {};
   for (const lane of eng.getLanes()) {
     for (const [name, value] of Object.entries(pool[lane.type] || {})) {
-      eng.addGroove(lane.id, name, structuredClone(value));
+      eng.addGroove(lane.id, name, clone(value));
     }
   }
   clearLoadedFrom();
