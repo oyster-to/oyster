@@ -84,17 +84,24 @@ export default {
     // arcade-games repo so it's a single source of truth. Lets a contributor's
     // agent do exactly: "read arcade.oyster.to/install and follow it".
     if (url.pathname === '/install' || url.pathname === '/install/') {
-      const upstream = await fetch(
-        'https://raw.githubusercontent.com/oyster-to/arcade-games/main/AGENTS.md',
-      );
-      const body = upstream.ok
-        ? await upstream.text()
-        : '# Oyster Arcade — add a game\n\nGuide temporarily unavailable. See https://github.com/oyster-to/arcade-games';
+      // Proxy the guide; tolerate upstream network errors (fetch can throw) and
+      // never cache a failure — caching a 502 would prolong an outage.
+      let body = '';
+      let ok = false;
+      try {
+        const upstream = await fetch(
+          'https://raw.githubusercontent.com/oyster-to/arcade-games/main/AGENTS.md',
+        );
+        if (upstream.ok) { body = await upstream.text(); ok = true; }
+      } catch { /* fall through to the fallback body */ }
+      if (!ok) {
+        body = '# Oyster Arcade — add a game\n\nGuide temporarily unavailable. See https://github.com/oyster-to/arcade-games';
+      }
       return new Response(body, {
-        status: upstream.ok ? 200 : 502,
+        status: ok ? 200 : 502,
         headers: {
           'content-type': 'text/markdown; charset=utf-8',
-          'cache-control': 'public, max-age=300',
+          'cache-control': ok ? 'public, max-age=300' : 'no-store',
         },
       });
     }

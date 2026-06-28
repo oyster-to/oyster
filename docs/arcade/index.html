@@ -808,7 +808,11 @@ function buildCard(game, realIdx, isClone) {
 
   const name = document.createElement('div');
   name.className = 'game-name';
-  name.innerHTML = '<span class="br">[</span> ' + game.name + ' <span class="br">]</span>';
+  // Brackets as elements + the name as a text node — never innerHTML, so a
+  // contributed game's name can't inject markup into the cabinet.
+  const lb = document.createElement('span'); lb.className = 'br'; lb.textContent = '[';
+  const rb = document.createElement('span'); rb.className = 'br'; rb.textContent = ']';
+  name.append(lb, ` ${game.name ?? ''} `, rb);
   card.appendChild(name);
 
   if (game.author) {
@@ -919,7 +923,7 @@ function paintHi() {
 // we only normalize silently when about to overflow the strip.
 // ============================================
 function navigate(delta) {
-  if (launched) return;
+  if (launched || !N) return;
   // Pre-empt overflow: if the next step would walk off the strip, jump
   // silently to the middle copy first. Content at every visible offset
   // is identical across copies, so the user doesn't see the jump.
@@ -937,7 +941,7 @@ function navigate(delta) {
 // copy of `newSel` closest to the current stripPos so the slide is the
 // shortest path.
 function navigateTo(newSel) {
-  if (launched) return;
+  if (launched || !N) return;
   if (newSel === sel) { launch(); return; }
   let target = canonicalStripFor(newSel);
   for (let c = 0; c < COPIES; c++) {
@@ -1227,7 +1231,14 @@ window.addEventListener('resize', () => {
   try {
     GAMES = await (await fetch('games.json')).json();
   } catch (e) {
+    // A failed catalogue fetch must not leave a silent blank screen.
     console.error('[arcade] failed to load games.json', e);
+    const msg = document.createElement('div');
+    msg.textContent = "Couldn't load the arcade — please refresh.";
+    msg.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;' +
+      'justify-content:center;text-align:center;padding:24px;color:#ff3aa1;' +
+      'font-size:14px;letter-spacing:0.12em;';
+    document.body.appendChild(msg);
     return;
   }
   N = GAMES.length;
