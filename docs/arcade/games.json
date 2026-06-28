@@ -21,6 +21,13 @@
     "author": "Oyster"
   },
   {
+    "id": "carrier-defense",
+    "name": "CARRIER DEFENSE",
+    "author": "Henry",
+    "url": "https://oyster-to.github.io/arcade-games/games/carrier-defense/",
+    "cover": "https://oyster-to.github.io/arcade-games/games/carrier-defense/cover.svg"
+  },
+  {
     "id": "black-hole-fishing",
     "name": "BLACK HOLE FISHING",
     "comingSoon": true,
