@@ -116,7 +116,10 @@ export default {
         new Request(new URL('/games.first-party.json', req.url)),
       );
       const fpJson = fpRes.ok ? await fpRes.json().catch(() => []) : [];
-      const firstParty = (Array.isArray(fpJson) ? fpJson : []) as Array<{ id: string; comingSoon?: boolean }>;
+      // Validate elements too (not just Array-ness) so a bad/partial first-party
+      // file can't throw on .map/.findIndex and take down the whole catalogue.
+      const firstParty = (Array.isArray(fpJson) ? fpJson : [])
+        .filter((g: any) => g && typeof g.id === 'string') as Array<{ id: string; comingSoon?: boolean }>;
 
       // Contributed games from the arcade-games Pages index. Time-boxed so a
       // slow / down Pages can't hang the catalogue; falls back to first-party.
