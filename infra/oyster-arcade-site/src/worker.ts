@@ -80,6 +80,25 @@ export default {
       return handleRegistry(req, d1Db(env.DB), env.EDIT_KEY_SECRET);
     }
 
+    // ─── /install — agent-readable "how to add a game" guide, proxied from the
+    // arcade-games repo so it's a single source of truth. Lets a contributor's
+    // agent do exactly: "read arcade.oyster.to/install and follow it".
+    if (url.pathname === '/install' || url.pathname === '/install/') {
+      const upstream = await fetch(
+        'https://raw.githubusercontent.com/oyster-to/arcade-games/main/AGENTS.md',
+      );
+      const body = upstream.ok
+        ? await upstream.text()
+        : '# Oyster Arcade — add a game\n\nGuide temporarily unavailable. See https://github.com/oyster-to/arcade-games';
+      return new Response(body, {
+        status: upstream.ok ? 200 : 502,
+        headers: {
+          'content-type': 'text/markdown; charset=utf-8',
+          'cache-control': 'public, max-age=300',
+        },
+      });
+    }
+
     // ─── Pretty share links: /s/<id>[@rev] → groovebox app with ?s=<id> ───────
     // Redirect (not rewrite): index.html uses all-relative asset refs, so
     // serving the app AT /s/<id> would break them. On groovebox.oyster.to the
