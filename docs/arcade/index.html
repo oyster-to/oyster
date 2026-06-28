@@ -1166,7 +1166,42 @@ window.addEventListener('message', e => {
   if (!e || !e.data) return;
   if (frame && e.source !== frame.contentWindow) return;
   const t = e.data.type;
-  if (t === 'arcade-close' || t === 'oyster-rocket-close') close();
+  if (t === 'arcade-close' || t === 'oyster-rocket-close') { close(); return; }
+
+  // The remaining messages only make sense while a game is running.
+  if (!launched) return;
+  const g = GAMES[sel];
+  if (!g) return;
+
+  // Game booted → hand it the current shared high score so it can display the
+  // real best (instead of a private localStorage value).
+  if (t === 'arcade-ready') {
+    Arcade.Leaderboard.init({ game: g.id, max: 10 });
+    const top = Arcade.Leaderboard.getHighScore();
+    try {
+      frame.contentWindow.postMessage({
+        protocol: 'oyster-arcade', v: 1, type: 'arcade-init',
+        payload: { embedded: true, highScore: top ? { score: top.score, initials: top.initials } : null },
+      }, '*');
+    } catch (_) {}
+    return;
+  }
+
+  // Game reported a score → record it on the shared, per-game leaderboard. The
+  // cabinet owns the board (cross-origin games can't write it directly);
+  // initials come from the game's own entry, defaulting if absent.
+  if (t === 'arcade-score') {
+    const p = (e.data && e.data.payload) || e.data;
+    const value = Number(p && p.value);
+    if (!Number.isFinite(value) || value <= 0) return;
+    const initials = String((p && p.initials) || 'AAA')
+      .toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3).padEnd(3, 'A') || 'AAA';
+    Arcade.Leaderboard.init({ game: g.id, max: 10 });
+    Arcade.Leaderboard.refresh().then(() => {
+      if (Arcade.Leaderboard.qualifies(value)) Arcade.Leaderboard.submit(value, initials);
+    }).catch(() => {});
+    return;
+  }
 });
 
 // ============================================
