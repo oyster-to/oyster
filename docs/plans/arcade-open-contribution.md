@@ -138,7 +138,7 @@ arcade-games/
   <game-id>/
     game.json        ← manifest (required)
     index.html       ← entry point (required; overridable via manifest.entry)
-    thumb.png        ← carousel thumbnail (required; 480×480 recommended)
+    cover.svg        ← carousel card art (required; SVG or PNG, ~square)
     ...              ← any other assets the game references (relative paths only)
 ```
 
@@ -172,7 +172,7 @@ these, so adding a game never touches chrome code.
 | `tagline` | ✓ | string | One line for the card / coming-soon flyer. |
 | `description` |  | string | Longer blurb. |
 | `entry` |  | string | Defaults to `index.html`. |
-| `thumbnail` |  | string | Defaults to `thumb.png`. |
+| `cover` | ✓ | string | Carousel card art. Image file (SVG or PNG) in the game folder; defaults to `cover.svg`. Rendered via `<img>` (so SVG can't script). |
 | `palette` |  | object | `{ bg1, bg2, accent, neon }` hex — themes the card, matches today's `GAMES` palette. |
 | `controls` |  | string[] | e.g. `["arrows","tap"]` — drives touch hints + a controls badge. |
 | `orientation` |  | `any\|portrait\|landscape` | Default `any`. |

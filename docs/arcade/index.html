@@ -209,11 +209,10 @@
     justify-content: center;
     padding: clamp(14px, 2vw, 24px);
   }
-  .game-thumb svg {
+  .game-thumb img {
     width: 85%;
     height: 85%;
     image-rendering: pixelated;
-    shape-rendering: crispEdges;
   }
   .game-name {
     font-size: clamp(15px, 2.6vw, 24px);
@@ -743,233 +742,16 @@
 <audio id="sfx-game-intro" src="sfx-oyster.wav"     preload="auto"></audio>
 
 <!-- Pixel-art previews. -->
-<template id="preview-rocket-ship">
-  <svg viewBox="0 0 22 30" aria-hidden="true">
-    <rect x="10" y="0" width="2" height="2" fill="#ff4444"/>
-    <rect x="9"  y="2" width="4" height="2" fill="#ff4444"/>
-    <rect x="8"  y="4" width="6" height="2" fill="#ff4444"/>
-    <rect x="7"  y="6"  width="8"  height="8" fill="#ffffff"/>
-    <rect x="13" y="6"  width="2"  height="8" fill="#c8c8c8"/>
-    <rect x="6"  y="14" width="10" height="4" fill="#ffffff"/>
-    <rect x="14" y="14" width="2"  height="4" fill="#c8c8c8"/>
-    <rect x="9"  y="8"  width="4" height="4" fill="#2dd4ff"/>
-    <rect x="10" y="9"  width="2" height="1" fill="#aef0ff"/>
-    <rect x="6"  y="16" width="10" height="1" fill="#ff3aa1"/>
-    <rect x="3"  y="14" width="3" height="2" fill="#ff4444"/>
-    <rect x="2"  y="16" width="4" height="2" fill="#ff4444"/>
-    <rect x="0"  y="18" width="4" height="2" fill="#ff4444"/>
-    <rect x="16" y="14" width="3" height="2" fill="#ff4444"/>
-    <rect x="16" y="16" width="4" height="2" fill="#ff4444"/>
-    <rect x="18" y="18" width="4" height="2" fill="#ff4444"/>
-    <rect x="7"  y="18" width="8" height="2" fill="#555555"/>
-    <rect x="8"  y="20" width="6" height="1" fill="#333333"/>
-    <rect x="8"  y="21" width="6" height="2" fill="#ffd84a"/>
-    <rect x="9"  y="23" width="4" height="2" fill="#ff8800"/>
-    <rect x="9"  y="25" width="4" height="2" fill="#ffd84a"/>
-    <rect x="10" y="27" width="2" height="2" fill="#ffffff"/>
-  </svg>
-</template>
-<template id="preview-coming-soon">
-  <svg viewBox="0 0 22 30" aria-hidden="true">
-    <rect width="22" height="30" fill="#1a1535"/>
-    <rect x="7"  y="6"  width="8" height="2" fill="#2dd4ff" opacity="0.75"/>
-    <rect x="5"  y="8"  width="2" height="2" fill="#2dd4ff" opacity="0.75"/>
-    <rect x="15" y="8"  width="2" height="2" fill="#2dd4ff" opacity="0.75"/>
-    <rect x="15" y="10" width="2" height="2" fill="#2dd4ff" opacity="0.75"/>
-    <rect x="13" y="12" width="2" height="2" fill="#2dd4ff" opacity="0.75"/>
-    <rect x="11" y="14" width="2" height="2" fill="#2dd4ff" opacity="0.75"/>
-    <rect x="9"  y="16" width="2" height="2" fill="#2dd4ff" opacity="0.75"/>
-    <rect x="9"  y="18" width="2" height="2" fill="#2dd4ff" opacity="0.75"/>
-    <rect x="9"  y="22" width="2" height="2" fill="#2dd4ff" opacity="0.75"/>
-    <rect x="2"  y="3"  width="1" height="1" fill="#fff" opacity="0.25"/>
-    <rect x="18" y="2"  width="1" height="1" fill="#fff" opacity="0.25"/>
-    <rect x="3"  y="14" width="1" height="1" fill="#fff" opacity="0.25"/>
-    <rect x="19" y="22" width="1" height="1" fill="#fff" opacity="0.25"/>
-    <rect x="14" y="27" width="1" height="1" fill="#fff" opacity="0.25"/>
-  </svg>
-</template>
-<template id="preview-space-jumper">
-  <svg viewBox="0 0 32 32" aria-hidden="true">
-    <rect width="32" height="32" fill="#1a1535"/>
-    <rect x="4"  y="3" width="1" height="1" fill="#fff"/>
-    <rect x="11" y="6" width="1" height="1" fill="#fff"/>
-    <rect x="22" y="2" width="1" height="1" fill="#fff"/>
-    <rect x="27" y="7" width="1" height="1" fill="#fff"/>
-    <rect x="0" y="26" width="32" height="6" fill="#3b2f1a"/>
-    <rect x="0" y="26" width="32" height="1" fill="#5a4a2a"/>
-    <rect x="0" y="26" width="32" height="1" fill="#2dd4ff" opacity="0.65"/>
-    <rect x="13" y="18" width="7" height="3" fill="#3b2f1a"/>
-    <rect x="13" y="18" width="7" height="1" fill="#2dd4ff" opacity="0.6"/>
-    <!-- Alien — green critter with antennae, on the right side of the floor -->
-    <rect x="22" y="19" width="1" height="1" fill="#ff3aa1"/>
-    <rect x="25" y="19" width="1" height="1" fill="#ff3aa1"/>
-    <rect x="22" y="20" width="1" height="1" fill="#22c55e"/>
-    <rect x="25" y="20" width="1" height="1" fill="#22c55e"/>
-    <rect x="21" y="21" width="6" height="2" fill="#4ade80"/>
-    <rect x="22" y="22" width="1" height="1" fill="#0a0a14"/>
-    <rect x="25" y="22" width="1" height="1" fill="#0a0a14"/>
-    <rect x="22" y="23" width="4" height="2" fill="#22c55e"/>
-    <rect x="21" y="25" width="2" height="1" fill="#0f5132"/>
-    <rect x="25" y="25" width="2" height="1" fill="#0f5132"/>
-    <!-- Steve — chunky pixel hero. Cap + face + shirt + belt + legs. -->
-    <!-- Cap (red): crown + overhanging brim + peak fringe -->
-    <rect x="5"  y="13" width="6" height="2" fill="#a855f7"/>
-    <rect x="4"  y="15" width="8" height="1" fill="#a855f7"/>
-    <rect x="9"  y="16" width="2" height="1" fill="#a855f7"/>
-    <!-- Face (skin) -->
-    <rect x="5"  y="16" width="6" height="3" fill="#ffd6c8"/>
-    <!-- Eye + mouth -->
-    <rect x="8"  y="17" width="2" height="1" fill="#0a0a0a"/>
-    <rect x="6"  y="19" width="3" height="1" fill="#0a0a0a"/>
-    <!-- Shirt (pink) -->
-    <rect x="5"  y="20" width="6" height="3" fill="#ff3aa1"/>
-    <!-- Shoulder shading + arms (darker pink) + skin hands -->
-    <rect x="5"  y="20" width="6" height="1" fill="#c92670"/>
-    <rect x="3"  y="20" width="2" height="2" fill="#c92670"/>
-    <rect x="11" y="20" width="2" height="2" fill="#c92670"/>
-    <rect x="3"  y="22" width="2" height="1" fill="#ffd6c8"/>
-    <rect x="11" y="22" width="2" height="1" fill="#ffd6c8"/>
-    <!-- Belt + brass buckle -->
-    <rect x="5"  y="22" width="6" height="1" fill="#ffd84a"/>
-    <rect x="7"  y="22" width="2" height="1" fill="#c79b00"/>
-    <!-- Legs (cyan) + feet (dark) -->
-    <rect x="5"  y="23" width="2" height="3" fill="#2dd4ff"/>
-    <rect x="9"  y="23" width="2" height="3" fill="#2dd4ff"/>
-    <rect x="4"  y="25" width="3" height="1" fill="#0a0a0a"/>
-    <rect x="9"  y="25" width="3" height="1" fill="#0a0a0a"/>
-    <circle cx="16" cy="14" r="1.6" fill="#ffd84a"/>
-    <circle cx="16" cy="14" r="0.7" fill="#c79b00"/>
-    <rect x="28" y="14" width="1" height="12" fill="#fff"/>
-    <polygon points="29,15 32,16.5 29,18" fill="#2dd4ff"/>
-  </svg>
-</template>
-<template id="preview-invaders">
-  <svg viewBox="0 0 32 32" aria-hidden="true">
-    <rect width="32" height="32" fill="#04050f"/>
-    <!-- Starfield -->
-    <rect x="4"  y="3" width="1" height="1" fill="#fff"/>
-    <rect x="22" y="2" width="1" height="1" fill="#fff"/>
-    <rect x="27" y="7" width="1" height="1" fill="#fff"/>
-    <!-- UFO band — single purple saucer with cyan glint -->
-    <rect x="13" y="5" width="6" height="2" fill="#a855f7"/>
-    <rect x="15" y="4" width="2" height="1" fill="#a855f7"/>
-    <rect x="14" y="6" width="1" height="1" fill="#2dd4ff"/>
-    <rect x="17" y="6" width="1" height="1" fill="#2dd4ff"/>
-    <!-- Invader row 1 (cyan squids) -->
-    <rect x="6"  y="11" width="3" height="2" fill="#2dd4ff"/>
-    <rect x="14" y="11" width="3" height="2" fill="#2dd4ff"/>
-    <rect x="22" y="11" width="3" height="2" fill="#2dd4ff"/>
-    <!-- Invader row 2 (pink crabs) -->
-    <rect x="6"  y="15" width="3" height="2" fill="#ff3aa1"/>
-    <rect x="14" y="15" width="3" height="2" fill="#ff3aa1"/>
-    <rect x="22" y="15" width="3" height="2" fill="#ff3aa1"/>
-    <!-- Invader row 3 (green octopi) -->
-    <rect x="6"  y="19" width="3" height="2" fill="#4ade80"/>
-    <rect x="14" y="19" width="3" height="2" fill="#4ade80"/>
-    <rect x="22" y="19" width="3" height="2" fill="#4ade80"/>
-    <!-- Shields (purple) -->
-    <rect x="5"  y="24" width="4" height="2" fill="#a855f7"/>
-    <rect x="14" y="24" width="4" height="2" fill="#a855f7"/>
-    <rect x="23" y="24" width="4" height="2" fill="#a855f7"/>
-    <!-- Player ship (cyan) -->
-    <rect x="15" y="28" width="2" height="2" fill="#2dd4ff"/>
-    <rect x="14" y="29" width="4" height="1" fill="#2dd4ff"/>
-    <rect x="15" y="27" width="2" height="1" fill="#2dd4ff"/>
-  </svg>
-</template>
-
 <script src="shared/touch.js"></script>
 <script src="shared/leaderboard.js"></script>
 <script src="shared/audio.js"></script>
 <script>
 // ============================================
-// CATALOGUE — add a new game here + its preview <template> above.
+// CATALOGUE — games live in games.json (fetched at boot, see boot() below).
+// Add a game there + a cover image under covers/; this file isn't touched.
 // ============================================
-const GAMES = [
-  { id: 'rocket-ship', name: 'ROCKET SHIP', url: 'https://oyster.to/rocket-ship.html', preview: 'preview-rocket-ship' },
-  { id: 'space-jumper', name: 'SPACE JUMPER', url: 'space-jumper/',                      preview: 'preview-space-jumper' },
-  { id: 'invaders', name: 'INVADERS', url: 'invaders/', preview: 'preview-invaders' },
-  {
-    id: 'black-hole-fishing', name: 'BLACK HOLE FISHING',
-    preview: 'preview-coming-soon', comingSoon: true,
-    tagline: 'Reel in space junk through warped gravity',
-    features: [
-      'Cast a gravity hook into deep space',
-      'Time slingshots around black holes',
-      'Watch out for hungry star-fish',
-    ],
-    palette: { bg1: '#1a0c3a', bg2: '#04081f', accent: '#2dd4ff', neon: '#a855f7' },
-  },
-  {
-    id: 'comet-race', name: 'COMET RACE',
-    preview: 'preview-coming-soon', comingSoon: true,
-    tagline: 'Burn neon trails through asteroid lanes',
-    features: [
-      'Ride a comet down a winding lane',
-      'Drift around moons for a speed boost',
-      'Outrun a rival rocket on every lap',
-    ],
-    palette: { bg1: '#3a0d22', bg2: '#0c0418', accent: '#ff8800', neon: '#ffd84a' },
-  },
-  {
-    id: 'star-fight', name: 'STAR FIGHT',
-    preview: 'preview-coming-soon', comingSoon: true,
-    tagline: 'Side-scrolling shmup against the alien armada',
-    features: [
-      'Pilot a fighter through enemy waves',
-      'Power up your weapons between bosses',
-      'Memorise bullet patterns to survive',
-    ],
-    palette: { bg1: '#2a0822', bg2: '#04050f', accent: '#ff3aa1', neon: '#2dd4ff' },
-  },
-  {
-    id: 'zero-g-trainer', name: 'ZERO-G TRAINER',
-    preview: 'preview-coming-soon', comingSoon: true,
-    tagline: 'Pump iron in low gravity',
-    features: [
-      'Rhythm-press lifts in slow-mo',
-      'Heavier plates = more drift to wrestle',
-      'Don’t let the dumbbells float away',
-    ],
-    palette: { bg1: '#0c1438', bg2: '#020414', accent: '#2dd4ff', neon: '#a855f7' },
-  },
-  {
-    id: 'dead-station', name: 'DEAD STATION',
-    preview: 'preview-coming-soon', comingSoon: true,
-    tagline: 'Explore an abandoned space station',
-    features: [
-      'A torchlight is all you have',
-      'Listen for the things that listen back',
-      'Find out what happened to the crew',
-    ],
-    palette: { bg1: '#0a1a14', bg2: '#020806', accent: '#4ade80', neon: '#a855f7' },
-  },
-  {
-    id: 'star-troopers', name: 'STAR TROOPERS',
-    preview: 'preview-coming-soon', comingSoon: true,
-    tagline: 'Run and gun across alien battlefields',
-    features: [
-      'Storm enemy strongholds on foot',
-      'Pick up weapon power-ups mid-mission',
-      'Take down massive end-of-level bosses',
-    ],
-    palette: { bg1: '#1c2a0c', bg2: '#04080a', accent: '#a3e635', neon: '#ffd84a' },
-  },
-  {
-    id: 'astro-courier',
-    name: 'ASTRO COURIER',
-    preview: 'preview-coming-soon',
-    comingSoon: true,
-    tagline: 'Deliver packages between tiny planets',
-    features: [
-      'Ration fuel like your life depends on it',
-      'Slingshot around moons for speed',
-      'Outrun — or outgun — space pirates',
-    ],
-    palette: { bg1: '#1a0d3a', bg2: '#050a25', accent: '#ffd84a', neon: '#ff3aa1' },
-  },
-];
-const N = GAMES.length;
+let GAMES = [];
+let N = 0;
 const TRANSITION_MS = 400;
 
 let sel = 0;
@@ -1011,8 +793,10 @@ function buildCard(game, realIdx, isClone) {
 
   const thumb = document.createElement('div');
   thumb.className = 'game-thumb';
-  const tpl = document.getElementById(game.preview);
-  if (tpl) thumb.appendChild(tpl.content.cloneNode(true));
+  const img = document.createElement('img');
+  img.src = game.cover;
+  img.alt = '';
+  thumb.appendChild(img);
   card.appendChild(thumb);
 
   const name = document.createElement('div');
@@ -1417,19 +1201,27 @@ Arcade.Touch.bind(document.getElementById('tc-select'), launch, () => {});
 // copy. On resize, re-translate (card widths are clamp() and change
 // with viewport width, so the centre offset shifts).
 // ============================================
-mountStrip();
-stripPos = canonicalStripFor(sel);
-// Defer to the next frame so card layout (clamp() widths, flex gap)
-// is fully resolved before we measure offsetWidth — measuring during
-// the synchronous post-mount window can return 0 / stale values and
-// leave the strip translated to the wrong x.
-requestAnimationFrame(() => translateStripTo(stripPos, false));
 window.addEventListener('resize', () => {
   stripPos = canonicalStripFor(sel);
   translateStripTo(stripPos, false);
 });
 
-(async () => {
+// Catalogue lives in games.json so adding a game never touches this file.
+// Fetch it, then mount. Splash / launch timing is user-triggered, so the
+// one-tick fetch delay before first paint doesn't affect them.
+(async function boot() {
+  try {
+    GAMES = await (await fetch('games.json')).json();
+  } catch (e) {
+    console.error('[arcade] failed to load games.json', e);
+    return;
+  }
+  N = GAMES.length;
+  mountStrip();
+  stripPos = canonicalStripFor(sel);
+  // Defer to the next frame so card layout (clamp() widths, flex gap) is
+  // resolved before we measure offsetWidth.
+  requestAnimationFrame(() => translateStripTo(stripPos, false));
   for (const g of GAMES) {
     if (g.comingSoon) continue;
     Arcade.Leaderboard.init({ game: g.id, max: 10 });

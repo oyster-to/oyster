@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges" viewBox="0 0 32 32" aria-hidden="true">
+    <rect width="32" height="32" fill="#1a1535"/>
+    <rect x="4"  y="3" width="1" height="1" fill="#fff"/>
+    <rect x="11" y="6" width="1" height="1" fill="#fff"/>
+    <rect x="22" y="2" width="1" height="1" fill="#fff"/>
+    <rect x="27" y="7" width="1" height="1" fill="#fff"/>
+    <rect x="0" y="26" width="32" height="6" fill="#3b2f1a"/>
+    <rect x="0" y="26" width="32" height="1" fill="#5a4a2a"/>
+    <rect x="0" y="26" width="32" height="1" fill="#2dd4ff" opacity="0.65"/>
+    <rect x="13" y="18" width="7" height="3" fill="#3b2f1a"/>
+    <rect x="13" y="18" width="7" height="1" fill="#2dd4ff" opacity="0.6"/>
+    <!-- Alien — green critter with antennae, on the right side of the floor -->
+    <rect x="22" y="19" width="1" height="1" fill="#ff3aa1"/>
+    <rect x="25" y="19" width="1" height="1" fill="#ff3aa1"/>
+    <rect x="22" y="20" width="1" height="1" fill="#22c55e"/>
+    <rect x="25" y="20" width="1" height="1" fill="#22c55e"/>
+    <rect x="21" y="21" width="6" height="2" fill="#4ade80"/>
+    <rect x="22" y="22" width="1" height="1" fill="#0a0a14"/>
+    <rect x="25" y="22" width="1" height="1" fill="#0a0a14"/>
+    <rect x="22" y="23" width="4" height="2" fill="#22c55e"/>
+    <rect x="21" y="25" width="2" height="1" fill="#0f5132"/>
+    <rect x="25" y="25" width="2" height="1" fill="#0f5132"/>
+    <!-- Steve — chunky pixel hero. Cap + face + shirt + belt + legs. -->
+    <!-- Cap (red): crown + overhanging brim + peak fringe -->
+    <rect x="5"  y="13" width="6" height="2" fill="#a855f7"/>
+    <rect x="4"  y="15" width="8" height="1" fill="#a855f7"/>
+    <rect x="9"  y="16" width="2" height="1" fill="#a855f7"/>
+    <!-- Face (skin) -->
+    <rect x="5"  y="16" width="6" height="3" fill="#ffd6c8"/>
+    <!-- Eye + mouth -->
+    <rect x="8"  y="17" width="2" height="1" fill="#0a0a0a"/>
+    <rect x="6"  y="19" width="3" height="1" fill="#0a0a0a"/>
+    <!-- Shirt (pink) -->
+    <rect x="5"  y="20" width="6" height="3" fill="#ff3aa1"/>
+    <!-- Shoulder shading + arms (darker pink) + skin hands -->
+    <rect x="5"  y="20" width="6" height="1" fill="#c92670"/>
+    <rect x="3"  y="20" width="2" height="2" fill="#c92670"/>
+    <rect x="11" y="20" width="2" height="2" fill="#c92670"/>
+    <rect x="3"  y="22" width="2" height="1" fill="#ffd6c8"/>
+    <rect x="11" y="22" width="2" height="1" fill="#ffd6c8"/>
+    <!-- Belt + brass buckle -->
+    <rect x="5"  y="22" width="6" height="1" fill="#ffd84a"/>
+    <rect x="7"  y="22" width="2" height="1" fill="#c79b00"/>
+    <!-- Legs (cyan) + feet (dark) -->
+    <rect x="5"  y="23" width="2" height="3" fill="#2dd4ff"/>
+    <rect x="9"  y="23" width="2" height="3" fill="#2dd4ff"/>
+    <rect x="4"  y="25" width="3" height="1" fill="#0a0a0a"/>
+    <rect x="9"  y="25" width="3" height="1" fill="#0a0a0a"/>
+    <circle cx="16" cy="14" r="1.6" fill="#ffd84a"/>
+    <circle cx="16" cy="14" r="0.7" fill="#c79b00"/>
+    <rect x="28" y="14" width="1" height="12" fill="#fff"/>
+    <polygon points="29,15 32,16.5 29,18" fill="#2dd4ff"/>
+  </svg>
