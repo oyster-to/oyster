@@ -1177,13 +1177,17 @@ window.addEventListener('message', e => {
   // real best (instead of a private localStorage value).
   if (t === 'arcade-ready') {
     Arcade.Leaderboard.init({ game: g.id, max: 10 });
-    const top = Arcade.Leaderboard.getHighScore();
-    try {
-      frame.contentWindow.postMessage({
-        protocol: 'oyster-arcade', v: 1, type: 'arcade-init',
-        payload: { embedded: true, highScore: top ? { score: top.score, initials: top.initials } : null },
-      }, '*');
-    } catch (_) {}
+    // Refresh from the backend first so the game gets the *current* shared top,
+    // not just this browser's possibly-stale localStorage mirror.
+    Arcade.Leaderboard.refresh().catch(() => {}).then(() => {
+      const top = Arcade.Leaderboard.getHighScore();
+      try {
+        frame.contentWindow.postMessage({
+          protocol: 'oyster-arcade', v: 1, type: 'arcade-init',
+          payload: { embedded: true, highScore: top ? { score: top.score, initials: top.initials } : null },
+        }, '*');
+      } catch (_) {}
+    });
     return;
   }
 

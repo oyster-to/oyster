@@ -115,15 +115,32 @@ export default {
       const fpRes = await env.ASSETS.fetch(
         new Request(new URL('/games.first-party.json', req.url)),
       );
-      const firstParty = (fpRes.ok ? await fpRes.json() : []) as Array<{ id: string; comingSoon?: boolean }>;
-      let contributed: Array<{ id: string }> = [];
+      const fpJson = fpRes.ok ? await fpRes.json().catch(() => []) : [];
+      const firstParty = (Array.isArray(fpJson) ? fpJson : []) as Array<{ id: string; comingSoon?: boolean }>;
+
+      // Contributed games from the arcade-games Pages index. Time-boxed so a
+      // slow / down Pages can't hang the catalogue; falls back to first-party.
+      let contributedRaw: unknown = [];
       try {
-        const r = await fetch('https://oyster-to.github.io/arcade-games/index.json');
-        if (r.ok) contributed = (await r.json()) as Array<{ id: string }>;
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), 3000);
+        try {
+          const r = await fetch('https://oyster-to.github.io/arcade-games/index.json', { signal: ctl.signal });
+          if (r.ok) contributedRaw = await r.json().catch(() => []);
+        } finally { clearTimeout(timer); }
       } catch { /* arcade still works on first-party alone */ }
 
+      // Validate each contributed entry has the fields the cabinet renders, and
+      // dedupe (within the contributed list and against first-party) — a
+      // malformed index.json must never break the carousel.
       const seen = new Set(firstParty.map((g) => g.id));
-      const extra = contributed.filter((g) => g && g.id && !seen.has(g.id));
+      const str = (v: unknown) => typeof v === 'string' && v.length > 0;
+      const extra = (Array.isArray(contributedRaw) ? contributedRaw : []).filter((g: any) => {
+        if (!g || !str(g.id) || !str(g.name) || !str(g.url) || !str(g.cover)) return false;
+        if (seen.has(g.id)) return false;
+        seen.add(g.id);
+        return true;
+      });
       // Keep curated order: first-party playable, then contributed, then
       // first-party coming-soon.
       const soonIdx = firstParty.findIndex((g) => g.comingSoon);
