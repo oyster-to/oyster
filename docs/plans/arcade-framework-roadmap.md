@@ -6,6 +6,11 @@
 > The canonical reference for where the arcade framework is going and why.
 > Individual sub-projects get their own design spec + plan. This doc pins the
 > shape so they stay coherent.
+>
+> **Scope:** this doc is the *authoring substrate* (how to build a game easily).
+> For the *distribution boundary* — how an outside contributor's game gets
+> packaged, sandboxed, and listed — see
+> [`arcade-open-contribution.md`](arcade-open-contribution.md).
 
 ## The goal
 

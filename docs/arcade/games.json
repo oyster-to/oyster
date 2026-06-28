@@ -1,0 +1,149 @@
+[
+  {
+    "id": "rocket-ship",
+    "name": "ROCKET SHIP",
+    "url": "https://oyster.to/rocket-ship.html",
+    "cover": "covers/rocket-ship.svg",
+    "author": "Oyster"
+  },
+  {
+    "id": "space-jumper",
+    "name": "SPACE JUMPER",
+    "url": "space-jumper/",
+    "cover": "covers/space-jumper.svg",
+    "author": "Oyster"
+  },
+  {
+    "id": "invaders",
+    "name": "INVADERS",
+    "url": "invaders/",
+    "cover": "covers/invaders.svg",
+    "author": "Oyster"
+  },
+  {
+    "id": "black-hole-fishing",
+    "name": "BLACK HOLE FISHING",
+    "comingSoon": true,
+    "tagline": "Reel in space junk through warped gravity",
+    "features": [
+      "Cast a gravity hook into deep space",
+      "Time slingshots around black holes",
+      "Watch out for hungry star-fish"
+    ],
+    "palette": {
+      "bg1": "#1a0c3a",
+      "bg2": "#04081f",
+      "accent": "#2dd4ff",
+      "neon": "#a855f7"
+    },
+    "cover": "covers/coming-soon.svg"
+  },
+  {
+    "id": "comet-race",
+    "name": "COMET RACE",
+    "comingSoon": true,
+    "tagline": "Burn neon trails through asteroid lanes",
+    "features": [
+      "Ride a comet down a winding lane",
+      "Drift around moons for a speed boost",
+      "Outrun a rival rocket on every lap"
+    ],
+    "palette": {
+      "bg1": "#3a0d22",
+      "bg2": "#0c0418",
+      "accent": "#ff8800",
+      "neon": "#ffd84a"
+    },
+    "cover": "covers/coming-soon.svg"
+  },
+  {
+    "id": "star-fight",
+    "name": "STAR FIGHT",
+    "comingSoon": true,
+    "tagline": "Side-scrolling shmup against the alien armada",
+    "features": [
+      "Pilot a fighter through enemy waves",
+      "Power up your weapons between bosses",
+      "Memorise bullet patterns to survive"
+    ],
+    "palette": {
+      "bg1": "#2a0822",
+      "bg2": "#04050f",
+      "accent": "#ff3aa1",
+      "neon": "#2dd4ff"
+    },
+    "cover": "covers/coming-soon.svg"
+  },
+  {
+    "id": "zero-g-trainer",
+    "name": "ZERO-G TRAINER",
+    "comingSoon": true,
+    "tagline": "Pump iron in low gravity",
+    "features": [
+      "Rhythm-press lifts in slow-mo",
+      "Heavier plates = more drift to wrestle",
+      "Don’t let the dumbbells float away"
+    ],
+    "palette": {
+      "bg1": "#0c1438",
+      "bg2": "#020414",
+      "accent": "#2dd4ff",
+      "neon": "#a855f7"
+    },
+    "cover": "covers/coming-soon.svg"
+  },
+  {
+    "id": "dead-station",
+    "name": "DEAD STATION",
+    "comingSoon": true,
+    "tagline": "Explore an abandoned space station",
+    "features": [
+      "A torchlight is all you have",
+      "Listen for the things that listen back",
+      "Find out what happened to the crew"
+    ],
+    "palette": {
+      "bg1": "#0a1a14",
+      "bg2": "#020806",
+      "accent": "#4ade80",
+      "neon": "#a855f7"
+    },
+    "cover": "covers/coming-soon.svg"
+  },
+  {
+    "id": "star-troopers",
+    "name": "STAR TROOPERS",
+    "comingSoon": true,
+    "tagline": "Run and gun across alien battlefields",
+    "features": [
+      "Storm enemy strongholds on foot",
+      "Pick up weapon power-ups mid-mission",
+      "Take down massive end-of-level bosses"
+    ],
+    "palette": {
+      "bg1": "#1c2a0c",
+      "bg2": "#04080a",
+      "accent": "#a3e635",
+      "neon": "#ffd84a"
+    },
+    "cover": "covers/coming-soon.svg"
+  },
+  {
+    "id": "astro-courier",
+    "name": "ASTRO COURIER",
+    "comingSoon": true,
+    "tagline": "Deliver packages between tiny planets",
+    "features": [
+      "Ration fuel like your life depends on it",
+      "Slingshot around moons for speed",
+      "Outrun — or outgun — space pirates"
+    ],
+    "palette": {
+      "bg1": "#1a0d3a",
+      "bg2": "#050a25",
+      "accent": "#ffd84a",
+      "neon": "#ff3aa1"
+    },
+    "cover": "covers/coming-soon.svg"
+  }
+]
