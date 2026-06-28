@@ -106,6 +106,39 @@ export default {
       });
     }
 
+    // ─── /games.json — dynamic catalogue = curated first-party games (static,
+    // from games.first-party.json) + contributed games pulled live from the
+    // arcade-games repo's Pages-hosted index.json. So a merged game appears on
+    // the carousel within the cache window — no redeploy. If the contributed
+    // list can't be fetched, the arcade still works on first-party alone.
+    if (url.pathname === '/games.json' && url.hostname !== 'groovebox.oyster.to') {
+      const fpRes = await env.ASSETS.fetch(
+        new Request(new URL('/games.first-party.json', req.url)),
+      );
+      const firstParty = (fpRes.ok ? await fpRes.json() : []) as Array<{ id: string; comingSoon?: boolean }>;
+      let contributed: Array<{ id: string }> = [];
+      try {
+        const r = await fetch('https://oyster-to.github.io/arcade-games/index.json');
+        if (r.ok) contributed = (await r.json()) as Array<{ id: string }>;
+      } catch { /* arcade still works on first-party alone */ }
+
+      const seen = new Set(firstParty.map((g) => g.id));
+      const extra = contributed.filter((g) => g && g.id && !seen.has(g.id));
+      // Keep curated order: first-party playable, then contributed, then
+      // first-party coming-soon.
+      const soonIdx = firstParty.findIndex((g) => g.comingSoon);
+      const merged = soonIdx < 0
+        ? [...firstParty, ...extra]
+        : [...firstParty.slice(0, soonIdx), ...extra, ...firstParty.slice(soonIdx)];
+
+      return new Response(JSON.stringify(merged), {
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+          'cache-control': 'public, max-age=60',
+        },
+      });
+    }
+
     // ─── Pretty share links: /s/<id>[@rev] → groovebox app with ?s=<id> ───────
     // Redirect (not rewrite): index.html uses all-relative asset refs, so
     // serving the app AT /s/<id> would break them. On groovebox.oyster.to the
