@@ -1176,14 +1176,24 @@ window.addEventListener('message', e => {
   // Game booted → hand it the current shared high score so it can display the
   // real best (instead of a private localStorage value).
   if (t === 'arcade-ready') {
-    Arcade.Leaderboard.init({ game: g.id, max: 10 });
-    const top = Arcade.Leaderboard.getHighScore();
-    try {
-      frame.contentWindow.postMessage({
-        protocol: 'oyster-arcade', v: 1, type: 'arcade-init',
-        payload: { embedded: true, highScore: top ? { score: top.score, initials: top.initials } : null },
-      }, '*');
-    } catch (_) {}
+    const readyId = g.id;
+    const target = e.source;            // the game's window at ready time
+    Arcade.Leaderboard.init({ game: readyId, max: 10 });
+    // Refresh from the backend first so the game gets the *current* shared top,
+    // not just this browser's possibly-stale localStorage mirror.
+    Arcade.Leaderboard.refresh().catch(() => {}).then(() => {
+      // The player may have closed / switched games during the async refresh —
+      // only reply if the same game is still running in the same frame.
+      if (!launched || !GAMES[sel] || GAMES[sel].id !== readyId || !frame || frame.contentWindow !== target) return;
+      Arcade.Leaderboard.init({ game: readyId, max: 10 });
+      const top = Arcade.Leaderboard.getHighScore();
+      try {
+        target.postMessage({
+          protocol: 'oyster-arcade', v: 1, type: 'arcade-init',
+          payload: { embedded: true, highScore: top ? { score: top.score, initials: top.initials } : null },
+        }, '*');
+      } catch (_) {}
+    });
     return;
   }
 
