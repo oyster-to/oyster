@@ -12,11 +12,11 @@
   "dependencies": {
     "@lydell/node-pty": "^1.2.0-beta.12",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "better-sqlite3": "^12.10.0",
+    "better-sqlite3": "^12.11.1",
     "chokidar": "^4.0.3",
     "ignore": "^7.0.5",
     "marked": "^18.0.5",
-    "opencode-ai": "^1.16.2",
+    "opencode-ai": "^1.17.8",
     "ws": "^8.21.0"
   },
   "devDependencies": {
@@ -25,6 +25,6 @@
     "@types/ws": "^8.18.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.9"
   }
 }
