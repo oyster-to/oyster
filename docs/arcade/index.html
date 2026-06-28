@@ -233,6 +233,12 @@
   }
   .game-hi .hi-val { color: #ffd84a; }
   .game-hi .hi-initials { color: #2dd4ff; }
+  .game-by {
+    font-size: clamp(8px, 1.2vw, 11px);
+    letter-spacing: 0.18em;
+    color: rgba(170, 196, 224, 0.6);
+    display: none;
+  }
   .game-prompt {
     font-size: clamp(10px, 1.6vw, 14px);
     letter-spacing: 0.18em;
@@ -242,6 +248,7 @@
     display: none;
   }
   .game-card.is-focused .game-hi,
+  .game-card.is-focused .game-by,
   .game-card.is-focused .game-prompt { display: block; }
 
   /* Coming-soon placeholder card — desaturated, distinct prompt. */
@@ -803,6 +810,13 @@ function buildCard(game, realIdx, isClone) {
   name.className = 'game-name';
   name.innerHTML = '<span class="br">[</span> ' + game.name + ' <span class="br">]</span>';
   card.appendChild(name);
+
+  if (game.author) {
+    const by = document.createElement('div');
+    by.className = 'game-by';
+    by.textContent = 'BY ' + game.author.toUpperCase();
+    card.appendChild(by);
+  }
 
   if (!game.comingSoon) {
     const hi = document.createElement('div');
