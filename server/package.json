@@ -14,17 +14,17 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^12.11.1",
     "chokidar": "^4.0.3",
-    "ignore": "^7.0.5",
-    "marked": "^18.0.5",
-    "opencode-ai": "^1.17.8",
+    "ignore": "^7.0.6",
+    "marked": "^18.0.6",
+    "opencode-ai": "^1.17.18",
     "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.9.2",
     "@types/ws": "^8.18.0",
-    "tsx": "^4.22.4",
+    "tsx": "^4.23.0",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.10"
   }
 }
